@@ -180,9 +180,33 @@ already-resolved, per-user view through MCP tools. A service with no valid bundl
 refuses to serve. A bad reload keeps the last good version. Rollback means moving the
 `current` pointer back.
 
-## 7. Deployment views
+## 7. Environments and endpoint exposure
 
-| Aspect | Local (Stages 0–6) | GCP (Stage 7+) |
+| Environment | Where it runs | How users reach it | TLS / DNS |
+|---|---|---|---|
+| **Development** (`dev`) | Docker Compose on a developer machine | **Both**: `localhost` (4180 UI, 8080 MCP) for the developer, and a **Cloudflare Tunnel** for testers: `app-sdlc-dev.shaheenks.co.in`, `mcp-sdlc-dev.shaheenks.co.in` | Localhost: plain HTTP (Entra allows `http://localhost` callbacks). Tunnel: TLS ends at Cloudflare's edge (Universal SSL); outbound-only connector, no inbound ports |
+| **Higher environments** (staging, prod) | GCP (Stage 7): Cloud Run / load balancer | **Hosted directly** on their own public hostnames. **No tunnel and no localhost access** | DNS **CNAME** to the platform endpoint (Cloud Run domain mapping or load balancer) and a **managed certificate** (Google-managed or Cloudflare edge + origin certificate) |
+
+Rules that follow from this:
+- **Dev needs both paths.** Two oauth2-proxy instances share one Entra client: `oauth2-proxy`
+  with a fixed `http://localhost:4180/oauth2/callback`, and `oauth2-proxy-public` with a fixed
+  `https://app-sdlc-dev…/oauth2/callback`, `Secure` cookies and reverse-proxy mode. Both
+  callbacks are registered on the dev Entra client.
+- **Higher environments** run a single public oauth2-proxy (or the platform's equivalent) with
+  that environment's HTTPS callback only. **No `localhost` redirect URIs** and no Azure CLI
+  pre-authorization in their Entra registrations (gap E6); `MCP_PUBLIC_URL` is the environment's
+  own MCP hostname.
+- **Hostnames:** `<service>-sdlc-<env>.shaheenks.co.in` (for example `app-sdlc-stg…`,
+  `mcp-sdlc-stg…`); prod may drop the suffix (`app-sdlc.shaheenks.co.in`). Keep names one level
+  below the zone so a single wildcard certificate covers them.
+- **Hostnames are configuration, not code:** `SDLC_APP_HOST`, `SDLC_MCP_HOST` and
+  `MCP_PUBLIC_URL` per environment. Nothing in code may assume `localhost` or a tunnel.
+
+Details for dev exposure: [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md).
+
+## 8. Deployment views
+
+| Aspect | Development: local + Cloudflare Tunnel (Stages 0–6) | Higher environments on GCP (Stage 7+) |
 |---|---|---|
 | Agent | `agent-bootstrap` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` or publicly via Cloudflare Tunnel (host connector) → `oauth2-proxy-public` (localhost:4181) at `https://app-sdlc-dev.shaheenks.co.in` | Cloud Run → Vertex AI Agent Engine (for Gemini Enterprise) |
 | MCP server | `mcp-bootstrap` container (`localhost:8080`; public `https://mcp-sdlc-dev.shaheenks.co.in/mcp` via Cloudflare Tunnel) | Cloud Run |
@@ -192,8 +216,9 @@ refuses to serve. A bad reload keeps the last good version. Rollback means movin
 | Secrets | `.env` | Secret Manager |
 | Model | Gemini API key or ADC | Vertex AI (service account) |
 | Identity | Entra test tenant/groups | Entra + Workforce Identity Federation |
+| Endpoints | `localhost:4180` / `:8080` + tunnel `app-/mcp-sdlc-dev.shaheenks.co.in` | Direct public hostnames per environment: DNS CNAME + managed certificate; no tunnel |
 
-## 8. Growth path
+## 9. Growth path
 
 The platform starts as one agent, one MCP server, one ingest CLI and one database; that is
 the `bootstrap/` component in each area. It grows by adding **sibling components**: more

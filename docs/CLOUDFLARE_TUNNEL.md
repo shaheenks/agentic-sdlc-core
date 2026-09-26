@@ -1,5 +1,9 @@
 # Public endpoints: Cloudflare Tunnel
 
+> **Scope: development environment only.** Dev is reachable both on `localhost` and through
+> this tunnel. Higher environments (staging, prod) are hosted directly with a DNS CNAME and a
+> managed certificate, without a tunnel (see [ARCHITECTURE.md](ARCHITECTURE.md) §7).
+
 The local stack is exposed to users of the Entra tenant through a Cloudflare Tunnel. The
 connector dials out to Cloudflare, so no inbound ports are opened on this machine. TLS ends at
 Cloudflare's edge with the zone's certificate. The tunnel and its hostnames are **managed in

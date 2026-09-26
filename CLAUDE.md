@@ -64,6 +64,17 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
 - Audit every tool call: oid, teams, roles, tool, args hash, decision, matched rule, config_version.
 - Secrets only in `.env` (local) / Secret Manager (GCP). Never commit them.
 
+## Environments and endpoints
+See ARCHITECTURE.md §7.
+- **Development** must work on **both** `localhost` (UI :4180, MCP :8080) **and** the Cloudflare Tunnel
+  (`app-sdlc-dev` / `mcp-sdlc-dev.shaheenks.co.in`). Keep both oauth2-proxy instances and both Entra callbacks working;
+  test changes to sign-in, cookies or URLs on both paths.
+- **Higher environments** (staging, prod) are hosted directly: DNS CNAME + managed certificate, no tunnel, no localhost
+  callbacks, no Azure CLI pre-authorization.
+- Hostnames and public URLs are configuration (`SDLC_APP_HOST`, `SDLC_MCP_HOST`, `MCP_PUBLIC_URL`), never hard-coded;
+  code must not assume `localhost` or a tunnel. Use `<service>-sdlc-<env>.shaheenks.co.in` (one level below the zone).
+- After changing Entra redirect URIs, check each entry separately (`az ad app show … -o json`), not the joined TSV output.
+
 ## Enterprise tenants
 See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md.
 - Keep identity tenant-agnostic: tenant/app IDs come from env, group IDs from the git-ignored groups.yaml.

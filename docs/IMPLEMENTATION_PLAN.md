@@ -355,6 +355,7 @@ Each stage is independently deployable and has an exit gate. New config kinds ar
 - **Gate:** ✅ users in different groups see different `whoami` (live); ✅ no token → 401; ✅ invalid config → startup fails. ✅ **2d (live):** paul and ana each run the skill flow through oauth2-proxy in the browser, and the MCP audit shows their own UPNs; sessions are not visible to each other. Automated: `tests/web/test_app.py` (isolation, /dev restrictions) and `tests/e2e/test_stage2_agent.py` (needs `SDLC_E2E_USER_TOKEN`).
 
 #### Public exposure (added after Stage 2)
+- **Environment rule:** development is reachable **both** on `localhost` and through the Cloudflare Tunnel. **Higher environments (staging, prod) are hosted directly**: DNS CNAME to the platform endpoint and a managed certificate, with no tunnel and no localhost callbacks. See ARCHITECTURE.md §7.
 - ✅ Cloudflare Tunnel (managed in the dashboard; connector = `Cloudflared` Windows service on the host): `app-sdlc-dev.shaheenks.co.in` → `localhost:4181` (`oauth2-proxy-public`), `mcp-sdlc-dev.shaheenks.co.in` → `localhost:8080` (MCP server). Verified publicly: valid TLS, sign-in callback on the public host, MCP 401 with public metadata. Public oauth2-proxy opt-in with `docker compose --profile tunnel`. Two oauth2-proxy instances share one Entra client: local (`http://localhost:4180`, fixed callback) and public (fixed HTTPS callback, `Secure` cookies, reverse-proxy mode). `MCP_PUBLIC_URL` advertises the public MCP URL in the 401 metadata. Users: tenant members assigned to `sdlc-mcp` only (no B2B guests for now). Setup: docs/CLOUDFLARE_TUNNEL.md.
 
 ### Stage 3 — RBAC from config (tools)
@@ -389,6 +390,7 @@ Each stage is independently deployable and has an exit gate. New config kinds ar
 - Terraform: Cloud Run (MCP server, agent), Cloud Run Job (ingest), Cloud SQL + pgvector, Secret Manager, Artifact Registry, Cloud Logging; Workforce Identity Federation (Entra); Vertex AI.
 - Config bundles in `gs://sdlc-config-<env>/` with a `current` pointer; Pub/Sub-triggered reload (60s poll fallback); last-known-good; rollback = pointer flip.
 - CI: validate → diff → test → compile + publish bundle → deploy; prod promotion by pointer flip after approval.
+- Endpoints (see ARCHITECTURE.md §7): each higher environment gets its own hostnames (`<service>-sdlc-<env>.shaheenks.co.in`) via DNS **CNAME** (Cloud Run domain mapping or load balancer) and a **managed certificate**. No Cloudflare Tunnel. Its Entra client registers only that environment's HTTPS callback (no localhost, no Azure CLI pre-auth); `MCP_PUBLIC_URL` / `SDLC_APP_HOST` / `SDLC_MCP_HOST` are set per environment.
 - Enterprise (E4, E5, E8): Entra app registrations via the `azuread` Terraform module; certificates or federated credentials (GCP workload identity) instead of client secrets; document JWKS egress.
 - **Gate:** Stage 1–6 gates green on GCP dev.
 
