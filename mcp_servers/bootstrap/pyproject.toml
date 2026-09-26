@@ -1,0 +1,19 @@
+[project]
+name = "sdlc-mcp-bootstrap"
+version = "0.1.0"
+description = "Starter MCP server: ping, list_skills, load_skill"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastmcp>=4.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+sdlc-mcp-bootstrap = "sdlc_mcp_bootstrap.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sdlc_mcp_bootstrap"]

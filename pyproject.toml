@@ -1,0 +1,46 @@
+[project]
+name = "agentic-sdlc"
+version = "0.1.0"
+description = "Agentic SDLC platform workspace root"
+requires-python = ">=3.12,<3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1",
+    "pytest-asyncio>=1.4",
+    "ruff>=0.16",
+    "pre-commit>=4.6",
+    "psycopg[binary]>=3.2",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+# Explicit list: add each new component here as it lands (see CLAUDE.md, "bootstrap/" convention).
+members = [
+    "mcp_servers/bootstrap",
+    "agents/bootstrap",
+]
+
+[tool.uv.sources]
+sdlc-mcp-bootstrap = { workspace = true }
+sdlc-agent-bootstrap = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.format]
+exclude = ["*.md"]  # docs hold illustrative, hand-aligned snippets
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "ASYNC"]
+ignore = ["S101"]  # assert is fine in tests
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["e2e: needs the running stack + Gemini credentials (skipped otherwise)"]
+asyncio_default_fixture_loop_scope = "function"

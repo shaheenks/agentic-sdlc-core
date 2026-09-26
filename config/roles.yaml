@@ -1,0 +1,25 @@
+apiVersion: sdlc/v1
+kind: RoleSet
+bindings:                       # global: apply regardless of team
+  - group: eng-all
+    roles: [viewer]
+  - group: platform-admins
+    roles: [admin]
+roles:
+  viewer:
+    tools:  { allow: [whoami, list_skills, load_skill, get_agent_context, search_knowledge] }
+    skills: { allow: ["tag:general"] }
+    data:   { max_classification: internal }
+  developer:
+    inherits: [viewer]
+    tools:  { allow: [graph_query, generate_tests, review_code] }
+    skills: { allow: ["tag:engineering"] }
+  lead:
+    inherits: [developer]
+    tools:  { allow: [approve_design] }
+    data:   { max_classification: confidential }
+  admin:
+    inherits: [lead]
+    tools:  { allow: ["*"] }
+    skills: { allow: ["*"] }
+    data:   { max_classification: restricted, sources: ["*"] }

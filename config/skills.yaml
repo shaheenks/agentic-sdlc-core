@@ -1,0 +1,7 @@
+apiVersion: sdlc/v1
+kind: SkillCatalog
+# Global skills. Visibility = role skills.allow (by name or tag:) narrowed by optional access.
+skills:
+  write-user-story: { path: skills/core/write-user-story, tags: [general] }
+  test-case-gen:    { path: skills/core/test-case-gen,    tags: [engineering] }
+  design-review:    { path: skills/core/design-review,    tags: [engineering], access: { roles: [lead] } }

@@ -1,0 +1,25 @@
+apiVersion: sdlc/v1
+kind: Team
+metadata:
+  name: payments
+  owners: [payments-leads]           # group aliases; also drive CODEOWNERS
+membership:
+  - group: payments-devs
+    roles: [developer]
+  - group: payments-leads
+    roles: [lead]
+policy:
+  tools:
+    deny: []                         # team-level denies (deny always wins)
+    constraints:
+      review_code:
+        args:
+          repo: { in: [payments-api, payments-ui] }
+addons:                              # visible only to members of this team
+  skills:
+    pci-checklist:        { path: skills/teams/payments/pci-checklist }
+    ledger-design-review: { path: skills/teams/payments/ledger-design-review, access: { roles: [lead] } }
+  instructions: skills/teams/payments/AGENT_ADDENDUM.md
+  context:
+    default_project: payments
+    glossary_source: payments-docs

@@ -1,0 +1,17 @@
+apiVersion: sdlc/v1
+kind: ToolCatalog
+# A tool registered in code but absent here is never exposed.
+servers:
+  bootstrap: { url: "${MCP_BOOTSTRAP_URL}" }
+tools:
+  whoami:            { server: bootstrap, risk: low }
+  list_skills:       { server: bootstrap, risk: low }
+  load_skill:        { server: bootstrap, risk: low }
+  get_agent_context: { server: bootstrap, risk: low }
+  search_knowledge:  { server: bootstrap, risk: low,    data_scoped: true }
+  graph_query:       { server: bootstrap, risk: low,    data_scoped: true }
+  generate_tests:    { server: bootstrap, risk: low }
+  review_code:       { server: bootstrap, risk: medium, args: { repo: { type: string } } }
+  approve_design:    { server: bootstrap, risk: high }
+  config_info:       { server: bootstrap, risk: high }    # admin only (via roles.admin "*")
+  config_explain:    { server: bootstrap, risk: high, args: { upn: { type: string } } }

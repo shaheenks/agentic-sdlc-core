@@ -1,0 +1,9 @@
+apiVersion: sdlc/v1
+kind: GroupMap
+# Replace placeholder GUIDs with real Entra security group object IDs for the local/test tenant.
+groups:
+  eng-all:         { id: "00000000-0000-0000-0000-000000000001", description: "All engineering" }
+  payments-devs:   { id: "00000000-0000-0000-0000-000000000002", description: "Payments developers" }
+  payments-leads:  { id: "00000000-0000-0000-0000-000000000003", description: "Payments leads" }
+  platform-devs:   { id: "00000000-0000-0000-0000-000000000004", description: "Platform developers" }
+  platform-admins: { id: "00000000-0000-0000-0000-000000000005", description: "SDLC platform admins" }

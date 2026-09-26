@@ -1,0 +1,15 @@
+apiVersion: sdlc/v1
+kind: Platform
+identity:
+  provider: entra
+  tenant_id: "${ENTRA_TENANT_ID}"
+  issuer: "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0"
+  audience: "api://sdlc-mcp"
+  groups:
+    claim: groups
+    overage_fallback: graph_transitive_member_of
+    cache_ttl_seconds: 600
+classification_levels: [public, internal, confidential, restricted]   # ascending
+defaults:
+  deny_by_default: true
+  max_classification: public

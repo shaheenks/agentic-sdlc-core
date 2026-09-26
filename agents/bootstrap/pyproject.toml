@@ -1,0 +1,13 @@
+# Virtual project: agents/bootstrap is loaded by `adk web agents/` as the "bootstrap" app,
+# so it is not built as a wheel; this file only declares its dependencies.
+[project]
+name = "sdlc-agent-bootstrap"
+version = "0.1.0"
+description = "Starter ADK root agent"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "google-adk[mcp]>=2.10",  # MCP toolset is an optional extra in ADK 2
+]
+
+[tool.uv]
+package = false

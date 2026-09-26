@@ -1,0 +1,66 @@
+# Local stack (Stage 0-1). No auth yet: bind to localhost only.
+name: agentic-sdlc
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      # Superuser is only for init/migrations. The app connects as the non-superuser
+      # `sdlc_app` (created by db/bootstrap/001_app_role.sh) so Postgres RLS applies to it.
+      POSTGRES_DB: ${PGDATABASE:-sdlc}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres-local}
+      SDLC_APP_USER: ${PGUSER:-sdlc_app}
+      SDLC_APP_PASSWORD: ${PGPASSWORD:-sdlc-local}
+    ports: ["127.0.0.1:${PGPORT:-5432}:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/bootstrap:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mcp-bootstrap:
+    build:
+      context: .
+      dockerfile: mcp_servers/bootstrap/Dockerfile
+    ports: ["127.0.0.1:8080:8080"]
+    volumes:
+      - ./skills:/app/skills:ro
+    environment:
+      # libpq-standard vars; only MCP servers get DB credentials (agents never touch the DB).
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${PGDATABASE:-sdlc}
+      PGUSER: ${PGUSER:-sdlc_app}
+      PGPASSWORD: ${PGPASSWORD:-sdlc-local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  agent-bootstrap:
+    build:
+      context: .
+      dockerfile: agents/bootstrap/Dockerfile
+    ports: ["127.0.0.1:8000:8000"]
+    # Explicit allow-list instead of env_file: the agent must not receive DB credentials.
+    environment:
+      SDLC_MCP_URL: http://mcp-bootstrap:8080/mcp
+      SDLC_AGENT_MODEL: ${SDLC_AGENT_MODEL:-gemini-3.8-flash}
+      GOOGLE_GENAI_USE_VERTEXAI: ${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
+      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-}
+      GOOGLE_CLOUD_QUOTA_PROJECT: ${GOOGLE_CLOUD_QUOTA_PROJECT:-}
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/adc.json
+    volumes:
+      # Only the ADC file (not the whole gcloud dir) for Vertex AI; unused in API-key mode.
+      - ${GOOGLE_ADC_FILE:-${APPDATA}/gcloud/application_default_credentials.json}:/secrets/adc.json:ro
+    depends_on:
+      mcp-bootstrap:
+        condition: service_healthy
+
+volumes:
+  pgdata:

@@ -1,0 +1,201 @@
+# Agentic SDLC — System Architecture
+
+High-level view of the platform. For staged delivery, config syntax and exit gates, see
+[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+
+## 1. What the system does
+
+Engineers use an AI assistant for SDLC work: writing user stories, reviewing designs,
+generating tests, reviewing code, and answering questions about their team's systems. The
+assistant is a **Google ADK agent** built from **skills**, which are reusable instruction
+packages. The skills, tools and team knowledge it can use all come from a central **MCP
+server**.
+
+Each user sees **only** the tools, skills and knowledge their Entra ID group membership
+allows. This is called *selective disclosure*. Declarative YAML files in `config/` decide the
+rules, and the MCP server enforces them, backed by Postgres row-level security.
+
+## 2. System diagram
+
+```mermaid
+flowchart TB
+    subgraph Users["Users (Entra ID sign-in)"]
+        U1[Engineer / Lead / Admin]
+    end
+
+    subgraph Surfaces["User surfaces"]
+        S1[adk web<br/>behind oauth2-proxy]
+        S2[Gemini Enterprise]
+        S3[Antigravity IDE<br/>direct MCP client]
+    end
+
+    Entra[(Microsoft Entra ID<br/>single IdP<br/>groups claim)]
+
+    subgraph AgentTier["Agent tier"]
+        A1[ADK root agent<br/>agents/bootstrap]
+        A2[Future SDLC agents<br/>agents/&lt;name&gt;]
+        LLM[[Gemini<br/>Vertex AI]]
+    end
+
+    subgraph ToolTier["Central MCP tier"]
+        direction TB
+        AUTH[AuthN<br/>Entra JWT validation<br/>libs/sdlc_auth]
+        RES[Resolver<br/>groups → teams → roles<br/>→ EffectivePolicy<br/>libs/sdlc_config]
+        ENF[Enforcement<br/>tools/list filter · call authz<br/>arg constraints<br/>libs/sdlc_policy]
+        TOOLS[Tools<br/>whoami · skills · search_knowledge<br/>graph_query · review_code …]
+        AUD[(Audit log)]
+        AUTH --> RES --> ENF --> TOOLS
+        ENF -. every decision .-> AUD
+    end
+
+    subgraph Data["Data tier"]
+        PG[(Postgres + pgvector<br/>chunks · embeddings<br/>entities · edges<br/>RLS by source + classification)]
+    end
+
+    subgraph Ingest["Ingest pipeline"]
+        I1[Loaders → Chunkers →<br/>Embedders → Graph extractors]
+        SRC[/Source artefacts<br/>local folders → git, Jira, wiki/]
+    end
+
+    subgraph Config["Config (git → versioned bundle)"]
+        CFG[/config/*.yaml<br/>groups · roles · tools · skills<br/>teams · sources/]
+        SK[/skills/*/SKILL.md/]
+    end
+
+    DS[[Downstream systems<br/>GitHub · Jira · …]]
+
+    U1 --> Surfaces
+    U1 <-. sign-in .-> Entra
+    S1 --> A1
+    S2 --> A1
+    S3 -- "bearer token" --> AUTH
+    A1 -- "user bearer token" --> AUTH
+    A1 <--> LLM
+    A2 -. later .-> AUTH
+    AUTH -. JWKS / Graph .-> Entra
+    TOOLS -- "SQL with RLS context" --> PG
+    TOOLS -- "service credential<br/>after RBAC check" --> DS
+    SRC --> I1 --> PG
+    CFG -- bundle --> RES
+    SK -- bundle --> TOOLS
+    CFG -- Source.spec --> I1
+    I1 <--> LLM
+```
+
+## 3. Components
+
+| Component | Location | Responsibility |
+|---|---|---|
+| **Surfaces** | external | Where users talk to the agent. adk web (dev), Gemini Enterprise (business users), Antigravity (IDE; connects straight to MCP). |
+| **Entra ID** | external | The single identity provider. Tokens carry `oid`, `upn` and `groups`. |
+| **ADK agents** | `agents/` | Conversation and reasoning with Gemini. They discover skills and call tools through MCP, forwarding the **user's** token. They make **no** authorization decisions and never read `config/`. |
+| **MCP server(s)** | `mcp_servers/` | The single enforcement point. Validates tokens, resolves the user's `EffectivePolicy`, filters what the user can see, authorizes every call, and audits it. |
+| **Shared libs** | `libs/` | `sdlc_auth` (identity), `sdlc_config` (config + resolver), `sdlc_policy` (enforcement), `sdlc_db` (RLS-scoped DB access). |
+| **Skills** | `skills/` | SKILL.md instruction packages. They hold content only; access is declared in `config/`. |
+| **Config** | `config/` | YAML that declares groups, roles, teams, tools, skills and sources. Compiled into an immutable, versioned bundle. |
+| **Ingest** | `ingest/` | Reads source artefacts declared in `config/sources/`, chunks and embeds them, extracts a knowledge graph, and tags every row with `source_id` + `classification`. |
+| **Postgres + pgvector** | `db/` | Vector search plus the knowledge graph (as edge tables). Row-level security is the last line of defense for data access. |
+
+## 4. Request flow — a user asks a question
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant S as Surface (adk web)
+    participant E as Entra ID
+    participant A as ADK agent
+    participant G as Gemini
+    participant M as MCP server
+    participant D as Postgres (RLS)
+
+    U->>S: open app
+    S->>E: OIDC sign-in
+    E-->>S: access token (oid, groups, aud=api://sdlc-mcp)
+    U->>S: "How does payments-api handle refunds?"
+    S->>A: message + user token (session state)
+    A->>M: tools/list  [Bearer user token]
+    M->>M: validate JWT → resolve EffectivePolicy
+    M-->>A: only the tools this user may see
+    A->>G: prompt + visible tools
+    G-->>A: call search_knowledge("refunds")
+    A->>M: tools/call search_knowledge  [Bearer user token]
+    M->>M: authorize call · audit
+    M->>D: SET app.allowed_sources, app.max_classification; vector query
+    D-->>M: only rows the user is entitled to
+    M-->>A: results
+    A->>G: results
+    G-->>A: answer
+    A-->>U: answer
+```
+
+The security checkpoints in this flow are:
+1. A request with no valid Entra token gets 401.
+2. Tools the user may not use are never listed, so the model can't even try them.
+3. Every call is re-authorized, including its arguments (e.g. which repo).
+4. Postgres filters rows by the user's allowed sources and classification ceiling, even if a tool has a bug.
+5. Every allow or deny is audited with the config version and the rule that matched.
+
+## 5. Identity and authorization model
+
+```mermaid
+flowchart LR
+    T[Entra token<br/>oid · groups] --> GA[Group aliases<br/>env/&lt;env&gt;/groups.yaml]
+    GA --> TM[Teams<br/>teams/*.yaml membership]
+    GA --> GB[Global bindings<br/>roles.yaml]
+    TM --> R[Roles<br/>+ inherits]
+    GB --> R
+    R --> TL[Tools<br/>allow − deny<br/>+ arg constraints]
+    R --> SKL[Skills<br/>global + team add-ons]
+    TM --> SKL
+    R --> DT[Data<br/>max classification]
+    TM --> SRCS[Sources<br/>Source.access]
+    R --> SRCS
+    TM --> CTX[Agent context<br/>team instructions]
+    TL & SKL & DT & SRCS & CTX --> EP[[EffectivePolicy<br/>cached per user + version]]
+```
+
+- **Identity** is the Entra `oid` plus group membership. Entra is the only trusted issuer.
+- **Teams** define who belongs, which roles each group gets, and team add-ons (extra skills, extra agent instructions, tool argument limits).
+- **Roles** are reusable permission bundles. A role can inherit from another.
+- **Data access** is granted only by each source's own `access` block. The sensitivity ceiling comes from roles.
+- **Deny wins**, and anything not explicitly allowed is denied.
+
+## 6. Config lifecycle
+
+```mermaid
+flowchart LR
+    DEV[Team lead / admin<br/>edits YAML] --> PR[Pull request<br/>CODEOWNERS review]
+    PR --> CI[CI: validate · persona diff · tests]
+    CI --> BUILD[sdlc-config compile<br/>bundle + manifest<br/>version = git SHA + hash]
+    BUILD --> STORE[(Bundle store<br/>local folder / GCS)]
+    STORE -- "current pointer<br/>Pub/Sub reload" --> MCP[MCP servers<br/>ConfigStore]
+    STORE --> ING[Ingest jobs]
+    MCP -- "per-user view only" --> AG[Agents / surfaces]
+```
+
+Only MCP servers (and ingest, for source definitions) read config. Agents and users get an
+already-resolved, per-user view through MCP tools. A service with no valid bundle at startup
+refuses to serve. A bad reload keeps the last good version. Rollback means moving the
+`current` pointer back.
+
+## 7. Deployment views
+
+| Aspect | Local (Stages 0–6) | GCP (Stage 7+) |
+|---|---|---|
+| Agent | `agent-bootstrap` container (`adk web`) | Cloud Run → Vertex AI Agent Engine (for Gemini Enterprise) |
+| MCP server | `mcp-bootstrap` container | Cloud Run |
+| Database | `postgres` container (pgvector, `127.0.0.1:5432`) | Cloud SQL for PostgreSQL + pgvector (private IP) |
+| Ingest | CLI in container | Cloud Run Job |
+| Config | bind-mounted `config/`, file-watch reload | GCS bundle + `current` pointer, Pub/Sub reload |
+| Secrets | `.env` | Secret Manager |
+| Model | Gemini API key or ADC | Vertex AI (service account) |
+| Identity | Entra test tenant/groups | Entra + Workforce Identity Federation |
+
+## 8. Growth path
+
+The platform starts as one agent, one MCP server, one ingest CLI and one database; that is
+the `bootstrap/` component in each area. It grows by adding **sibling components**: more
+SDLC agents, specialised MCP servers (e.g. a knowledge server), and ingest loaders for git,
+Jira and wikis. All of them share `libs/` and the same `config/` policy, so identity and
+selective disclosure stay consistent as the system expands.
