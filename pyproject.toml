@@ -20,11 +20,15 @@ package = false
 [tool.uv.workspace]
 # Explicit list: add each new component here as it lands (see CLAUDE.md, "bootstrap/" convention).
 members = [
+    "libs/sdlc_auth",
+    "libs/sdlc_config",
     "mcp_servers/bootstrap",
     "agents/bootstrap",
 ]
 
 [tool.uv.sources]
+sdlc-auth = { workspace = true }
+sdlc-config = { workspace = true }
 sdlc-mcp-bootstrap = { workspace = true }
 sdlc-agent-bootstrap = { workspace = true }
 
@@ -41,6 +45,8 @@ ignore = ["S101"]  # assert is fine in tests
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--import-mode=importlib"
+pythonpath = ["."]
 asyncio_mode = "auto"
 markers = ["e2e: needs the running stack + Gemini credentials (skipped otherwise)"]
 asyncio_default_fixture_loop_scope = "function"

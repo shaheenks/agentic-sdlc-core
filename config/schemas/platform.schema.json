@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sdlc/v1/Platform",
+  "title": "Platform",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "identity", "classification_levels", "defaults"],
+  "properties": {
+    "apiVersion": { "const": "sdlc/v1" },
+    "kind": { "const": "Platform" },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "tenant_id", "issuer", "jwks_uri", "audience", "required_scopes", "groups"],
+      "properties": {
+        "provider": { "const": "entra" },
+        "tenant_id": { "$ref": "#/$defs/guid" },
+        "issuer": { "type": "string", "pattern": "^https://" },
+        "jwks_uri": { "type": "string", "pattern": "^https://" },
+        "audience": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "required_scopes": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "groups": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["claim", "overage_fallback", "cache_ttl_seconds"],
+          "properties": {
+            "claim": { "const": "groups" },
+            "overage_fallback": { "enum": ["graph_transitive_member_of", "none"] },
+            "cache_ttl_seconds": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "classification_levels": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deny_by_default", "max_classification"],
+      "properties": {
+        "deny_by_default": { "const": true },
+        "max_classification": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "guid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    }
+  }
+}

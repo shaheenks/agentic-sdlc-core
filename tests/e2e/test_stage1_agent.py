@@ -13,7 +13,13 @@ from pathlib import Path
 import pytest
 from google.genai import types
 
-pytestmark = pytest.mark.e2e
+pytestmark = [
+    pytest.mark.e2e,
+    pytest.mark.skip(
+        reason="Stage 2: MCP now requires an Entra user token; this flow returns in Stage 2d "
+        "(agent token passthrough) as the Stage 2 e2e gate"
+    ),
+]
 
 MCP_URL = os.environ.get("SDLC_MCP_URL", "http://127.0.0.1:8080/mcp")
 HEALTH_URL = MCP_URL.rsplit("/", 1)[0] + "/healthz"

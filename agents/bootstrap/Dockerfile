@@ -6,6 +6,8 @@ WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 
 COPY pyproject.toml uv.lock ./
+COPY libs/sdlc_auth/pyproject.toml libs/sdlc_auth/
+COPY libs/sdlc_config/pyproject.toml libs/sdlc_config/
 COPY mcp_servers/bootstrap/pyproject.toml mcp_servers/bootstrap/
 COPY agents/bootstrap/pyproject.toml agents/bootstrap/
 RUN uv sync --frozen --no-dev --package sdlc-agent-bootstrap --no-install-workspace

@@ -6,6 +6,8 @@ requires-python = ">=3.12, <3.14"
 members = [
     "agentic-sdlc",
     "sdlc-agent-bootstrap",
+    "sdlc-auth",
+    "sdlc-config",
     "sdlc-mcp-bootstrap",
 ]
 
@@ -1674,18 +1676,59 @@ dependencies = [
 requires-dist = [{ name = "google-adk", extras = ["mcp"], specifier = ">=2.10" }]
 
 [[package]]
+name = "sdlc-auth"
+version = "0.1.0"
+source = { editable = "libs/sdlc_auth" }
+dependencies = [
+    { name = "httpx" },
+]
+
+[package.optional-dependencies]
+server = [
+    { name = "fastmcp" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastmcp", marker = "extra == 'server'", specifier = ">=4.0" },
+    { name = "httpx", specifier = ">=0.28" },
+]
+provides-extras = ["server"]
+
+[[package]]
+name = "sdlc-config"
+version = "0.1.0"
+source = { editable = "libs/sdlc_config" }
+dependencies = [
+    { name = "jsonschema" },
+    { name = "pyyaml" },
+    { name = "watchfiles" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jsonschema", specifier = ">=4.23" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "watchfiles", specifier = ">=1.0" },
+]
+
+[[package]]
 name = "sdlc-mcp-bootstrap"
 version = "0.1.0"
 source = { editable = "mcp_servers/bootstrap" }
 dependencies = [
     { name = "fastmcp" },
     { name = "pyyaml" },
+    { name = "sdlc-auth", extra = ["server"] },
+    { name = "sdlc-config" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastmcp", specifier = ">=4.0" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "sdlc-auth", extras = ["server"], editable = "libs/sdlc_auth" },
+    { name = "sdlc-config", editable = "libs/sdlc_config" },
 ]
 
 [[package]]

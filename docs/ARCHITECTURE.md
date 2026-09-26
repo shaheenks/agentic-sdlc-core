@@ -111,7 +111,7 @@ sequenceDiagram
 
     U->>S: open app
     S->>E: OIDC sign-in
-    E-->>S: access token (oid, groups, aud=api://sdlc-mcp)
+    E-->>S: access token v2 (oid, groups, scp=access_as_user, aud=sdlc-mcp client id)
     U->>S: "How does payments-api handle refunds?"
     S->>A: message + user token (session state)
     A->>M: tools/list  [Bearer user token]

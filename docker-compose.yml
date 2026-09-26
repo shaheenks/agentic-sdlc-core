@@ -29,7 +29,16 @@ services:
     ports: ["127.0.0.1:8080:8080"]
     volumes:
       - ./skills:/app/skills:ro
+      - ./config:/app/config:ro
     environment:
+      SDLC_ENV: ${SDLC_ENV:-local}
+      # Bind mounts from Windows do not deliver file events; poll for config reloads.
+      WATCHFILES_FORCE_POLLING: "true"
+      # Entra identity (Stage 2). Missing values => the server refuses to start (fail closed).
+      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
+      ENTRA_API_CLIENT_ID: ${ENTRA_API_CLIENT_ID:-}
+      ENTRA_GRAPH_CLIENT_SECRET: ${ENTRA_GRAPH_CLIENT_SECRET:-}
+      MCP_PUBLIC_URL: http://127.0.0.1:8080
       # libpq-standard vars; only MCP servers get DB credentials (agents never touch the DB).
       PGHOST: postgres
       PGPORT: "5432"

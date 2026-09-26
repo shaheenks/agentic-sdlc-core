@@ -7,18 +7,25 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 
 # Dependencies first (cached layer): workspace manifests + lockfile only.
 COPY pyproject.toml uv.lock ./
+COPY libs/sdlc_auth/pyproject.toml libs/sdlc_auth/
+COPY libs/sdlc_config/pyproject.toml libs/sdlc_config/
 COPY mcp_servers/bootstrap/pyproject.toml mcp_servers/bootstrap/
 COPY agents/bootstrap/pyproject.toml agents/bootstrap/
 RUN uv sync --frozen --no-dev --package sdlc-mcp-bootstrap --no-install-workspace
 
+COPY libs/sdlc_auth libs/sdlc_auth
+COPY libs/sdlc_config libs/sdlc_config
 COPY mcp_servers/bootstrap mcp_servers/bootstrap
 RUN uv sync --frozen --no-dev --package sdlc-mcp-bootstrap
 
-# Baked-in copy for standalone runs; docker compose bind-mounts ./skills over it.
+# Baked-in copies for standalone runs; docker compose bind-mounts ./skills and ./config over them.
 COPY skills skills
+COPY config config
 
 ENV PATH=/app/.venv/bin:$PATH \
     SDLC_SKILLS_DIR=/app/skills/bootstrap \
+    SDLC_CONFIG_DIR=/app/config \
+    SDLC_ENV=local \
     MCP_HOST=0.0.0.0 \
     MCP_PORT=8080
 USER nobody

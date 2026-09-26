@@ -7,7 +7,8 @@ Architecture diagrams and component overview: [ARCHITECTURE.md](ARCHITECTURE.md)
 |---|---|---|
 | 0 — Foundations | ✅ Done (2026-09-26) | uv workspace, ruff/pytest/pre-commit, docker compose: postgres (pgvector, 127.0.0.1:5432), mcp-bootstrap, agent-bootstrap all healthy. App role `sdlc_app` is non-superuser. Entra app registrations/groups still pending (needed for Stage 2). |
 | 1 — Walking skeleton | ✅ Done (2026-09-26) | Gate passed: agent calls `list_skills` → `load_skill` and produces the user story, both on the host (`tests/e2e`) and in the agent container via adk web. Gemini `gemini-3.8-flash` on Vertex AI (`cloud-migration-agent`, location `global`) via ADC. |
-| 2–9 | ⏳ Not started | |
+| 2 — Identity + config core | 🟡 2a–2c done (2026-09-26) | `sdlc_config` (schemas, loader, ConfigStore with fail-closed start + last-known-good reload, `validate` CLI), `sdlc_auth` (EntraTokenVerifier, Principal, Graph overage fallback), MCP server: Entra auth + RFC 9728 metadata, `whoami`, JSON audit log, `config_version` in /healthz. Tested with Entra-shaped test tokens. **Pending:** Entra registrations (docs/ENTRA_SETUP.md), 2d agent token passthrough (oauth2-proxy + header_provider), live two-user gate. |
+| 3–9 | ⏳ Not started | |
 
 ## Context
 Greenfield project (`c:\Users\shaheenks\pg\dev\agentic-sdlc` is empty). Goal: an agentic SDLC assistant built on Google ADK. Agents are composed from **skills**. Central **MCP server(s)** serve all skills, tools and knowledge, and enforce **user identity + RBAC with selective disclosure**. Access and team-specific behavior are driven by **declarative YAML config**, keyed on **Entra ID identity + Entra group membership**. Start small (local Docker), then grow to GCP and to more user surfaces (adk web → Gemini Enterprise → Antigravity).
@@ -32,7 +33,7 @@ Greenfield project (`c:\Users\shaheenks\pg\dev\agentic-sdlc` is empty). Goal: an
 
 ## Target Architecture
 ```
- User (Entra login) ── access token: oid, upn, groups[], aud=api://sdlc-mcp
+ User (Entra login) ── access token: oid, upn, groups[], scp=access_as_user, aud=sdlc-mcp client id (v2)
    ▼
  Surface: adk web (auth proxy) │ Gemini Enterprise │ Antigravity (direct MCP)
    ▼

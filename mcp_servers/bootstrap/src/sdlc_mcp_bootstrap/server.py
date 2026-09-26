@@ -1,10 +1,12 @@
 """Bootstrap MCP server.
 
-Stage 1 (walking skeleton): ping, list_skills, load_skill over streamable HTTP, no auth.
-Stage 2 adds Entra JWT validation and ConfigStore; Stage 3 adds RBAC filtering. Until then
-this server must only run locally.
+Stage 1: ping, list_skills, load_skill over streamable HTTP.
+Stage 2: every MCP request needs a valid Entra ID user token (401 otherwise); whoami;
+         config via ConfigStore (fail closed); JSON audit log for every tool call.
+Stage 3 adds RBAC: tools/list filtering and per-call authorization from config/.
 """
 
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,8 +14,17 @@ from pathlib import Path
 import yaml
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.server.auth import AuthProvider, RemoteAuthProvider
+from sdlc_auth import GraphGroupResolver, GroupResolver
+from sdlc_auth.entra import EntraTokenVerifier
+from sdlc_config import ConfigStore, Snapshot
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+
+from sdlc_mcp_bootstrap.audit import AuditMiddleware
+from sdlc_mcp_bootstrap.identity import current_identity
+
+log = logging.getLogger("sdlc.mcp")
 
 DEFAULT_SKILLS_DIR = Path(__file__).resolve().parents[4] / "skills" / "bootstrap"
 
@@ -49,18 +60,41 @@ def discover_skills(skills_dir: Path) -> dict[str, Skill]:
     return skills
 
 
-def build_server(skills_dir: Path) -> FastMCP:
+def build_server(
+    skills_dir: Path,
+    store: ConfigStore,
+    auth: AuthProvider,
+    group_resolver: GroupResolver | None = None,
+) -> FastMCP:
     # Skills are loaded once at startup so a malformed SKILL.md fails fast.
     skills = discover_skills(skills_dir)
     mcp = FastMCP(
         name="sdlc-mcp-bootstrap",
         instructions="Central SDLC tool server. Use list_skills, then load_skill before a task.",
+        auth=auth,
+        middleware=[AuditMiddleware(store)],
     )
 
     @mcp.tool
     def ping() -> str:
         """Liveness check. Returns 'pong'."""
         return "pong"
+
+    @mcp.tool
+    async def whoami() -> dict:
+        """Who the server thinks you are: Entra identity and mapped group aliases."""
+        ident = await current_identity(store.current(), group_resolver)
+        p = ident.principal
+        return {
+            "oid": p.oid,
+            "upn": p.upn,
+            "name": p.name,
+            "tenant_id": p.tid,
+            "groups": list(ident.group_aliases),
+            "unmapped_group_count": ident.unmapped_group_count,
+            "group_source": ident.group_source,
+            "config_version": ident.config_version,
+        }
 
     @mcp.tool
     def list_skills() -> list[dict[str, str]]:
@@ -81,19 +115,75 @@ def build_server(skills_dir: Path) -> FastMCP:
 
     @mcp.custom_route("/healthz", methods=["GET"])
     async def healthz(_: Request) -> JSONResponse:
-        return JSONResponse({"status": "ok", "skills": len(skills)})
+        return JSONResponse(
+            {
+                "status": "ok",
+                "skills": len(skills),
+                "config_version": store.current().version,
+                "config_reload_error": store.last_error is not None,
+            }
+        )
 
     return mcp
 
 
-def main() -> None:
-    skills_dir = Path(os.environ.get("SDLC_SKILLS_DIR", DEFAULT_SKILLS_DIR))
-    server = build_server(skills_dir)
-    server.run(
-        transport="http",
-        host=os.environ.get("MCP_HOST", "127.0.0.1"),
-        port=int(os.environ.get("MCP_PORT", "8080")),
+def build_auth(snapshot: Snapshot, public_url: str) -> RemoteAuthProvider:
+    """Entra token verification + OAuth protected-resource metadata (RFC 9728).
+
+    The 401 WWW-Authenticate header points MCP clients (e.g. Antigravity) at
+    /.well-known/oauth-protected-resource, which names Entra as the authorization server.
+    Identity settings are read once at startup; changing them needs a restart.
+    """
+    platform = snapshot.platform
+    verifier = EntraTokenVerifier(
+        tenant_id=platform.tenant_id,
+        audience=list(platform.audience),
+        required_scopes=list(platform.required_scopes),
+        issuer=platform.issuer,
+        jwks_uri=platform.jwks_uri,
     )
+    return RemoteAuthProvider(
+        token_verifier=verifier,
+        authorization_servers=[platform.issuer],
+        base_url=public_url,
+        resource_name="sdlc-mcp",
+    )
+
+
+def build_group_resolver(snapshot: Snapshot) -> GroupResolver | None:
+    platform = snapshot.platform
+    if platform.groups_overage_fallback != "graph_transitive_member_of":
+        return None
+    secret = os.environ.get("ENTRA_GRAPH_CLIENT_SECRET")
+    if not secret:
+        log.warning(
+            "groups overage fallback disabled: ENTRA_GRAPH_CLIENT_SECRET not set "
+            "(users with too many groups will get no groups)"
+        )
+        return None
+    return GraphGroupResolver(
+        tenant_id=platform.tenant_id,
+        client_id=os.environ["ENTRA_API_CLIENT_ID"],
+        client_secret=secret,
+        ttl_seconds=platform.groups_cache_ttl_seconds,
+    )
+
+
+def main() -> None:
+    logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(message)s")
+    store = ConfigStore.from_env()  # raises ConfigError on invalid config: fail closed
+    if os.environ.get("SDLC_CONFIG_WATCH", "true").lower() == "true":
+        store.start_watching()
+    snapshot = store.current()
+    host = os.environ.get("MCP_HOST", "127.0.0.1")
+    port = int(os.environ.get("MCP_PORT", "8080"))
+    server = build_server(
+        Path(os.environ.get("SDLC_SKILLS_DIR", DEFAULT_SKILLS_DIR)),
+        store,
+        build_auth(snapshot, os.environ.get("MCP_PUBLIC_URL", f"http://127.0.0.1:{port}")),
+        build_group_resolver(snapshot),
+    )
+    server.run(transport="http", host=host, port=port)
 
 
 if __name__ == "__main__":

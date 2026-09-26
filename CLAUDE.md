@@ -49,7 +49,11 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
 
 ## Security rules
 - Authorization lives in the MCP server, never in prompts or agent code.
-- Entra is the only trusted issuer; validate iss, aud (`api://sdlc-mcp`), exp, tid via JWKS.
+- Entra is the only trusted issuer. Tokens must be v2 (iss `https://login.microsoftonline.com/<tid>/v2.0`),
+  `aud` = the sdlc-mcp client ID (v2) or `api://sdlc-mcp`, `scp` contains `access_as_user` (user tokens only),
+  `tid` = our tenant, plus signature (JWKS) and exp. Implemented in `sdlc_auth.entra.EntraTokenVerifier`.
+- The MCP server refuses to start without valid config and `ENTRA_TENANT_ID` / `ENTRA_API_CLIENT_ID` (fail closed).
+- Users whose token omits groups (overage) get no groups unless the Graph fallback secret is set.
 - Deny-by-default. Filter tools/list AND re-check on every tools/call.
 - All DB reads go through `sdlc_db` with `app.allowed_sources` + `app.max_classification` set (Postgres RLS).
 - Agents forward the user's bearer token via `get_user_token(context)`; never use a service token for user calls.
@@ -64,8 +68,9 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
 - `uv run adk web agents`    run the dev UI outside Docker (needs `SDLC_MCP_URL`)
 - `uv run pytest`            unit tests; e2e tests skip without the stack + Gemini creds
 - `uv run --env-file .env pytest tests/e2e`   exit-gate tests (agent e2e, DB + pgvector)
+- `uv run python scripts/mcp_whoami.py --token <entra token>`   manual identity check (see docs/ENTRA_SETUP.md)
 - `uv run ruff check . && uv run ruff format .`
-- Stage 2+: `uv run sdlc-config validate --env local` | `explain --upn <upn> --env local` | `diff`
+- `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values); `explain`/`diff` arrive in Stage 3
 
 ## Workspace conventions
 - uv workspace members are listed explicitly in the root `pyproject.toml`; add each new component there.
@@ -75,3 +80,6 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
 - Gemini runs on Vertex AI via gcloud ADC (project `cloud-migration-agent`, location `global`, model `gemini-3.8-flash`). ADC has no quota project, so `.env` sets `GOOGLE_CLOUD_QUOTA_PROJECT`. The agent container gets only the ADC file, mounted at `/secrets/adc.json`.
 - Python 3.12 (`.python-version`); ruff formats code only, not markdown snippets.
 - Only MCP servers and ingest get DB credentials. Agent containers get an explicit env allow-list, never the whole `.env`.
+- Tests: `--import-mode=importlib` + `pythonpath=["."]`; shared helpers live in `tests/support/` (e.g. `FakeEntra` mints
+  Entra-shaped RS256 tokens), fixtures in `tests/conftest.py`. MCP server tests run a real uvicorn server in a thread.
+- New config kinds: add a JSON Schema in `config/schemas/` and register the kind in `sdlc_config/loader.py` (`_KINDS`).

@@ -4,7 +4,10 @@ identity:
   provider: entra
   tenant_id: "${ENTRA_TENANT_ID}"
   issuer: "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0"
-  audience: "api://sdlc-mcp"
+  jwks_uri: "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/discovery/v2.0/keys"
+  # Entra v2 access tokens carry the API app's client ID as `aud`; v1 tokens carry the App ID URI.
+  audience: ["${ENTRA_API_CLIENT_ID}", "api://sdlc-mcp"]
+  required_scopes: [access_as_user]     # delegated (user) tokens only; app-only tokens have no scp
   groups:
     claim: groups
     overage_fallback: graph_transitive_member_of
