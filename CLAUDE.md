@@ -77,6 +77,7 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md
 - `uv sync --all-packages`   install every workspace member (plain `uv sync` installs only the root)
 - `docker compose up -d --build --wait`   postgres (:5432), mcp-bootstrap (:8080), agent-bootstrap (internal :8000), oauth2-proxy (:4180)
 - Open **http://localhost:4180** and sign in with Entra to use the agents (dev UI at /dev-ui/). The agent port is not published.
+  ADK developer tools (builder, deploy, evals, tests, other users' traces) are off; `SDLC_DEV_TOOLS=true` enables them (never outside local dev).
 - DB connections use standard `PG*` env vars; the app role `sdlc_app` is non-superuser (RLS applies). Init: `db/bootstrap/README.md`.
 - `uv run --env-file .env sdlc-agent-web`   agent web app outside Docker (expects a token in `X-Forwarded-Access-Token` or `Authorization: Bearer`)
 - `uv run pytest`            unit tests; e2e tests skip without the stack + Gemini creds

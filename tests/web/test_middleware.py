@@ -87,19 +87,45 @@ async def test_session_paths_are_bound_to_token_oid(web, entra, downstream):
     assert all(c["token"] == token for c in downstream.calls)
 
 
-@pytest.mark.parametrize("path", ["/run", "/run_sse"])
-async def test_run_body_user_is_bound_and_smuggled_token_dropped(web, entra, downstream, path):
-    token = entra.token(oid=OID_A)
-    body = {
+RUN_BODIES = {
+    "snake_case": {
         "app_name": "bootstrap",
         "user_id": "victim",
         "session_id": "s1",
         "state_delta": {USER_TOKEN_STATE_KEY: "stolen", "keep": 1},
-    }
-    assert (await web.post(path, headers=fwd(token), json=body)).is_success
-    received = json.loads(downstream.calls[0]["body"])
-    assert received["user_id"] == OID_A
-    assert received["state_delta"] == {"keep": 1}
+    },
+    # what the ADK dev UI sends
+    "camelCase": {
+        "appName": "bootstrap",
+        "userId": "victim",
+        "sessionId": "s1",
+        "stateDelta": {USER_TOKEN_STATE_KEY: "stolen", "keep": 1},
+    },
+    # both spellings: ADK's alias (camelCase) wins, so both must be rewritten
+    "mixed": {
+        "appName": "bootstrap",
+        "user_id": OID_A,
+        "userId": "victim",
+        "sessionId": "s1",
+        "stateDelta": {USER_TOKEN_STATE_KEY: "stolen", "keep": 1},
+    },
+}
+
+
+@pytest.mark.parametrize("path", ["/run", "/run_sse"])
+@pytest.mark.parametrize("style", RUN_BODIES)
+async def test_run_body_user_is_bound_and_smuggled_token_dropped(
+    web, entra, downstream, path, style
+):
+    from google.adk.cli.api_server import RunAgentRequest
+
+    token = entra.token(oid=OID_A)
+    assert (await web.post(path, headers=fwd(token), json=RUN_BODIES[style])).is_success
+    # Judge the rewritten body exactly as ADK will parse it.
+    parsed = RunAgentRequest.model_validate(json.loads(downstream.calls[0]["body"]))
+    assert parsed.user_id == OID_A
+    assert parsed.session_id == "s1"
+    assert parsed.state_delta == {"keep": 1}
     assert downstream.calls[0]["token"] == token
 
 

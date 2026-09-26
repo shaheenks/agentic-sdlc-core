@@ -9,6 +9,10 @@ For every request except public health checks:
      whatever the UI sends.
   3. Put the token in a request-scoped ContextVar for `sdlc_auth.adk.bearer_header_provider`,
      so the agent's MCP calls carry the user's identity.
+  4. Restrict ADK's developer tools (`/dev/*`) to what the chat UI needs (graph views,
+     user-bound routes, and the trace of the caller's OWN session). Builder save, deploy,
+     evals, tests and event traces are refused (403); the UI's load-time listings get empty
+     results. `dev_tools=True` (SDLC_DEV_TOOLS) re-enables everything for local development.
 WebSocket (/run_live) is refused until it can be bound the same way.
 Authorization stays in the MCP server; this layer only authenticates and binds identity.
 """
@@ -28,7 +32,14 @@ Receive = Callable[[], Awaitable[Message]]
 Send = Callable[[Message], Awaitable[None]]
 ASGIApp = Callable[[Scope, Receive, Send], Awaitable[None]]
 
-_USER_PATH = re.compile(r"^(/apps/[^/]+/users/)([^/]+)(/.*)?$")
+_USER_PATH = re.compile(r"^(/(?:dev/)?apps/[^/]+/users/)([^/]+)(/.*)?$")
+# /dev routes the chat UI needs; everything else under /dev is developer tooling.
+_DEV_ALLOWED = re.compile(r"^/dev/apps/[^/]+/(build_graph|build_graph_image|graph|users/.+)$")
+_DEV_OWN_TRACE = re.compile(r"^/dev/apps/([^/]+)/debug/trace/session/([^/]+)$")
+# Listings the dev UI requests when it loads: answer with an empty result instead of 403.
+_DEV_EMPTY_LISTINGS = re.compile(
+    r"^/dev/apps/[^/]+/(eval_sets|eval-sets|eval_results|eval-results|tests|builder)$"
+)
 _RUN_PATHS = {"/run", "/run_sse"}
 _MAX_RUN_BODY = 10 * 1024 * 1024
 
@@ -41,11 +52,13 @@ class EntraUserBindingMiddleware:
         *,
         token_header: str = "x-forwarded-access-token",  # noqa: S107 (header name)
         public_paths: frozenset[str] = frozenset({"/healthz"}),
+        dev_tools: bool = False,
     ):
         self.app = app
         self.verifier = verifier
         self.token_header = token_header.lower().encode()
         self.public_paths = public_paths
+        self.dev_tools = dev_tools
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "lifespan":
@@ -73,6 +86,11 @@ class EntraUserBindingMiddleware:
             return await _respond(send, 401, {"detail": "not a user token"})
 
         scope = dict(scope)
+        if scope["path"].startswith("/dev/") and not self.dev_tools:
+            refusal = await self._dev_route_refusal(scope, oid)
+            if refusal:
+                status, payload = refusal
+                return await _respond(send, status, payload)
         bound_path = _bind_path(scope["path"], oid)
         if bound_path != scope["path"]:
             scope["path"] = bound_path
@@ -92,6 +110,43 @@ class EntraUserBindingMiddleware:
             await self.app(scope, receive, send)
         finally:
             reset_request_token(reset)
+
+    async def _dev_route_refusal(self, scope: Scope, oid: str) -> tuple[int, Any] | None:
+        """None if the /dev request may proceed, else (status, body) to answer instead."""
+        path, method = scope["path"], scope["method"]
+        if _DEV_ALLOWED.match(path) and method == "GET":
+            return None
+        trace = _DEV_OWN_TRACE.match(path)
+        if trace and method == "GET":
+            owned = await self._owns_session(scope, trace.group(1), trace.group(2), oid)
+            return None if owned else (404, {"detail": "Session not found"})
+        if _DEV_EMPTY_LISTINGS.match(path) and method == "GET":
+            return 200, []
+        return 403, {"detail": "developer tools are disabled"}
+
+    async def _owns_session(self, scope: Scope, app_name: str, session_id: str, oid: str) -> bool:
+        """Ask the ADK app whether the session exists under this user (internal subrequest)."""
+        path = f"/apps/{app_name}/users/{oid}/sessions/{session_id}"
+        sub_scope = {
+            **scope,
+            "method": "GET",
+            "path": path,
+            "raw_path": path.encode(),
+            "query_string": b"",
+            "headers": [],
+        }
+        status = 500
+
+        async def receive() -> Message:
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message: Message) -> None:
+            nonlocal status
+            if message["type"] == "http.response.start":
+                status = message["status"]
+
+        await self.app(sub_scope, receive, send)
+        return status == 200
 
     def _extract_token(self, scope: Scope) -> str | None:
         forwarded = bearer = None
@@ -120,10 +175,17 @@ def _bind_run_body(body: bytes, oid: str) -> bytes:
         return body  # let ADK reject malformed JSON
     if not isinstance(payload, dict):
         return body
-    payload["user_id"] = oid
-    state_delta = payload.get("state_delta")
-    if isinstance(state_delta, dict):
-        state_delta.pop(USER_TOKEN_STATE_KEY, None)  # tokens only come from the validated header
+    # ADK's request model accepts snake_case and camelCase (alias wins when both are present);
+    # the dev UI sends camelCase. Drop both spellings and set the alias.
+    payload.pop("user_id", None)
+    payload.pop("userId", None)
+    payload["userId"] = oid
+    for key in ("state_delta", "stateDelta"):
+        state_delta = payload.get(key)
+        if isinstance(state_delta, dict):
+            state_delta.pop(
+                USER_TOKEN_STATE_KEY, None
+            )  # tokens only come from the validated header
     return json.dumps(payload).encode()
 
 
@@ -156,7 +218,7 @@ def _replay(body: bytes, receive: Receive) -> Receive:
     return replay
 
 
-async def _respond(send: Send, status: int, payload: dict, extra_headers=()) -> None:
+async def _respond(send: Send, status: int, payload: Any, extra_headers=()) -> None:
     body = json.dumps(payload).encode()
     headers = [
         (b"content-type", b"application/json"),

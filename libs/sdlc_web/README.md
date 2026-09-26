@@ -17,6 +17,10 @@ browser -> oauth2-proxy :4180 (Entra sign-in, PKCE; X-Forwarded-Access-Token)
 - **Sets the token in a request-scoped ContextVar** (`sdlc_auth.adk`). ADK runs the agent in a
   task created within the request, so `bearer_header_provider` sees it. The token is never stored
   in session state, and a `state_delta` trying to inject one is dropped.
+- **Restricts ADK developer tools (`/dev/*`)** to what the chat UI needs: graph views,
+  user-bound routes, and the trace of the caller's **own** session (checked with an internal
+  session lookup). Builder save, deploy, evals, tests and event traces get 403, and the UI's
+  load-time listings return `[]`. `SDLC_DEV_TOOLS=true` re-enables them for local development only.
 - **Refuses WebSocket `/run_live`** until it can be bound the same way. `/healthz` is public.
 
 Env: `ENTRA_TENANT_ID`, `ENTRA_API_CLIENT_ID` (required; fail closed), `SDLC_AGENTS_DIR`,

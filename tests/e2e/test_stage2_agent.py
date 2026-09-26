@@ -59,10 +59,10 @@ async def test_signed_in_user_runs_skill_through_mcp():
             "/run",
             headers=headers,
             json={
-                "app_name": "bootstrap",
-                "user_id": "user",
-                "session_id": session["id"],
-                "new_message": {
+                "appName": "bootstrap",  # camelCase, as the ADK dev UI sends it
+                "userId": "user",
+                "sessionId": session["id"],
+                "newMessage": {
                     "role": "user",
                     "parts": [
                         {

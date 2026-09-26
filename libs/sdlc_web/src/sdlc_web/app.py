@@ -25,6 +25,7 @@ def create_app(
     host: str,
     port: int,
     session_service_uri: str = "memory://",
+    dev_tools: bool = False,
 ):
     # Explicit session store (default in-memory): ADK's default local storage writes a SQLite
     # file into the agent folder. Stage 7 points this at a database (e.g. postgresql://...).
@@ -42,7 +43,7 @@ def create_app(
     async def healthz() -> dict:
         return {"status": "ok"}
 
-    return EntraUserBindingMiddleware(adk_app, verifier)
+    return EntraUserBindingMiddleware(adk_app, verifier, dev_tools=dev_tools)
 
 
 def verifier_from_env() -> EntraTokenVerifier:
@@ -68,6 +69,8 @@ def main() -> None:
         host,
         port,
         session_service_uri=os.environ.get("SDLC_SESSION_SERVICE_URI", "memory://"),
+        # Full ADK developer tools (builder, deploy, evals, traces) only when explicitly enabled.
+        dev_tools=os.environ.get("SDLC_DEV_TOOLS", "false").lower() == "true",
     )
     log.info("serving agents from %s on %s:%s (Entra user binding on)", agents_dir, host, port)
     uvicorn.run(app, host=host, port=port, proxy_headers=True, forwarded_allow_ips="*")
