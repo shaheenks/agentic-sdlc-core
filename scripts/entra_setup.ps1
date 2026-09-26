@@ -246,12 +246,20 @@ if (-not $client) {
 $clientAppId = if ($client) { $client.appId } else { '<new sdlc-client appId>' }
 Write-Host "  appId=$clientAppId"
 
-$redirects = if ($client) { @($client.web.redirectUris) } else { @($RedirectUri) }
-$missingRedirects = @($RedirectUri | Where-Object { $redirects -notcontains $_ })
-if ($missingRedirects.Count -eq 0) { Write-Host "  redirect URIs ok: $($redirects -join ', ')" }
+# Wrap in @() OUTSIDE the if: an if-expression unrolls a one-element array to a plain string,
+# and string + array concatenates text instead of combining lists.
+$redirects = @(if ($client) { $client.web.redirectUris } else { $RedirectUri })
+# Drop malformed entries (e.g. two URIs glued together by an earlier run of this script).
+$malformed = @($redirects | Where-Object { ([regex]::Matches($_, '://')).Count -ne 1 })
+$validRedirects = @($redirects | Where-Object { $malformed -notcontains $_ })
+$missingRedirects = @($RedirectUri | Where-Object { $validRedirects -notcontains $_ })
+if ($missingRedirects.Count -eq 0 -and $malformed.Count -eq 0) { Write-Host "  redirect URIs ok: $($validRedirects -join ', ')" }
 else {
-    Invoke-Change "add redirect URI(s) $($missingRedirects -join ', ')" {
-        Invoke-Graph PATCH "/applications/$($client.id)" @{ web = @{ redirectUris = @($redirects + $missingRedirects) } } | Out-Null
+    $desired = @($validRedirects) + @($missingRedirects)
+    $what = "set redirect URIs: $($desired -join ', ')"
+    if ($malformed.Count) { $what += " (removing malformed: $($malformed -join ', '))" }
+    Invoke-Change $what {
+        Invoke-Graph PATCH "/applications/$($client.id)" @{ web = @{ redirectUris = $desired } } | Out-Null
     } | Out-Null
 }
 
