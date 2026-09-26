@@ -11,7 +11,7 @@ Syntax and resolution rules: docs/IMPLEMENTATION_PLAN.md → "Configuration Mode
 | skills.yaml | SkillCatalog | Global skills + access |
 | teams/<team>.yaml | Team | Membership, tool deny/constraints, add-ons |
 | sources/<id>.yaml | Source | Source artefacts, ingest settings, data access |
-| env/<env>/groups.yaml | GroupMap | Alias → Entra group object ID (only place GUIDs appear) |
+| env/<env>/groups.yaml | GroupMap | Alias → Entra group object ID (only place GUIDs appear). **Git-ignored**; commit `groups.yaml.example` |
 | schemas/ | — | JSON Schema per kind |
 
 Seed files here are examples (payments team); replace placeholder GUIDs before use.

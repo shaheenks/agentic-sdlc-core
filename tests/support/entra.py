@@ -11,7 +11,7 @@ TENANT = "11111111-2222-3333-4444-555555555555"
 API_CLIENT = "66666666-7777-8888-9999-000000000000"
 TEST_ENV = {"ENTRA_TENANT_ID": TENANT, "ENTRA_API_CLIENT_ID": API_CLIENT}
 
-# Group object IDs from config/env/local/groups.yaml (placeholders)
+# Group object IDs from the test GroupMap (tests/support/config.py)
 G_ENG_ALL = "00000000-0000-0000-0000-000000000001"
 G_PAYMENTS_DEVS = "00000000-0000-0000-0000-000000000002"
 G_PLATFORM_DEVS = "00000000-0000-0000-0000-000000000004"
@@ -61,7 +61,7 @@ class FakeEntra:
     def verifier(self, **kwargs: Any) -> EntraTokenVerifier:
         return EntraTokenVerifier(
             tenant_id=self.tenant,
-            audience=[self.audience, "api://sdlc-mcp"],
+            audience=[self.audience, f"api://{self.audience}"],
             required_scopes=["access_as_user"],
             public_key=self.key.public_key,
             **kwargs,

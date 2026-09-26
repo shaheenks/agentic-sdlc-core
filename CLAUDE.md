@@ -29,6 +29,8 @@ growing bootstrap indefinitely. Shared code goes in `libs/`, never copied betwee
 - All access is declared in `config/`. Never hardcode roles, groups, tool lists or data scopes in code.
 - Identity = Entra `oid` + group membership. Group object IDs appear ONLY in
   `config/env/<env>/groups.yaml`; everything else references group aliases.
+- `config/env/*/groups.yaml` is git-ignored (tenant-specific). Commit only `groups.yaml.example`
+  with placeholder GUIDs; never commit tenant IDs, app IDs, group IDs or test-user UPNs.
 - Resolution: groups → teams (membership) + global bindings → roles (inherits) → tools/skills/sources.
   Deny wins. Arg constraints are unioned across teams. Data access is granted only by `Source.access`.
 - A new tool requires: `tools.yaml` entry + role/team grants + persona-matrix rows.
@@ -50,7 +52,7 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
 ## Security rules
 - Authorization lives in the MCP server, never in prompts or agent code.
 - Entra is the only trusted issuer. Tokens must be v2 (iss `https://login.microsoftonline.com/<tid>/v2.0`),
-  `aud` = the sdlc-mcp client ID (v2) or `api://sdlc-mcp`, `scp` contains `access_as_user` (user tokens only),
+  `aud` = the sdlc-mcp client ID (v2) or `api://<client id>`, `scp` contains `access_as_user` (user tokens only),
   `tid` = our tenant, plus signature (JWKS) and exp. Implemented in `sdlc_auth.entra.EntraTokenVerifier`.
 - The MCP server refuses to start without valid config and `ENTRA_TENANT_ID` / `ENTRA_API_CLIENT_ID` (fail closed).
 - Users whose token omits groups (overage) get no groups unless the Graph fallback secret is set.
@@ -69,6 +71,9 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
 - `uv run pytest`            unit tests; e2e tests skip without the stack + Gemini creds
 - `uv run --env-file .env pytest tests/e2e`   exit-gate tests (agent e2e, DB + pgvector)
 - `uv run python scripts/mcp_whoami.py --token <entra token>`   manual identity check (see docs/ENTRA_SETUP.md)
+- `.\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> [-DryRun] [-WriteLocalFiles]`   idempotent Entra provisioning
+  (Windows: `az` is az.cmd, so never pass inline JSON or parentheses as az args; use `--body @file`)
+- Tests never read the real `config/env/local/groups.yaml`; the `config_dir` fixture swaps in a fixed test GroupMap
 - `uv run ruff check . && uv run ruff format .`
 - `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values); `explain`/`diff` arrive in Stage 3
 

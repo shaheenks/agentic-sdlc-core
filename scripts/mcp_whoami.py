@@ -2,7 +2,7 @@
 
 Usage:
   uv run python scripts/mcp_whoami.py --token "$(az account get-access-token \
-      --scope api://sdlc-mcp/access_as_user --query accessToken -o tsv)"
+      --scope api://<ENTRA_API_CLIENT_ID>/access_as_user --query accessToken -o tsv)"
 """
 
 import argparse

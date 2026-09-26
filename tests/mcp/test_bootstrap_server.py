@@ -1,7 +1,6 @@
 """Bootstrap MCP server over real HTTP with Entra-shaped test tokens (no real Entra needed)."""
 
 import json
-import shutil
 import socket
 import threading
 import time
@@ -33,13 +32,6 @@ def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
-
-
-@pytest.fixture
-def config_dir(tmp_path) -> Path:
-    dst = tmp_path / "config"
-    shutil.copytree(REPO_ROOT / "config", dst)
-    return dst
 
 
 @pytest.fixture

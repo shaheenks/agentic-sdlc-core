@@ -7,7 +7,7 @@ Architecture diagrams and component overview: [ARCHITECTURE.md](ARCHITECTURE.md)
 |---|---|---|
 | 0 — Foundations | ✅ Done (2026-09-26) | uv workspace, ruff/pytest/pre-commit, docker compose: postgres (pgvector, 127.0.0.1:5432), mcp-bootstrap, agent-bootstrap all healthy. App role `sdlc_app` is non-superuser. Entra app registrations/groups still pending (needed for Stage 2). |
 | 1 — Walking skeleton | ✅ Done (2026-09-26) | Gate passed: agent calls `list_skills` → `load_skill` and produces the user story, both on the host (`tests/e2e`) and in the agent container via adk web. Gemini `gemini-3.8-flash` on Vertex AI (`cloud-migration-agent`, location `global`) via ADC. |
-| 2 — Identity + config core | 🟡 2a–2c done (2026-09-26) | `sdlc_config` (schemas, loader, ConfigStore with fail-closed start + last-known-good reload, `validate` CLI), `sdlc_auth` (EntraTokenVerifier, Principal, Graph overage fallback), MCP server: Entra auth + RFC 9728 metadata, `whoami`, JSON audit log, `config_version` in /healthz. Tested with Entra-shaped test tokens. **Pending:** Entra registrations (docs/ENTRA_SETUP.md), 2d agent token passthrough (oauth2-proxy + header_provider), live two-user gate. |
+| 2 — Identity + config core | 🟡 Gate passed (2026-09-26); 2d pending | **Gate passed live** on the local dev tenant: paul (payments) and ana (platform) get different `whoami` groups; no/invalid token → 401; invalid config → server exits with `ConfigError`. Built: `sdlc_config` (Platform/GroupMap schemas, loader, ConfigStore, `validate`), `sdlc_auth` (EntraTokenVerifier, Principal, Graph overage fallback), MCP server (Entra auth + RFC 9728 metadata, `whoami`, JSON audit, `config_version`). Entra provisioned by `scripts/entra_setup.ps1`. **Remaining (2d):** agent token passthrough (oauth2-proxy → adk web → `get_user_token` → `header_provider`) + agent e2e as the Stage 2 end-to-end check. |
 | 3–9 | ⏳ Not started | |
 
 ## Context
@@ -29,6 +29,8 @@ Greenfield project (`c:\Users\shaheenks\pg\dev\agentic-sdlc` is empty). Goal: an
 ### Assumptions to confirm during Stage 0
 - Google-account users exist in Entra (B2B guest or federated), because Entra is the single IdP. On GCP, Entra is federated into Google via **Workforce Identity Federation**.
 - The `sdlc-mcp` app registration emits a `groups` claim set to **"Groups assigned to the application"**, which avoids the 200-group overage. If an overage claim still appears, the server falls back to Microsoft Graph `transitiveMemberOf` using its own app credential, cached for 10 min.
+  - *Outcome (local tenant, Entra Free):* group-to-app assignment needs P1, so the local tenant uses `SecurityGroup` claims and assigns **users** to `sdlc-mcp`. `scripts/entra_setup.ps1` detects the tier and picks the variant. The Graph fallback is built and unit-tested but not configured locally (no `ENTRA_GRAPH_CLIENT_SECRET`); overage users therefore get no groups (fail closed).
+  - *Outcome:* the tenant's app policy rejects custom identifier URIs such as `api://sdlc-mcp`, so the API uses `api://<client id>`. v2 tokens carry the client ID as `aud` either way; `platform.yaml` accepts both forms.
 - Group object IDs differ per tenant/environment, so they appear **only** in `config/env/<env>/groups.yaml`. Every other file refers to groups by alias.
 
 ## Target Architecture
@@ -311,7 +313,7 @@ Each stage is independently deployable and has an exit gate. New config kinds ar
 ### Stage 0 — Foundations (local)
 - `git init`; write **CLAUDE.md**; scaffold the layout; Python 3.12 + `uv` workspace, ruff, pytest, pre-commit.
 - `docker-compose.yml`: `postgres` (pgvector, 127.0.0.1:5432), `mcp-bootstrap`, `agent-bootstrap`. Init scripts in `db/bootstrap/` enable pgvector and create the non-superuser app role.
-- Entra: app **sdlc-mcp** (API, scope `access_as_user`, groups claim = assigned groups) and **sdlc-client** (public client). Create security groups `eng-all`, `payments-devs`, `payments-leads`, `platform-admins`, `platform-devs`, plus 4–5 test users spread across them.
+- Entra: app **sdlc-mcp** (API, identifier `api://<client id>`, scope `access_as_user`, v2 tokens, groups claim: assigned groups on P1 / `SecurityGroup` on Free) and **sdlc-client** (web app + secret for oauth2-proxy). Security groups `sdlc-eng-all`, `sdlc-payments-devs`, `sdlc-payments-leads`, `sdlc-platform-devs`, `sdlc-platform-admins`, and test users. Provisioned idempotently by `scripts/entra_setup.ps1` (see docs/ENTRA_SETUP.md). *Done in Stage 2.*
 - `.env` for secrets (git-ignored).
 - **Gate:** `docker compose up` gives three healthy containers.
 
@@ -320,12 +322,13 @@ Each stage is independently deployable and has an exit gate. New config kinds ar
 - **Gate:** agent lists and follows one skill end-to-end.
 
 ### Stage 2 — Identity + config core
-- `libs/sdlc_auth`: Entra v2 JWT validation, 401 + `WWW-Authenticate`, groups extraction + Graph overage fallback.
-- `libs/sdlc_config` v1: loader, JSON Schemas for `Platform` and `GroupMap`, `validate` CLI.
-- Token propagation: `oauth2-proxy` (Entra) → thin FastAPI app around ADK `get_fast_api_app` → token into session state → `McpToolset` `header_provider` via `get_user_token(context)`. Verify exact ADK API at implementation time.
-- `whoami` returns oid, upn, group aliases. JSON audit log.
-- `ConfigStore` (local folder source, file-watch reload); fail-closed startup; `config_version` in `/healthz` and audit log.
-- **Gate:** users in different groups see different `whoami`; no token → 401; invalid config → startup fails.
+- ✅ `libs/sdlc_auth`: Entra v2 JWT validation (fastmcp `JWTVerifier` + tenant/oid/user-token checks), 401 + `WWW-Authenticate`, groups extraction + Graph overage fallback.
+- ✅ `libs/sdlc_config` v1: loader, JSON Schemas for `Platform` and `GroupMap`, `validate` CLI (`--dummy-env` for CI).
+- ✅ `ConfigStore` (local folder source, file-watch reload; polling in Docker); fail-closed startup; last-known-good reload; `config_version` in `/healthz` and audit log.
+- ✅ `whoami` returns oid, upn, group aliases, group source, config version. JSON audit log per tool call (args hashed).
+- ✅ *Added:* RFC 9728 protected-resource metadata (`RemoteAuthProvider`), so the 401 points MCP clients at Entra (needed for Antigravity in Stage 8).
+- ⏳ **2d, token propagation:** `oauth2-proxy` (Entra, `sdlc-client`) → thin FastAPI app around ADK `get_fast_api_app` → token into session state → `McpToolset` `header_provider` via `get_user_token(context)` in `sdlc_auth`. ADK 2.10 `McpToolset` accepts `header_provider(ReadonlyContext)` (verified).
+- **Gate:** ✅ users in different groups see different `whoami` (live, paul vs ana); ✅ no token → 401; ✅ invalid config → startup fails. **Stage exit also requires 2d:** the Stage 1 agent flow works again with the signed-in user's token (e2e test re-enabled).
 
 ### Stage 3 — RBAC from config (tools)
 - Add kinds `RoleSet`, `ToolCatalog`, `Team` (membership + `policy.tools`); resolver steps 1–5; `explain` CLI; `whoami(explain=true)`.

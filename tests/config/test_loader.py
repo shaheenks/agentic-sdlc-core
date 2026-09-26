@@ -11,19 +11,11 @@ API_CLIENT = "66666666-7777-8888-9999-000000000000"
 ENV = {"ENTRA_TENANT_ID": TENANT, "ENTRA_API_CLIENT_ID": API_CLIENT}
 
 
-@pytest.fixture
-def config_dir(tmp_path: Path) -> Path:
-    """Private copy of the repo config, safe to mutate."""
-    dst = tmp_path / "config"
-    shutil.copytree(REPO_CONFIG, dst)
-    return dst
-
-
 def test_repo_config_loads(config_dir):
     snap = load_snapshot(config_dir, "local", ENV)
     assert snap.platform.tenant_id == TENANT
     assert snap.platform.issuer == f"https://login.microsoftonline.com/{TENANT}/v2.0"
-    assert snap.platform.audience == (API_CLIENT, "api://sdlc-mcp")
+    assert snap.platform.audience == (API_CLIENT, f"api://{API_CLIENT}")
     assert snap.platform.required_scopes == ("access_as_user",)
     assert "eng-all" in snap.groups.alias_by_id.values()
     assert snap.version.startswith("local-")
@@ -132,3 +124,16 @@ def test_cli_validate(config_dir, monkeypatch, capsys):
     assert "ENTRA_TENANT_ID" in capsys.readouterr().err
     assert cli_main(["validate", "--config-dir", str(config_dir), "--dummy-env"]) == 0
     assert capsys.readouterr().out.startswith("OK env=local")
+
+
+def test_missing_groups_file_hints_at_example(config_dir):
+    (config_dir / "env/local/groups.yaml").unlink()
+    assert (config_dir / "env/local/groups.yaml.example").is_file()
+    with pytest.raises(ConfigError, match=r"copy env/local/groups.yaml.example"):
+        load_snapshot(config_dir, "local", ENV)
+
+
+def test_committed_example_is_a_valid_groupmap(config_dir):
+    example = config_dir / "env/local/groups.yaml.example"
+    (config_dir / "env/local/groups.yaml").write_text(example.read_text())
+    assert len(load_snapshot(config_dir, "local", ENV).groups.alias_by_id) == 5

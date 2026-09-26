@@ -3,7 +3,7 @@
 Entra ID identity for the platform. Stage 2.
 
 - `sdlc_auth.entra.EntraTokenVerifier` (extra `server`): a fastmcp `JWTVerifier` subclass that
-  checks signature (JWKS), exp, the v2 issuer, audience (client ID or `api://sdlc-mcp`), the
+  checks signature (JWKS), exp, the v2 issuer, audience (client ID or `api://<client id>`), the
   `access_as_user` scope, and `tid` + `oid`, and rejects app-only tokens.
 - `Principal` / `principal_from_claims`: the user normalized from validated claims
   (oid, tid, upn, name, group_ids, groups_overage).

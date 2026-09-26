@@ -49,7 +49,10 @@ def load_snapshot(
         path = config_dir / rel
         schema_path = config_dir / "schemas" / schema_name
         if not path.is_file():
-            problems.append(f"{rel}: file not found")
+            hint = ""
+            if path.with_name(path.name + ".example").is_file():
+                hint = f" (copy {rel}.example to {rel} and fill in your tenant's values)"
+            problems.append(f"{rel}: file not found{hint}")
             continue
         if not schema_path.is_file():
             problems.append(f"schemas/{schema_name}: schema not found")

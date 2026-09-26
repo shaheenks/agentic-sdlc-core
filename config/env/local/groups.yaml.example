@@ -1,6 +1,8 @@
 apiVersion: sdlc/v1
 kind: GroupMap
-# Replace placeholder GUIDs with real Entra security group object IDs for the local/test tenant.
+# Copy to groups.yaml (git-ignored) and replace the placeholder GUIDs with the Entra security group
+# object IDs of your tenant. scripts/entra_setup.ps1 -WriteLocalFiles does this for you.
+# Aliases (left) are what roles/teams/sources reference; keep them identical across environments.
 groups:
   eng-all:         { id: "00000000-0000-0000-0000-000000000001", description: "All engineering" }
   payments-devs:   { id: "00000000-0000-0000-0000-000000000002", description: "Payments developers" }

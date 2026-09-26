@@ -23,7 +23,7 @@ async def test_valid_token_yields_principal(entra):
 
 
 async def test_v1_style_audience_accepted(entra):
-    assert await entra.verifier().load_access_token(entra.token(audience="api://sdlc-mcp"))
+    assert await entra.verifier().load_access_token(entra.token(audience=f"api://{entra.audience}"))
 
 
 @pytest.mark.parametrize(
