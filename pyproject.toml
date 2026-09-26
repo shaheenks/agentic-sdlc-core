@@ -22,6 +22,7 @@ package = false
 members = [
     "libs/sdlc_auth",
     "libs/sdlc_config",
+    "libs/sdlc_web",
     "mcp_servers/bootstrap",
     "agents/bootstrap",
 ]
@@ -29,6 +30,7 @@ members = [
 [tool.uv.sources]
 sdlc-auth = { workspace = true }
 sdlc-config = { workspace = true }
+sdlc-web = { workspace = true }
 sdlc-mcp-bootstrap = { workspace = true }
 sdlc-agent-bootstrap = { workspace = true }
 

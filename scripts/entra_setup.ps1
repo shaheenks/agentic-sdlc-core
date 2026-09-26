@@ -32,7 +32,8 @@ param(
     [string]$RedirectUri = 'http://localhost:4180/oauth2/callback',
     [switch]$NewClientSecret,   # create a new sdlc-client secret (printed once / written to .env)
     [switch]$WriteLocalFiles,   # update .env and config/env/local/groups.yaml with the real IDs
-    [switch]$DryRun             # read-only: print planned changes, modify nothing
+    [switch]$DryRun,            # read-only: print planned changes, modify nothing
+    [switch]$NoAzCliPreAuth     # prod/enterprise: no Azure CLI pre-authorization (removes it if present)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -166,9 +167,16 @@ Invoke-Change 'set access_as_user scope, v2 access tokens, groups claim' {
         optionalClaims        = @{ accessToken = @(@{ name = 'groups' }); idToken = @(); saml2Token = @() }
     } | Out-Null
 } | Out-Null
-# 1c. pre-authorize Azure CLI (dev: az account get-access-token for the whoami check)
-$apiSettings.preAuthorizedApplications = @(@{ appId = $AzCliClientId; delegatedPermissionIds = @($ScopeId) })
-Invoke-Change 'pre-authorize Azure CLI for access_as_user (dev testing)' {
+# 1c. pre-authorize Azure CLI (dev: az account get-access-token for the whoami check).
+#     -NoAzCliPreAuth removes it: required outside dev (see plan, Enterprise gap E6).
+if ($NoAzCliPreAuth) {
+    $apiSettings.preAuthorizedApplications = @()
+    $preAuthDescription = 'remove Azure CLI pre-authorization'
+} else {
+    $apiSettings.preAuthorizedApplications = @(@{ appId = $AzCliClientId; delegatedPermissionIds = @($ScopeId) })
+    $preAuthDescription = 'pre-authorize Azure CLI for access_as_user (dev testing)'
+}
+Invoke-Change $preAuthDescription {
     Invoke-Graph PATCH "/applications/$($api.id)" @{ api = $apiSettings } | Out-Null
 } | Out-Null
 

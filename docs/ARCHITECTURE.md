@@ -113,7 +113,8 @@ sequenceDiagram
     S->>E: OIDC sign-in
     E-->>S: access token v2 (oid, groups, scp=access_as_user, aud=sdlc-mcp client id)
     U->>S: "How does payments-api handle refunds?"
-    S->>A: message + user token (session state)
+    S->>A: message + X-Forwarded-Access-Token (oauth2-proxy)
+    A->>A: re-validate token, bind user_id to oid, token in request context (never stored)
     A->>M: tools/list  [Bearer user token]
     M->>M: validate JWT → resolve EffectivePolicy
     M-->>A: only the tools this user may see
@@ -183,7 +184,7 @@ refuses to serve. A bad reload keeps the last good version. Rollback means movin
 
 | Aspect | Local (Stages 0–6) | GCP (Stage 7+) |
 |---|---|---|
-| Agent | `agent-bootstrap` container (`adk web`) | Cloud Run → Vertex AI Agent Engine (for Gemini Enterprise) |
+| Agent | `agent-bootstrap` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` | Cloud Run → Vertex AI Agent Engine (for Gemini Enterprise) |
 | MCP server | `mcp-bootstrap` container | Cloud Run |
 | Database | `postgres` container (pgvector, `127.0.0.1:5432`) | Cloud SQL for PostgreSQL + pgvector (private IP) |
 | Ingest | CLI in container | Cloud Run Job |

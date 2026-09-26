@@ -7,7 +7,7 @@ Architecture diagrams and component overview: [ARCHITECTURE.md](ARCHITECTURE.md)
 |---|---|---|
 | 0 — Foundations | ✅ Done (2026-09-26) | uv workspace, ruff/pytest/pre-commit, docker compose: postgres (pgvector, 127.0.0.1:5432), mcp-bootstrap, agent-bootstrap all healthy. App role `sdlc_app` is non-superuser. Entra app registrations/groups still pending (needed for Stage 2). |
 | 1 — Walking skeleton | ✅ Done (2026-09-26) | Gate passed: agent calls `list_skills` → `load_skill` and produces the user story, both on the host (`tests/e2e`) and in the agent container via adk web. Gemini `gemini-3.8-flash` on Vertex AI (`cloud-migration-agent`, location `global`) via ADC. |
-| 2 — Identity + config core | 🟡 Gate passed (2026-09-26); 2d pending | **Gate passed live** on the local dev tenant: paul (payments) and ana (platform) get different `whoami` groups; no/invalid token → 401; invalid config → server exits with `ConfigError`. Built: `sdlc_config` (Platform/GroupMap schemas, loader, ConfigStore, `validate`), `sdlc_auth` (EntraTokenVerifier, Principal, Graph overage fallback), MCP server (Entra auth + RFC 9728 metadata, `whoami`, JSON audit, `config_version`). Entra provisioned by `scripts/entra_setup.ps1`. **Remaining (2d):** agent token passthrough (oauth2-proxy → adk web → `get_user_token` → `header_provider`) + agent e2e as the Stage 2 end-to-end check. |
+| 2 — Identity + config core | 🟡 Identity gate passed; 2d built, live check pending | **Gate passed live** on the local dev tenant: paul (payments) and ana (platform) get different `whoami` groups; no/invalid token → 401; invalid config → server exits with `ConfigError`. Built: `sdlc_config` (Platform/GroupMap schemas, loader, ConfigStore, `validate`), `sdlc_auth` (EntraTokenVerifier, Principal, Graph overage fallback), MCP server (Entra auth + RFC 9728 metadata, `whoami`, JSON audit, `config_version`). Entra provisioned by `scripts/entra_setup.ps1`. **2d built:** oauth2-proxy → `sdlc-agent-web` (token re-validation, user binding, ContextVar passthrough) → agent `bearer_header_provider` → MCP. **Pending:** live browser sign-in + `tests/e2e/test_stage2_agent.py` with a real user token. |
 | 3–9 | ⏳ Not started | |
 
 ## Context
@@ -270,6 +270,28 @@ The audit log records `config_version` + the matched rule, so every decision can
 - **Stage 5:** `sources` registry sync to Postgres on version change; ingest reads `Source.spec` from the store.
 - **Stage 7:** GCS bundle store + `current` pointer + Pub/Sub reload, last-known-good, rollback runbook, CI promotion.
 
+## Enterprise Tenant Readiness
+Token validation, identity and the config model are tenant-agnostic: any single Entra tenant works by
+setting `ENTRA_TENANT_ID` / `ENTRA_API_CLIENT_ID` and `config/env/<env>/groups.yaml`. Signing-key
+rotation is handled (JWKS cached 1 h, re-fetched on an unknown `kid`). P1/P2 tenants get assigned-group
+claims automatically, and `api://<client id>` meets the default identifier-URI policy. Guest (B2B) users
+work as long as they are in the mapped groups.
+
+Known gaps for enterprise tenants, and where they are addressed:
+
+| # | Gap | Resolution | Stage |
+|---|---|---|---|
+| E1 | **Group overage**: enterprise users are often in more than 200 groups; on `SecurityGroup` claims they then get no groups unless the Graph fallback is set, and that needs the `GroupMember.Read.All` app permission, which many tenants refuse | Support **Entra app roles** as an identity source next to groups: `roles` claim, no overage. Config maps app-role values to teams/roles like group aliases. Prefer P1 assigned groups otherwise | 3 |
+| E2 | **Nested groups** do not inherit app assignment: users in nested groups get no token when assignment is required | Assign leaf groups, or use app roles (E1); document in ENTRA_SETUP | 3 |
+| E3 | **Revocation latency**: disabled users keep access until token expiry (60–90 min; longer with CAE-capable clients); CAE claims challenges not supported | Short token lifetime policy, CAE claims-challenge support or an `oid` denylist | 9 |
+| E4 | **Client secrets** (`sdlc-client`, Graph fallback): often banned or capped at 6–12 months | Certificates or **federated credentials** (Entra trusts GCP workload identity; no secret) | 7 |
+| E5 | **Provisioning** by script does not fit change control | `azuread` Terraform module in `infra/` + reviewable app manifest; `entra_setup.ps1` stays for dev | 7 |
+| E6 | **Azure CLI pre-authorization** is a dev shortcut, may be blocked by Conditional Access, and must not exist in prod | `entra_setup.ps1 -NoAzCliPreAuth`; off outside dev | 2d |
+| E7 | **Sovereign clouds** (GCC High, China): the Graph fallback hard-codes the commercial login/Graph hosts | `identity.authority_host` / `graph_host` in `platform.yaml` | backlog |
+| E8 | **Egress**: the MCP server must reach the Entra JWKS endpoint | Document the allowlist/proxy; test behind a proxy | 7 |
+| E9 | **Multi-tenant** (users authenticating in their own home tenant, not as guests) is rejected by design | Allow-list of tenants if ever needed | out of scope |
+| E10 | **On-prem synced groups** emitting names (`sAMAccountName`) instead of object IDs silently map to nothing | Require object IDs in ENTRA_SETUP; `whoami` flags non-GUID group values | 3 |
+
 ## Repo Layout
 Each top-level area is a **collection of components**. Every area has a `bootstrap/` folder holding the small-footprint starter component; later components are added as siblings. Cross-cutting code lives in `libs/`.
 ```
@@ -327,14 +349,16 @@ Each stage is independently deployable and has an exit gate. New config kinds ar
 - ✅ `ConfigStore` (local folder source, file-watch reload; polling in Docker); fail-closed startup; last-known-good reload; `config_version` in `/healthz` and audit log.
 - ✅ `whoami` returns oid, upn, group aliases, group source, config version. JSON audit log per tool call (args hashed).
 - ✅ *Added:* RFC 9728 protected-resource metadata (`RemoteAuthProvider`), so the 401 points MCP clients at Entra (needed for Antigravity in Stage 8).
-- ⏳ **2d, token propagation:** `oauth2-proxy` (Entra, `sdlc-client`) → thin FastAPI app around ADK `get_fast_api_app` → token into session state → `McpToolset` `header_provider` via `get_user_token(context)` in `sdlc_auth`. ADK 2.10 `McpToolset` accepts `header_provider(ReadonlyContext)` (verified).
-- **Gate:** ✅ users in different groups see different `whoami` (live, paul vs ana); ✅ no token → 401; ✅ invalid config → startup fails. **Stage exit also requires 2d:** the Stage 1 agent flow works again with the signed-in user's token (e2e test re-enabled).
+- ✅ **2d, token propagation (built, gate pending):** `oauth2-proxy` v7.15 (Entra OIDC, `sdlc-client`, PKCE, scope `api://<api>/access_as_user` + `offline_access`, 30 min refresh) on `localhost:4180` → `sdlc-agent-web` (`libs/sdlc_web`: ADK `get_fast_api_app` + `EntraUserBindingMiddleware`). The middleware re-validates the token, binds ADK `user_id` to `oid` (paths and `/run` bodies), puts the token in a request-scoped ContextVar (never in session state; it drops injected state tokens), and refuses `/run_live`. The agent's `McpToolset(header_provider=bearer_header_provider)` (`sdlc_auth.adk.get_user_token`). Verified in ADK 2.10: header_provider runs per call; MCP sessions and tool-list caches are keyed per header set (per user).
+- ✅ Enterprise E6: `entra_setup.ps1 -NoAzCliPreAuth`.
+- **Gate:** ✅ users in different groups see different `whoami` (live); ✅ no token → 401; ✅ invalid config → startup fails. **2d gate (pending live run):** a signed-in user runs the skill flow through oauth2-proxy (browser) and `tests/e2e/test_stage2_agent.py` passes with a real user token; users cannot see each other's sessions (`tests/web/test_app.py`).
 
 ### Stage 3 — RBAC from config (tools)
 - Add kinds `RoleSet`, `ToolCatalog`, `Team` (membership + `policy.tools`); resolver steps 1–5; `explain` CLI; `whoami(explain=true)`.
 - `libs/sdlc_policy`: filter `tools/list`, enforce `tools/call` + arg constraints, deny-wins.
 - `sdlc-config compile` → bundle + manifest; per-request snapshots + EffectivePolicy cache; admin tools `config_explain(upn)` / `config_info()`.
 - Persona-matrix tests (persona = set of group aliases) → expected allow/deny per tool+args; `diff` CLI in CI.
+- Enterprise (E1, E2, E10): Entra **app roles** as an identity source alongside groups (a `roles` claim mapped to teams/roles in config); document leaf-group assignment; `whoami` flags non-GUID group claim values.
 - **Gate:** persona matrix green; e.g. a payments dev can call `review_code(repo=payments-api)` but not `payments-ledger-core` or `approve_design`.
 
 ### Stage 4 — Skills + team add-ons
@@ -361,6 +385,7 @@ Each stage is independently deployable and has an exit gate. New config kinds ar
 - Terraform: Cloud Run (MCP server, agent), Cloud Run Job (ingest), Cloud SQL + pgvector, Secret Manager, Artifact Registry, Cloud Logging; Workforce Identity Federation (Entra); Vertex AI.
 - Config bundles in `gs://sdlc-config-<env>/` with a `current` pointer; Pub/Sub-triggered reload (60s poll fallback); last-known-good; rollback = pointer flip.
 - CI: validate → diff → test → compile + publish bundle → deploy; prod promotion by pointer flip after approval.
+- Enterprise (E4, E5, E8): Entra app registrations via the `azuread` Terraform module; certificates or federated credentials (GCP workload identity) instead of client secrets; document JWKS egress.
 - **Gate:** Stage 1–6 gates green on GCP dev.
 
 ### Stage 8 — Additional surfaces
@@ -370,10 +395,11 @@ Each stage is independently deployable and has an exit gate. New config kinds ar
 
 ### Stage 9 — Expansion (backlog)
 - Source types `git`, `jira`, `confluence`, `sharepoint`, with optional `access.inherit_from_source: true` to map native ACLs.
+- Enterprise E3: token revocation (short lifetimes, CAE claims challenge or `oid` denylist); E7 sovereign-cloud hosts if needed.
 - Entra OBO for downstream calls; OpenTelemetry; rate limits per team (`Team.policy.limits`); ADK evals in CI; OPA/Cedar if rules outgrow YAML; admin UI over config (still git-backed).
 
 ## Key Risks
-- **Group claim overage / nested groups:** mitigated by assigned-groups claim + Graph fallback; nested groups need `transitiveMemberOf`.
+- **Group claim overage / nested groups:** mitigated by assigned-groups claim + Graph fallback; app roles planned (E1). See **Enterprise Tenant Readiness**.
 - **Config drift across environments:** only group IDs vary per env; `diff` on every PR.
 - **Token passthrough differs per surface:** isolated in `get_user_token(context)`.
 - **Entra lacks DCR:** pre-registered client for MCP clients.

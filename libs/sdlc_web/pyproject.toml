@@ -1,0 +1,20 @@
+[project]
+name = "sdlc-web"
+version = "0.1.0"
+description = "Serves ADK agents (adk web) behind oauth2-proxy with Entra user binding and token passthrough"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "google-adk[mcp]>=2.10",
+    "sdlc-auth[server]",
+    "uvicorn>=0.30",
+]
+
+[project.scripts]
+sdlc-agent-web = "sdlc_web.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sdlc_web"]

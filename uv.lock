@@ -9,6 +9,7 @@ members = [
     "sdlc-auth",
     "sdlc-config",
     "sdlc-mcp-bootstrap",
+    "sdlc-web",
 ]
 
 [[package]]
@@ -1670,10 +1671,14 @@ version = "0.1.0"
 source = { virtual = "agents/bootstrap" }
 dependencies = [
     { name = "google-adk", extra = ["mcp"] },
+    { name = "sdlc-auth" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "google-adk", extras = ["mcp"], specifier = ">=2.10" }]
+requires-dist = [
+    { name = "google-adk", extras = ["mcp"], specifier = ">=2.10" },
+    { name = "sdlc-auth", editable = "libs/sdlc_auth" },
+]
 
 [[package]]
 name = "sdlc-auth"
@@ -1729,6 +1734,23 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "sdlc-auth", extras = ["server"], editable = "libs/sdlc_auth" },
     { name = "sdlc-config", editable = "libs/sdlc_config" },
+]
+
+[[package]]
+name = "sdlc-web"
+version = "0.1.0"
+source = { editable = "libs/sdlc_web" }
+dependencies = [
+    { name = "google-adk", extra = ["mcp"] },
+    { name = "sdlc-auth", extra = ["server"] },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "google-adk", extras = ["mcp"], specifier = ">=2.10" },
+    { name = "sdlc-auth", extras = ["server"], editable = "libs/sdlc_auth" },
+    { name = "uvicorn", specifier = ">=0.30" },
 ]
 
 [[package]]

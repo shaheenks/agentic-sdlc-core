@@ -181,6 +181,27 @@ uv run python scripts/mcp_whoami.py --token "$(az account get-access-token \
 # repeat as user B: groups must differ; a request with no/invalid token gets 401
 ```
 
+### Stage 2d: sign in through the web UI
+
+```powershell
+docker compose up -d --build --wait     # needs ENTRA_CLIENT_ID/SECRET and OAUTH2_PROXY_COOKIE_SECRET in .env
+start http://localhost:4180             # sign in as a test user, then use the "bootstrap" agent
+```
+
+The agent's MCP calls now carry that user's token. `docker compose logs mcp-bootstrap` shows
+`sdlc.audit` lines with the user's `oid`. The automated end-to-end check needs a real user token:
+
+```powershell
+$env:AZURE_CONFIG_DIR = "$env:TEMP\az-paul"      # separate CLI profile keeps your admin session
+az login --tenant <tenant> --allow-no-subscriptions
+$env:SDLC_E2E_USER_TOKEN = az account get-access-token --scope api://<ENTRA_API_CLIENT_ID>/access_as_user --query accessToken -o tsv
+uv run --env-file .env pytest tests/e2e/test_stage2_agent.py -v
+Remove-Item Env:AZURE_CONFIG_DIR, Env:SDLC_E2E_USER_TOKEN
+```
+
+For prod or enterprise tenants, remove the Azure CLI pre-authorization:
+`.\scripts\entra_setup.ps1 ... -NoAzCliPreAuth` (plan gap E6).
+
 Troubleshooting:
 - **401 with a real token:** decode it at https://jwt.ms and check that `iss` ends in `/v2.0`,
   `aud` is the `sdlc-mcp` client ID, `scp` contains `access_as_user`, and `tid` matches.

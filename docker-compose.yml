@@ -1,4 +1,5 @@
-# Local stack (Stage 0-1). No auth yet: bind to localhost only.
+# Local stack. Users sign in at http://localhost:4180 (oauth2-proxy, Entra ID).
+# Only oauth2-proxy and the MCP server are published, and only on localhost.
 name: agentic-sdlc
 
 services:
@@ -53,11 +54,15 @@ services:
     build:
       context: .
       dockerfile: agents/bootstrap/Dockerfile
-    ports: ["127.0.0.1:8000:8000"]
+    # Not published: reached only via oauth2-proxy. It re-validates the user token anyway.
+    expose: ["8000"]
     # Explicit allow-list instead of env_file: the agent must not receive DB credentials.
     environment:
       SDLC_MCP_URL: http://mcp-bootstrap:8080/mcp
       SDLC_AGENT_MODEL: ${SDLC_AGENT_MODEL:-gemini-3.8-flash}
+      # Entra identity (validate the forwarded user token; not secrets)
+      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
+      ENTRA_API_CLIENT_ID: ${ENTRA_API_CLIENT_ID:-}
       GOOGLE_GENAI_USE_VERTEXAI: ${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
@@ -69,6 +74,38 @@ services:
       - ${GOOGLE_ADC_FILE:-${APPDATA}/gcloud/application_default_credentials.json}:/secrets/adc.json:ro
     depends_on:
       mcp-bootstrap:
+        condition: service_healthy
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4-alpine
+    ports: ["127.0.0.1:4180:4180"]
+    environment:
+      OAUTH2_PROXY_PROVIDER: oidc
+      OAUTH2_PROXY_PROVIDER_DISPLAY_NAME: Entra ID
+      OAUTH2_PROXY_OIDC_ISSUER_URL: https://login.microsoftonline.com/${ENTRA_TENANT_ID:-}/v2.0
+      OAUTH2_PROXY_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
+      OAUTH2_PROXY_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
+      # The access token is for the MCP API (aud = sdlc-mcp); offline_access enables refresh.
+      OAUTH2_PROXY_SCOPE: openid profile email offline_access api://${ENTRA_API_CLIENT_ID}/access_as_user
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+      OAUTH2_PROXY_REDIRECT_URL: http://localhost:4180/oauth2/callback
+      OAUTH2_PROXY_UPSTREAMS: http://agent-bootstrap:8000
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_REVERSE_PROXY: "false"
+      # Entra ID tokens often lack a verified `email`; identify users by UPN.
+      OAUTH2_PROXY_OIDC_EMAIL_CLAIM: preferred_username
+      OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:-}
+      OAUTH2_PROXY_COOKIE_SECURE: "false"   # plain http on localhost only
+      OAUTH2_PROXY_COOKIE_REFRESH: 30m      # refresh before the ~60-90 min access token expires
+      OAUTH2_PROXY_COOKIE_EXPIRE: 8h
+      # API calls from the dev UI get 401 instead of a login redirect when the session lapses.
+      OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps)
+    depends_on:
+      agent-bootstrap:
         condition: service_healthy
 
 volumes:

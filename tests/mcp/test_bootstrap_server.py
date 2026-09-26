@@ -1,76 +1,17 @@
 """Bootstrap MCP server over real HTTP with Entra-shaped test tokens (no real Entra needed)."""
 
 import json
-import socket
-import threading
-import time
-from pathlib import Path
 
 import httpx
 import pytest
-import uvicorn
-from fastmcp import Client, FastMCP
+from fastmcp import Client
 from fastmcp.exceptions import ToolError
-from fastmcp.server.auth import RemoteAuthProvider
 from sdlc_auth.entra import entra_issuer
-from sdlc_config import ConfigStore, load_snapshot
-from sdlc_mcp_bootstrap.server import build_server, discover_skills, parse_skill
+from sdlc_mcp_bootstrap.server import discover_skills, parse_skill
 
-from tests.support.entra import (
-    G_ENG_ALL,
-    G_PAYMENTS_DEVS,
-    G_PLATFORM_DEVS,
-    TENANT,
-    TEST_ENV,
-)
+from tests.support.entra import G_ENG_ALL, G_PAYMENTS_DEVS, G_PLATFORM_DEVS, TENANT
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-BOOTSTRAP_SKILLS = REPO_ROOT / "skills" / "bootstrap"
-
-
-def _free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
-@pytest.fixture
-def store(config_dir) -> ConfigStore:
-    return ConfigStore(lambda: load_snapshot(config_dir, "local", TEST_ENV))
-
-
-@pytest.fixture
-def port() -> int:
-    return _free_port()
-
-
-@pytest.fixture
-def server(entra, store, port) -> FastMCP:
-    # Same wrapper as production (build_auth), but with the fake issuer's verifier.
-    auth = RemoteAuthProvider(
-        token_verifier=entra.verifier(),
-        authorization_servers=[entra_issuer(TENANT)],
-        base_url=f"http://127.0.0.1:{port}",
-        resource_name="sdlc-mcp",
-    )
-    return build_server(BOOTSTRAP_SKILLS, store, auth)
-
-
-@pytest.fixture
-def base_url(server, port):
-    """Run the server's HTTP app with uvicorn in a background thread."""
-    uv = uvicorn.Server(
-        uvicorn.Config(server.http_app(), host="127.0.0.1", port=port, log_level="warning")
-    )
-    thread = threading.Thread(target=uv.run, daemon=True)
-    thread.start()
-    deadline = time.monotonic() + 10
-    while not uv.started:
-        assert time.monotonic() < deadline, "server did not start"
-        time.sleep(0.05)
-    yield f"http://127.0.0.1:{port}"
-    uv.should_exit = True
-    thread.join(timeout=5)
+# Fixtures `store`, `server`, `base_url` come from tests/conftest.py.
 
 
 def client(base_url: str, token: str | None) -> Client:

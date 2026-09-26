@@ -15,6 +15,7 @@ current before adding features, and don't build ahead of the current stage's exi
 - `libs/sdlc_config`        Config loader + JSON Schemas + resolver → `EffectivePolicy`; CLI validate/explain/diff
 - `libs/sdlc_policy`        Enforcement: tools/list filtering, call authz, arg constraints
 - `libs/sdlc_db`            Postgres/pgvector access with RLS session context
+- `libs/sdlc_web`           Serves agents (ADK web app) behind oauth2-proxy: token re-validation, user binding, token passthrough
 - `skills/core/`, `skills/teams/<team>/`   SKILL.md content only (no access rules inside skills)
 - `config/`                 platform, roles, tools, skills, `teams/`, `sources/`, `env/<env>/groups.yaml`, `schemas/`
 - `db/bootstrap`, `db/migrations`   Schema + RLS
@@ -63,13 +64,23 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
 - Audit every tool call: oid, teams, roles, tool, args hash, decision, matched rule, config_version.
 - Secrets only in `.env` (local) / Secret Manager (GCP). Never commit them.
 
+## Enterprise tenants
+See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md.
+- Keep identity tenant-agnostic: tenant/app IDs come from env, group IDs from the git-ignored groups.yaml.
+  Never hard-code login/Graph hosts in new code; take them from `platform.yaml`.
+- Don't assume the `groups` claim is present or complete (overage, nested groups, Free-tier `SecurityGroup`).
+  Missing groups mean fewer permissions, never more (fail closed). App roles (Stage 3) are the enterprise path.
+- Dev-only shortcuts (Azure CLI pre-authorization, client secrets, the PowerShell provisioning script) must not
+  leak into prod: prod uses Terraform, certificates or federated credentials, and no Azure CLI pre-auth.
+
 ## Commands
 - `uv sync --all-packages`   install every workspace member (plain `uv sync` installs only the root)
-- `docker compose up -d --build --wait`   postgres (127.0.0.1:5432), mcp-bootstrap (:8080), agent-bootstrap / adk web (:8000)
+- `docker compose up -d --build --wait`   postgres (:5432), mcp-bootstrap (:8080), agent-bootstrap (internal :8000), oauth2-proxy (:4180)
+- Open **http://localhost:4180** and sign in with Entra to use the agents (dev UI at /dev-ui/). The agent port is not published.
 - DB connections use standard `PG*` env vars; the app role `sdlc_app` is non-superuser (RLS applies). Init: `db/bootstrap/README.md`.
-- `uv run adk web agents`    run the dev UI outside Docker (needs `SDLC_MCP_URL`)
+- `uv run --env-file .env sdlc-agent-web`   agent web app outside Docker (expects a token in `X-Forwarded-Access-Token` or `Authorization: Bearer`)
 - `uv run pytest`            unit tests; e2e tests skip without the stack + Gemini creds
-- `uv run --env-file .env pytest tests/e2e`   exit-gate tests (agent e2e, DB + pgvector)
+- `uv run --env-file .env pytest tests/e2e`   exit-gate tests (DB + pgvector; the Stage 2 agent e2e needs `SDLC_E2E_USER_TOKEN`, see docs/ENTRA_SETUP.md)
 - `uv run python scripts/mcp_whoami.py --token <entra token>`   manual identity check (see docs/ENTRA_SETUP.md)
 - `.\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> [-DryRun] [-WriteLocalFiles]`   idempotent Entra provisioning
   (Windows: `az` is az.cmd, so never pass inline JSON or parentheses as az args; use `--body @file`)
@@ -82,6 +93,8 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
 - Agent packages under `agents/` are virtual uv projects (`package = false`); `adk web agents` imports them by folder name.
 - Dockerfiles build from the repo root: `docker build -f <component>/Dockerfile .`.
 - ADK 2 needs the `google-adk[mcp]` extra for `McpToolset`.
+- ADK calls `header_provider` only when a context is passed (`get_tools(ctx)`); agent runs always pass one, tests must too.
+  MCP sessions and tool-list caches are keyed by the header hash, so each user token gets its own MCP session.
 - Gemini runs on Vertex AI via gcloud ADC (project `cloud-migration-agent`, location `global`, model `gemini-3.8-flash`). ADC has no quota project, so `.env` sets `GOOGLE_CLOUD_QUOTA_PROJECT`. The agent container gets only the ADC file, mounted at `/secrets/adc.json`.
 - Python 3.12 (`.python-version`); ruff formats code only, not markdown snippets.
 - Only MCP servers and ingest get DB credentials. Agent containers get an explicit env allow-list, never the whole `.env`.
