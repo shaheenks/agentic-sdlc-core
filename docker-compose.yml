@@ -1,5 +1,6 @@
 # Local stack. Users sign in at http://localhost:4180, or publicly at https://${SDLC_APP_HOST}
-# through the Cloudflare Tunnel (`docker compose --profile tunnel up -d`).
+# through the Cloudflare Tunnel (host connector -> localhost:4181 / :8080;
+# `docker compose --profile tunnel up -d` starts the public oauth2-proxy).
 # Only oauth2-proxy and the MCP server are published, and only on localhost.
 # Public endpoints: docs/CLOUDFLARE_TUNNEL.md
 name: agentic-sdlc
@@ -120,11 +121,13 @@ services:
         condition: service_healthy
 
   # Public sign-in: https://${SDLC_APP_HOST} via the Cloudflare Tunnel (TLS ends at Cloudflare).
-  # Not published on the host; only cloudflared reaches it on the Docker network.
+  # The tunnel connector runs on the host (Windows service `Cloudflared`, managed in the
+  # Cloudflare dashboard) and forwards app-sdlc-dev -> http://localhost:4181. Published on
+  # localhost only. Start with: docker compose --profile tunnel up -d
   oauth2-proxy-public:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4-alpine
     profiles: ["tunnel"]
-    expose: ["4180"]
+    ports: ["127.0.0.1:4181:4180"]
     environment:
       <<: *oauth2-proxy-env
       OAUTH2_PROXY_REDIRECT_URL: https://${SDLC_APP_HOST:-app-sdlc-dev.shaheenks.co.in}/oauth2/callback
@@ -134,22 +137,6 @@ services:
     depends_on:
       agent-bootstrap:
         condition: service_healthy
-
-  # Public exposure (opt-in): docker compose --profile tunnel up -d
-  # Token-based tunnel; public hostnames -> services are configured in the Cloudflare
-  # dashboard (docs/CLOUDFLARE_TUNNEL.md). Outbound-only: no inbound ports are opened.
-  cloudflared:
-    image: cloudflare/cloudflared:2026.9.1
-    profiles: ["tunnel"]
-    command: ["tunnel", "--no-autoupdate", "run"]
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
-    depends_on:
-      oauth2-proxy-public:
-        condition: service_started
-      mcp-bootstrap:
-        condition: service_healthy
-    restart: unless-stopped
 
 volumes:
   pgdata:
