@@ -1,6 +1,36 @@
-# Local stack. Users sign in at http://localhost:4180 (oauth2-proxy, Entra ID).
+# Local stack. Users sign in at http://localhost:4180, or publicly at https://${SDLC_APP_HOST}
+# through the Cloudflare Tunnel (`docker compose --profile tunnel up -d`).
 # Only oauth2-proxy and the MCP server are published, and only on localhost.
+# Public endpoints: docs/CLOUDFLARE_TUNNEL.md
 name: agentic-sdlc
+
+# Settings shared by the local and public oauth2-proxy instances (same Entra app, sdlc-client).
+x-oauth2-proxy-env: &oauth2-proxy-env
+  OAUTH2_PROXY_PROVIDER: oidc
+  OAUTH2_PROXY_PROVIDER_DISPLAY_NAME: Entra ID
+  OAUTH2_PROXY_OIDC_ISSUER_URL: https://login.microsoftonline.com/${ENTRA_TENANT_ID:-}/v2.0
+  OAUTH2_PROXY_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
+  OAUTH2_PROXY_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
+  # The access token is for the MCP API (aud = sdlc-mcp); offline_access enables refresh.
+  OAUTH2_PROXY_SCOPE: openid profile email offline_access api://${ENTRA_API_CLIENT_ID}/access_as_user
+  OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+  OAUTH2_PROXY_UPSTREAMS: http://agent-bootstrap:8000
+  OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+  OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+  OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+  # Entra ID tokens often lack a verified `email`; identify users by UPN.
+  OAUTH2_PROXY_OIDC_EMAIL_CLAIM: preferred_username
+  # oauth2-proxy only authenticates; groups/authorization are resolved by the MCP server from
+  # the access token. Without this, a missing `groups` claim in the ID token makes it call the
+  # Graph profile URL with the API-audience access token -> 401 "Invalid audience" -> 500.
+  OAUTH2_PROXY_SKIP_CLAIMS_FROM_PROFILE_URL: "true"
+  OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
+  OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+  OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:-}
+  OAUTH2_PROXY_COOKIE_REFRESH: 30m      # refresh before the ~60-90 min access token expires
+  OAUTH2_PROXY_COOKIE_EXPIRE: 8h
+  # API calls from the dev UI get 401 instead of a login redirect when the session lapses.
+  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps)
 
 services:
   postgres:
@@ -39,7 +69,8 @@ services:
       ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
       ENTRA_API_CLIENT_ID: ${ENTRA_API_CLIENT_ID:-}
       ENTRA_GRAPH_CLIENT_SECRET: ${ENTRA_GRAPH_CLIENT_SECRET:-}
-      MCP_PUBLIC_URL: http://127.0.0.1:8080
+      # Advertised in the RFC 9728 metadata (the 401 challenge) for external MCP clients.
+      MCP_PUBLIC_URL: https://${SDLC_MCP_HOST:-mcp-sdlc-dev.shaheenks.co.in}
       # libpq-standard vars; only MCP servers get DB credentials (agents never touch the DB).
       PGHOST: postgres
       PGPORT: "5432"
@@ -76,41 +107,49 @@ services:
       mcp-bootstrap:
         condition: service_healthy
 
+  # Local sign-in: http://localhost:4180 (published on localhost only).
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4-alpine
     ports: ["127.0.0.1:4180:4180"]
     environment:
-      OAUTH2_PROXY_PROVIDER: oidc
-      OAUTH2_PROXY_PROVIDER_DISPLAY_NAME: Entra ID
-      OAUTH2_PROXY_OIDC_ISSUER_URL: https://login.microsoftonline.com/${ENTRA_TENANT_ID:-}/v2.0
-      OAUTH2_PROXY_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
-      OAUTH2_PROXY_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
-      # The access token is for the MCP API (aud = sdlc-mcp); offline_access enables refresh.
-      OAUTH2_PROXY_SCOPE: openid profile email offline_access api://${ENTRA_API_CLIENT_ID}/access_as_user
-      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+      <<: *oauth2-proxy-env
       OAUTH2_PROXY_REDIRECT_URL: http://localhost:4180/oauth2/callback
-      OAUTH2_PROXY_UPSTREAMS: http://agent-bootstrap:8000
-      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
-      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
-      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
-      OAUTH2_PROXY_REVERSE_PROXY: "false"
-      # Entra ID tokens often lack a verified `email`; identify users by UPN.
-      OAUTH2_PROXY_OIDC_EMAIL_CLAIM: preferred_username
-      # oauth2-proxy only authenticates; groups/authorization are resolved by the MCP server from
-      # the access token. Without this, a missing `groups` claim in the ID token makes it call the
-      # Graph profile URL with the API-audience access token -> 401 "Invalid audience" -> 500.
-      OAUTH2_PROXY_SKIP_CLAIMS_FROM_PROFILE_URL: "true"
-      OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
-      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
-      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:-}
-      OAUTH2_PROXY_COOKIE_SECURE: "false"   # plain http on localhost only
-      OAUTH2_PROXY_COOKIE_REFRESH: 30m      # refresh before the ~60-90 min access token expires
-      OAUTH2_PROXY_COOKIE_EXPIRE: 8h
-      # API calls from the dev UI get 401 instead of a login redirect when the session lapses.
-      OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps)
+      OAUTH2_PROXY_COOKIE_SECURE: "false"   # plain http, localhost only
     depends_on:
       agent-bootstrap:
         condition: service_healthy
+
+  # Public sign-in: https://${SDLC_APP_HOST} via the Cloudflare Tunnel (TLS ends at Cloudflare).
+  # Not published on the host; only cloudflared reaches it on the Docker network.
+  oauth2-proxy-public:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4-alpine
+    profiles: ["tunnel"]
+    expose: ["4180"]
+    environment:
+      <<: *oauth2-proxy-env
+      OAUTH2_PROXY_REDIRECT_URL: https://${SDLC_APP_HOST:-app-sdlc-dev.shaheenks.co.in}/oauth2/callback
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_REVERSE_PROXY: "true"      # trust X-Forwarded-* from cloudflared
+      OAUTH2_PROXY_WHITELIST_DOMAINS: ${SDLC_APP_HOST:-app-sdlc-dev.shaheenks.co.in}
+    depends_on:
+      agent-bootstrap:
+        condition: service_healthy
+
+  # Public exposure (opt-in): docker compose --profile tunnel up -d
+  # Token-based tunnel; public hostnames -> services are configured in the Cloudflare
+  # dashboard (docs/CLOUDFLARE_TUNNEL.md). Outbound-only: no inbound ports are opened.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.9.1
+    profiles: ["tunnel"]
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      oauth2-proxy-public:
+        condition: service_started
+      mcp-bootstrap:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   pgdata:

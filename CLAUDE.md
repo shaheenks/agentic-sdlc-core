@@ -76,6 +76,10 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md
 ## Commands
 - `uv sync --all-packages`   install every workspace member (plain `uv sync` installs only the root)
 - `docker compose up -d --build --wait`   postgres (:5432), mcp-bootstrap (:8080), agent-bootstrap (internal :8000), oauth2-proxy (:4180)
+- `docker compose --profile tunnel up -d --wait`   also starts `oauth2-proxy-public` + `cloudflared`: public endpoints
+  `https://app-sdlc-dev.shaheenks.co.in` (UI) and `https://mcp-sdlc-dev.shaheenks.co.in/mcp` (MCP). Tunnel and hostnames are managed
+  in the Cloudflare dashboard; only `CLOUDFLARE_TUNNEL_TOKEN` is in `.env`. See docs/CLOUDFLARE_TUNNEL.md.
+  Public names are one level deep (`*-sdlc-dev.shaheenks.co.in`) so free Universal SSL covers them.
 - Open **http://localhost:4180** and sign in with Entra to use the agents (dev UI at /dev-ui/). The agent port is not published.
   ADK developer tools (builder, deploy, evals, tests, other users' traces) are off; `SDLC_DEV_TOOLS=true` enables them (never outside local dev).
 - DB connections use standard `PG*` env vars; the app role `sdlc_app` is non-superuser (RLS applies). Init: `db/bootstrap/README.md`.

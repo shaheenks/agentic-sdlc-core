@@ -354,6 +354,9 @@ Each stage is independently deployable and has an exit gate. New config kinds ar
 - ✅ *Added after live testing:* oauth2-proxy `SKIP_CLAIMS_FROM_PROFILE_URL` (the Graph profile call failed with the API-audience token); camelCase run bodies (`userId`) bound; ADK `/dev/*` developer tools restricted to the chat UI's needs (own-session traces only; builder, deploy, evals and tests refused; `SDLC_DEV_TOOLS=true` for local dev).
 - **Gate:** ✅ users in different groups see different `whoami` (live); ✅ no token → 401; ✅ invalid config → startup fails. ✅ **2d (live):** paul and ana each run the skill flow through oauth2-proxy in the browser, and the MCP audit shows their own UPNs; sessions are not visible to each other. Automated: `tests/web/test_app.py` (isolation, /dev restrictions) and `tests/e2e/test_stage2_agent.py` (needs `SDLC_E2E_USER_TOKEN`).
 
+#### Public exposure (added after Stage 2)
+- Cloudflare Tunnel (token-based, managed in the dashboard): `app-sdlc-dev.shaheenks.co.in` → `oauth2-proxy-public`, `mcp-sdlc-dev.shaheenks.co.in` → MCP server. Opt-in with `docker compose --profile tunnel`. Two oauth2-proxy instances share one Entra client: local (`http://localhost:4180`, fixed callback) and public (fixed HTTPS callback, `Secure` cookies, reverse-proxy mode). `MCP_PUBLIC_URL` advertises the public MCP URL in the 401 metadata. Users: tenant members assigned to `sdlc-mcp` only (no B2B guests for now). Setup: docs/CLOUDFLARE_TUNNEL.md.
+
 ### Stage 3 — RBAC from config (tools)
 - Add kinds `RoleSet`, `ToolCatalog`, `Team` (membership + `policy.tools`); resolver steps 1–5; `explain` CLI; `whoami(explain=true)`.
 - `libs/sdlc_policy`: filter `tools/list`, enforce `tools/call` + arg constraints, deny-wins.

@@ -3,6 +3,7 @@
 Usage:
   uv run python scripts/mcp_whoami.py --token "$(az account get-access-token \
       --scope api://<ENTRA_API_CLIENT_ID>/access_as_user --query accessToken -o tsv)"
+  Public endpoint (Cloudflare Tunnel): add --url https://mcp-sdlc-dev.shaheenks.co.in/mcp
 """
 
 import argparse

@@ -184,8 +184,8 @@ refuses to serve. A bad reload keeps the last good version. Rollback means movin
 
 | Aspect | Local (Stages 0–6) | GCP (Stage 7+) |
 |---|---|---|
-| Agent | `agent-bootstrap` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` | Cloud Run → Vertex AI Agent Engine (for Gemini Enterprise) |
-| MCP server | `mcp-bootstrap` container | Cloud Run |
+| Agent | `agent-bootstrap` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` or publicly via Cloudflare Tunnel → `oauth2-proxy-public` at `https://app-sdlc-dev.shaheenks.co.in` | Cloud Run → Vertex AI Agent Engine (for Gemini Enterprise) |
+| MCP server | `mcp-bootstrap` container (`localhost:8080`; public `https://mcp-sdlc-dev.shaheenks.co.in/mcp` via Cloudflare Tunnel) | Cloud Run |
 | Database | `postgres` container (pgvector, `127.0.0.1:5432`) | Cloud SQL for PostgreSQL + pgvector (private IP) |
 | Ingest | CLI in container | Cloud Run Job |
 | Config | bind-mounted `config/`, file-watch reload | GCS bundle + `current` pointer, Pub/Sub reload |

@@ -29,7 +29,8 @@ param(
     [Parameter(Mandatory = $true)][string]$TestUserA,   # eng-all + payments-devs
     [Parameter(Mandatory = $true)][string]$TestUserB,   # eng-all + platform-devs
     [string]$IdentifierUri = '',   # default api://<sdlc-mcp appId> (matches config/platform.yaml)
-    [string]$RedirectUri = 'http://localhost:4180/oauth2/callback',
+    # oauth2-proxy callbacks: local + public (Cloudflare Tunnel). Existing URIs are kept.
+    [string[]]$RedirectUri = @('http://localhost:4180/oauth2/callback', 'https://app-sdlc-dev.shaheenks.co.in/oauth2/callback'),
     [switch]$NewClientSecret,   # create a new sdlc-client secret (printed once / written to .env)
     [switch]$WriteLocalFiles,   # update .env and config/env/local/groups.yaml with the real IDs
     [switch]$DryRun,            # read-only: print planned changes, modify nothing
@@ -239,17 +240,18 @@ Write-Host "`n[3] App sdlc-client" -ForegroundColor Green
 $client = Get-Single (Invoke-AzJson ad app list --display-name sdlc-client) 'app sdlc-client'
 if (-not $client) {
     $client = Invoke-Change 'create app registration sdlc-client' {
-        Invoke-AzJson ad app create --display-name sdlc-client --sign-in-audience AzureADMyOrg --web-redirect-uris $RedirectUri
+        Invoke-AzJson ad app create --display-name sdlc-client --sign-in-audience AzureADMyOrg --web-redirect-uris @RedirectUri
     }
 }
 $clientAppId = if ($client) { $client.appId } else { '<new sdlc-client appId>' }
 Write-Host "  appId=$clientAppId"
 
 $redirects = if ($client) { @($client.web.redirectUris) } else { @($RedirectUri) }
-if ($redirects -contains $RedirectUri) { Write-Host "  redirect URI ok" }
+$missingRedirects = @($RedirectUri | Where-Object { $redirects -notcontains $_ })
+if ($missingRedirects.Count -eq 0) { Write-Host "  redirect URIs ok: $($redirects -join ', ')" }
 else {
-    Invoke-Change "add redirect URI $RedirectUri" {
-        Invoke-Graph PATCH "/applications/$($client.id)" @{ web = @{ redirectUris = @($redirects + $RedirectUri) } } | Out-Null
+    Invoke-Change "add redirect URI(s) $($missingRedirects -join ', ')" {
+        Invoke-Graph PATCH "/applications/$($client.id)" @{ web = @{ redirectUris = @($redirects + $missingRedirects) } } | Out-Null
     } | Out-Null
 }
 
