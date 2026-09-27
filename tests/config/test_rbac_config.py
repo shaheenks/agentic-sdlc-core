@@ -28,7 +28,8 @@ def test_repo_rbac_config_loads(config_dir):
     assert payments.constraints["review_code"]["repo"] == {"payments-api", "payments-ui"}
     assert payments.membership[0].rule == "teams/payments.yaml#membership[0]"
     assert payments.membership[0].team == "payments"
-    assert str(snap.bindings[0].ref) == "group:eng-all"
+    assert str(snap.bindings[0].ref) == "everyone:*"
+    assert str(snap.bindings[1].ref) == "group:eng-all"
 
 
 def test_app_role_bindings_are_accepted(config_dir):

@@ -1,13 +1,18 @@
 apiVersion: sdlc/v1
 kind: RoleSet
 # Global bindings apply regardless of team. Identify principals by group alias (groups.yaml)
-# or by Entra app role value (`app_role: SDLC.Admin`), for tenants that use app roles.
+# or by Entra app role value (`app_role: SDLC.Admin`), for tenants that use app roles, or
+# `everyone: true` for every signed-in user.
 bindings:
+  - everyone: true              # every signed-in user: identity basics only
+    roles: [signed-in]
   - group: eng-all
     roles: [viewer]
   - group: platform-admins
     roles: [admin]
 roles:
+  signed-in:
+    tools:  { allow: [ping, whoami] }   # lets anyone see who they are and why they lack access
   viewer:
     tools:  { allow: [ping, whoami, list_skills, load_skill, get_agent_context, search_knowledge] }
     skills: { allow: ["tag:general"] }

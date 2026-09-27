@@ -41,9 +41,10 @@ class GroupMap:
 
 @dataclass(frozen=True)
 class IdentityRef:
-    """Who a binding applies to: a group alias (groups.yaml) or an Entra app role value."""
+    """Who a binding applies to: a group alias (groups.yaml), an Entra app role value, or
+    everyone (every signed-in user)."""
 
-    kind: str  # "group" | "app_role"
+    kind: str  # "group" | "app_role" | "everyone"
     value: str
 
     def __str__(self) -> str:

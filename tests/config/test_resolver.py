@@ -30,15 +30,16 @@ def edit_yaml(path, mutate):
     path.write_text(yaml.safe_dump(doc, sort_keys=False))
 
 
-def test_no_identities_means_nothing(snap):
+def test_no_mapped_identities_means_signed_in_basics_only(snap):
     policy = resolve(snap, [])
-    assert policy.tools == {} and policy.roles == {} and policy.teams == {}
+    assert set(policy.tools) == {"ping", "whoami"} and policy.teams == {}
+    assert policy.roles == {"signed-in": ("roles.yaml#bindings[0]",)}
 
 
 def test_eng_all_is_viewer_only(snap):
     policy = resolve(snap, ["eng-all"])
     assert set(policy.tools) == VIEWER_TOOLS
-    assert policy.roles["viewer"] == ("roles.yaml#bindings[0]",)
+    assert policy.roles["viewer"] == ("roles.yaml#bindings[1]",)
     assert not policy.allows("review_code")
 
 
@@ -54,7 +55,7 @@ def test_payments_developer(snap):
     assert review.allowed_by == ("role:developer <- teams/payments.yaml#membership[0]",)
     # viewer comes both from the global binding and by inheritance from developer
     assert set(policy.roles["viewer"]) == {
-        "roles.yaml#bindings[0]",
+        "roles.yaml#bindings[1]",
         "inherited from role:developer",
     }
     assert "approve_design" not in policy.tools
@@ -86,7 +87,7 @@ def test_admin_gets_whole_catalog_unconstrained(snap):
 
 
 def test_unknown_aliases_are_ignored(snap):
-    assert resolve(snap, ["not-a-group"]).tools == {}
+    assert set(resolve(snap, ["not-a-group"]).tools) == {"ping", "whoami"}
 
 
 def test_team_deny_wins_over_role_allow(config_dir):

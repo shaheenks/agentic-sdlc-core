@@ -217,7 +217,12 @@ def _build_tools(doc: dict, problems: list[str]) -> dict[str, ToolDef]:
     return tools
 
 
+EVERYONE = IdentityRef("everyone", "*")
+
+
 def _identity(entry: dict) -> IdentityRef:
+    if entry.get("everyone"):
+        return EVERYONE
     if "group" in entry:
         return IdentityRef("group", entry["group"])
     return IdentityRef("app_role", entry["app_role"])

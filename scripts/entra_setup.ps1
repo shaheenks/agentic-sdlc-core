@@ -22,12 +22,13 @@
 .EXAMPLE
   az login --tenant <tenant> --allow-no-subscriptions
   .\scripts\entra_setup.ps1 -TestUserA ad.paul@contoso.onmicrosoft.com -TestUserB ad.b@contoso.onmicrosoft.com -DryRun
-  .\scripts\entra_setup.ps1 -TestUserA ... -TestUserB ... -NewClientSecret -WriteLocalFiles
+  .\scripts\entra_setup.ps1 -TestUserA ... -TestUserB ... -AdminUser <upn> -NewClientSecret -WriteLocalFiles
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$TestUserA,   # eng-all + payments-devs
     [Parameter(Mandatory = $true)][string]$TestUserB,   # eng-all + platform-devs
+    [string]$AdminUser = '',                             # optional: eng-all + platform-admins (admin role)
     [string]$IdentifierUri = '',   # default api://<sdlc-mcp appId> (matches config/platform.yaml)
     # oauth2-proxy callbacks: local + public (Cloudflare Tunnel). Existing URIs are kept.
     [string[]]$RedirectUri = @('http://localhost:4180/oauth2/callback', 'https://app-sdlc-dev.shaheenks.co.in/oauth2/callback'),
@@ -53,6 +54,7 @@ $Memberships = @(
     @{ User = $TestUserA; Groups = @('eng-all', 'payments-devs') },
     @{ User = $TestUserB; Groups = @('eng-all', 'platform-devs') }
 )
+if ($AdminUser) { $Memberships += @{ User = $AdminUser; Groups = @('eng-all', 'platform-admins') } }
 
 # ---------------------------------------------------------------- helpers
 function Invoke-Az {

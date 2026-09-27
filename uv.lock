@@ -9,6 +9,7 @@ members = [
     "sdlc-auth",
     "sdlc-config",
     "sdlc-mcp-bootstrap",
+    "sdlc-policy",
     "sdlc-web",
 ]
 
@@ -1726,6 +1727,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "sdlc-auth", extra = ["server"] },
     { name = "sdlc-config" },
+    { name = "sdlc-policy" },
 ]
 
 [package.metadata]
@@ -1734,7 +1736,19 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "sdlc-auth", extras = ["server"], editable = "libs/sdlc_auth" },
     { name = "sdlc-config", editable = "libs/sdlc_config" },
+    { name = "sdlc-policy", editable = "libs/sdlc_policy" },
 ]
+
+[[package]]
+name = "sdlc-policy"
+version = "0.1.0"
+source = { editable = "libs/sdlc_policy" }
+dependencies = [
+    { name = "sdlc-config" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "sdlc-config", editable = "libs/sdlc_config" }]
 
 [[package]]
 name = "sdlc-web"

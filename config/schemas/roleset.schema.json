@@ -59,8 +59,9 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["roles"],
-      "oneOf": [{ "required": ["group"] }, { "required": ["app_role"] }],
+      "oneOf": [{ "required": ["group"] }, { "required": ["app_role"] }, { "required": ["everyone"] }],
       "properties": {
+        "everyone": { "const": true, "description": "every signed-in user of the tenant" },
         "group": { "$ref": "#/$defs/name" },
         "app_role": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9._-]*$" },
         "roles": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/name" } }

@@ -1,8 +1,11 @@
-"""Audit every tool call as one JSON line on the `sdlc.audit` logger.
+"""Policy middleware: authentication check, RBAC (tools/list + tools/call) and audit.
 
-Also the last line of defense for authentication: a tool call without a validated token is
-rejected here even if it reached the server some other way (e.g. a non-HTTP transport).
-Stage 3 adds the authorization decision + matched rule to each record.
+- tools/list: only tools the caller's EffectivePolicy allows (deny by default).
+- tools/call: authorize the tool AND its arguments (sdlc_policy.authorize) before it runs.
+  A call without a validated token is refused even if it reached the server some other way
+  (e.g. a non-HTTP transport).
+- Every call is written as one JSON line to the `sdlc.audit` logger: oid, teams, roles, tool,
+  args hash, decision, matched rule, outcome, config version.
 """
 
 import hashlib
@@ -13,9 +16,11 @@ from datetime import UTC, datetime
 
 from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import Middleware, MiddlewareContext
-from sdlc_config import ConfigStore
+from sdlc_auth import GroupResolver
+from sdlc_config import ConfigStore, PolicyCache
+from sdlc_policy import authorize
 
-from sdlc_mcp_bootstrap.identity import current_principal
+from sdlc_mcp_bootstrap.identity import current_principal, remember_identity, resolve_identity
 
 audit_log = logging.getLogger("sdlc.audit")
 
@@ -26,26 +31,71 @@ def args_hash(arguments: dict | None) -> str:
     return "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()[:16]
 
 
-class AuditMiddleware(Middleware):
-    def __init__(self, store: ConfigStore):
+class PolicyMiddleware(Middleware):
+    def __init__(
+        self,
+        store: ConfigStore,
+        group_resolver: GroupResolver | None = None,
+        cache: PolicyCache | None = None,
+    ):
         self._store = store
+        self._group_resolver = group_resolver
+        self._cache = cache or PolicyCache()
+
+    async def _identity(self):
+        principal = current_principal()
+        if principal is None:
+            return None
+        snapshot = self._store.current()  # one snapshot for the whole request
+        identity = await resolve_identity(principal, snapshot, self._group_resolver, self._cache)
+        await remember_identity(identity)
+        return identity
+
+    async def on_list_tools(self, context: MiddlewareContext, call_next):
+        tools = await call_next(context)
+        identity = await self._identity()
+        if identity is None:
+            return []
+        return [tool for tool in tools if identity.policy.allows(tool.name)]
 
     async def on_call_tool(self, context: MiddlewareContext, call_next):
         started = time.perf_counter()
-        principal = current_principal()
+        tool, arguments = context.message.name, context.message.arguments
         record = {
             "event": "tool_call",
             "ts": datetime.now(UTC).isoformat(),
-            "tool": context.message.name,
-            "args_hash": args_hash(context.message.arguments),
-            "oid": principal.oid if principal else None,
-            "upn": principal.upn if principal else None,
+            "tool": tool,
+            "args_hash": args_hash(arguments),
+            "oid": None,
+            "upn": None,
+            "teams": [],
+            "roles": [],
             "config_version": self._store.current().version,
         }
         try:
-            if principal is None:
-                record["outcome"] = "denied_unauthenticated"
+            identity = await self._identity()
+            if identity is None:
+                record.update(
+                    decision="deny",
+                    matched_rule="unauthenticated",
+                    outcome="denied_unauthenticated",
+                )
                 raise ToolError("authentication required")
+            record.update(
+                oid=identity.principal.oid,
+                upn=identity.principal.upn,
+                teams=sorted(identity.policy.teams),
+                roles=sorted(identity.policy.roles),
+                config_version=identity.snapshot.version,
+            )
+            decision = authorize(identity.policy, tool, arguments)
+            record.update(
+                decision="allow" if decision.allowed else "deny",
+                matched_rule=decision.matched_rule,
+            )
+            if not decision.allowed:
+                record.update(outcome="denied", reason=decision.reason)
+                raise ToolError(f"not permitted: {decision.reason}")
             result = await call_next(context)
             record["outcome"] = "ok"
             return result

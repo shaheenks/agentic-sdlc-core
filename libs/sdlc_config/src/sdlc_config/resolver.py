@@ -66,9 +66,10 @@ def resolve(
     snapshot: Snapshot, group_aliases: Iterable[str], app_roles: Iterable[str] = ()
 ) -> EffectivePolicy:
     aliases, roles_claim = tuple(sorted(set(group_aliases))), tuple(sorted(set(app_roles)))
-    ids = {IdentityRef("group", a) for a in aliases} | {
-        IdentityRef("app_role", r) for r in roles_claim
-    }
+    # Every resolved principal is a signed-in user, so `everyone` bindings always apply.
+    ids = {IdentityRef("everyone", "*")}
+    ids |= {IdentityRef("group", a) for a in aliases}
+    ids |= {IdentityRef("app_role", r) for r in roles_claim}
 
     # 1-3: teams and directly granted roles
     team_rules: dict[str, list[str]] = {}

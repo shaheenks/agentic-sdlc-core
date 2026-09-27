@@ -3,11 +3,15 @@
 Stage 1: ping, list_skills, load_skill over streamable HTTP.
 Stage 2: every MCP request needs a valid Entra ID user token (401 otherwise); whoami;
          config via ConfigStore (fail closed); JSON audit log for every tool call.
-Stage 3 adds RBAC: tools/list filtering and per-call authorization from config/.
+Stage 3: RBAC from config: tools/list shows only permitted tools, every tools/call is
+         authorized (tool + argument limits) and audited with the matched rule; stub SDLC
+         tools; admin tools config_info / config_explain; whoami(explain).
 """
 
+import inspect
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,12 +21,14 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import AuthProvider, RemoteAuthProvider
 from sdlc_auth import GraphGroupResolver, GroupResolver
 from sdlc_auth.entra import EntraTokenVerifier
-from sdlc_config import ConfigStore, Snapshot
+from sdlc_config import ConfigStore, PolicyCache, Snapshot
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from sdlc_mcp_bootstrap.audit import AuditMiddleware
-from sdlc_mcp_bootstrap.identity import current_identity
+from sdlc_mcp_bootstrap.admin_tools import make_admin_tools
+from sdlc_mcp_bootstrap.audit import PolicyMiddleware
+from sdlc_mcp_bootstrap.identity import request_identity
+from sdlc_mcp_bootstrap.sdlc_tools import SDLC_TOOLS
 
 log = logging.getLogger("sdlc.mcp")
 
@@ -60,6 +66,21 @@ def discover_skills(skills_dir: Path) -> dict[str, Skill]:
     return skills
 
 
+def catalog_problems(snapshot: Snapshot, registered: dict[str, frozenset[str]]) -> list[str]:
+    """Constrained arguments (tools.yaml `args`) must exist on the registered tool."""
+    problems = []
+    for name, params in registered.items():
+        tool = snapshot.tools.get(name)
+        if tool is None:
+            continue  # not in the catalog: never exposed (warned separately)
+        missing = tool.args - params
+        if missing:
+            problems.append(
+                f"tools.yaml: {name}: args {sorted(missing)} are not parameters of the tool"
+            )
+    return problems
+
+
 def build_server(
     skills_dir: Path,
     store: ConfigStore,
@@ -68,40 +89,48 @@ def build_server(
 ) -> FastMCP:
     # Skills are loaded once at startup so a malformed SKILL.md fails fast.
     skills = discover_skills(skills_dir)
+    cache = PolicyCache()
     mcp = FastMCP(
         name="sdlc-mcp-bootstrap",
         instructions="Central SDLC tool server. Use list_skills, then load_skill before a task.",
         auth=auth,
-        middleware=[AuditMiddleware(store)],
+        middleware=[PolicyMiddleware(store, group_resolver, cache)],
     )
+    registered: dict[str, frozenset[str]] = {}
 
-    @mcp.tool
+    def register(fn: Callable) -> None:
+        registered[fn.__name__] = frozenset(inspect.signature(fn).parameters)
+        mcp.tool(fn)
+
     def ping() -> str:
         """Liveness check. Returns 'pong'."""
         return "pong"
 
-    @mcp.tool
-    async def whoami() -> dict:
-        """Who the server thinks you are: Entra identity and mapped group aliases."""
-        ident = await current_identity(store.current(), group_resolver)
+    async def whoami(explain: bool = False) -> dict:
+        """Who the server thinks you are. explain=true adds your teams, roles and tools, each
+        with the config rule that grants it."""
+        ident = await request_identity()
         p = ident.principal
-        return {
+        result = {
             "oid": p.oid,
             "upn": p.upn,
             "name": p.name,
             "tenant_id": p.tid,
             "groups": list(ident.group_aliases),
+            "app_roles": sorted(p.app_roles),
             "unmapped_group_count": ident.unmapped_group_count,
+            "non_guid_group_claims": p.non_guid_group_claims,
             "group_source": ident.group_source,
-            "config_version": ident.config_version,
+            "config_version": ident.snapshot.version,
         }
+        if explain:
+            result["policy"] = ident.policy.explain()
+        return result
 
-    @mcp.tool
     def list_skills() -> list[dict[str, str]]:
         """List available SDLC skills (name + description). Load one with load_skill."""
         return [{"name": s.name, "description": s.description} for s in skills.values()]
 
-    @mcp.tool
     def load_skill(name: str) -> dict[str, str]:
         """Return the full instructions of a skill returned by list_skills."""
         skill = skills.get(name)
@@ -112,6 +141,23 @@ def build_server(
             "description": skill.description,
             "instructions": skill.instructions,
         }
+
+    for fn in [ping, whoami, list_skills, load_skill, *SDLC_TOOLS, *make_admin_tools(store, cache)]:
+        register(fn)
+
+    # Catalog vs code: fail startup on bad constraint args; re-check (log) on every reload.
+    problems = catalog_problems(store.current(), registered)
+    if problems:
+        raise ValueError("config does not match the registered tools: " + "; ".join(problems))
+    uncatalogued = sorted(set(registered) - set(store.current().tools))
+    if uncatalogued:
+        log.warning("tools not in tools.yaml are never exposed: %s", uncatalogued)
+
+    def recheck(snapshot: Snapshot) -> None:
+        for problem in catalog_problems(snapshot, registered):
+            log.error("config %s: %s", snapshot.version, problem)
+
+    store.subscribe(recheck)
 
     @mcp.custom_route("/healthz", methods=["GET"])
     async def healthz(_: Request) -> JSONResponse:
