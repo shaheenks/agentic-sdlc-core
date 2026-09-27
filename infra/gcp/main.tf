@@ -53,6 +53,6 @@ resource "google_artifact_registry_repository" "sdlc" {
   repository_id = "sdlc"
   location      = var.region
   format        = "DOCKER"
-  description   = "agentic-sdlc images (scripts/gcp_deploy.sh)"
+  description   = "agentic-sdlc images (scripts/gcp_deploy.ps1)"
   depends_on    = [google_project_service.apis]
 }

@@ -263,6 +263,7 @@ refuses to serve. A bad reload keeps the last good version. Rollback means movin
 |---|---|---|---|
 | **Development** (`dev`) | Docker Compose on a developer machine | **Both**: `localhost` (4180 UI, 8080 MCP) for the developer, and a **Cloudflare Tunnel** for testers: `app-sdlc-dev.shaheenks.co.in`, `mcp-sdlc-dev.shaheenks.co.in` | Localhost: plain HTTP (Entra allows `http://localhost` callbacks). Tunnel: TLS ends at Cloudflare's edge (Universal SSL); outbound-only connector, no inbound ports |
 | **Higher environments** (staging, prod) | GCP (Stage 7): Cloud Run / load balancer | **Hosted directly** on their own public hostnames. **No tunnel and no localhost access** | DNS **CNAME** to the platform endpoint (Cloud Run domain mapping or load balancer) and a **managed certificate** (Google-managed or Cloudflare edge + origin certificate) |
+| **Staging today** (`staging`, Stage 7a) | GCP `cloud-migration-agent` / `asia-south1`, Cloud Run | Cloud Run's own `https://sdlc-app-staging-<project number>.asia-south1.run.app` and `sdlc-mcp-staging-…` URLs (temporary exception: custom hostnames later) | Google-managed TLS on `*.run.app`; no DNS records yet |
 
 Rules that follow from this:
 - **Dev needs both paths.** Two oauth2-proxy instances share one Entra client: `oauth2-proxy`
@@ -285,13 +286,13 @@ Details for dev exposure: [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md).
 
 | Aspect | Development: local + Cloudflare Tunnel (Stages 0–6) | Higher environments on GCP (Stage 7+) |
 |---|---|---|
-| Agent | `agent-bootstrap` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` or publicly via Cloudflare Tunnel (host connector) → `oauth2-proxy-public` (localhost:4181) at `https://app-sdlc-dev.shaheenks.co.in` | Cloud Run → Vertex AI Agent Engine (for Gemini Enterprise) |
-| MCP server | `mcp-bootstrap` container (`localhost:8080`; public `https://mcp-sdlc-dev.shaheenks.co.in/mcp` via Cloudflare Tunnel) | Cloud Run |
-| Database | `postgres` container (pgvector, `127.0.0.1:5432`) | Cloud SQL for PostgreSQL + pgvector (private IP) |
-| Ingest | CLI in container | Cloud Run Job |
-| Config | bind-mounted `config/`, file-watch reload | GCS bundle + `current` pointer, Pub/Sub reload |
+| Agent | `agent-bootstrap` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` or publicly via Cloudflare Tunnel (host connector) → `oauth2-proxy-public` (localhost:4181) at `https://app-sdlc-dev.shaheenks.co.in` | Cloud Run service `sdlc-app-<env>`: oauth2-proxy ingress container + agent sidecar on `127.0.0.1:8000` (1 instance while sessions are in memory); later Vertex AI Agent Engine (Gemini Enterprise) |
+| MCP server | `mcp-bootstrap` container (`localhost:8080`; public `https://mcp-sdlc-dev.shaheenks.co.in/mcp` via Cloudflare Tunnel) | Cloud Run service `sdlc-mcp-<env>` (public, stateless, scales out; Entra token is the gate) |
+| Database | `postgres` container (pgvector, `127.0.0.1:5432`) | Cloud SQL for PostgreSQL 17 + pgvector via the Cloud SQL connector only (no authorized networks; private IP later); roles/RLS by the `sdlc-db-setup` job |
+| Ingest | CLI in container | Cloud Run Job `sdlc-ingest-<env>` |
+| Config | bind-mounted `config/`, file-watch reload | 7a: baked into the image per release, tenant `groups.yaml` from Secret Manager; 7b: GCS bundle + `current` pointer, Pub/Sub reload |
 | Secrets | `.env` | Secret Manager |
-| Model | Gemini API key or ADC | Vertex AI (service account) |
+| Model | Gemini API key or ADC | Vertex AI via each workload's service account (no key files) |
 | Identity | Entra test tenant/groups | Entra + Workforce Identity Federation |
 | Endpoints | `localhost:4180` / `:8080` + tunnel `app-/mcp-sdlc-dev.shaheenks.co.in` | Direct public hostnames per environment: DNS CNAME + managed certificate; no tunnel |
 

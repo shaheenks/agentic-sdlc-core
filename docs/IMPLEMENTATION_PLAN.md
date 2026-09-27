@@ -452,7 +452,7 @@ Org policy findings (read-only check): `iam.allowedPolicyMemberDomains` blocks `
 services use Cloud Run `invoker_iam_disabled` (`run.managed.requireInvokerIam` is not enforced);
 `sql.restrictAuthorizedNetworks` is enforced, which suits the design (Cloud SQL connector only, no authorized networks).
 
-**7a Deploy** (Terraform in `infra/gcp`, state in GCS; `scripts/gcp_deploy.sh` for images, apply and jobs):
+**7a Deploy** (Terraform in `infra/gcp`, state in GCS; `scripts/gcp_deploy.ps1` for images, apply and jobs):
 - **Services:** `sdlc-mcp` (public, stateless, scales out; Entra token validation is the gate) and `sdlc-app`
   (oauth2-proxy as the ingress container, the agent as a sidecar on localhost, so the agent is never exposed;
   max 1 instance while ADK sessions are in memory; agents still get no DB credentials).

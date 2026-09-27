@@ -1,4 +1,4 @@
-# Environment "staging" (Stage 7a). Tenant values come from .env via scripts/gcp_deploy.sh.
+# Environment "staging" (Stage 7a). Tenant values come from .env via scripts/gcp_deploy.ps1.
 project_id          = "cloud-migration-agent"
 region              = "asia-south1"
 env                 = "staging"

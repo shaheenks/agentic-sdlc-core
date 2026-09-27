@@ -12,7 +12,7 @@ variable "env" {
 }
 
 variable "image_tag" {
-  description = "Tag of the sdlc images in Artifact Registry (scripts/gcp_deploy.sh: git short SHA)."
+  description = "Tag of the sdlc images in Artifact Registry (scripts/gcp_deploy.ps1: git short SHA)."
   type        = string
 }
 
@@ -22,7 +22,7 @@ variable "oauth2_proxy_tag" {
   default     = "v7.15.4-alpine"
 }
 
-# Tenant-specific values: passed from .env as TF_VAR_* by scripts/gcp_deploy.sh, never committed.
+# Tenant-specific values: passed from .env as TF_VAR_* by scripts/gcp_deploy.ps1, never committed.
 variable "entra_tenant_id" {
   type = string
 }
