@@ -1,8 +1,9 @@
 """Load config files → substitute ${VAR} → validate (schema + cross-refs) → Snapshot.
 
-Kinds loaded so far: Platform, GroupMap (Stage 2); RoleSet, ToolCatalog, Team (Stage 3).
-Later stages register SkillCatalog (4) and Source (5); files of those kinds are not read yet.
-Team `addons` are schema-validated now and resolved in Stage 4.
+Kinds loaded so far: Platform, GroupMap (Stage 2); RoleSet, ToolCatalog, Team (Stage 3);
+SkillCatalog + Team add-ons (Stage 4). Source (Stage 5) is not read yet.
+Skill packages (SKILL.md) and team instructions (AGENT_ADDENDUM.md) are read from <repo>/skills
+and are part of the snapshot and its version.
 """
 
 import hashlib
@@ -10,7 +11,7 @@ import json
 import os
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
@@ -26,10 +27,12 @@ from sdlc_config.model import (
     PlatformConfig,
     RoleBinding,
     RoleDef,
+    SkillDef,
     Snapshot,
     TeamDef,
     ToolDef,
 )
+from sdlc_config.skills import SkillFileError, parse_skill_md, resolve_in_skills
 
 API_VERSION = "sdlc/v1"
 _VAR = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
@@ -50,6 +53,7 @@ _KINDS: dict[str, _Kind] = {
     "RoleSet": _Kind("roleset.schema.json", "roles.yaml"),
     "ToolCatalog": _Kind("toolcatalog.schema.json", "tools.yaml"),
     "Team": _Kind("team.schema.json", "teams/*.yaml", many=True),
+    "SkillCatalog": _Kind("skillcatalog.schema.json", "skills.yaml"),
 }
 
 
@@ -99,7 +103,13 @@ def load_snapshot(
     aliases = set(groups.alias_by_id.values())
     tools = _build_tools(docs["ToolCatalog"][0][1], problems)
     roles, bindings = _build_roles(docs["RoleSet"][0][1], tools, aliases, platform, problems)
-    teams = _build_teams(docs["Team"], roles, tools, aliases, problems)
+    repo_root = config_dir.parent  # skill paths in config are relative to the repo root
+    teams, addon_skills = _build_teams(
+        docs["Team"], roles, tools, aliases, repo_root, raw_files, problems
+    )
+    skills = _build_skills(
+        docs["SkillCatalog"][0][1], addon_skills, roles, teams, repo_root, raw_files, problems
+    )
     if problems:
         raise ConfigError(problems)
 
@@ -113,6 +123,7 @@ def load_snapshot(
         bindings=bindings,
         tools=MappingProxyType(tools),
         teams=MappingProxyType(teams),
+        skills=MappingProxyType(skills),
     )
 
 
@@ -265,6 +276,7 @@ def _build_roles(doc, tools, aliases, platform, problems):
             tools_allow=frozenset(allow),
             tools_deny=frozenset(deny),
             unconstrained=tool_rules.get("unconstrained", False),
+            skills_allow=frozenset(entry.get("skills", {}).get("allow", [])),
         )
     for cycle in _inheritance_cycles(roles):
         problems.append(f"{rel}: role inheritance cycle: {' -> '.join(cycle)}")
@@ -296,8 +308,9 @@ def _inheritance_cycles(roles: dict[str, RoleDef]) -> list[list[str]]:
     return cycles
 
 
-def _build_teams(team_docs, roles, tools, aliases, problems) -> dict[str, TeamDef]:
+def _build_teams(team_docs, roles, tools, aliases, repo_root, raw_files, problems):
     teams: dict[str, TeamDef] = {}
+    addon_skills: list[SkillDef] = []
     for rel, doc in team_docs:
         name = doc["metadata"]["name"]
         if name != Path(rel).stem:
@@ -330,6 +343,31 @@ def _build_teams(team_docs, roles, tools, aliases, problems) -> dict[str, TeamDe
             constraints[tool] = MappingProxyType(
                 {arg: frozenset(spec["in"]) for arg, spec in rule["args"].items()}
             )
+        addons = doc.get("addons", {})
+        team_skill_names = []
+        for skill_name, entry in addons.get("skills", {}).items():
+            access_roles = entry.get("access", {}).get("roles", [])
+            for role in access_roles:
+                if role not in roles:
+                    problems.append(f"{rel}: addons/skills/{skill_name}: unknown role '{role}'")
+            source = f"{rel}#addons/skills/{skill_name}"
+            skill = _read_skill(repo_root, entry["path"], skill_name, source, raw_files, problems)
+            if skill is not None:
+                addon_skills.append(replace(skill, team=name, access_roles=frozenset(access_roles)))
+                team_skill_names.append(skill_name)
+        instructions = instructions_source = None
+        if addons.get("instructions"):
+            instructions_source = addons["instructions"]
+            try:
+                raw = resolve_in_skills(repo_root, instructions_source).read_bytes()
+                raw_files[instructions_source] = raw
+                instructions = raw.decode("utf-8").strip()
+            except SkillFileError as e:
+                problems.append(f"{rel}: addons/instructions: {e}")
+            except OSError:
+                problems.append(
+                    f"{rel}: addons/instructions: file not found: {instructions_source}"
+                )
         teams[name] = TeamDef(
             name=name,
             source=rel,
@@ -337,8 +375,89 @@ def _build_teams(team_docs, roles, tools, aliases, problems) -> dict[str, TeamDe
             membership=tuple(membership),
             tools_deny=frozenset(deny),
             constraints=MappingProxyType(constraints),
+            addon_skills=tuple(team_skill_names),
+            instructions=instructions,
+            instructions_source=instructions_source,
+            context=MappingProxyType(dict(addons.get("context", {}))),
         )
-    return teams
+    return teams, addon_skills
+
+
+# --- Skills (Stage 4) ---------------------------------------------------------------------------
+
+
+def _read_skill(repo_root, rel_path, name, source, raw_files, problems) -> SkillDef | None:
+    """Read <rel_path>/SKILL.md; folder name and frontmatter name must equal the config key."""
+    try:
+        folder = resolve_in_skills(repo_root, rel_path)
+    except SkillFileError as e:
+        problems.append(f"{source}: {e}")
+        return None
+    skill_md = folder / "SKILL.md"
+    if not skill_md.is_file():
+        problems.append(f"{source}: {rel_path}/SKILL.md not found")
+        return None
+    if folder.name != name:
+        problems.append(f"{source}: folder '{folder.name}' must be named '{name}'")
+    raw = skill_md.read_bytes()
+    raw_files[f"{rel_path}/SKILL.md"] = raw
+    try:
+        md_name, description, instructions = parse_skill_md(raw.decode("utf-8"), rel_path)
+    except SkillFileError as e:
+        problems.append(f"{source}: {e}")
+        return None
+    if md_name != name:
+        problems.append(f"{source}: SKILL.md name '{md_name}' must equal '{name}'")
+    return SkillDef(
+        name=name, description=description, instructions=instructions, path=rel_path, source=source
+    )
+
+
+def _build_skills(doc, addon_skills, roles, teams, repo_root, raw_files, problems):
+    skills: dict[str, SkillDef] = {}
+    for name, entry in doc["skills"].items():
+        access = entry.get("access", {})
+        for role in access.get("roles", []):
+            if role not in roles:
+                problems.append(f"skills.yaml: skills/{name}/access: unknown role '{role}'")
+        for team in access.get("teams", []):
+            if team not in teams:
+                problems.append(f"skills.yaml: skills/{name}/access: unknown team '{team}'")
+        source = f"skills.yaml#skills/{name}"
+        skill = _read_skill(repo_root, entry["path"], name, source, raw_files, problems)
+        if skill is not None:
+            skills[name] = replace(
+                skill,
+                tags=frozenset(entry.get("tags", [])),
+                access_roles=frozenset(access.get("roles", [])),
+                access_teams=frozenset(access.get("teams", [])),
+            )
+    global_names = set(skills)
+    tags = {tag for skill in skills.values() for tag in skill.tags}
+    for skill in addon_skills:  # naming rule: globally unique across catalog and add-ons
+        if skill.name in skills:
+            problems.append(
+                f"{skill.source}: skill name '{skill.name}' is already used by "
+                f"{skills[skill.name].source} (skill names must be globally unique)"
+            )
+            continue
+        skills[skill.name] = skill
+    for role in roles.values():
+        for grant in sorted(role.skills_allow):
+            if grant == "*":
+                continue
+            if grant.startswith("tag:"):
+                if grant[4:] not in tags:
+                    problems.append(
+                        f"roles.yaml: roles/{role.name}/skills/allow: unknown tag '{grant[4:]}' "
+                        "(not on any skill in skills.yaml)"
+                    )
+            elif grant not in global_names:
+                problems.append(
+                    f"roles.yaml: roles/{role.name}/skills/allow: unknown skill '{grant}' "
+                    "(team add-ons are granted by team membership)"
+                )
+    return skills
 
 
 def _version(raw_files: dict[str, bytes], environ: Mapping[str, str]) -> str:

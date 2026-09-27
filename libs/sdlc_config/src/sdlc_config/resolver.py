@@ -5,6 +5,10 @@ identities (group aliases + Entra app roles)
   -> allowed tools (role allows, "*" = whole catalog) minus denies (role + team); deny wins
   -> argument limits: unioned across the member teams that constrain a tool;
      tools granted by an `unconstrained` role get none.
+  -> skills (step 6): global skills granted by role (name, "tag:<tag>", "*") and, when the skill
+     sets `access`, held by one of its roles or teams; plus member teams' add-on skills (with
+     their `access` roles). A "*" skill grant (admin) also covers every team's add-ons.
+  -> agent context (step 8): member teams' instructions (AGENT_ADDENDUM) and context.
 Every role, grant, deny and limit records the config rule it came from.
 """
 
@@ -26,6 +30,20 @@ class ToolPermission:
 
 
 @dataclass(frozen=True)
+class SkillGrant:
+    skill: str
+    granted_by: tuple[str, ...]  # e.g. "role:developer <- ..." or "team:payments <- ..."
+    team: str | None = None  # set for team add-ons
+
+
+@dataclass(frozen=True)
+class TeamInstructions:
+    team: str
+    source: str  # e.g. "skills/teams/payments/AGENT_ADDENDUM.md"
+    text: str
+
+
+@dataclass(frozen=True)
 class EffectivePolicy:
     config_version: str
     group_aliases: tuple[str, ...]
@@ -34,9 +52,15 @@ class EffectivePolicy:
     roles: Mapping[str, tuple[str, ...]]  # role -> reasons (binding/membership rule or inherits)
     tools: Mapping[str, ToolPermission]  # allowed tools only
     denied: Mapping[str, tuple[str, ...]] = field(default_factory=dict)  # tool -> deny rules
+    skills: Mapping[str, SkillGrant] = field(default_factory=dict)  # visible skills only
+    agent_instructions: tuple[TeamInstructions, ...] = ()
+    context: Mapping[str, Mapping[str, str]] = field(default_factory=dict)  # team -> values
 
     def allows(self, tool: str) -> bool:
         return tool in self.tools
+
+    def sees_skill(self, name: str) -> bool:
+        return name in self.skills
 
     def explain(self) -> dict:
         """JSON-friendly view for whoami(explain) / config_explain / CLI."""
@@ -59,6 +83,16 @@ class EffectivePolicy:
                 for name, p in sorted(self.tools.items())
             },
             "denied": {t: list(r) for t, r in sorted(self.denied.items())},
+            "skills": {
+                name: {"granted_by": list(g.granted_by), "team": g.team}
+                for name, g in sorted(self.skills.items())
+            },
+            "agent_context": {
+                "instructions": [
+                    {"team": i.team, "source": i.source} for i in self.agent_instructions
+                ],
+                "context": {t: dict(c) for t, c in sorted(self.context.items())},
+            },
         }
 
 
@@ -141,6 +175,22 @@ def resolve(
             constraint_sources=tuple(sources),
         )
 
+    skills = _resolve_skills(snapshot, role_reasons, team_rules)
+    instructions = tuple(
+        TeamInstructions(
+            team,
+            snapshot.teams[team].instructions_source or "",
+            snapshot.teams[team].instructions or "",
+        )
+        for team in sorted(team_rules)
+        if snapshot.teams[team].instructions
+    )
+    context = {
+        team: MappingProxyType(dict(snapshot.teams[team].context))
+        for team in sorted(team_rules)
+        if snapshot.teams[team].context
+    }
+
     return EffectivePolicy(
         config_version=snapshot.version,
         group_aliases=aliases,
@@ -149,7 +199,42 @@ def resolve(
         roles=MappingProxyType({r: tuple(why) for r, why in role_reasons.items()}),
         tools=MappingProxyType(tools),
         denied=MappingProxyType({t: tuple(r) for t, r in denied.items() if t in catalog}),
+        skills=MappingProxyType(skills),
+        agent_instructions=instructions,
+        context=MappingProxyType(context),
     )
+
+
+def _resolve_skills(snapshot: Snapshot, role_reasons, team_rules) -> dict[str, SkillGrant]:
+    held_roles, member_teams = set(role_reasons), set(team_rules)
+    grants: dict[str, SkillGrant] = {}
+    for skill in snapshot.skills.values():
+        if skill.team is None:  # global skill: needs a role grant
+            reasons = [
+                f"role:{role} <- {role_reasons[role][0]}"
+                for role in sorted(held_roles)
+                if _role_grants_skill(snapshot.roles[role].skills_allow, skill.name, skill.tags)
+            ]
+        elif skill.team in member_teams:  # team add-on: needs membership ...
+            reasons = [f"team:{skill.team} <- {team_rules[skill.team][0]}"]
+        else:  # ... or a role granting every skill ("*"), e.g. admin oversight
+            reasons = [
+                f"role:{role} <- {role_reasons[role][0]}"
+                for role in sorted(held_roles)
+                if "*" in snapshot.roles[role].skills_allow
+            ]
+        if not reasons:
+            continue
+        if skill.access_roles or skill.access_teams:
+            if not (held_roles & skill.access_roles or member_teams & skill.access_teams):
+                continue
+            reasons.append(f"access <- {skill.source}")
+        grants[skill.name] = SkillGrant(skill.name, tuple(reasons), skill.team)
+    return grants
+
+
+def _role_grants_skill(allow: frozenset[str], name: str, tags: frozenset[str]) -> bool:
+    return "*" in allow or name in allow or any(f"tag:{tag}" in allow for tag in tags)
 
 
 class PolicyCache:

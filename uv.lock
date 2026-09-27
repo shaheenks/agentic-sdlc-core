@@ -5,6 +5,7 @@ requires-python = ">=3.12, <3.14"
 [manifest]
 members = [
     "agentic-sdlc",
+    "sdlc-agent",
     "sdlc-agent-bootstrap",
     "sdlc-auth",
     "sdlc-config",
@@ -1667,9 +1668,9 @@ wheels = [
 ]
 
 [[package]]
-name = "sdlc-agent-bootstrap"
+name = "sdlc-agent"
 version = "0.1.0"
-source = { virtual = "agents/bootstrap" }
+source = { editable = "libs/sdlc_agent" }
 dependencies = [
     { name = "google-adk", extra = ["mcp"] },
     { name = "sdlc-auth" },
@@ -1678,6 +1679,23 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "google-adk", extras = ["mcp"], specifier = ">=2.10" },
+    { name = "sdlc-auth", editable = "libs/sdlc_auth" },
+]
+
+[[package]]
+name = "sdlc-agent-bootstrap"
+version = "0.1.0"
+source = { virtual = "agents/bootstrap" }
+dependencies = [
+    { name = "google-adk", extra = ["mcp"] },
+    { name = "sdlc-agent" },
+    { name = "sdlc-auth" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "google-adk", extras = ["mcp"], specifier = ">=2.10" },
+    { name = "sdlc-agent", editable = "libs/sdlc_agent" },
     { name = "sdlc-auth", editable = "libs/sdlc_auth" },
 ]
 

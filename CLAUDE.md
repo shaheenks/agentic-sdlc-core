@@ -16,6 +16,7 @@ current before adding features, and don't build ahead of the current stage's exi
 - `libs/sdlc_policy`        Enforcement: tools/list filtering, call authz, arg constraints
 - `libs/sdlc_db`            Postgres/pgvector access with RLS session context
 - `libs/sdlc_web`           Serves agents (ADK web app) behind oauth2-proxy: token re-validation, user binding, token passthrough
+- `libs/sdlc_agent`         Agent helpers: `with_team_context` (per-session team instructions/context via `get_agent_context`, as the user)
 - `skills/core/`, `skills/teams/<team>/`   SKILL.md content only (no access rules inside skills)
 - `config/`                 platform, roles, tools, skills, `teams/`, `sources/`, `env/<env>/groups.yaml`, `schemas/`
 - `db/bootstrap`, `db/migrations`   Schema + RLS
@@ -134,7 +135,10 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md
 - `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values)
 - `uv run sdlc-config explain --persona payments-dev` | `--groups eng-all,payments-devs [--app-roles X] [--json]` (`--dummy-env` works)
 - `uv run sdlc-config diff [--from HEAD] [--to WORKTREE] [--exit-code]`   per-persona permission changes (review on every config PR)
-- MCP tools: `whoami(explain=true)` (own view with source rules); admin only: `config_info()`, `config_explain(groups, app_roles)`
+- MCP tools: `whoami(explain=true)` (own view with source rules); `list_skills` / `load_skill` (per-user; hidden skills answer
+  "unknown skill"); `get_agent_context` (team instructions + context); admin only: `config_info()`, `config_explain(groups, app_roles)`
+- Skills: a `"*"` skill grant (admin) covers every team's add-ons; team instructions are guidance, never authorization.
+  `sdlc-config diff` cannot compare across the Stage 4 boundary (older revisions lack skills.yaml); later revisions diff normally.
 
 ## Workspace conventions
 - uv workspace members are listed explicitly in the root `pyproject.toml`; add each new component there.

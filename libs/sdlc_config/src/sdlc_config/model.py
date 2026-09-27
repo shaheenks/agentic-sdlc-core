@@ -1,7 +1,7 @@
 """Immutable, validated view of the config. One Snapshot per config version."""
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 
@@ -68,6 +68,22 @@ class RoleDef:
     tools_allow: frozenset[str]  # tool names or "*"
     tools_deny: frozenset[str]
     unconstrained: bool  # team argument limits don't apply to this role's grants
+    skills_allow: frozenset[str] = frozenset()  # global skill names, "tag:<tag>" or "*"
+
+
+@dataclass(frozen=True)
+class SkillDef:
+    """A skill package. `team` is set for team add-ons (visible to that team's members only)."""
+
+    name: str
+    description: str
+    instructions: str
+    path: str  # e.g. "skills/core/write-user-story"
+    source: str  # config rule that declares it, e.g. "skills.yaml#skills/write-user-story"
+    team: str | None = None
+    tags: frozenset[str] = frozenset()
+    access_roles: frozenset[str] = frozenset()  # empty = no role restriction
+    access_teams: frozenset[str] = frozenset()  # empty = no team restriction
 
 
 @dataclass(frozen=True)
@@ -88,6 +104,10 @@ class TeamDef:
     tools_deny: frozenset[str]
     # tool -> arg -> allowed values
     constraints: Mapping[str, Mapping[str, frozenset[str]]]
+    addon_skills: tuple[str, ...] = ()  # names of this team's add-on skills (in Snapshot.skills)
+    instructions: str | None = None  # AGENT_ADDENDUM text appended to the agent prompt
+    instructions_source: str | None = None  # e.g. "skills/teams/payments/AGENT_ADDENDUM.md"
+    context: Mapping[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -103,3 +123,4 @@ class Snapshot:
     bindings: tuple[RoleBinding, ...]
     tools: Mapping[str, ToolDef]
     teams: Mapping[str, TeamDef]
+    skills: Mapping[str, SkillDef] = field(default_factory=dict)  # global + team add-ons

@@ -7,7 +7,6 @@ import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
 from sdlc_auth.entra import entra_issuer
-from sdlc_mcp_bootstrap.server import discover_skills, parse_skill
 
 from tests.support.entra import G_ENG_ALL, G_PAYMENTS_DEVS, G_PLATFORM_DEVS, TENANT
 
@@ -86,6 +85,7 @@ async def test_stage2_tools(base_url, entra):
             "whoami",
             "list_skills",
             "load_skill",
+            "get_agent_context",
         }
         assert (await c.call_tool("ping", {})).data == "pong"
         listed = (await c.call_tool("list_skills", {})).data
@@ -170,24 +170,3 @@ async def test_every_tool_call_is_audited(base_url, entra, caplog):
         "secret-plan" not in json.dumps({k: v for k, v in r.items() if k != "error"})
         for r in records
     )
-
-
-# --- skill parsing ----------------------------------------------------------------------------
-
-
-def test_skill_without_frontmatter_fails(tmp_path):
-    bad = tmp_path / "bad" / "SKILL.md"
-    bad.parent.mkdir()
-    bad.write_text("# no frontmatter", encoding="utf-8")
-    with pytest.raises(ValueError, match="frontmatter"):
-        parse_skill(bad)
-
-
-def test_duplicate_skill_names_fail(tmp_path):
-    for folder in ("a", "b"):
-        (tmp_path / folder).mkdir()
-        (tmp_path / folder / "SKILL.md").write_text(
-            "---\nname: dup\ndescription: d\n---\nbody", encoding="utf-8"
-        )
-    with pytest.raises(ValueError, match="duplicate"):
-        discover_skills(tmp_path)

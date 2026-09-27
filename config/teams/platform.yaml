@@ -16,3 +16,9 @@ policy:
       generate_tests:
         args:
           repo: { in: [platform-infra, platform-ci] }
+addons:                              # visible only to members of this team
+  skills:
+    infra-change-review: { path: skills/teams/platform/infra-change-review }
+  instructions: skills/teams/platform/AGENT_ADDENDUM.md
+  context:
+    default_project: platform

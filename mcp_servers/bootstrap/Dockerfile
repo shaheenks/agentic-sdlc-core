@@ -7,6 +7,7 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 
 # Dependencies first (cached layer): workspace manifests + lockfile only.
 COPY pyproject.toml uv.lock ./
+COPY libs/sdlc_agent/pyproject.toml libs/sdlc_agent/
 COPY libs/sdlc_auth/pyproject.toml libs/sdlc_auth/
 COPY libs/sdlc_config/pyproject.toml libs/sdlc_config/
 COPY libs/sdlc_policy/pyproject.toml libs/sdlc_policy/

@@ -71,6 +71,7 @@ def test_explain_unknown_persona_fails(config_dir, capsys):
 def test_diff_between_revisions(tmp_path, config_dir, capsys):
     repo = tmp_path / "repo"
     shutil.copytree(config_dir, repo / "config")
+    shutil.copytree(config_dir.parent / "skills", repo / "skills")  # config references skills/
     (repo / ".gitignore").write_text("config/env/*/groups.yaml\n")
     git = ["git", "-c", "user.email=t@example.com", "-c", "user.name=t"]
     subprocess.run([*git, "init", "-q"], cwd=repo, check=True)

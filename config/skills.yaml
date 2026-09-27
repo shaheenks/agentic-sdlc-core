@@ -1,6 +1,8 @@
 apiVersion: sdlc/v1
 kind: SkillCatalog
-# Global skills. Visibility = role skills.allow (by name or tag:) narrowed by optional access.
+# Global skills. Visible to a user when a role grants them (roles.yaml skills.allow: name,
+# "tag:<tag>" or "*") AND, if `access` is set, the user holds one of its roles or teams.
+# Naming: lowercase kebab-case, globally unique (see skills/README.md).
 skills:
   write-user-story: { path: skills/core/write-user-story, tags: [general] }
   test-case-gen:    { path: skills/core/test-case-gen,    tags: [engineering] }

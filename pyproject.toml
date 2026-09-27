@@ -20,6 +20,7 @@ package = false
 [tool.uv.workspace]
 # Explicit list: add each new component here as it lands (see CLAUDE.md, "bootstrap/" convention).
 members = [
+    "libs/sdlc_agent",
     "libs/sdlc_auth",
     "libs/sdlc_config",
     "libs/sdlc_policy",
@@ -29,6 +30,7 @@ members = [
 ]
 
 [tool.uv.sources]
+sdlc-agent = { workspace = true }
 sdlc-auth = { workspace = true }
 sdlc-config = { workspace = true }
 sdlc-policy = { workspace = true }

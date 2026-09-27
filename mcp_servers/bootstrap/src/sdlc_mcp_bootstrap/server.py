@@ -6,17 +6,16 @@ Stage 2: every MCP request needs a valid Entra ID user token (401 otherwise); wh
 Stage 3: RBAC from config: tools/list shows only permitted tools, every tools/call is
          authorized (tool + argument limits) and audited with the matched rule; stub SDLC
          tools; admin tools config_info / config_explain; whoami(explain).
+Stage 4: skills come from the config snapshot (skills.yaml + team add-ons) and are filtered
+         per user; get_agent_context returns the caller's team instructions and context.
 """
 
 import inspect
 import logging
 import os
 from collections.abc import Callable
-from dataclasses import dataclass
-from pathlib import Path
 
 import uvicorn
-import yaml
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import AuthProvider, RemoteAuthProvider
@@ -35,39 +34,6 @@ from sdlc_mcp_bootstrap.sdlc_tools import SDLC_TOOLS
 
 log = logging.getLogger("sdlc.mcp")
 
-DEFAULT_SKILLS_DIR = Path(__file__).resolve().parents[4] / "skills" / "bootstrap"
-
-
-@dataclass(frozen=True)
-class Skill:
-    name: str
-    description: str
-    instructions: str
-
-
-def parse_skill(path: Path) -> Skill:
-    """Parse a SKILL.md file: YAML frontmatter (name, description) + markdown body."""
-    text = path.read_text(encoding="utf-8")
-    if not text.startswith("---"):
-        raise ValueError(f"{path}: missing YAML frontmatter")
-    _, frontmatter, body = text.split("---", 2)
-    meta = yaml.safe_load(frontmatter) or {}
-    for key in ("name", "description"):
-        if not meta.get(key):
-            raise ValueError(f"{path}: frontmatter is missing '{key}'")
-    return Skill(name=meta["name"], description=meta["description"], instructions=body.strip())
-
-
-def discover_skills(skills_dir: Path) -> dict[str, Skill]:
-    """Load every <skills_dir>/<skill>/SKILL.md, keyed by skill name."""
-    skills: dict[str, Skill] = {}
-    for skill_file in sorted(skills_dir.glob("*/SKILL.md")):
-        skill = parse_skill(skill_file)
-        if skill.name in skills:
-            raise ValueError(f"duplicate skill name '{skill.name}' in {skills_dir}")
-        skills[skill.name] = skill
-    return skills
-
 
 def catalog_problems(snapshot: Snapshot, registered: dict[str, frozenset[str]]) -> list[str]:
     """Constrained arguments (tools.yaml `args`) must exist on the registered tool."""
@@ -85,13 +51,10 @@ def catalog_problems(snapshot: Snapshot, registered: dict[str, frozenset[str]]) 
 
 
 def build_server(
-    skills_dir: Path,
     store: ConfigStore,
     auth: AuthProvider,
     group_resolver: GroupResolver | None = None,
 ) -> FastMCP:
-    # Skills are loaded once at startup so a malformed SKILL.md fails fast.
-    skills = discover_skills(skills_dir)
     cache = PolicyCache()
     mcp = FastMCP(
         name="sdlc-mcp-bootstrap",
@@ -130,22 +93,42 @@ def build_server(
             result["policy"] = ident.policy.explain()
         return result
 
-    def list_skills() -> list[dict[str, str]]:
-        """List available SDLC skills (name + description). Load one with load_skill."""
-        return [{"name": s.name, "description": s.description} for s in skills.values()]
+    async def list_skills() -> list[dict[str, str]]:
+        """List the SDLC skills available to you (name + description). Load one with load_skill."""
+        ident = await request_identity()
+        skills = ident.snapshot.skills
+        return [
+            {"name": name, "description": skills[name].description}
+            for name in sorted(ident.policy.skills)
+        ]
 
-    def load_skill(name: str) -> dict[str, str]:
+    async def load_skill(name: str) -> dict[str, str]:
         """Return the full instructions of a skill returned by list_skills."""
-        skill = skills.get(name)
-        if skill is None:
+        ident = await request_identity()
+        # Hidden and non-existent skills get the same answer: existence is not disclosed.
+        if not ident.policy.sees_skill(name):
             raise ToolError(f"unknown skill '{name}'")
+        skill = ident.snapshot.skills[name]
         return {
             "name": skill.name,
             "description": skill.description,
             "instructions": skill.instructions,
         }
 
-    for fn in [ping, whoami, list_skills, load_skill, *SDLC_TOOLS, *make_admin_tools(store, cache)]:
+    async def get_agent_context() -> dict:
+        """Your team instructions and context, to apply for the whole session."""
+        policy = (await request_identity()).policy
+        return {
+            "instructions": [
+                {"team": item.team, "source": item.source, "text": item.text}
+                for item in policy.agent_instructions
+            ],
+            "context": {team: dict(values) for team, values in policy.context.items()},
+            "config_version": policy.config_version,
+        }
+
+    core = [ping, whoami, list_skills, load_skill, get_agent_context]
+    for fn in [*core, *SDLC_TOOLS, *make_admin_tools(store, cache)]:
         register(fn)
 
     # Catalog vs code: fail startup on bad constraint args; re-check (log) on every reload.
@@ -167,7 +150,7 @@ def build_server(
         return JSONResponse(
             {
                 "status": "ok",
-                "skills": len(skills),
+                "skills": len(store.current().skills),
                 "config_version": store.current().version,
                 "config_reload_error": store.last_error is not None,
             }
@@ -232,7 +215,6 @@ def main() -> None:
     host = os.environ.get("MCP_HOST", "127.0.0.1")
     port = int(os.environ.get("MCP_PORT", "8080"))
     server = build_server(
-        Path(os.environ.get("SDLC_SKILLS_DIR", DEFAULT_SKILLS_DIR)),
         store,
         build_auth(snapshot, os.environ.get("MCP_PUBLIC_URL", f"http://127.0.0.1:{port}")),
         build_group_resolver(snapshot),

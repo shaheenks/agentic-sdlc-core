@@ -50,3 +50,20 @@ def test_personas_use_known_group_aliases(snap):
     known = set(snap.groups.alias_by_id.values())
     for persona in PERSONAS.values():
         assert set(persona.groups) <= known, persona
+
+
+SKILL_ROWS = yaml.safe_load((HERE / "matrix.yaml").read_text(encoding="utf-8"))["skill_rows"]
+
+
+@pytest.mark.parametrize(
+    "row", SKILL_ROWS, ids=[f"{r['persona']}:{r['skill']}->{r['expect']}" for r in SKILL_ROWS]
+)
+def test_skill_row(snap, row):
+    persona = PERSONAS[row["persona"]]
+    policy = resolve(snap, persona.groups, persona.app_roles)
+    assert policy.sees_skill(row["skill"]) is (row["expect"] == "visible"), policy.skills
+
+
+def test_every_skill_has_matrix_rows(snap):
+    covered = {row["skill"] for row in SKILL_ROWS}
+    assert not set(snap.skills) - covered, "add skill_rows for new skills"

@@ -162,15 +162,21 @@ def _repo_root(path: Path) -> Path:
 
 
 def _config_at(rev: str, config_dir: Path, env: str, workdir: Path) -> Path:
-    """Materialize config/ at a git revision. groups.yaml is git-ignored, so the working tree's
-    (or the committed example) is used: diffs compare policy, not tenant group IDs."""
+    """Materialize config/ (and the sibling skills/, which config references) at a git revision.
+    groups.yaml is git-ignored, so the working tree's (or the committed example) is used: diffs
+    compare policy, not tenant group IDs."""
     if rev == WORKTREE:
         return config_dir
     repo = _repo_root(config_dir)
     rel = config_dir.resolve().relative_to(repo.resolve()).as_posix()
-    out = subprocess.run(  # noqa: S603 (fixed git command, rev passed as one argument)
-        [_git(), "archive", "--format=tar", rev, rel], cwd=repo, capture_output=True
-    )
+    skills_rel = (config_dir.parent / "skills").resolve().relative_to(repo.resolve()).as_posix()
+    out = None
+    for paths in ([rel, skills_rel], [rel]):  # older revisions may have no skills/ folder
+        out = subprocess.run(  # noqa: S603 (fixed git command, rev passed as one argument)
+            [_git(), "archive", "--format=tar", rev, *paths], cwd=repo, capture_output=True
+        )
+        if out.returncode == 0:
+            break
     if out.returncode != 0:
         raise ConfigError([f"git archive {rev}: {out.stderr.decode(errors='replace').strip()}"])
     target = workdir / rev.replace("/", "_")
@@ -188,7 +194,7 @@ def _config_at(rev: str, config_dir: Path, env: str, workdir: Path) -> Path:
 
 
 def _summary(policy: EffectivePolicy) -> dict[str, str]:
-    """tool -> printable limits, for comparing two policies."""
+    """tool -> printable limits and skill:<name> -> visibility, for comparing two policies."""
     result = {}
     for name, perm in policy.tools.items():
         if perm.constraints:
@@ -197,6 +203,10 @@ def _summary(policy: EffectivePolicy) -> dict[str, str]:
             )
         else:
             result[name] = "no limits"
+    for name, grant in policy.skills.items():
+        result[f"skill:{name}"] = f"team add-on ({grant.team})" if grant.team else "global"
+    for item in policy.agent_instructions:
+        result[f"instructions:{item.team}"] = item.source
     return result
 
 

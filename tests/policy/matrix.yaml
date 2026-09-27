@@ -39,3 +39,22 @@ rows:
   - { persona: viewer,        tool: search_knowledge,  expect: allow }
   - { persona: viewer,        tool: graph_query,       expect: deny }
   - { persona: payments-dev,  tool: graph_query,       expect: allow }
+
+# Skill visibility (Stage 4). expect: visible | hidden. Every skill needs rows.
+skill_rows:
+  - { persona: nobody,         skill: write-user-story,     expect: hidden }
+  - { persona: viewer,         skill: write-user-story,     expect: visible }
+  - { persona: viewer,         skill: test-case-gen,        expect: hidden }
+  - { persona: payments-dev,   skill: test-case-gen,        expect: visible }
+  - { persona: payments-dev,   skill: pci-checklist,        expect: visible }
+  - { persona: payments-dev,   skill: ledger-design-review, expect: hidden }   # leads only
+  - { persona: payments-dev,   skill: design-review,        expect: hidden }   # leads only
+  - { persona: payments-dev,   skill: infra-change-review,  expect: hidden }   # platform add-on
+  - { persona: payments-lead,  skill: ledger-design-review, expect: visible }
+  - { persona: payments-lead,  skill: design-review,        expect: visible }
+  - { persona: platform-dev,   skill: infra-change-review,  expect: visible }
+  - { persona: platform-dev,   skill: pci-checklist,        expect: hidden }   # payments add-on
+  - { persona: multi-team-dev, skill: pci-checklist,        expect: visible }
+  - { persona: multi-team-dev, skill: infra-change-review,  expect: visible }
+  - { persona: admin,          skill: ledger-design-review, expect: visible }  # "*" covers add-ons
+  - { persona: admin,          skill: infra-change-review,  expect: visible }

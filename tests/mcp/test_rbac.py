@@ -14,7 +14,6 @@ from tests.support.entra import (
     G_PLATFORM_DEVS,
     TEST_ENV,
 )
-from tests.support.servers import BOOTSTRAP_SKILLS
 
 G_PAYMENTS_LEADS = "00000000-0000-0000-0000-000000000003"
 G_PLATFORM_ADMINS = "00000000-0000-0000-0000-000000000005"
@@ -28,7 +27,7 @@ PERSONAS = {
     "admin": [G_ENG_ALL, G_PLATFORM_ADMINS],
 }
 BASICS = {"ping", "whoami"}
-VIEWER = BASICS | {"list_skills", "load_skill"}  # registered viewer tools
+VIEWER = BASICS | {"list_skills", "load_skill", "get_agent_context"}  # registered viewer tools
 DEVELOPER = VIEWER | {"review_code", "generate_tests"}
 
 
@@ -147,4 +146,4 @@ def test_startup_fails_if_catalog_constrains_missing_parameter(config_dir, entra
     tools.write_text(yaml.safe_dump(doc))
     store = ConfigStore(lambda: load_snapshot(config_dir, "local", TEST_ENV))
     with pytest.raises(ValueError, match=r"review_code: args \['branch'\]"):
-        build_server(BOOTSTRAP_SKILLS, store, entra.verifier())
+        build_server(store, entra.verifier())

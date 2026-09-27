@@ -17,7 +17,6 @@ from sdlc_mcp_bootstrap.server import build_server
 from tests.support.entra import TENANT, FakeEntra
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-BOOTSTRAP_SKILLS = REPO_ROOT / "skills" / "bootstrap"
 
 
 def free_port() -> int:
@@ -51,4 +50,4 @@ def build_test_mcp_server(entra: FakeEntra, store: ConfigStore, port: int) -> Fa
         base_url=f"http://127.0.0.1:{port}",
         resource_name="sdlc-mcp",
     )
-    return build_server(BOOTSTRAP_SKILLS, store, auth)
+    return build_server(store, auth)

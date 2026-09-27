@@ -78,21 +78,23 @@
       "properties": {
         "skills": {
           "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
           "additionalProperties": {
             "type": "object",
             "additionalProperties": false,
             "required": ["path"],
             "properties": {
-              "path": { "type": "string" },
+              "path": { "type": "string", "pattern": "^skills/teams/[a-z0-9/_-]+$" },
               "access": {
                 "type": "object",
                 "additionalProperties": false,
-                "properties": { "roles": { "type": "array", "items": { "$ref": "#/$defs/name" } } }
+                "minProperties": 1,
+                "properties": { "roles": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/name" } } }
               }
             }
           }
         },
-        "instructions": { "type": "string" },
+        "instructions": { "type": "string", "pattern": "^skills/teams/[A-Za-z0-9/_.-]+[.]md$" },
         "context": { "type": "object", "additionalProperties": { "type": "string" } }
       }
     }

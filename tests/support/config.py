@@ -3,7 +3,8 @@
 import shutil
 from pathlib import Path
 
-REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_CONFIG = REPO_ROOT / "config"
 
 TEST_GROUPS_YAML = """apiVersion: sdlc/v1
 kind: GroupMap
@@ -17,8 +18,10 @@ groups:
 
 
 def make_config_dir(tmp_path: Path) -> Path:
-    """Private, mutable copy of config/ whose env/local/groups.yaml uses the test group IDs."""
+    """Private, mutable copies of config/ and skills/ (skill paths resolve next to config/);
+    env/local/groups.yaml uses the test group IDs."""
     dst = tmp_path / "config"
     shutil.copytree(REPO_CONFIG, dst)
+    shutil.copytree(REPO_ROOT / "skills", tmp_path / "skills")
     (dst / "env" / "local" / "groups.yaml").write_text(TEST_GROUPS_YAML, encoding="utf-8")
     return dst
