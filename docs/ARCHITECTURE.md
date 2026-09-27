@@ -280,7 +280,7 @@ The options stay open; they were weighed as follows:
 | **SQLite on an agent-only volume** (current) | `sqlite:////data/sessions.db` + retention job | No DB credentials for agents; no new service; survives restarts | One instance only (file lock); volume backup is manual | local dev; single-instance staging |
 | Separate Postgres database | `postgresql+asyncpg://…` to a dedicated `sdlc_sessions` DB and role that can reach nothing else | Scales out; standard ADK `DatabaseSessionService`; backups with the DB | Agents would hold DB credentials: an explicit, narrow exception to the "agents get no DB credentials" rule (needs a decision + CLAUDE.md change); asyncpg driver; retention via SQL job | self-hosted multi-instance |
 | Session API via the MCP server | Custom ADK `BaseSessionService` calling MCP tools; the MCP server stores sessions per `oid` | Agents stay credential-free and scale out; server-side audit of history access | Custom code in the agent path; extra latency per turn; not a standard ADK store | multi-instance without agent credentials |
-| Vertex AI Agent Engine sessions | `agentengine://<engine id>` (or `GOOGLE_CLOUD_AGENT_ENGINE_ID`) | Managed, scales, IAM via the service identity; the store Gemini Enterprise uses | GCP only (deferred with Stage 7); TTL/retention configured in Agent Engine; data residency by region | GCP staging/prod, Gemini Enterprise |
+| Vertex AI Agent Engine sessions | `agentengine://<engine id>` (or `GOOGLE_CLOUD_AGENT_ENGINE_ID`) | Managed, scales, IAM via the service identity; the store Gemini Enterprise uses | GCP only (deferred with Stage 7); TTL/retention configured in Agent Engine; data residency by region | GCP staging/prod, Gemini Enterprise (the future target: [FUTURE_UPDATES.md](FUTURE_UPDATES.md)) |
 
 Switching is configuration plus infrastructure (URI, volume or database, retention), not agent
 code, except for the MCP session API. Whatever the store: retention must be set, content capture in
@@ -333,7 +333,8 @@ Rules that follow from this:
   `MCP_PUBLIC_URL` per environment. Nothing in code may assume `localhost` or a tunnel.
 
 Details for dev exposure: [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md). GCP design, diagrams and deployment runbook:
-[GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md).
+[GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md). Future target (agents in Gemini Enterprise Agent Runtime, MCP on Cloud Run,
+database options): [FUTURE_UPDATES.md](FUTURE_UPDATES.md).
 
 ## 8. Deployment views
 

@@ -232,6 +232,10 @@ cd infra/gcp; terraform destroy -var-file=staging.tfvars   # needs the same TF_V
 
 ## 10. Next (7b and hardening)
 
+Longer term, the agents move to Gemini Enterprise Agent Runtime (the `sdlc-app` service then serves local
+development only); extent and identity flow: [FUTURE_UPDATES.md](FUTURE_UPDATES.md).
+
+
 - Custom hostnames `app-sdlc-staging` / `mcp-sdlc-staging.shaheenks.co.in`: CNAME + Google-managed
   certificate (load balancer or domain mapping), then drop the `*.run.app` exception.
 - Persistent conversation store (Agent Engine sessions; options in ARCHITECTURE.md "Conversation storage")

@@ -112,6 +112,9 @@ See ARCHITECTURE.md §7.
   **Deployment is deferred to a later stage**: only the state bucket, APIs, registry and images exist; no Cloud SQL or
   Cloud Run yet. Keep `infra/gcp` valid when shared code changes (e.g. new env vars, migrations, jobs).
   Design and runbook: docs/GCP_DEPLOYMENT.md.
+- **Future target** (docs/FUTURE_UPDATES.md): agents in Gemini Enterprise Agent Runtime (chat + managed sessions; memory off),
+  MCP on Cloud Run, RAG DB Postgres-compatible or Spanner (undecided). Keep `sdlc_db`'s public functions as the backend seam;
+  the user's token from Gemini Enterprise must never be persisted in session state or memory.
 - Hostnames and public URLs are configuration (`SDLC_APP_HOST`, `SDLC_MCP_HOST`, `MCP_PUBLIC_URL`), never hard-coded;
   code must not assume `localhost` or a tunnel. Use `<service>-sdlc-<env>.shaheenks.co.in` (one level below the zone).
 - After changing Entra redirect URIs, check each entry separately (`az ad app show … -o json`), not the joined TSV output.
