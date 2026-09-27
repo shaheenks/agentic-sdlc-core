@@ -195,6 +195,31 @@ flowchart LR
   `whoami(explain=true)` shows a user their own policy; admins use `config_explain`; `sdlc-config diff` shows
   per-persona permission changes on every config change.
 
+### Data access (Stage 5)
+
+```mermaid
+flowchart LR
+    SRC[config/sources/*.yaml<br/>location · classification · access] --> ING[sdlc-ingest<br/>role sdlc_ingest]
+    ING -- chunk + embed --> PG[(sdlc.sources · documents · chunks<br/>FORCE RLS)]
+    U[User policy<br/>allowed_sources · max_classification] --> MCP[search_knowledge<br/>role sdlc_app]
+    MCP -- "SET LOCAL app.allowed_sources,<br/>app.max_classification_rank" --> PG
+```
+
+- **Two checks, one source of truth.** The resolver turns `Source.access` (teams, roles, groups) into the
+  user's `allowed_sources` and takes the highest `max_classification` across the user's roles. The MCP
+  server searches only those sources, and Postgres RLS filters every row on the same two values, set per
+  transaction by `sdlc_db.scoped()`. A bug in tool code cannot widen access beyond what RLS allows.
+- **Fail closed:** without the RLS context a query returns no rows, for every role including the table
+  owner (`FORCE ROW LEVEL SECURITY`). No database role is a superuser or has BYPASSRLS.
+- **Roles:** `sdlc_owner` owns the schema and runs migrations; `sdlc_app` (MCP server) can only SELECT;
+  `sdlc_ingest` writes. Agents get no database credentials at all.
+- **Classification** is stamped on every document and chunk at ingest from the Source config; changing a
+  source's classification and re-running ingest re-stamps existing rows.
+- **Embeddings:** `gemini-embedding-2` at 768 dimensions on Vertex AI (`platform.yaml` `knowledge.embedding`),
+  RETRIEVAL_DOCUMENT for chunks and RETRIEVAL_QUERY for questions; HNSW cosine index with iterative scan so
+  RLS filtering still returns k results.
+- Ingest runs on demand (`docker compose run --rm ingest run --all`) and skips unchanged files by content hash.
+
 ## 6. Config lifecycle
 
 ```mermaid

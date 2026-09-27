@@ -15,7 +15,6 @@ import json
 import logging
 import time
 from datetime import UTC, datetime
-from typing import Any
 
 from sdlc_config import ConfigStore
 
@@ -76,16 +75,15 @@ class AuthFailureAuditMiddleware:
     async def __call__(self, scope, receive, send) -> None:
         if scope["type"] != "http" or not scope["path"].startswith(self.path_prefix):
             return await self.app(scope, receive, send)
-        status: dict[str, Any] = {}
 
         async def watch(message) -> None:
-            if message["type"] == "http.response.start":
-                status["code"] = message["status"]
+            # Audit BEFORE the response leaves: the record must exist by the time the client
+            # sees the rejection (no window where a 401 is returned but not yet audited).
+            if message["type"] == "http.response.start" and message["status"] in (401, 403):
+                self._audit(scope, message["status"])
             await send(message)
 
         await self.app(scope, receive, watch)
-        if status.get("code") in (401, 403):
-            self._audit(scope, status["code"])
 
     def _audit(self, scope, code: int) -> None:
         headers = {

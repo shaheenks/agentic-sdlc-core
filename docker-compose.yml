@@ -33,17 +33,30 @@ x-oauth2-proxy-env: &oauth2-proxy-env
   # API calls from the dev UI get 401 instead of a login redirect when the session lapses.
   OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps)
 
+# Gemini / Vertex AI settings: agent (LLM), MCP server (query embeddings), ingest (embeddings).
+x-vertex-env: &vertex-env
+  GOOGLE_GENAI_USE_VERTEXAI: ${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}
+  GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+  GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
+  GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-}
+  GOOGLE_CLOUD_QUOTA_PROJECT: ${GOOGLE_CLOUD_QUOTA_PROJECT:-}
+  GOOGLE_APPLICATION_CREDENTIALS: /secrets/adc.json
+# Only the ADC file (not the whole gcloud dir) for Vertex AI; unused in API-key mode.
+x-adc-mount: &adc-mount ${GOOGLE_ADC_FILE:-${APPDATA}/gcloud/application_default_credentials.json}:/secrets/adc.json:ro
+
 services:
   postgres:
     image: pgvector/pgvector:pg17
     environment:
-      # Superuser is only for init/migrations. The app connects as the non-superuser
-      # `sdlc_app` (created by db/bootstrap/001_app_role.sh) so Postgres RLS applies to it.
+      # Superuser is only for init. Roles (db/bootstrap/001_roles.sh): sdlc_owner (migrations),
+      # sdlc_app (MCP, read-only, RLS), sdlc_ingest (writes); none bypasses RLS.
       POSTGRES_DB: ${PGDATABASE:-sdlc}
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-postgres-local}
       SDLC_APP_USER: ${PGUSER:-sdlc_app}
       SDLC_APP_PASSWORD: ${PGPASSWORD:-sdlc-local}
+      SDLC_OWNER_PASSWORD: ${SDLC_OWNER_PASSWORD:-sdlc-owner-local}
+      SDLC_INGEST_PASSWORD: ${SDLC_INGEST_PASSWORD:-sdlc-ingest-local}
     ports: ["127.0.0.1:${PGPORT:-5432}:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -59,9 +72,6 @@ services:
       context: .
       dockerfile: mcp_servers/bootstrap/Dockerfile
     ports: ["127.0.0.1:8080:8080"]
-    volumes:
-      - ./skills:/app/skills:ro
-      - ./config:/app/config:ro
     environment:
       SDLC_ENV: ${SDLC_ENV:-local}
       # Bind mounts from Windows do not deliver file events; poll for config reloads.
@@ -72,12 +82,18 @@ services:
       ENTRA_GRAPH_CLIENT_SECRET: ${ENTRA_GRAPH_CLIENT_SECRET:-}
       # Advertised in the RFC 9728 metadata (the 401 challenge) for external MCP clients.
       MCP_PUBLIC_URL: https://${SDLC_MCP_HOST:-mcp-sdlc-dev.shaheenks.co.in}
+      # search_knowledge embeds the query (config/platform.yaml knowledge.embedding) on Vertex AI.
+      <<: *vertex-env
       # libpq-standard vars; only MCP servers get DB credentials (agents never touch the DB).
       PGHOST: postgres
       PGPORT: "5432"
       PGDATABASE: ${PGDATABASE:-sdlc}
       PGUSER: ${PGUSER:-sdlc_app}
       PGPASSWORD: ${PGPASSWORD:-sdlc-local}
+    volumes:
+      - ./skills:/app/skills:ro
+      - ./config:/app/config:ro
+      - *adc-mount
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,15 +111,9 @@ services:
       # Entra identity (validate the forwarded user token; not secrets)
       ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
       ENTRA_API_CLIENT_ID: ${ENTRA_API_CLIENT_ID:-}
-      GOOGLE_GENAI_USE_VERTEXAI: ${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
-      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
-      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-}
-      GOOGLE_CLOUD_QUOTA_PROJECT: ${GOOGLE_CLOUD_QUOTA_PROJECT:-}
-      GOOGLE_APPLICATION_CREDENTIALS: /secrets/adc.json
+      <<: *vertex-env
     volumes:
-      # Only the ADC file (not the whole gcloud dir) for Vertex AI; unused in API-key mode.
-      - ${GOOGLE_ADC_FILE:-${APPDATA}/gcloud/application_default_credentials.json}:/secrets/adc.json:ro
+      - *adc-mount
     depends_on:
       mcp-bootstrap:
         condition: service_healthy
@@ -136,6 +146,50 @@ services:
       OAUTH2_PROXY_WHITELIST_DOMAINS: ${SDLC_APP_HOST:-app-sdlc-dev.shaheenks.co.in}
     depends_on:
       agent-bootstrap:
+        condition: service_healthy
+
+  # On-demand jobs (profile "ingest"; never started by `up`):
+  #   docker compose run --rm migrate                 apply db/migrations as sdlc_owner
+  #   docker compose run --rm ingest [run --source <id> | run --all] [--dry-run] [--force]
+  migrate:
+    build:
+      context: .
+      dockerfile: ingest/bootstrap/Dockerfile
+    profiles: ["ingest"]
+    entrypoint: ["sdlc-db"]
+    command: ["migrate"]
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${PGDATABASE:-sdlc}
+      SDLC_OWNER_PASSWORD: ${SDLC_OWNER_PASSWORD:-sdlc-owner-local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ingest:
+    build:
+      context: .
+      dockerfile: ingest/bootstrap/Dockerfile
+    profiles: ["ingest"]
+    command: ["run", "--all"]
+    environment:
+      SDLC_ENV: ${SDLC_ENV:-local}
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${PGDATABASE:-sdlc}
+      SDLC_INGEST_PASSWORD: ${SDLC_INGEST_PASSWORD:-sdlc-ingest-local}
+      # Config resolution needs the Entra env (config/platform.yaml references it).
+      ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
+      ENTRA_API_CLIENT_ID: ${ENTRA_API_CLIENT_ID:-}
+      <<: *vertex-env
+    volumes:
+      - ./config:/app/config:ro
+      - ./skills:/app/skills:ro
+      - ./samples:/app/samples:ro
+      - *adc-mount
+    depends_on:
+      postgres:
         condition: service_healthy
 
 volumes:

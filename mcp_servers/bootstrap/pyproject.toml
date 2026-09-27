@@ -8,6 +8,7 @@ dependencies = [
     "pyyaml>=6.0",
     "sdlc-auth[server]",
     "sdlc-config",
+    "sdlc-db",
     "sdlc-policy",
 ]
 

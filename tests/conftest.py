@@ -1,5 +1,7 @@
 """Shared fixtures."""
 
+import asyncio
+import sys
 from pathlib import Path
 
 import pytest
@@ -43,3 +45,11 @@ def base_url(server, store, port):
     """Bootstrap MCP server running on a real port (base URL without /mcp), wired as in main()."""
     with serve(build_http_app(server, store), port) as url:
         yield url
+
+
+@pytest.fixture(scope="session")
+def event_loop_policy():
+    """psycopg async needs a selector event loop; Windows defaults to Proactor."""
+    if sys.platform == "win32":
+        return asyncio.WindowsSelectorEventLoopPolicy()
+    return asyncio.DefaultEventLoopPolicy()

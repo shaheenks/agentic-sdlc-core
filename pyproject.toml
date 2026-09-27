@@ -23,8 +23,10 @@ members = [
     "libs/sdlc_agent",
     "libs/sdlc_auth",
     "libs/sdlc_config",
+    "libs/sdlc_db",
     "libs/sdlc_policy",
     "libs/sdlc_web",
+    "ingest/bootstrap",
     "mcp_servers/bootstrap",
     "agents/bootstrap",
 ]
@@ -33,8 +35,10 @@ members = [
 sdlc-agent = { workspace = true }
 sdlc-auth = { workspace = true }
 sdlc-config = { workspace = true }
+sdlc-db = { workspace = true }
 sdlc-policy = { workspace = true }
 sdlc-web = { workspace = true }
+sdlc-ingest = { workspace = true }
 sdlc-mcp-bootstrap = { workspace = true }
 sdlc-agent-bootstrap = { workspace = true }
 

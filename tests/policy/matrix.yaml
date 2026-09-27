@@ -58,3 +58,18 @@ skill_rows:
   - { persona: multi-team-dev, skill: infra-change-review,  expect: visible }
   - { persona: admin,          skill: ledger-design-review, expect: visible }  # "*" covers add-ons
   - { persona: admin,          skill: infra-change-review,  expect: visible }
+
+# Data access (Stage 5). readable = source granted by Source.access AND its classification is at
+# or below the persona's ceiling (both are enforced by Postgres RLS). Every source needs rows.
+data_rows:
+  - { persona: nobody,        source: eng-standards,      expect: unreadable }
+  - { persona: viewer,        source: eng-standards,      expect: readable }
+  - { persona: viewer,        source: payments-code,      expect: unreadable }
+  - { persona: payments-dev,  source: payments-code,      expect: readable }
+  - { persona: payments-dev,  source: payments-incidents, expect: unreadable }  # confidential > internal
+  - { persona: payments-dev,  source: platform-infra,     expect: unreadable }
+  - { persona: payments-lead, source: payments-incidents, expect: readable }
+  - { persona: platform-dev,  source: platform-infra,     expect: readable }
+  - { persona: platform-dev,  source: payments-code,      expect: unreadable }
+  - { persona: admin,         source: payments-incidents, expect: readable }
+  - { persona: admin,         source: platform-infra,     expect: readable }

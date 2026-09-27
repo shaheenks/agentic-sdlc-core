@@ -1,6 +1,8 @@
 """Run ASGI apps (MCP server, agent web app) on a real port in a background thread."""
 
+import asyncio
 import socket
+import sys
 import threading
 import time
 from collections.abc import Iterator
@@ -29,7 +31,15 @@ def free_port() -> int:
 def serve(app, port: int) -> Iterator[str]:
     """Serve `app` with uvicorn on 127.0.0.1:port; yields the base URL."""
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
-    thread = threading.Thread(target=server.run, daemon=True)
+
+    def run() -> None:
+        # psycopg async needs a selector event loop (Windows defaults to Proactor)
+        if sys.platform == "win32":
+            asyncio.run(server.serve(), loop_factory=asyncio.SelectorEventLoop)
+        else:
+            server.run()
+
+    thread = threading.Thread(target=run, daemon=True)
     thread.start()
     deadline = time.monotonic() + 10
     while not server.started:

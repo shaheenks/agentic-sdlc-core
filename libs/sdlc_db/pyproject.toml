@@ -1,0 +1,21 @@
+[project]
+name = "sdlc-db"
+version = "0.1.0"
+description = "Postgres/pgvector access with row-level-security context, migrations and knowledge queries"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "psycopg[binary]>=3.2",
+    "psycopg-pool>=3.2",
+    "google-genai>=1.0",
+    "sdlc-config",
+]
+
+[project.scripts]
+sdlc-db = "sdlc_db.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sdlc_db"]

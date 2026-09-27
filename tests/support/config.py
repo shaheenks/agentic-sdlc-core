@@ -23,5 +23,6 @@ def make_config_dir(tmp_path: Path) -> Path:
     dst = tmp_path / "config"
     shutil.copytree(REPO_CONFIG, dst)
     shutil.copytree(REPO_ROOT / "skills", tmp_path / "skills")
+    shutil.copytree(REPO_ROOT / "samples", tmp_path / "samples")  # Source locations
     (dst / "env" / "local" / "groups.yaml").write_text(TEST_GROUPS_YAML, encoding="utf-8")
     return dst

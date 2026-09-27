@@ -8,6 +8,7 @@ Stage 3: RBAC from config: tools/list shows only permitted tools, every tools/ca
          tools; admin tools config_info / config_explain; whoami(explain).
 Stage 4: skills come from the config snapshot (skills.yaml + team add-ons) and are filtered
          per user; get_agent_context returns the caller's team instructions and context.
+Stage 5: search_knowledge over the RLS-protected knowledge store (sdlc_app role).
 """
 
 import inspect
@@ -30,6 +31,7 @@ from sdlc_mcp_bootstrap.admin_tools import make_admin_tools
 from sdlc_mcp_bootstrap.audit import PolicyMiddleware, audit_skill_access, audit_skills_list
 from sdlc_mcp_bootstrap.auth_audit import AuthFailureAuditMiddleware
 from sdlc_mcp_bootstrap.identity import request_identity
+from sdlc_mcp_bootstrap.knowledge_tools import Knowledge, make_knowledge_tools
 from sdlc_mcp_bootstrap.sdlc_tools import SDLC_TOOLS
 
 log = logging.getLogger("sdlc.mcp")
@@ -54,6 +56,7 @@ def build_server(
     store: ConfigStore,
     auth: AuthProvider,
     group_resolver: GroupResolver | None = None,
+    knowledge: Knowledge | None = None,
 ) -> FastMCP:
     cache = PolicyCache()
     mcp = FastMCP(
@@ -129,7 +132,8 @@ def build_server(
         }
 
     core = [ping, whoami, list_skills, load_skill, get_agent_context]
-    for fn in [*core, *SDLC_TOOLS, *make_admin_tools(store, cache)]:
+    knowledge_tools = make_knowledge_tools(knowledge) if knowledge else []
+    for fn in [*core, *SDLC_TOOLS, *make_admin_tools(store, cache), *knowledge_tools]:
         register(fn)
 
     # Catalog vs code: fail startup on bad constraint args; re-check (log) on every reload.
@@ -207,6 +211,16 @@ def build_group_resolver(snapshot: Snapshot) -> GroupResolver | None:
     )
 
 
+def build_knowledge(snapshot: Snapshot) -> Knowledge:
+    """Read-only pool as sdlc_app (RLS) + query embedder (platform.yaml knowledge.embedding)."""
+    from psycopg_pool import AsyncConnectionPool
+    from sdlc_db import GeminiEmbedder, conninfo
+
+    pool = AsyncConnectionPool(conninfo("app"), min_size=1, max_size=10, open=False)
+    platform = snapshot.platform
+    return Knowledge(pool, GeminiEmbedder(platform.embedding_model, platform.embedding_dimensions))
+
+
 def main() -> None:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(message)s")
     store = ConfigStore.from_env()  # raises ConfigError on invalid config: fail closed
@@ -215,10 +229,12 @@ def main() -> None:
     snapshot = store.current()
     host = os.environ.get("MCP_HOST", "127.0.0.1")
     port = int(os.environ.get("MCP_PORT", "8080"))
+    knowledge = build_knowledge(snapshot)
     server = build_server(
         store,
         build_auth(snapshot, os.environ.get("MCP_PUBLIC_URL", f"http://127.0.0.1:{port}")),
         build_group_resolver(snapshot),
+        knowledge,
     )
     uvicorn.run(build_http_app(server, store), host=host, port=port, log_level="info")
 

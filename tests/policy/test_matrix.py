@@ -67,3 +67,28 @@ def test_skill_row(snap, row):
 def test_every_skill_has_matrix_rows(snap):
     covered = {row["skill"] for row in SKILL_ROWS}
     assert not set(snap.skills) - covered, "add skill_rows for new skills"
+
+
+DATA_ROWS = yaml.safe_load((HERE / "matrix.yaml").read_text(encoding="utf-8"))["data_rows"]
+
+
+@pytest.mark.parametrize(
+    "row", DATA_ROWS, ids=[f"{r['persona']}:{r['source']}->{r['expect']}" for r in DATA_ROWS]
+)
+def test_data_row(snap, row):
+    persona = PERSONAS[row["persona"]]
+    policy = resolve(snap, persona.groups, persona.app_roles)
+    source = snap.sources[row["source"]]
+    readable = (
+        source.id in policy.data_sources
+        and source.classification_rank <= policy.max_classification_rank
+    )
+    assert readable is (row["expect"] == "readable"), (
+        policy.data_sources,
+        policy.max_classification,
+    )
+
+
+def test_every_source_has_matrix_rows(snap):
+    covered = {row["source"] for row in DATA_ROWS}
+    assert not set(snap.sources) - covered, "add data_rows for new sources"

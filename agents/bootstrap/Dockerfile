@@ -11,8 +11,10 @@ COPY pyproject.toml uv.lock ./
 COPY libs/sdlc_agent/pyproject.toml libs/sdlc_agent/
 COPY libs/sdlc_auth/pyproject.toml libs/sdlc_auth/
 COPY libs/sdlc_config/pyproject.toml libs/sdlc_config/
+COPY libs/sdlc_db/pyproject.toml libs/sdlc_db/
 COPY libs/sdlc_policy/pyproject.toml libs/sdlc_policy/
 COPY libs/sdlc_web/pyproject.toml libs/sdlc_web/
+COPY ingest/bootstrap/pyproject.toml ingest/bootstrap/
 COPY mcp_servers/bootstrap/pyproject.toml mcp_servers/bootstrap/
 COPY agents/bootstrap/pyproject.toml agents/bootstrap/
 RUN uv sync --frozen --no-dev --package sdlc-web --package sdlc-agent-bootstrap --no-install-workspace
