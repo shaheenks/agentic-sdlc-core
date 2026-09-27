@@ -1,0 +1,183 @@
+"""Resolve a principal's identities into an EffectivePolicy (plan: resolution steps 1-5).
+
+identities (group aliases + Entra app roles)
+  -> teams (membership) + global bindings -> roles, expanded through `inherits`
+  -> allowed tools (role allows, "*" = whole catalog) minus denies (role + team); deny wins
+  -> argument limits: unioned across the member teams that constrain a tool;
+     tools granted by an `unconstrained` role get none.
+Every role, grant, deny and limit records the config rule it came from.
+"""
+
+import threading
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
+from types import MappingProxyType
+
+from sdlc_config.model import IdentityRef, Snapshot
+
+
+@dataclass(frozen=True)
+class ToolPermission:
+    tool: str
+    allowed_by: tuple[str, ...]  # e.g. "role:developer <- teams/payments.yaml#membership[0]"
+    # arg -> allowed values; None = no limits
+    constraints: Mapping[str, frozenset[str]] | None = None
+    constraint_sources: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class EffectivePolicy:
+    config_version: str
+    group_aliases: tuple[str, ...]
+    app_roles: tuple[str, ...]
+    teams: Mapping[str, tuple[str, ...]]  # team -> membership rules that matched
+    roles: Mapping[str, tuple[str, ...]]  # role -> reasons (binding/membership rule or inherits)
+    tools: Mapping[str, ToolPermission]  # allowed tools only
+    denied: Mapping[str, tuple[str, ...]] = field(default_factory=dict)  # tool -> deny rules
+
+    def allows(self, tool: str) -> bool:
+        return tool in self.tools
+
+    def explain(self) -> dict:
+        """JSON-friendly view for whoami(explain) / config_explain / CLI."""
+        return {
+            "config_version": self.config_version,
+            "group_aliases": list(self.group_aliases),
+            "app_roles": list(self.app_roles),
+            "teams": {t: list(r) for t, r in sorted(self.teams.items())},
+            "roles": {r: list(why) for r, why in sorted(self.roles.items())},
+            "tools": {
+                name: {
+                    "allowed_by": list(p.allowed_by),
+                    "constraints": (
+                        {arg: sorted(v) for arg, v in p.constraints.items()}
+                        if p.constraints
+                        else None
+                    ),
+                    "constraint_sources": list(p.constraint_sources),
+                }
+                for name, p in sorted(self.tools.items())
+            },
+            "denied": {t: list(r) for t, r in sorted(self.denied.items())},
+        }
+
+
+def resolve(
+    snapshot: Snapshot, group_aliases: Iterable[str], app_roles: Iterable[str] = ()
+) -> EffectivePolicy:
+    aliases, roles_claim = tuple(sorted(set(group_aliases))), tuple(sorted(set(app_roles)))
+    ids = {IdentityRef("group", a) for a in aliases} | {
+        IdentityRef("app_role", r) for r in roles_claim
+    }
+
+    # 1-3: teams and directly granted roles
+    team_rules: dict[str, list[str]] = {}
+    role_reasons: dict[str, list[str]] = {}
+    for binding in snapshot.bindings:
+        if binding.ref in ids:
+            for role in binding.roles:
+                role_reasons.setdefault(role, []).append(binding.rule)
+    for team in snapshot.teams.values():
+        for member in team.membership:
+            if member.ref in ids:
+                team_rules.setdefault(team.name, []).append(member.rule)
+                for role in member.roles:
+                    role_reasons.setdefault(role, []).append(member.rule)
+
+    # 4: expand inherits (the loader rejects cycles; `seen` guards anyway)
+    pending, seen = list(role_reasons), set()
+    while pending:
+        role = pending.pop()
+        if role in seen:
+            continue
+        seen.add(role)
+        for parent in snapshot.roles[role].inherits:
+            reason = f"inherited from role:{role}"
+            if reason not in role_reasons.setdefault(parent, []):
+                role_reasons[parent].append(reason)
+            pending.append(parent)
+
+    # 5: allowed tools, denies, argument limits
+    catalog = snapshot.tools
+    allowed_by: dict[str, list[str]] = {}
+    unconstrained: set[str] = set()
+    denied: dict[str, list[str]] = {}
+    for role in sorted(role_reasons):
+        definition = snapshot.roles[role]
+        origin = f"role:{role} <- {role_reasons[role][0]}"
+        granted = catalog.keys() if "*" in definition.tools_allow else definition.tools_allow
+        for tool in granted:
+            allowed_by.setdefault(tool, []).append(origin)
+            if definition.unconstrained:
+                unconstrained.add(tool)
+        for tool in definition.tools_deny:
+            denied.setdefault(tool, []).append(f"role:{role} deny")
+    for team in team_rules:
+        for tool in snapshot.teams[team].tools_deny:
+            denied.setdefault(tool, []).append(f"{snapshot.teams[team].source}#policy/tools/deny")
+
+    tools: dict[str, ToolPermission] = {}
+    for tool, origins in sorted(allowed_by.items()):
+        if tool in denied or tool not in catalog:
+            continue
+        limits: dict[str, set[str]] = {}
+        sources: list[str] = []
+        if tool not in unconstrained:
+            for team in sorted(team_rules):
+                rule = snapshot.teams[team].constraints.get(tool)
+                if rule:
+                    sources.append(f"{snapshot.teams[team].source}#policy/tools/constraints/{tool}")
+                    for arg, values in rule.items():
+                        limits.setdefault(arg, set()).update(values)
+        tools[tool] = ToolPermission(
+            tool=tool,
+            allowed_by=tuple(origins),
+            constraints=(
+                MappingProxyType({arg: frozenset(v) for arg, v in limits.items()})
+                if limits
+                else None
+            ),
+            constraint_sources=tuple(sources),
+        )
+
+    return EffectivePolicy(
+        config_version=snapshot.version,
+        group_aliases=aliases,
+        app_roles=roles_claim,
+        teams=MappingProxyType({t: tuple(r) for t, r in team_rules.items()}),
+        roles=MappingProxyType({r: tuple(why) for r, why in role_reasons.items()}),
+        tools=MappingProxyType(tools),
+        denied=MappingProxyType({t: tuple(r) for t, r in denied.items() if t in catalog}),
+    )
+
+
+class PolicyCache:
+    """EffectivePolicy per (config version, group aliases, app roles).
+
+    Policies depend only on identities and config, not on the user, so users with the same
+    groups share an entry. A new config version never sees an older version's entries.
+    """
+
+    def __init__(self, max_entries: int = 1024):
+        self._max = max_entries
+        self._entries: dict[tuple, EffectivePolicy] = {}
+        self._lock = threading.Lock()
+
+    def get(
+        self, snapshot: Snapshot, group_aliases: Iterable[str], app_roles: Iterable[str] = ()
+    ) -> EffectivePolicy:
+        key = (snapshot.version, frozenset(group_aliases), frozenset(app_roles))
+        with self._lock:
+            hit = self._entries.get(key)
+        if hit is not None:
+            return hit
+        policy = resolve(snapshot, key[1], key[2])
+        with self._lock:
+            if len(self._entries) >= self._max or any(
+                k[0] != snapshot.version for k in self._entries
+            ):
+                self._entries = {k: v for k, v in self._entries.items() if k[0] == snapshot.version}
+                if len(self._entries) >= self._max:
+                    self._entries.clear()
+            self._entries[key] = policy
+        return policy
