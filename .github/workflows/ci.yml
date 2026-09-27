@@ -1,0 +1,100 @@
+# CI: lint, config validation + permission diff, tests with Postgres/pgvector, Terraform checks.
+# No secrets and no cloud access: tests use FakeEntra tokens, hash embeddings and a throwaway
+# database; live checks (agent e2e, retrieval eval, GCP) stay manual.
+name: ci
+
+on:
+  push:
+    branches: [main, version-0]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_PYTHON_DOWNLOADS: automatic
+  # Placeholders so config loads (tenant values are never in the repo); structure only.
+  ENTRA_TENANT_ID: 00000000-0000-0000-0000-00000000c1c1
+  ENTRA_API_CLIENT_ID: 00000000-0000-0000-0000-00000000c1c2
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --all-packages --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # diff compares git revisions
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --all-packages --frozen
+      - name: GroupMap placeholder (the real groups.yaml is git-ignored)
+        run: cp config/env/local/groups.yaml.example config/env/local/groups.yaml
+      - run: uv run sdlc-config validate --env local
+      - name: Permission diff against the PR base (informational)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true # revisions before Stage 4/6 cannot be loaded (see CLAUDE.md)
+        run: |
+          {
+            echo "## Effective permission changes (sdlc-config diff)"
+            echo '```'
+            uv run sdlc-config diff --env local --from "origin/${{ github.base_ref }}" --to WORKTREE
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-postgres
+          POSTGRES_DB: sdlc
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sdlc"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      # CI-only passwords for a throwaway service container.
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGDATABASE: sdlc
+      PGUSER: sdlc_app
+      PGPASSWORD: ci-app
+      POSTGRES_SUPERUSER_PASSWORD: ci-postgres
+      SDLC_OWNER_PASSWORD: ci-owner
+      SDLC_INGEST_PASSWORD: ci-ingest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --all-packages --frozen
+      - name: Database roles, schema and RLS (same commands as Cloud SQL)
+        run: |
+          uv run sdlc-db bootstrap
+          uv run sdlc-db migrate
+      - name: Tests (unit, config, policy matrix, MCP, RLS/ingest/graph on Postgres)
+        run: uv run pytest -q -rs
+
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/gcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate

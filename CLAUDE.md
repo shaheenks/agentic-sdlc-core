@@ -153,6 +153,9 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md
   (Windows: `az` is az.cmd, so never pass inline JSON or parentheses as az args; use `--body @file`)
 - Tests never read the real `config/env/local/groups.yaml`; the `config_dir` fixture swaps in a fixed test GroupMap
 - `uv run ruff check . && uv run ruff format .`
+- CI: `.github/workflows/ci.yml` (lint, config validate + PR permission diff, tests on a pgvector service after
+  `sdlc-db bootstrap` + `migrate`, terraform fmt/validate). No secrets or cloud calls in CI; tests must pass without `.env`
+  (placeholder Entra IDs, example GroupMap, HashEmbedder, FakeEntra).
 - `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values)
 - `.\scripts\gcp_deploy.ps1 -EnvName staging -Step state|base|images|plan|apply|db|ingest|urls`   GCP deployment (see
   docs/GCP_DEPLOYMENT.md). PowerShell, not bash (Windows). Commit first: images and plan use the commit SHA as tag.

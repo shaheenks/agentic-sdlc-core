@@ -22,8 +22,8 @@ Work that needs only localhost + the Cloudflare Tunnel, in the agreed order (ana
 |---|---|---|
 | H1 | Classification changes apply without re-ingest: the RLS context carries `readable_sources` (granted AND at or below the ceiling by the current config); rows keep their stamp as a second check (lowering waits for ingest: fail closed) | ✅ Done (2026-09-27) |
 | H2 | E7: Entra login/Graph hosts from `platform.yaml` instead of hard-coded | ✅ Done (2026-09-27) |
-| H3 | CI on GitHub Actions: ruff, unit + DB tests (pgvector service), `sdlc-config validate`/`diff`, `terraform fmt`/`validate` | ⏳ Next |
-| H4 | Config bundles, local part of 7b: `sdlc-config compile`, folder store with `current` pointer, last-known-good, rollback | ⏳ |
+| H3 | CI on GitHub Actions: ruff, unit + DB tests (pgvector service), `sdlc-config validate`/`diff`, `terraform fmt`/`validate` | ✅ Done (2026-09-27): `.github/workflows/ci.yml` (jobs lint, config, test, terraform); no secrets or cloud access; the test job runs `sdlc-db bootstrap` + `migrate` on a fresh pgvector service first (rehearsed locally on an empty cluster); PR diff is informational until `main` has Stage 6 config |
+| H4 | Config bundles, local part of 7b: `sdlc-config compile`, folder store with `current` pointer, last-known-good, rollback | ⏳ Next |
 | H5 | Stage 8 Antigravity via the tunnel MCP endpoint (same `whoami(explain)` as the web UI) | ⏳ |
 | H6 | CODEOWNERS for config and schemas | ⏳ |
 | H7 | E8 egress docs + JWKS through an HTTPS proxy; E3 `oid` denylist | ⏳ |
