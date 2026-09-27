@@ -83,7 +83,8 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
   `skill_access` (load_skill: skill, allow/deny, matched rule and the real reason; callers only see "unknown skill"),
   `skills_list` (visible skill names, hidden count),
   `auth_failure` (401/403 on the MCP endpoint: reason from UNVERIFIED claims, client IP, token fingerprint).
-  Every record carries `request_id`. Failures record `error_type` + `error` (<=500 chars); unexpected exceptions
+  Every record carries `request_id` (one MCP request) and `agent_session_id` (the conversation, client-supplied,
+  correlation only; `mcp_session_id` only when a client sends the header). Failures record `error_type` + `error` (<=500 chars); unexpected exceptions
   (fastmcp re-raises them as ToolError, the original is the cause) also log a traceback to `sdlc.mcp` with the same
   `request_id`. Never log raw tokens or argument values.
 - Secrets only in `.env` (local) / Secret Manager (GCP). Never commit them.
@@ -150,7 +151,10 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md
 - Dockerfiles build from the repo root: `docker build -f <component>/Dockerfile .`.
 - ADK 2 needs the `google-adk[mcp]` extra for `McpToolset`.
 - ADK calls `header_provider` only when a context is passed (`get_tools(ctx)`); agent runs always pass one, tests must too.
-  MCP sessions and tool-list caches are keyed by the header hash, so each user token gets its own MCP session.
+  MCP sessions and tool-list caches are keyed by the header hash. Agents use `agent_header_provider` (user token +
+  `X-SDLC-Agent-Session` conversation id), so there is **one MCP client session per (user token, conversation)**.
+  Never add per-turn values (e.g. invocation id) as headers: that would create a new MCP session every turn.
+  The MCP server side is stateless (no `Mcp-Session-Id` in the current protocol).
 - Gemini runs on Vertex AI via gcloud ADC (project `cloud-migration-agent`, location `global`, model `gemini-3.8-flash`). ADC has no quota project, so `.env` sets `GOOGLE_CLOUD_QUOTA_PROJECT`. The agent container gets only the ADC file, mounted at `/secrets/adc.json`.
 - Python 3.12 (`.python-version`); ruff formats code only, not markdown snippets.
 - Only MCP servers and ingest get DB credentials. Agent containers get an explicit env allow-list, never the whole `.env`.

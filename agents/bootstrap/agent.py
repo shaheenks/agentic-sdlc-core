@@ -13,7 +13,7 @@ import os
 from google.adk.agents import Agent
 from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
 from sdlc_agent import with_team_context
-from sdlc_auth.adk import bearer_header_provider
+from sdlc_auth.adk import agent_header_provider
 
 MCP_URL = os.environ.get("SDLC_MCP_URL", "http://127.0.0.1:8080/mcp")
 MODEL = os.environ.get("SDLC_AGENT_MODEL", "gemini-3.8-flash")
@@ -37,7 +37,7 @@ root_agent = Agent(
     tools=[
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(url=MCP_URL),
-            header_provider=bearer_header_provider,
+            header_provider=agent_header_provider,  # user token + conversation id
         )
     ],
 )

@@ -45,3 +45,24 @@ def bearer_header_provider(context: Any = None) -> dict[str, str]:
     """ADK McpToolset `header_provider`: forward the user's token to the MCP server."""
     token = get_user_token(context)
     return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+# Correlation (tracking only): the ADK conversation id travels with each MCP call so the server
+# can tag audit records. Client-supplied, so the server records it as correlation data and never
+# uses it for decisions. One MCP session is pooled per (token, conversation).
+AGENT_SESSION_HEADER = "X-SDLC-Agent-Session"
+
+
+def agent_session_id(context: Any = None) -> str | None:
+    session = getattr(context, "session", None)
+    session_id = getattr(session, "id", None)
+    return str(session_id) if session_id else None
+
+
+def agent_header_provider(context: Any = None) -> dict[str, str]:
+    """ADK McpToolset `header_provider`: the user's token plus the conversation id."""
+    headers = bearer_header_provider(context)
+    session_id = agent_session_id(context)
+    if headers and session_id:  # only alongside a user token
+        headers[AGENT_SESSION_HEADER] = session_id
+    return headers

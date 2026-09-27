@@ -34,8 +34,8 @@ def test_render():
 async def test_provider_appends_context_and_caches_per_session():
     calls = []
 
-    async def fake_fetch(url, token):
-        calls.append((url, token))
+    async def fake_fetch(url, token, session_id=None):
+        calls.append((url, token, session_id))
         return PAYMENTS
 
     provider = with_team_context(BASE, "http://mcp/mcp", fetch=fake_fetch)
@@ -48,11 +48,12 @@ async def test_provider_appends_context_and_caches_per_session():
         reset_request_token(reset)
     assert first.startswith(BASE) and "Mind PCI." in first
     assert again == first and other_session == first
-    assert calls == [("http://mcp/mcp", "tok-1"), ("http://mcp/mcp", "tok-1")]  # s1 cached
+    # s1 cached; the conversation id travels with each fetch (correlation)
+    assert calls == [("http://mcp/mcp", "tok-1", "s1"), ("http://mcp/mcp", "tok-1", "s2")]
 
 
 async def test_no_user_token_means_base_instruction_only():
-    async def must_not_fetch(url, token):
+    async def must_not_fetch(url, token, session_id=None):
         raise AssertionError("fetched without a user token")
 
     provider = with_team_context(BASE, "http://mcp/mcp", fetch=must_not_fetch)
@@ -60,7 +61,7 @@ async def test_no_user_token_means_base_instruction_only():
 
 
 async def test_fetch_failure_falls_back_to_base(caplog):
-    async def failing(url, token):
+    async def failing(url, token, session_id=None):
         raise ConnectionError("mcp down")
 
     provider = with_team_context(BASE, "http://mcp/mcp", fetch=failing)

@@ -14,17 +14,19 @@ from typing import Any
 
 from mcp import ClientSession
 from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
-from sdlc_auth.adk import get_user_token
+from sdlc_auth.adk import AGENT_SESSION_HEADER, get_user_token
 
 log = logging.getLogger("sdlc.agent")
 
 InstructionProvider = Callable[[Any], Awaitable[str]]
-Fetcher = Callable[[str, str], Awaitable[dict]]
+Fetcher = Callable[..., Awaitable[dict]]
 
 
-async def fetch_agent_context(mcp_url: str, token: str) -> dict:
-    """Call get_agent_context on the MCP server as the user."""
+async def fetch_agent_context(mcp_url: str, token: str, session_id: str | None = None) -> dict:
+    """Call get_agent_context on the MCP server as the user (conversation id for correlation)."""
     headers = {"Authorization": f"Bearer {token}"}
+    if session_id:
+        headers[AGENT_SESSION_HEADER] = session_id
     async with create_mcp_http_client(headers=headers) as http:
         async with streamable_http_client(mcp_url, http_client=http) as (read, write):
             async with ClientSession(read, write) as session:
@@ -69,13 +71,14 @@ def with_team_context(
         token = get_user_token(ctx)
         if not token:
             return base_instruction  # no user: the MCP server will refuse tools anyway
-        key = (getattr(getattr(ctx, "session", None), "id", ""), getattr(ctx, "user_id", ""))
+        session_id = getattr(getattr(ctx, "session", None), "id", "") or ""
+        key = (session_id, getattr(ctx, "user_id", ""))
         now = time.monotonic()
         hit = cache.get(key)
         if hit and hit[0] > now:
             return base_instruction + hit[1]
         try:
-            addition = render_team_context(await fetch(mcp_url, token))
+            addition = render_team_context(await fetch(mcp_url, token, session_id or None))
         except Exception:  # guidance only: continue without it, but say so
             log.warning("team context unavailable; using the base instruction", exc_info=True)
             return base_instruction

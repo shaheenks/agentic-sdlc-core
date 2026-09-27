@@ -137,6 +137,26 @@ The security checkpoints in this flow are:
 4. Postgres filters rows by the user's allowed sources and classification ceiling, even if a tool has a bug.
 5. Every allow or deny is audited with the config version and the rule that matched.
 
+### Agent -> MCP connections and correlation
+
+- **Headers per MCP call:** the agent's `McpToolset` uses `sdlc_auth.adk.agent_header_provider`, which sends
+  `Authorization: Bearer <user token>` and `X-SDLC-Agent-Session: <ADK conversation id>`.
+- **One MCP session per conversation:** ADK pools MCP client sessions (and caches tool lists) by the hash of
+  those headers. Because the conversation id is one of them, the agent keeps **one MCP client session per
+  (user token, conversation)**, not one per user token. Consequences:
+  - conversations never share an MCP connection, even for the same user;
+  - a little more connection setup (one `initialize` per conversation, and again when the token refreshes);
+  - tool lists are fetched per conversation, so policy changes show up in new conversations immediately.
+  - The per-turn invocation id is deliberately **not** a header: that would open a new MCP session every turn.
+- **Server side is stateless:** with the current MCP protocol the client sends no `Mcp-Session-Id` and every
+  request stands alone on the server. The "session" exists only on the client (ADK's pooled connection).
+- **Correlating a conversation:** every `sdlc.audit` record carries
+  - `agent_session_id`: the conversation (client-supplied, recorded when well-formed, never used for decisions);
+  - `request_id`: one MCP request (a tool list or a tool call; shared by the records it produces and by the
+    `sdlc.mcp` traceback of a crash);
+  - `mcp_session_id`: only when a client sends `Mcp-Session-Id` (older protocol clients).
+  `docker compose logs mcp-bootstrap | grep <agent_session_id>` shows everything one conversation did.
+
 ## 5. Identity and authorization model
 
 ```mermaid

@@ -12,6 +12,8 @@
                   (the caller only ever sees "unknown skill" for a denial)
     skills_list   visible skill names, hidden count
   Rejected tokens (HTTP 401) are audited as `auth_failure` by auth_audit.py.
+- Every record also carries `mcp_session_id` and `agent_session_id` (correlation.py) so one
+  conversation can be followed across requests.
 - Unexpected exceptions are also logged with their traceback to `sdlc.mcp`, tagged with the same
   request_id, so an audit line leads straight to the stack trace.
 """
@@ -30,6 +32,7 @@ from sdlc_auth import GroupResolver
 from sdlc_config import ConfigStore, PolicyCache, SkillDecision
 from sdlc_policy import authorize
 
+from sdlc_mcp_bootstrap.correlation import current_correlation
 from sdlc_mcp_bootstrap.identity import (
     Identity,
     current_principal,
@@ -60,6 +63,7 @@ def emit(record: dict) -> None:
 def _who(identity: Identity) -> dict:
     return {
         "request_id": identity.request_id,
+        **current_correlation(),
         "oid": identity.principal.oid,
         "upn": identity.principal.upn,
         "teams": sorted(identity.policy.teams),
@@ -125,6 +129,7 @@ class PolicyMiddleware(Middleware):
             visible = []
             record.update(
                 request_id=request_id,
+                **current_correlation(),
                 oid=None,
                 upn=None,
                 outcome="denied_unauthenticated",
@@ -162,6 +167,7 @@ class PolicyMiddleware(Middleware):
             "event": "tool_call",
             "ts": datetime.now(UTC).isoformat(),
             "request_id": request_id,
+            **current_correlation(),
             "tool": tool,
             "args_hash": args_hash(arguments),
             "oid": None,

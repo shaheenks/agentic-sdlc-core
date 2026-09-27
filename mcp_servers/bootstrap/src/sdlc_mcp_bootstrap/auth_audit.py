@@ -19,6 +19,8 @@ from typing import Any
 
 from sdlc_config import ConfigStore
 
+from sdlc_mcp_bootstrap.correlation import correlation_ids
+
 audit_log = logging.getLogger("sdlc.audit")
 
 
@@ -102,6 +104,7 @@ class AuthFailureAuditMiddleware:
             "client_ip": forwarded.split(",")[0].strip() or client[0],
             "user_agent": headers.get("user-agent", "")[:120],
             "token_fingerprint": fingerprint,
+            **correlation_ids(headers),
             "claimed": claimed,  # UNVERIFIED: taken from a token that was rejected
             "config_version": self.store.current().version,
         }
