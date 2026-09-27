@@ -61,3 +61,49 @@ questions:
     expect: [eng-standards:security-baseline.md]
   - q: How many approvals does a change to a shared library need?
     expect: [eng-standards:code-review-guidelines.md]
+
+  # --- sdlc-platform (this repository at the pinned commit in config/sources/sdlc-platform.yaml) ---
+  - q: Which Entra token claims does the MCP server check besides signature, issuer and audience?
+    expect: [sdlc-platform:libs/sdlc_auth/src/sdlc_auth/entra.py]
+  - q: How is the row-level security context set for each database transaction?
+    expect: [sdlc-platform:libs/sdlc_db/src/sdlc_db/scoped.py]
+  - q: What does the app_read row-level security policy check on the chunks table?
+    expect: [sdlc-platform:db/migrations/001_knowledge.sql]
+  - q: How are rate limits combined when a user belongs to several teams?
+    expect: [sdlc-platform:libs/sdlc_config/src/sdlc_config/resolver.py]
+  - q: What happens to the served configuration when a reload finds invalid config?
+    expect: [sdlc-platform:libs/sdlc_config/src/sdlc_config/store.py]
+  - q: How does database bootstrap work on Cloud SQL, where the postgres user is not a real superuser?
+    expect: [sdlc-platform:libs/sdlc_db/src/sdlc_db/bootstrap.py]
+  - q: Which Cloud Run job creates the database roles, and which service account and secrets does it use?
+    hops: multi
+    expect: [sdlc-platform:infra/gcp/run.tf, sdlc-platform:infra/gcp/iam.tf]
+  - q: Which tool lets a developer walk the knowledge graph, and how are its results ranked?
+    hops: multi
+    expect:
+      - sdlc-platform:mcp_servers/bootstrap/src/sdlc_mcp_bootstrap/knowledge_tools.py
+      - sdlc-platform:libs/sdlc_db/src/sdlc_db/graph.py
+  - q: What audit record is written when a request arrives with an expired token?
+    expect: [sdlc-platform:mcp_servers/bootstrap/src/sdlc_mcp_bootstrap/auth_audit.py]
+  - q: How does the agent forward the signed-in user's token to the MCP server?
+    hops: multi
+    expect: [sdlc-platform:libs/sdlc_auth/src/sdlc_auth/adk.py, sdlc-platform:agents/bootstrap/agent.py]
+  - q: How does graph extraction avoid calling the model again for chunks that did not change?
+    expect: [sdlc-platform:ingest/bootstrap/src/sdlc_ingest/extract.py]
+  - q: What must be true of a config bundle before the current pointer can move to it?
+    expect: [sdlc-platform:libs/sdlc_config/src/sdlc_config/bundles.py]
+  - q: Which hostnames and local ports does the Cloudflare tunnel expose for development?
+    expect: [sdlc-platform:docs/CLOUDFLARE_TUNNEL.md]
+  - q: Which workload reads the Entra client secret on GCP, and which container receives it?
+    hops: multi
+    expect: [sdlc-platform:infra/gcp/iam.tf, sdlc-platform:infra/gcp/run.tf]
+  - q: Where is a tool call refused when it exceeds its rate limit, and how is the refusal audited?
+    hops: multi
+    expect:
+      - sdlc-platform:libs/sdlc_policy/src/sdlc_policy/ratelimit.py
+      - sdlc-platform:mcp_servers/bootstrap/src/sdlc_mcp_bootstrap/audit.py
+  - q: How does the MCP server decide which knowledge sources a user may search?
+    hops: multi
+    expect:
+      - sdlc-platform:libs/sdlc_config/src/sdlc_config/resolver.py
+      - sdlc-platform:mcp_servers/bootstrap/src/sdlc_mcp_bootstrap/knowledge_tools.py

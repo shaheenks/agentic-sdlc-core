@@ -33,6 +33,7 @@ from sdlc_mcp_bootstrap.auth_audit import AuthFailureAuditMiddleware
 from sdlc_mcp_bootstrap.identity import request_identity
 from sdlc_mcp_bootstrap.knowledge_tools import Knowledge, make_knowledge_tools
 from sdlc_mcp_bootstrap.sdlc_tools import SDLC_TOOLS
+from sdlc_mcp_bootstrap.telemetry import setup_tracing
 
 log = logging.getLogger("sdlc.mcp")
 
@@ -229,6 +230,7 @@ def build_knowledge(snapshot: Snapshot) -> Knowledge:
 
 def main() -> None:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(message)s")
+    setup_tracing()  # no-op unless OTEL_EXPORTER_OTLP_(TRACES_)ENDPOINT is set
     store = ConfigStore.from_env()  # raises ConfigError on invalid config: fail closed
     if os.environ.get("SDLC_CONFIG_WATCH", "true").lower() == "true":
         store.start_watching()

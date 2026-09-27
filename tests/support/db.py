@@ -66,7 +66,12 @@ def run(coro):
 
 
 async def ingest_as_ingest_role(snapshot, repo_root, embedder, extractor, sources=None, **kw):
+    """Ingest as sdlc_ingest. Default: the local_folder (sample) sources only; git sources need
+    their pinned commit, which a shallow CI checkout does not have (tests/ingest covers git)."""
     from sdlc_ingest.pipeline import ingest
+
+    if sources is None:
+        sources = sorted(s for s, d in snapshot.sources.items() if d.type == "local_folder")
 
     async with await psycopg.AsyncConnection.connect(
         db_conninfo("ingest"), autocommit=True

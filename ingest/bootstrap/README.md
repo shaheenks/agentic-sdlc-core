@@ -6,7 +6,8 @@
 sdlc-ingest run --source <id> [--source <id> ...] | --all  [--dry-run] [--force]
 ```
 
-Per source: sync the `sources` registry (classification, owner) → walk `spec.location` with include/exclude
+Per source: sync the `sources` registry (classification, owner) → walk the source (`local_folder`: the folder;
+`git`: the commit `spec.ref`, read with `git ls-tree`/`cat-file`, so uncommitted changes are never indexed) with include/exclude
 globs (binary files skipped) → skip files whose content hash is unchanged (`--force` re-embeds them) →
 chunk (`spec.ingest.chunking`: `markdown` by headings, `code` by top-level definitions, `fixed` windows,
 `auto` by extension; tiny sections merge forward) → embed (`platform.yaml` `knowledge.embedding`) →

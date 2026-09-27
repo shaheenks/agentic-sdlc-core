@@ -23,8 +23,9 @@
       "additionalProperties": false,
       "required": ["type", "location", "classification"],
       "properties": {
-        "type": { "enum": ["local_folder"], "description": "later: git, jira, confluence, sharepoint" },
-        "location": { "type": "string", "minLength": 1, "description": "folder, relative to the repo root or absolute" },
+        "type": { "enum": ["local_folder", "git"], "description": "later: jira, confluence, sharepoint" },
+        "location": { "type": "string", "minLength": 1, "description": "local_folder: folder; git: repository path or https URL. Paths are relative to the repo root or absolute" },
+        "ref": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$", "description": "git only (required): commit, tag or branch; pin a commit for a reproducible corpus" },
         "include": { "type": "array", "items": { "type": "string" } },
         "exclude": { "type": "array", "items": { "type": "string" } },
         "classification": { "type": "string" },

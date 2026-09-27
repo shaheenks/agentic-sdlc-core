@@ -24,7 +24,10 @@ def test_sources_load(config_dir):
         "platform-infra",
         "eng-standards",
         "payments-incidents",
+        "sdlc-platform",
     }
+    platform = snap.sources["sdlc-platform"]
+    assert platform.type == "git" and platform.ref and len(platform.ref) == 40  # pinned commit
     incidents = snap.sources["payments-incidents"]
     assert incidents.classification == "confidential" and incidents.classification_rank == 2
     assert incidents.access_teams == {"payments"} and incidents.access_roles == {"admin"}
@@ -97,10 +100,20 @@ def test_bad_source_config_fails(config_dir, file, mutate, message):
             {"eng-standards", "payments-code", "payments-incidents"},
             "confidential",
         ),
-        (["eng-all", "platform-devs"], {"eng-standards", "platform-infra"}, "internal"),
+        (
+            ["eng-all", "platform-devs"],
+            {"eng-standards", "platform-infra", "sdlc-platform"},
+            "internal",
+        ),
         (
             ["platform-admins"],
-            {"eng-standards", "payments-code", "payments-incidents", "platform-infra"},
+            {
+                "eng-standards",
+                "payments-code",
+                "payments-incidents",
+                "platform-infra",
+                "sdlc-platform",
+            },
             "restricted",
         ),
     ],
@@ -131,3 +144,25 @@ def test_data_grants_name_their_rule(config_dir):
         "group:eng-all <- sources/eng-standards.yaml#access/groups",
     )
     assert policy.explain()["data"]["max_classification"] == "internal"
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda d: d["spec"].pop("ref"), "spec/ref: required for git sources"),
+        (
+            lambda d: d["spec"].update(location="git@github.com:org/repo.git"),
+            "only local paths and https URLs",
+        ),
+    ],
+)
+def test_git_source_checks(config_dir, mutate, message):
+    edit_yaml(config_dir / "sources/sdlc-platform.yaml", mutate)
+    with pytest.raises(ConfigError, match=message):
+        load(config_dir)
+
+
+def test_ref_only_for_git_sources(config_dir):
+    edit_yaml(config_dir / "sources/eng-standards.yaml", lambda d: d["spec"].update(ref="main"))
+    with pytest.raises(ConfigError, match="only git sources have a ref"):
+        load(config_dir)

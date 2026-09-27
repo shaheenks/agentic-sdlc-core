@@ -5,6 +5,7 @@ description = "Serves ADK agents (adk web) behind oauth2-proxy with Entra user b
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "google-adk[mcp]>=2.10",
+    "opentelemetry-exporter-otlp-proto-http>=1.42.1",
     "sdlc-auth[server]",
     "uvicorn>=0.30",
 ]

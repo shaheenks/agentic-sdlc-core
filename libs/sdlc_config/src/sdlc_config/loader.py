@@ -534,6 +534,12 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
         for group in access.get("groups", []):
             if group not in aliases:
                 problems.append(f"{rel}: access/groups: unknown group alias '{group}'")
+        if spec["type"] == "git" and not spec.get("ref"):
+            problems.append(f"{rel}: spec/ref: required for git sources (pin a commit)")
+        if spec["type"] != "git" and spec.get("ref"):
+            problems.append(f"{rel}: spec/ref: only git sources have a ref")
+        if spec["location"].startswith(("http://", "git@", "ssh://")):
+            problems.append(f"{rel}: spec/location: only local paths and https URLs are supported")
         graph = spec.get("ingest", {}).get("graph", {})
         relation_types = tuple(graph.get("relation_types", platform.graph_relation_types))
         if graph.get("enabled"):
@@ -552,6 +558,7 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             owner_team=meta["owner_team"],
             type=spec["type"],
             location=spec["location"],
+            ref=spec.get("ref"),
             include=tuple(spec.get("include", ["**/*"])),
             exclude=tuple(spec.get("exclude", [])),
             classification=level,

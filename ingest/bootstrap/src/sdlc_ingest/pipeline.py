@@ -25,7 +25,7 @@ from sdlc_db.knowledge import (
 
 from sdlc_ingest.chunker import chunk_text
 from sdlc_ingest.extract import Extractor, extract_chunks
-from sdlc_ingest.files import resolve_location, walk
+from sdlc_ingest.files import git_repository, resolve_location, walk, walk_git
 
 log = logging.getLogger("sdlc.ingest")
 
@@ -41,6 +41,7 @@ class SourceReport:
     entities_written: int = 0
     relations_written: int = 0
     extraction_calls: int = 0  # model calls (cache misses)
+    commit: str | None = None  # git sources: the resolved commit that was ingested
     errors: list[str] = field(default_factory=list)
 
 
@@ -77,12 +78,16 @@ async def _ingest_source(
 ):
     source = snapshot.sources[source_id]
     report = SourceReport(source_id)
-    folder = resolve_location(source.location, repo_root)
+    if source.type == "git":
+        repo = git_repository(source.location, repo_root, repo_root / ".cache" / "git", source.ref)
+        report.commit, files = walk_git(repo, source.ref, source.include, source.exclude)
+    else:
+        files = walk(resolve_location(source.location, repo_root), source.include, source.exclude)
     known = {} if dry_run else await document_hashes(conn, source_id)
     chunking = dict(source.chunking)
     seen = set()
     pending = []  # (file, chunks) to (re)write
-    for file in walk(folder, source.include, source.exclude):
+    for file in files:
         report.files_seen += 1
         seen.add(file.path)
         if not force and known.get(file.path) == file.content_hash:

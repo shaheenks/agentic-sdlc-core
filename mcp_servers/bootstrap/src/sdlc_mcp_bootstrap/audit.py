@@ -39,6 +39,7 @@ from sdlc_mcp_bootstrap.identity import (
     remember_identity,
     resolve_identity,
 )
+from sdlc_mcp_bootstrap.telemetry import annotate, current_trace_id
 
 audit_log = logging.getLogger("sdlc.audit")
 server_log = logging.getLogger("sdlc.mcp")
@@ -57,6 +58,23 @@ def new_request_id() -> str:
 
 
 def emit(record: dict) -> None:
+    """Write one audit record. With tracing on, the record gets the trace id and the active span
+    gets the record's identifiers (never argument values or tokens), so each finds the other."""
+    trace_id = current_trace_id()
+    if trace_id:
+        record["trace_id"] = trace_id
+        annotate(
+            **{
+                "sdlc.event": record.get("event"),
+                "sdlc.request_id": record.get("request_id"),
+                "sdlc.agent_session_id": record.get("agent_session_id"),
+                "enduser.id": record.get("oid"),
+                "sdlc.tool": record.get("tool"),
+                "sdlc.decision": record.get("decision"),
+                "sdlc.outcome": record.get("outcome"),
+                "sdlc.config_version": record.get("config_version"),
+            }
+        )
     audit_log.info(json.dumps(record, separators=(",", ":"), default=str))
 
 

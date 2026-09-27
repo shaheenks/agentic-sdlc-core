@@ -20,3 +20,5 @@ tfplan
 
 # Local config bundles (sdlc-config compile): they include the tenant groups.yaml
 .bundles/
+# Partial clones of https git sources (sdlc-ingest)
+.cache/

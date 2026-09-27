@@ -5,6 +5,8 @@ description = "Starter MCP server: ping, list_skills, load_skill"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "fastmcp>=4.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.42.1",
+    "opentelemetry-instrumentation-psycopg>=0.63b1",
     "pyyaml>=6.0",
     "sdlc-auth[server]",
     "sdlc-config",

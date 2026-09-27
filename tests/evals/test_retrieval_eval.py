@@ -80,6 +80,7 @@ async def evaluate(policy, embedder):
                 {
                     "q": question,
                     "multi": item.get("hops") == "multi",
+                    "repo": all(e.startswith("sdlc-platform:") for e in item["expect"]),
                     **{v: scores(item["expect"], hits) for v, hits in variants.items()},
                 }
             )
@@ -91,6 +92,9 @@ def report(rows) -> dict[str, dict[str, dict[str, float]]]:
         "all": rows,
         "multi-hop": [r for r in rows if r["multi"]],
         "single": [r for r in rows if not r["multi"]],
+        "samples": [r for r in rows if not r["repo"]],
+        "repo": [r for r in rows if r["repo"]],  # sdlc-platform: the real (git) corpus
+        "repo multi": [r for r in rows if r["repo"] and r["multi"]],
     }
     summary = {
         g: {v: {m: sum(r[v][m] for r in subset) / len(subset) for m in METRICS} for v in VARIANTS}

@@ -76,3 +76,7 @@ data_rows:
   - { persona: platform-dev,  source: payments-code,      expect: unreadable }
   - { persona: admin,         source: payments-incidents, expect: readable }
   - { persona: admin,         source: platform-infra,     expect: readable }
+  - { persona: platform-dev,  source: sdlc-platform,      expect: readable }
+  - { persona: payments-dev,  source: sdlc-platform,      expect: unreadable }
+  - { persona: viewer,        source: sdlc-platform,      expect: unreadable }
+  - { persona: admin,         source: sdlc-platform,      expect: readable }

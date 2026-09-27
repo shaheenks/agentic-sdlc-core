@@ -43,7 +43,8 @@ growing bootstrap indefinitely. Shared code goes in `libs/`, never copied betwee
   access; roles with `tools.unconstrained: true` (admin) skip limits. Deny wins over any allow.
 - Rate limits: `platform.yaml` `defaults.rate_limit` (baseline) + `teams/<team>.yaml` `policy.limits` (overall and per tool);
   most generous team wins; enforced per user after authorization; audited `outcome: rate_limited` with the rule.
-- A new source requires: `config/sources/<id>.yaml` with `access` + `classification`.
+- A new source requires: `config/sources/<id>.yaml` with `access` + `classification`, persona-matrix `data_rows`, a CODEOWNERS rule.
+  `git` sources read a pinned `ref` (full SHA), never the working tree; DB tests ingest only `local_folder` sources.
 - A team add-on (skills, instructions, context) goes in `config/teams/<team>.yaml` + `skills/teams/<team>/`.
 - **Skill naming** (validated at load):
   - lowercase kebab-case `^[a-z][a-z0-9-]*$`, **globally unique** across `skills.yaml` and every team's add-ons
@@ -160,6 +161,9 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md
   (Windows: `az` is az.cmd, so never pass inline JSON or parentheses as az args; use `--body @file`)
 - Tests never read the real `config/env/local/groups.yaml`; the `config_dir` fixture swaps in a fixed test GroupMap
 - `uv run ruff check . && uv run ruff format .`
+- Tracing: set `OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318` in `.env`, then `docker compose --profile observability up -d`;
+  Jaeger UI http://localhost:16686. Spans never carry prompts, responses, tokens or argument values; never add a per-call
+  trace header from the agent (it would break one MCP session per conversation). Audit records carry `trace_id`.
 - CI: `.github/workflows/ci.yml` (lint, config validate + PR permission diff, tests on a pgvector service after
   `sdlc-db bootstrap` + `migrate`, terraform fmt/validate). No secrets or cloud calls in CI; tests must pass without `.env`
   (placeholder Entra IDs, example GroupMap, HashEmbedder, FakeEntra).

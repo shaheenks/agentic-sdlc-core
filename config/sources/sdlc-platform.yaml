@@ -1,0 +1,22 @@
+apiVersion: sdlc/v1
+kind: Source
+metadata:
+  id: sdlc-platform
+  owner_team: platform
+  description: agentic-sdlc platform code, config and design docs (this repository, pinned commit)
+spec:
+  type: git
+  location: .                          # this repository (read from git, never the working tree)
+  ref: f2178f0b5b9a7e987e3f8001a9df197ab9074f78   # pinned: the retrieval eval depends on it
+  include: ["**/*.py", "**/*.md", "**/*.yaml", "**/*.yml", "**/*.tf", "**/*.sql", "**/*.ps1", "**/Dockerfile", "**/*.toml"]
+  exclude: ["samples/**", "tests/**", "**/*.lock", "**/*.example"]
+  classification: internal
+  ingest:
+    chunking: { strategy: auto, max_tokens: 400, overlap: 40 }
+    graph:
+      enabled: true
+      entity_types: [service, component, library, tool, config_kind, role, stage, document]
+      relation_types: [depends_on, calls, uses, runs_on, stores_data_in, owns, part_of, implements, documents]
+access:
+  teams: [platform]
+  roles: [admin]

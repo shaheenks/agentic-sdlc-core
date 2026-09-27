@@ -73,7 +73,7 @@ def main(argv: list[str] | None = None) -> int:
             f"{r.source_id}: files={r.files_seen} changed={r.files_changed} "
             f"unchanged={r.files_unchanged} deleted={r.files_deleted} chunks={r.chunks_written} "
             f"entities={r.entities_written} relations={r.relations_written} "
-            f"llm_calls={r.extraction_calls}"
+            f"llm_calls={r.extraction_calls}" + (f" commit={r.commit[:12]}" if r.commit else "")
         )
         for error in r.errors:
             print(f"  error: {error}", file=sys.stderr)

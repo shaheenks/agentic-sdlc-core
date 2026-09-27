@@ -133,12 +133,13 @@ class SourceDef:
     source: str  # e.g. "sources/payments-code.yaml"
     owner_team: str
     type: str
-    location: str  # relative to the repo root, or absolute
+    location: str  # relative to the repo root, or absolute (git: or an https URL)
     include: tuple[str, ...]
     exclude: tuple[str, ...]
     classification: str
     classification_rank: int
     chunking: Mapping[str, object]
+    ref: str | None = None  # git sources: commit, tag or branch
     graph_enabled: bool = False
     entity_types: tuple[str, ...] = ()
     relation_types: tuple[str, ...] = ()  # resolved: the source's list or the platform default
