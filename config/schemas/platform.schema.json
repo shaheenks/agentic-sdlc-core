@@ -11,10 +11,12 @@
     "identity": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["provider", "tenant_id", "issuer", "jwks_uri", "audience", "required_scopes", "groups"],
+      "required": ["provider", "tenant_id", "authority_host", "graph_host", "issuer", "jwks_uri", "audience", "required_scopes", "groups"],
       "properties": {
         "provider": { "const": "entra" },
         "tenant_id": { "$ref": "#/$defs/guid" },
+        "authority_host": { "type": "string", "pattern": "^https://[^/]+$", "description": "Entra login host (E7)" },
+        "graph_host": { "type": "string", "pattern": "^https://[^/]+$", "description": "Microsoft Graph host (E7)" },
         "issuer": { "type": "string", "pattern": "^https://" },
         "jwks_uri": { "type": "string", "pattern": "^https://" },
         "audience": {

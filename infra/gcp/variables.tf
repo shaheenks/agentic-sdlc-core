@@ -27,6 +27,12 @@ variable "entra_tenant_id" {
   type = string
 }
 
+variable "entra_authority_host" {
+  description = "Entra login host (E7: sovereign clouds); keep in sync with platform.yaml."
+  type        = string
+  default     = "https://login.microsoftonline.com"
+}
+
 variable "entra_api_client_id" {
   description = "sdlc-mcp app registration (token audience)."
   type        = string

@@ -9,7 +9,8 @@ name: agentic-sdlc
 x-oauth2-proxy-env: &oauth2-proxy-env
   OAUTH2_PROXY_PROVIDER: oidc
   OAUTH2_PROXY_PROVIDER_DISPLAY_NAME: Entra ID
-  OAUTH2_PROXY_OIDC_ISSUER_URL: https://login.microsoftonline.com/${ENTRA_TENANT_ID:-}/v2.0
+  # E7: sovereign clouds set ENTRA_AUTHORITY_HOST (and platform.yaml identity/authority_host).
+  OAUTH2_PROXY_OIDC_ISSUER_URL: ${ENTRA_AUTHORITY_HOST:-https://login.microsoftonline.com}/${ENTRA_TENANT_ID:-}/v2.0
   OAUTH2_PROXY_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
   OAUTH2_PROXY_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
   # The access token is for the MCP API (aud = sdlc-mcp); offline_access enables refresh.
@@ -111,6 +112,7 @@ services:
       # Entra identity (validate the forwarded user token; not secrets)
       ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
       ENTRA_API_CLIENT_ID: ${ENTRA_API_CLIENT_ID:-}
+      ENTRA_AUTHORITY_HOST: ${ENTRA_AUTHORITY_HOST:-}
       <<: *vertex-env
     volumes:
       - *adc-mount

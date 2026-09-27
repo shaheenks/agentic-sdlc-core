@@ -41,6 +41,7 @@ locals {
     ENTRA_TENANT_ID     = var.entra_tenant_id
     ENTRA_API_CLIENT_ID = var.entra_api_client_id
   }
+  agent_entra_env = merge(local.entra_env, { ENTRA_AUTHORITY_HOST = var.entra_authority_host })
 }
 
 resource "google_project_service" "apis" {

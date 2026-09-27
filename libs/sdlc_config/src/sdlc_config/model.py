@@ -17,6 +17,8 @@ class PlatformConfig:
     classification_levels: tuple[str, ...]
     default_max_classification: str
     embedding_model: str = "gemini-embedding-2"
+    authority_host: str = "https://login.microsoftonline.com"  # Entra login host (E7)
+    graph_host: str = "https://graph.microsoft.com"  # Microsoft Graph host (E7)
     embedding_dimensions: int = 768
     graph_model: str = ""  # knowledge.graph.model; empty = graph extraction not configured
     graph_relation_types: tuple[str, ...] = ()

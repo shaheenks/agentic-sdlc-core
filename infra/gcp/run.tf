@@ -22,7 +22,7 @@ locals {
   oauth2_proxy_env = {
     OAUTH2_PROXY_PROVIDER                             = "oidc"
     OAUTH2_PROXY_PROVIDER_DISPLAY_NAME                = "Entra ID"
-    OAUTH2_PROXY_OIDC_ISSUER_URL                      = "https://login.microsoftonline.com/${var.entra_tenant_id}/v2.0"
+    OAUTH2_PROXY_OIDC_ISSUER_URL                      = "${var.entra_authority_host}/${var.entra_tenant_id}/v2.0"
     OAUTH2_PROXY_CLIENT_ID                            = var.entra_client_id
     OAUTH2_PROXY_SCOPE                                = "openid profile email offline_access api://${var.entra_api_client_id}/access_as_user"
     OAUTH2_PROXY_CODE_CHALLENGE_METHOD                = "S256"
@@ -43,7 +43,7 @@ locals {
     OAUTH2_PROXY_WHITELIST_DOMAINS                    = local.app_host
   }
 
-  agent_env = merge(local.vertex_env, local.entra_env, {
+  agent_env = merge(local.vertex_env, local.agent_entra_env, {
     SDLC_MCP_URL     = "https://${local.mcp_host}/mcp"
     SDLC_AGENT_MODEL = var.agent_model
     HOST             = "127.0.0.1" # reachable only through oauth2-proxy in the same instance

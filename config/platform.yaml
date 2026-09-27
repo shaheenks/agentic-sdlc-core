@@ -3,6 +3,11 @@ kind: Platform
 identity:
   provider: entra
   tenant_id: "${ENTRA_TENANT_ID}"
+  # Cloud endpoints (E7): commercial cloud below; sovereign clouds use their own hosts, e.g.
+  # https://login.microsoftonline.us + https://graph.microsoft.us (GCC High). issuer and jwks_uri
+  # must use authority_host. The agent web app and oauth2-proxy take ENTRA_AUTHORITY_HOST instead.
+  authority_host: "https://login.microsoftonline.com"
+  graph_host: "https://graph.microsoft.com"
   issuer: "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0"
   jwks_uri: "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/discovery/v2.0/keys"
   # Entra v2 access tokens carry the API app's client ID as `aud`; v1 tokens carry the App ID URI.

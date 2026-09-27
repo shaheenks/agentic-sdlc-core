@@ -120,7 +120,8 @@ See ARCHITECTURE.md §7.
 ## Enterprise tenants
 See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md.
 - Keep identity tenant-agnostic: tenant/app IDs come from env, group IDs from the git-ignored groups.yaml.
-  Never hard-code login/Graph hosts in new code; take them from `platform.yaml`.
+  Never hard-code login/Graph hosts in new code; take them from `platform.yaml` (`identity.authority_host`, `graph_host`;
+  the agent web app and oauth2-proxy use `ENTRA_AUTHORITY_HOST`, since agents never read config).
 - Don't assume the `groups` claim is present or complete (overage, nested groups, Free-tier `SecurityGroup`).
   Missing groups mean fewer permissions, never more (fail closed). App roles (Stage 3) are the enterprise path.
 - Dev-only shortcuts (Azure CLI pre-authorization, client secrets, the PowerShell provisioning script) must not

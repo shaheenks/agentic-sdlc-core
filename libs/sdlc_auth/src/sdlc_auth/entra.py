@@ -15,12 +15,17 @@ from fastmcp.server.auth.providers.jwt import JWTVerifier
 log = logging.getLogger("sdlc.auth")
 
 
-def entra_issuer(tenant_id: str) -> str:
-    return f"https://login.microsoftonline.com/{tenant_id}/v2.0"
+# Commercial cloud. MCP servers take the host from platform.yaml identity/authority_host; the
+# agent web app (which never reads config) from ENTRA_AUTHORITY_HOST. Sovereign clouds: E7.
+DEFAULT_AUTHORITY_HOST = "https://login.microsoftonline.com"
 
 
-def entra_jwks_uri(tenant_id: str) -> str:
-    return f"https://login.microsoftonline.com/{tenant_id}/discovery/v2.0/keys"
+def entra_issuer(tenant_id: str, authority_host: str = DEFAULT_AUTHORITY_HOST) -> str:
+    return f"{authority_host.rstrip('/')}/{tenant_id}/v2.0"
+
+
+def entra_jwks_uri(tenant_id: str, authority_host: str = DEFAULT_AUTHORITY_HOST) -> str:
+    return f"{authority_host.rstrip('/')}/{tenant_id}/discovery/v2.0/keys"
 
 
 class EntraTokenVerifier(JWTVerifier):
@@ -34,12 +39,14 @@ class EntraTokenVerifier(JWTVerifier):
         jwks_uri: str | None = None,
         public_key: str | bytes | None = None,  # tests only; production uses JWKS
         base_url: str | None = None,
+        authority_host: str = DEFAULT_AUTHORITY_HOST,  # used when issuer/jwks_uri are not given
     ):
         self.tenant_id = tenant_id
+        jwks_uri = jwks_uri or entra_jwks_uri(tenant_id, authority_host)
         super().__init__(
             public_key=public_key,
-            jwks_uri=None if public_key else (jwks_uri or entra_jwks_uri(tenant_id)),
-            issuer=issuer or entra_issuer(tenant_id),
+            jwks_uri=None if public_key else jwks_uri,
+            issuer=issuer or entra_issuer(tenant_id, authority_host),
             audience=audience,
             algorithm="RS256",
             required_scopes=required_scopes,

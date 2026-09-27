@@ -42,13 +42,17 @@ class GraphGroupResolver:
         client_secret: str,
         ttl_seconds: int = 600,
         http: httpx.AsyncClient | None = None,
-        graph_base: str = "https://graph.microsoft.com/v1.0",
-        login_base: str = "https://login.microsoftonline.com",
+        graph_host: str = "https://graph.microsoft.com",
+        authority_host: str = "https://login.microsoftonline.com",
     ):
+        """Hosts come from platform.yaml identity/graph_host + authority_host (E7: sovereign
+        clouds). The app-token scope is derived from the Graph host."""
         self._tenant_id, self._client_id, self._secret = tenant_id, client_id, client_secret
         self._ttl = ttl_seconds
         self._http = http or httpx.AsyncClient(timeout=10)
-        self._graph, self._login = graph_base.rstrip("/"), login_base.rstrip("/")
+        graph_host = graph_host.rstrip("/")
+        self._graph, self._login = f"{graph_host}/v1.0", authority_host.rstrip("/")
+        self._scope = f"{graph_host}/.default"
         self._app_token: tuple[str, float] | None = None  # (token, expires_at)
         self._cache: dict[str, tuple[frozenset[str], float]] = {}
         self._lock = asyncio.Lock()
@@ -86,7 +90,7 @@ class GraphGroupResolver:
                     "grant_type": "client_credentials",
                     "client_id": self._client_id,
                     "client_secret": self._secret,
-                    "scope": "https://graph.microsoft.com/.default",
+                    "scope": self._scope,
                 },
             )
             resp.raise_for_status()

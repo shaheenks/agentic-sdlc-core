@@ -208,6 +208,8 @@ def build_group_resolver(snapshot: Snapshot) -> GroupResolver | None:
         client_id=os.environ["ENTRA_API_CLIENT_ID"],
         client_secret=secret,
         ttl_seconds=platform.groups_cache_ttl_seconds,
+        graph_host=platform.graph_host,
+        authority_host=platform.authority_host,
     )
 
 

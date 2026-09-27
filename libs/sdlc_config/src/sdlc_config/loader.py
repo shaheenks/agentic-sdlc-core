@@ -187,6 +187,8 @@ def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
     for field in ("issuer", "jwks_uri"):
         if tid not in ident[field]:
             problems.append(f"platform.yaml: identity/{field} does not contain tenant_id")
+        if not ident[field].startswith(ident["authority_host"] + "/"):
+            problems.append(f"platform.yaml: identity/{field} must use identity/authority_host")
     return PlatformConfig(
         tenant_id=tid,
         issuer=ident["issuer"],
@@ -197,6 +199,8 @@ def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
         groups_cache_ttl_seconds=ident["groups"]["cache_ttl_seconds"],
         classification_levels=levels,
         default_max_classification=default_max,
+        authority_host=ident["authority_host"],
+        graph_host=ident["graph_host"],
         embedding_model=doc["knowledge"]["embedding"]["model"],
         embedding_dimensions=doc["knowledge"]["embedding"]["dimensions"],
         graph_model=doc["knowledge"].get("graph", {}).get("model", ""),

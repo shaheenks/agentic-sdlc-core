@@ -4,6 +4,7 @@ import httpx
 import pytest
 from fastmcp.server.auth.providers.jwt import RSAKeyPair
 from sdlc_auth import GraphGroupResolver, effective_group_ids, principal_from_claims
+from sdlc_auth.entra import entra_issuer, entra_jwks_uri
 
 from tests.support.entra import G_PAYMENTS_DEVS, TENANT
 
@@ -85,10 +86,13 @@ async def test_graph_resolver_pages_and_caches():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/oauth2/v2.0/token"):
             calls["token"] += 1
+            assert request.url.host == "login.sovereign.test"  # authority_host (E7)
             assert b"grant_type=client_credentials" in request.content
+            assert b"scope=https%3A%2F%2Fgraph.test%2F.default" in request.content
             return httpx.Response(200, json={"access_token": "app-tok", "expires_in": 3600})
         calls["graph"] += 1
         assert request.headers["Authorization"] == "Bearer app-tok"
+        assert request.url.host == "graph.test"  # graph_host (E7)
         if "skiptoken" not in str(request.url):
             assert f"/users/{OID}/transitiveMemberOf/" in request.url.path
             return httpx.Response(
@@ -102,7 +106,12 @@ async def test_graph_resolver_pages_and_caches():
 
     http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     resolver = GraphGroupResolver(
-        TENANT, "client", "secret", http=http, graph_base="https://graph.test/v1.0"
+        TENANT,
+        "client",
+        "secret",
+        http=http,
+        graph_host="https://graph.test",
+        authority_host="https://login.sovereign.test",
     )
     principal = principal_from_claims({"oid": OID, "tid": TENANT, "hasgroups": True})
     first = await resolver.resolve(principal)
@@ -121,3 +130,10 @@ async def test_graph_resolver_rejects_non_guid_oid():
 def test_principal_requires_oid_and_tid():
     with pytest.raises(ValueError):
         principal_from_claims(json.loads('{"tid": "x"}'))
+
+
+def test_issuer_and_jwks_follow_the_authority_host():
+    host = "https://login.microsoftonline.us"
+    assert entra_issuer(TENANT, host) == f"{host}/{TENANT}/v2.0"
+    assert entra_jwks_uri(TENANT, host) == f"{host}/{TENANT}/discovery/v2.0/keys"
+    assert entra_issuer(TENANT).startswith("https://login.microsoftonline.com/")

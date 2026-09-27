@@ -21,8 +21,8 @@ Work that needs only localhost + the Cloudflare Tunnel, in the agreed order (ana
 | # | Item | Status |
 |---|---|---|
 | H1 | Classification changes apply without re-ingest: the RLS context carries `readable_sources` (granted AND at or below the ceiling by the current config); rows keep their stamp as a second check (lowering waits for ingest: fail closed) | ✅ Done (2026-09-27) |
-| H2 | E7: Entra login/Graph hosts from `platform.yaml` instead of hard-coded | ⏳ Next |
-| H3 | CI on GitHub Actions: ruff, unit + DB tests (pgvector service), `sdlc-config validate`/`diff`, `terraform fmt`/`validate` | ⏳ |
+| H2 | E7: Entra login/Graph hosts from `platform.yaml` instead of hard-coded | ✅ Done (2026-09-27) |
+| H3 | CI on GitHub Actions: ruff, unit + DB tests (pgvector service), `sdlc-config validate`/`diff`, `terraform fmt`/`validate` | ⏳ Next |
 | H4 | Config bundles, local part of 7b: `sdlc-config compile`, folder store with `current` pointer, last-known-good, rollback | ⏳ |
 | H5 | Stage 8 Antigravity via the tunnel MCP endpoint (same `whoami(explain)` as the web UI) | ⏳ |
 | H6 | CODEOWNERS for config and schemas | ⏳ |
@@ -307,7 +307,7 @@ Known gaps for enterprise tenants, and where they are addressed:
 | E4 | **Client secrets** (`sdlc-client`, Graph fallback): often banned or capped at 6–12 months | Certificates or **federated credentials** (Entra trusts GCP workload identity; no secret) | 7 |
 | E5 | **Provisioning** by script does not fit change control | `azuread` Terraform module in `infra/` + reviewable app manifest; `entra_setup.ps1` stays for dev | 7 |
 | E6 | **Azure CLI pre-authorization** is a dev shortcut, may be blocked by Conditional Access, and must not exist in prod | `entra_setup.ps1 -NoAzCliPreAuth`; off outside dev | 2d |
-| E7 | **Sovereign clouds** (GCC High, China): the Graph fallback hard-codes the commercial login/Graph hosts | `identity.authority_host` / `graph_host` in `platform.yaml` | backlog |
+| E7 | **Sovereign clouds** (GCC High, China): the Graph fallback hard-codes the commercial login/Graph hosts | ✅ `identity.authority_host` / `graph_host` in `platform.yaml` (issuer/JWKS must use the authority host; Graph token scope derived from the Graph host); `ENTRA_AUTHORITY_HOST` for the agent web app and oauth2-proxy | H2 (done) |
 | E8 | **Egress**: the MCP server must reach the Entra JWKS endpoint | Document the allowlist/proxy; test behind a proxy | 7 |
 | E9 | **Multi-tenant** (users authenticating in their own home tenant, not as guests) is rejected by design | Allow-list of tenants if ever needed | out of scope |
 | E10 | **On-prem synced groups** emitting names (`sAMAccountName`) instead of object IDs silently map to nothing | Require object IDs in ENTRA_SETUP; `whoami` flags non-GUID group values | 3 |
@@ -502,7 +502,7 @@ services use Cloud Run `invoker_iam_disabled` (`run.managed.requireInvokerIam` i
 
 ### Stage 9 — Expansion (backlog)
 - Source types `git`, `jira`, `confluence`, `sharepoint`, with optional `access.inherit_from_source: true` to map native ACLs.
-- Enterprise E3: token revocation (short lifetimes, CAE claims challenge or `oid` denylist); E7 sovereign-cloud hosts if needed.
+- Enterprise E3: token revocation (short lifetimes, CAE claims challenge or `oid` denylist).
 - Entra OBO for downstream calls; OpenTelemetry; rate limits per team (`Team.policy.limits`); ADK evals in CI; OPA/Cedar if rules outgrow YAML; admin UI over config (still git-backed).
 
 ## Key Risks
