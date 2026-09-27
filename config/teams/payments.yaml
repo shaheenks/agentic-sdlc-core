@@ -21,6 +21,9 @@ policy:
       approve_design:
         args:
           repo: { in: [payments-api, payments-ui] }
+  limits:                            # per user; the most generous of a user's teams applies
+    tools:
+      graph_query: { calls_per_minute: 30 }   # each call embeds + walks the graph
 addons:                              # visible only to members of this team
   skills:
     pci-checklist:        { path: skills/teams/payments/pci-checklist }

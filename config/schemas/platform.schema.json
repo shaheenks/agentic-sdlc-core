@@ -79,7 +79,14 @@
       "required": ["deny_by_default", "max_classification"],
       "properties": {
         "deny_by_default": { "const": true },
-        "max_classification": { "type": "string" }
+        "max_classification": { "type": "string" },
+        "rate_limit": {
+          "description": "Baseline per-user tool call rate for everyone (teams may set their own).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["calls_per_minute"],
+          "properties": { "calls_per_minute": { "type": "integer", "minimum": 1, "maximum": 100000 } }
+        }
       }
     }
   },

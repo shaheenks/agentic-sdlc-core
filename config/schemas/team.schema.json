@@ -68,6 +68,24 @@
               }
             }
           }
+        },
+        "limits": {
+          "description": "Per-user call rates for this team's members (most generous team wins; a tool limit applies on top of the overall one).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "calls_per_minute": { "type": "integer", "minimum": 1, "maximum": 100000 },
+            "tools": {
+              "type": "object",
+              "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["calls_per_minute"],
+                "properties": { "calls_per_minute": { "type": "integer", "minimum": 1, "maximum": 100000 } }
+              }
+            }
+          }
         }
       }
     },

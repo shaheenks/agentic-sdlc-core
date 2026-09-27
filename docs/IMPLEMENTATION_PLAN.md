@@ -27,7 +27,7 @@ Work that needs only localhost + the Cloudflare Tunnel, in the agreed order (ana
 | H5 | Stage 8 Antigravity via the tunnel MCP endpoint (same `whoami(explain)` as the web UI) | ⏸️ Waiting for the user (Antigravity MCP/OAuth settings; Entra public-client redirect is an admin change) |
 | H6 | CODEOWNERS for config and schemas | ✅ Done (2026-09-27): `.github/CODEOWNERS` (single maintainer today; each rule names the Entra alias it stands for), `tests/policy/test_codeowners.py` fails when a team, team skill folder, source or security-critical path has no rule |
 | H7 | E8 egress docs + JWKS through an HTTPS proxy; E3 `oid` denylist | ✅ Done (2026-09-27): egress table + proxy guidance (ENTRA_SETUP §6), proxy test (JWKS only via the proxy, fail closed without it, `NO_PROXY` honoured); optional kind `BlockList` (`env/<env>/blocked.yaml`, git-ignored) checked by the MCP token verifier on every request, audited as `blocked`, applied on reload (ENTRA_SETUP §7) |
-| H8 | Stage 9 locally: team rate limits, OpenTelemetry, `git` source type (bigger corpus for graph ranking) | ⏳ Next |
+| H8 | Stage 9 locally: team rate limits, OpenTelemetry, `git` source type (bigger corpus for graph ranking) | 🔨 H8.1 rate limits ✅ (2026-09-27): `defaults.rate_limit` + `Team.policy.limits` (overall + per tool, most generous team wins), `sdlc_policy.RateLimiter` (sliding minute per user, after authorization), audited `rate_limited` with the rule, shown in `explain`/`whoami(explain)`; per MCP instance. Next: H8.2 `git` source type, H8.3 OpenTelemetry |
 | H9 | Persistent agent sessions (design: agents get no DB credentials); skill-hidden audit as policy deny; `/run_live` binding | ⏳ |
 
 ## Context

@@ -41,6 +41,8 @@ growing bootstrap indefinitely. Shared code goes in `libs/`, never copied betwee
   every signed-in user gets the minimal `signed-in` role: ping, whoami).
 - Argument limits: unioned across the teams that constrain a tool; a team that does not constrain it never widens
   access; roles with `tools.unconstrained: true` (admin) skip limits. Deny wins over any allow.
+- Rate limits: `platform.yaml` `defaults.rate_limit` (baseline) + `teams/<team>.yaml` `policy.limits` (overall and per tool);
+  most generous team wins; enforced per user after authorization; audited `outcome: rate_limited` with the rule.
 - A new source requires: `config/sources/<id>.yaml` with `access` + `classification`.
 - A team add-on (skills, instructions, context) goes in `config/teams/<team>.yaml` + `skills/teams/<team>/`.
 - **Skill naming** (validated at load):

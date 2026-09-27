@@ -23,6 +23,7 @@ class PlatformConfig:
     graph_model: str = ""  # knowledge.graph.model; empty = graph extraction not configured
     graph_relation_types: tuple[str, ...] = ()
     graph_thinking_level: str = ""  # "" = the model's default
+    default_calls_per_minute: int | None = None  # defaults/rate_limit (None = no baseline)
 
     def classification_rank(self, level: str) -> int:
         """Position of a level in classification_levels (0 = least sensitive)."""
@@ -120,6 +121,8 @@ class TeamDef:
     instructions: str | None = None  # AGENT_ADDENDUM text appended to the agent prompt
     instructions_source: str | None = None  # e.g. "skills/teams/payments/AGENT_ADDENDUM.md"
     context: Mapping[str, str] = field(default_factory=dict)
+    # per-user calls per minute: "*" = all tools, otherwise a tool name (policy/limits)
+    limits: Mapping[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

@@ -220,6 +220,7 @@ def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
         groups_cache_ttl_seconds=ident["groups"]["cache_ttl_seconds"],
         classification_levels=levels,
         default_max_classification=default_max,
+        default_calls_per_minute=doc["defaults"].get("rate_limit", {}).get("calls_per_minute"),
         authority_host=ident["authority_host"],
         graph_host=ident["graph_host"],
         embedding_model=doc["knowledge"]["embedding"]["model"],
@@ -378,6 +379,15 @@ def _build_teams(team_docs, roles, tools, aliases, repo_root, raw_files, problem
             constraints[tool] = MappingProxyType(
                 {arg: frozenset(spec["in"]) for arg, spec in rule["args"].items()}
             )
+        limits_doc = doc.get("policy", {}).get("limits", {})
+        limits: dict[str, int] = {}
+        if "calls_per_minute" in limits_doc:
+            limits["*"] = limits_doc["calls_per_minute"]
+        for tool, rule in limits_doc.get("tools", {}).items():
+            if tool not in tools:
+                problems.append(f"{rel}: policy/limits/tools: unknown tool '{tool}'")
+                continue
+            limits[tool] = rule["calls_per_minute"]
         addons = doc.get("addons", {})
         team_skill_names = []
         for skill_name, entry in addons.get("skills", {}).items():
@@ -414,6 +424,7 @@ def _build_teams(team_docs, roles, tools, aliases, repo_root, raw_files, problem
             instructions=instructions,
             instructions_source=instructions_source,
             context=MappingProxyType(dict(addons.get("context", {}))),
+            limits=MappingProxyType(limits),
         )
     return teams, addon_skills
 

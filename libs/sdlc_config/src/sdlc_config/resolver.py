@@ -63,6 +63,9 @@ class EffectivePolicy:
     max_classification_rank: int = 0
     # Current classification rank of each granted source (from this config version).
     source_classification: Mapping[str, int] = field(default_factory=dict)
+    # Per-user calls per minute: scope ("*" = all tools, or a tool) -> (limit, rule it came from).
+    # Most generous of the user's teams; "*" falls back to platform defaults/rate_limit.
+    rate_limits: Mapping[str, tuple[int, str]] = field(default_factory=dict)
 
     @property
     def readable_sources(self) -> tuple[str, ...]:
@@ -112,6 +115,10 @@ class EffectivePolicy:
                 "sources": {sid: list(r) for sid, r in sorted(self.data_sources.items())},
                 "max_classification": self.max_classification,
                 "readable": list(self.readable_sources),
+            },
+            "rate_limits": {
+                scope: {"calls_per_minute": limit, "rule": rule}
+                for scope, (limit, rule) in sorted(self.rate_limits.items())
             },
             "agent_context": {
                 "instructions": [
@@ -237,7 +244,25 @@ def resolve(
         source_classification=MappingProxyType(
             {sid: snapshot.sources[sid].classification_rank for sid in data_sources}
         ),
+        rate_limits=MappingProxyType(_rate_limits(snapshot, team_rules)),
     )
+
+
+def _rate_limits(snapshot, team_rules) -> dict[str, tuple[int, str]]:
+    """Most generous limit per scope across the user's teams (like argument limits, teams only
+    ever add capacity); the overall scope falls back to the platform baseline."""
+    limits: dict[str, tuple[int, str]] = {}
+    for team in sorted(team_rules):
+        team_def = snapshot.teams[team]
+        for scope, value in team_def.limits.items():
+            path = "calls_per_minute" if scope == "*" else f"tools/{scope}/calls_per_minute"
+            rule = f"{team_def.source}#policy/limits/{path}"
+            if scope not in limits or value > limits[scope][0]:
+                limits[scope] = (value, rule)
+    baseline = snapshot.platform.default_calls_per_minute
+    if "*" not in limits and baseline is not None:
+        limits["*"] = (baseline, "platform.yaml#defaults/rate_limit")
+    return limits
 
 
 def _resolve_sources(snapshot, aliases, role_reasons, team_rules) -> dict[str, tuple[str, ...]]:

@@ -33,3 +33,6 @@ knowledge:
 defaults:
   deny_by_default: true
   max_classification: public
+  # Per-user tool calls per minute (all tools) unless the user's teams set their own
+  # (teams/<team>.yaml policy/limits). Counted per MCP server instance.
+  rate_limit: { calls_per_minute: 120 }

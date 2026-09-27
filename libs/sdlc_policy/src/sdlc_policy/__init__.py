@@ -54,4 +54,6 @@ def authorize(policy: EffectivePolicy, tool: str, arguments: Mapping[str, Any] |
     return Decision(True, "allowed", granted_by)
 
 
-__all__ = ["DEFAULT_DENY", "Decision", "authorize", "visible_tools"]
+from sdlc_policy.ratelimit import RateLimiter  # noqa: E402 (needs Decision)
+
+__all__ = ["DEFAULT_DENY", "Decision", "RateLimiter", "authorize", "visible_tools"]

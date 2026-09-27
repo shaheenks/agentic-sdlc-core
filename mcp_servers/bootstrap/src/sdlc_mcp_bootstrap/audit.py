@@ -30,7 +30,7 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from sdlc_auth import GroupResolver
 from sdlc_config import ConfigStore, PolicyCache, SkillDecision
-from sdlc_policy import authorize
+from sdlc_policy import RateLimiter, authorize
 
 from sdlc_mcp_bootstrap.correlation import current_correlation
 from sdlc_mcp_bootstrap.identity import (
@@ -104,10 +104,13 @@ class PolicyMiddleware(Middleware):
         store: ConfigStore,
         group_resolver: GroupResolver | None = None,
         cache: PolicyCache | None = None,
+        limiter: RateLimiter | None = None,
     ):
         self._store = store
         self._group_resolver = group_resolver
         self._cache = cache or PolicyCache()
+        self._limiter = limiter or RateLimiter()
+        self._calls_since_prune = 0
 
     async def _identity(self, request_id: str) -> Identity | None:
         principal = current_principal()
@@ -194,6 +197,19 @@ class PolicyMiddleware(Middleware):
             if not decision.allowed:
                 record.update(outcome="denied", reason=decision.reason)
                 raise ToolError(f"not permitted: {decision.reason}")
+            limited = self._limiter.check(identity.policy, identity.principal.oid, tool)
+            self._calls_since_prune += 1
+            if self._calls_since_prune >= 1000:
+                self._calls_since_prune = 0
+                self._limiter.prune()
+            if limited is not None:
+                record.update(
+                    decision="deny",
+                    matched_rule=limited.matched_rule,
+                    outcome="rate_limited",
+                    reason=limited.reason,
+                )
+                raise ToolError(limited.reason)
             result = await call_next(context)
             record["outcome"] = "ok"
             return result
