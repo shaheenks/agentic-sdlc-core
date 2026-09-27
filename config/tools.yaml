@@ -1,17 +1,19 @@
 apiVersion: sdlc/v1
 kind: ToolCatalog
-# A tool registered in code but absent here is never exposed.
+# A tool registered in code but absent here is never exposed. `args` lists the arguments that
+# team policies may constrain (policy.tools.constraints); the server checks they exist in code.
 servers:
-  bootstrap: { url: "${MCP_BOOTSTRAP_URL}" }
+  bootstrap: { description: "Bootstrap MCP server (mcp_servers/bootstrap)" }
 tools:
+  ping:              { server: bootstrap, risk: low }
   whoami:            { server: bootstrap, risk: low }
   list_skills:       { server: bootstrap, risk: low }
   load_skill:        { server: bootstrap, risk: low }
   get_agent_context: { server: bootstrap, risk: low }
   search_knowledge:  { server: bootstrap, risk: low,    data_scoped: true }
   graph_query:       { server: bootstrap, risk: low,    data_scoped: true }
-  generate_tests:    { server: bootstrap, risk: low }
+  generate_tests:    { server: bootstrap, risk: low,    args: { repo: { type: string } } }
   review_code:       { server: bootstrap, risk: medium, args: { repo: { type: string } } }
-  approve_design:    { server: bootstrap, risk: high }
+  approve_design:    { server: bootstrap, risk: high,   args: { repo: { type: string } } }
   config_info:       { server: bootstrap, risk: high }    # admin only (via roles.admin "*")
-  config_explain:    { server: bootstrap, risk: high, args: { upn: { type: string } } }
+  config_explain:    { server: bootstrap, risk: high }    # admin only; input: group aliases / app roles

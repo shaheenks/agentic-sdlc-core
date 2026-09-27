@@ -359,12 +359,14 @@ Each stage is independently deployable and has an exit gate. New config kinds ar
 - ✅ Cloudflare Tunnel (managed in the dashboard; connector = `Cloudflared` Windows service on the host): `app-sdlc-dev.shaheenks.co.in` → `localhost:4181` (`oauth2-proxy-public`), `mcp-sdlc-dev.shaheenks.co.in` → `localhost:8080` (MCP server). Verified publicly: valid TLS, sign-in callback on the public host, MCP 401 with public metadata, and **browser sign-in + agent use by a tenant user through `app-sdlc-dev`** (2026-09-26). Public oauth2-proxy opt-in with `docker compose --profile tunnel`. Two oauth2-proxy instances share one Entra client: local (`http://localhost:4180`, fixed callback) and public (fixed HTTPS callback, `Secure` cookies, reverse-proxy mode). `MCP_PUBLIC_URL` advertises the public MCP URL in the 401 metadata. Users: tenant members assigned to `sdlc-mcp` only (no B2B guests for now). Setup: docs/CLOUDFLARE_TUNNEL.md.
 
 ### Stage 3 — RBAC from config (tools)
-- Add kinds `RoleSet`, `ToolCatalog`, `Team` (membership + `policy.tools`); resolver steps 1–5; `explain` CLI; `whoami(explain=true)`.
-- `libs/sdlc_policy`: filter `tools/list`, enforce `tools/call` + arg constraints, deny-wins.
-- `sdlc-config compile` → bundle + manifest; per-request snapshots + EffectivePolicy cache; admin tools `config_explain(upn)` / `config_info()`.
-- Persona-matrix tests (persona = set of group aliases) → expected allow/deny per tool+args; `diff` CLI in CI.
-- Enterprise (E1, E2, E10): Entra **app roles** as an identity source alongside groups (a `roles` claim mapped to teams/roles in config); document leaf-group assignment; `whoami` flags non-GUID group claim values.
-- **Gate:** persona matrix green; e.g. a payments dev can call `review_code(repo=payments-api)` but not `payments-ledger-core` or `approve_design`.
+Decisions (2026-09-27): stub tools for the RBAC demo; add a platform team; `explain` takes personas/group aliases (UPN lookup later, with the Graph fallback); `compile` moves to Stage 7; a third test user as live admin; app roles in code + config only (no tenant changes).
+- **3a Config kinds:** `RoleSet` (roles.yaml), `ToolCatalog` (tools.yaml), `Team` (teams/*.yaml, multi-file) with JSON Schemas and cross-reference checks (unknown group aliases, roles, tools and constrained args; inheritance cycles) that fail startup.
+- **3b Resolver** → `EffectivePolicy` (identities → teams + bindings → roles with inherits → allowed tools − denies; argument limits unioned across the teams that constrain a tool; `unconstrained: true` roles skip them). Every grant and deny keeps its source rule. Cached per (oid, groups, app roles, config version).
+- **3c Enforcement** (`libs/sdlc_policy` + MCP middleware): filter `tools/list`, authorize every `tools/call` (deny by default, deny wins, argument limits), audit `teams`, `roles`, `decision`, `matched_rule`. Tools not in the catalog are never exposed. Stub tools `review_code`, `generate_tests`, `approve_design` (clearly marked) for the demo.
+- **3d Enterprise E1/E2/E10:** `roles` claim → `Principal.app_roles`; bindings and membership accept `app_role:` next to `group:`; `whoami` flags non-GUID group claims; ENTRA_SETUP notes leaf-group assignment. No tenant changes.
+- **3e Explainability:** `whoami(explain=true)`; admin-only MCP tools `config_info()` and `config_explain(groups, app_roles)`; CLI `sdlc-config explain --groups …` and `sdlc-config diff` (per-persona permission changes between git revisions).
+- **3f Persona matrix:** `tests/policy/personas.yaml` + matrix of persona × tool × args → allow/deny, in CI.
+- **Gate:** persona matrix green; live: paul (payments developer) can call `review_code(repo=payments-api)` but not another team's repo or `approve_design`; ana (platform developer) gets platform repos only; the admin test user sees `config_info` / `config_explain`; a user with only `eng-all` sees just the basic tools.
 
 ### Stage 4 — Skills + team add-ons
 - Add `SkillCatalog` and `Team.addons` (skills, instructions, context); resolver steps 6 and 8.
@@ -389,6 +391,7 @@ Each stage is independently deployable and has an exit gate. New config kinds ar
 ### Stage 7 — GCP deployment
 - Terraform: Cloud Run (MCP server, agent), Cloud Run Job (ingest), Cloud SQL + pgvector, Secret Manager, Artifact Registry, Cloud Logging; Workforce Identity Federation (Entra); Vertex AI.
 - Config bundles in `gs://sdlc-config-<env>/` with a `current` pointer; Pub/Sub-triggered reload (60s poll fallback); last-known-good; rollback = pointer flip.
+- `sdlc-config compile` → immutable bundle + manifest (moved here from Stage 3).
 - CI: validate → diff → test → compile + publish bundle → deploy; prod promotion by pointer flip after approval.
 - Endpoints (see ARCHITECTURE.md §7): each higher environment gets its own hostnames (`<service>-sdlc-<env>.shaheenks.co.in`) via DNS **CNAME** (Cloud Run domain mapping or load balancer) and a **managed certificate**. No Cloudflare Tunnel. Its Entra client registers only that environment's HTTPS callback (no localhost, no Azure CLI pre-auth); `MCP_PUBLIC_URL` / `SDLC_APP_HOST` / `SDLC_MCP_HOST` are set per environment.
 - Enterprise (E4, E5, E8): Entra app registrations via the `azuread` Terraform module; certificates or federated credentials (GCP workload identity) instead of client secrets; document JWKS egress.

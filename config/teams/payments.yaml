@@ -15,6 +15,12 @@ policy:
       review_code:
         args:
           repo: { in: [payments-api, payments-ui] }
+      generate_tests:
+        args:
+          repo: { in: [payments-api, payments-ui] }
+      approve_design:
+        args:
+          repo: { in: [payments-api, payments-ui] }
 addons:                              # visible only to members of this team
   skills:
     pci-checklist:        { path: skills/teams/payments/pci-checklist }

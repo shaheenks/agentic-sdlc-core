@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sdlc/v1/Team",
+  "title": "Team",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "membership"],
+  "properties": {
+    "apiVersion": { "const": "sdlc/v1" },
+    "kind": { "const": "Team" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "$ref": "#/$defs/name" },
+        "owners": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/name" } }
+      }
+    },
+    "membership": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["roles"],
+        "oneOf": [{ "required": ["group"] }, { "required": ["app_role"] }],
+        "properties": {
+          "group": { "$ref": "#/$defs/name" },
+          "app_role": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9._-]*$" },
+          "roles": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/name" } }
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tools": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "deny": {
+              "type": "array", "uniqueItems": true,
+              "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+            },
+            "constraints": {
+              "type": "object",
+              "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["args"],
+                "properties": {
+                  "args": {
+                    "type": "object",
+                    "minProperties": 1,
+                    "additionalProperties": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["in"],
+                      "properties": {
+                        "in": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "addons": {
+      "description": "Team add-ons (skills, agent instructions, context). Resolved in Stage 4.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "skills": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string" },
+              "access": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": { "roles": { "type": "array", "items": { "$ref": "#/$defs/name" } } }
+              }
+            }
+          }
+        },
+        "instructions": { "type": "string" },
+        "context": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    }
+  },
+  "$defs": {
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+  }
+}

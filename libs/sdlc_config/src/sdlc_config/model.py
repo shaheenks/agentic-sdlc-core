@@ -40,6 +40,56 @@ class GroupMap:
 
 
 @dataclass(frozen=True)
+class IdentityRef:
+    """Who a binding applies to: a group alias (groups.yaml) or an Entra app role value."""
+
+    kind: str  # "group" | "app_role"
+    value: str
+
+    def __str__(self) -> str:
+        return f"{self.kind}:{self.value}"
+
+
+@dataclass(frozen=True)
+class RoleBinding:
+    """Grants roles to an identity. `rule` names where it is declared (for explain/audit)."""
+
+    ref: IdentityRef
+    roles: tuple[str, ...]
+    rule: str  # e.g. "roles.yaml#bindings[0]" or "teams/payments.yaml#membership[1]"
+    team: str | None = None  # set for team membership entries
+
+
+@dataclass(frozen=True)
+class RoleDef:
+    name: str
+    inherits: tuple[str, ...]
+    tools_allow: frozenset[str]  # tool names or "*"
+    tools_deny: frozenset[str]
+    unconstrained: bool  # team argument limits don't apply to this role's grants
+
+
+@dataclass(frozen=True)
+class ToolDef:
+    name: str
+    server: str
+    risk: str
+    data_scoped: bool
+    args: frozenset[str]  # arguments that team policies may constrain
+
+
+@dataclass(frozen=True)
+class TeamDef:
+    name: str
+    source: str  # e.g. "teams/payments.yaml"
+    owners: tuple[str, ...]
+    membership: tuple[RoleBinding, ...]
+    tools_deny: frozenset[str]
+    # tool -> arg -> allowed values
+    constraints: Mapping[str, Mapping[str, frozenset[str]]]
+
+
+@dataclass(frozen=True)
 class Snapshot:
     """One loaded config version. Take one per request; never mix two versions."""
 
@@ -48,3 +98,7 @@ class Snapshot:
     loaded_at: datetime
     platform: PlatformConfig
     groups: GroupMap
+    roles: Mapping[str, RoleDef]
+    bindings: tuple[RoleBinding, ...]
+    tools: Mapping[str, ToolDef]
+    teams: Mapping[str, TeamDef]

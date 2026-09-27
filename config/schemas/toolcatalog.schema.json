@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sdlc/v1/ToolCatalog",
+  "title": "ToolCatalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "servers", "tools"],
+  "properties": {
+    "apiVersion": { "const": "sdlc/v1" },
+    "kind": { "const": "ToolCatalog" },
+    "servers": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": { "description": { "type": "string" } }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["server", "risk"],
+        "properties": {
+          "server": { "type": "string" },
+          "risk": { "enum": ["low", "medium", "high"] },
+          "data_scoped": { "type": "boolean" },
+          "args": {
+            "type": "object",
+            "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type"],
+              "properties": { "type": { "enum": ["string"] } }
+            }
+          }
+        }
+      }
+    }
+  }
+}

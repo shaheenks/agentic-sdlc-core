@@ -1,13 +1,15 @@
 apiVersion: sdlc/v1
 kind: RoleSet
-bindings:                       # global: apply regardless of team
+# Global bindings apply regardless of team. Identify principals by group alias (groups.yaml)
+# or by Entra app role value (`app_role: SDLC.Admin`), for tenants that use app roles.
+bindings:
   - group: eng-all
     roles: [viewer]
   - group: platform-admins
     roles: [admin]
 roles:
   viewer:
-    tools:  { allow: [whoami, list_skills, load_skill, get_agent_context, search_knowledge] }
+    tools:  { allow: [ping, whoami, list_skills, load_skill, get_agent_context, search_knowledge] }
     skills: { allow: ["tag:general"] }
     data:   { max_classification: internal }
   developer:
@@ -20,6 +22,7 @@ roles:
     data:   { max_classification: confidential }
   admin:
     inherits: [lead]
-    tools:  { allow: ["*"] }
+    # unconstrained: team argument limits (e.g. allowed repos) don't apply to this role's grants
+    tools:  { allow: ["*"], unconstrained: true }
     skills: { allow: ["*"] }
     data:   { max_classification: restricted, sources: ["*"] }

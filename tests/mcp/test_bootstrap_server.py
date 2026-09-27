@@ -128,11 +128,23 @@ async def test_overage_user_without_graph_gets_no_groups(base_url, entra):
 async def test_config_reload_changes_group_mapping(base_url, entra, store, config_dir):
     token = entra.token(groups=[G_PAYMENTS_DEVS])
     groups_file = config_dir / "env/local/groups.yaml"
-    groups_file.write_text(groups_file.read_text().replace("payments-devs:", "payments-eng:"))
+    original = groups_file.read_text()
+
+    # Renaming an alias that teams still reference is rejected; the old version keeps serving.
+    good_version = store.current().version
+    groups_file.write_text(original.replace("payments-devs:", "payments-eng:"))
+    assert store.reload() is False
+    assert "unknown group alias 'payments-devs'" in store.last_error
+    assert store.current().version == good_version
+
+    # Remapping the alias to a different Entra group is valid: the old group ID no longer maps.
+    groups_file.write_text(
+        original.replace(G_PAYMENTS_DEVS, "12345678-aaaa-bbbb-cccc-000000000002")
+    )
     assert store.reload()
     async with client(base_url, token) as c:
         me = (await c.call_tool("whoami", {})).data
-    assert me["groups"] == ["payments-eng"]
+    assert me["groups"] == [] and me["unmapped_group_count"] == 1
     assert me["config_version"] == store.current().version
 
 

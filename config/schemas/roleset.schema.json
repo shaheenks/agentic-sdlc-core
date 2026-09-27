@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sdlc/v1/RoleSet",
+  "title": "RoleSet",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "roles"],
+  "properties": {
+    "apiVersion": { "const": "sdlc/v1" },
+    "kind": { "const": "RoleSet" },
+    "bindings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/binding" }
+    },
+    "roles": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/name" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "inherits": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/name" } },
+          "tools": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "allow": { "$ref": "#/$defs/toolList" },
+              "deny": { "$ref": "#/$defs/toolList" },
+              "unconstrained": { "type": "boolean" }
+            }
+          },
+          "skills": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "allow": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+            }
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "max_classification": { "type": "string" },
+              "sources": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "toolList": {
+      "type": "array", "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^(\\*|[a-z][a-z0-9_]*)$" }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roles"],
+      "oneOf": [{ "required": ["group"] }, { "required": ["app_role"] }],
+      "properties": {
+        "group": { "$ref": "#/$defs/name" },
+        "app_role": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9._-]*$" },
+        "roles": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/name" } }
+      }
+    }
+  }
+}

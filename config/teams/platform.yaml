@@ -1,0 +1,18 @@
+apiVersion: sdlc/v1
+kind: Team
+metadata:
+  name: platform
+  owners: [platform-admins]          # group aliases; also drive CODEOWNERS
+membership:
+  - group: platform-devs
+    roles: [developer]
+policy:
+  tools:
+    deny: []
+    constraints:
+      review_code:
+        args:
+          repo: { in: [platform-infra, platform-ci] }
+      generate_tests:
+        args:
+          repo: { in: [platform-infra, platform-ci] }
