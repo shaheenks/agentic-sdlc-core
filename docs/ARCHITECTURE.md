@@ -206,9 +206,14 @@ flowchart LR
 ```
 
 - **Two checks, one source of truth.** The resolver turns `Source.access` (teams, roles, groups) into the
-  user's `allowed_sources` and takes the highest `max_classification` across the user's roles. The MCP
-  server searches only those sources, and Postgres RLS filters every row on the same two values, set per
-  transaction by `sdlc_db.scoped()`. A bug in tool code cannot widen access beyond what RLS allows.
+  user's granted sources, takes the highest `max_classification` across the user's roles, and keeps the
+  granted sources whose **current** classification is at or below that ceiling (`readable_sources`). The
+  MCP server searches only those, and Postgres RLS filters every row on the same values (set per
+  transaction by `sdlc_db.scoped()`) plus each row's own classification stamp. A bug in tool code cannot
+  widen access beyond what RLS allows.
+- **Classification changes:** raising a source's classification in config takes effect on the next
+  request (it leaves `readable_sources`), with no re-ingest and no DB writes by the MCP server. Lowering
+  it takes effect after ingest re-stamps the rows; until then the stricter stamp applies (fail closed).
 - **Fail closed:** without the RLS context a query returns no rows, for every role including the table
   owner (`FORCE ROW LEVEL SECURITY`). No database role is a superuser or has BYPASSRLS.
 - **Roles:** `sdlc_owner` owns the schema and runs migrations; `sdlc_app` (MCP server) can only SELECT;

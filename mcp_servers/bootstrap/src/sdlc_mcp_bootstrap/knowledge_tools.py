@@ -38,11 +38,11 @@ def make_knowledge_tools(knowledge: Knowledge) -> list:
         policy = ident.policy
         result = {
             "query": query,
-            "searched_sources": sorted(policy.data_sources),
+            "searched_sources": list(policy.readable_sources),
             "max_classification": policy.max_classification,
             "results": [],
         }
-        if not policy.data_sources or not query.strip():
+        if not policy.readable_sources or not query.strip():
             return result
         [vector] = await asyncio.to_thread(knowledge.embedder.embed, [query], "query")
         pool = await knowledge.open_pool()
@@ -71,14 +71,14 @@ def make_knowledge_tools(knowledge: Knowledge) -> list:
         policy = ident.policy
         result = {
             "query": query,
-            "searched_sources": sorted(policy.data_sources),
+            "searched_sources": list(policy.readable_sources),
             "max_classification": policy.max_classification,
             "hops": max(0, min(int(hops), 2)),
             "results": [],
             "entities": [],
             "relations": [],
         }
-        if not policy.data_sources or not query.strip():
+        if not policy.readable_sources or not query.strip():
             return result
         # team context (config: teams/<team>.yaml addons.context.glossary_source) biases ranking
         glossary = {c["glossary_source"] for c in policy.context.values() if "glossary_source" in c}

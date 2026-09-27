@@ -61,6 +61,21 @@ class EffectivePolicy:
     data_sources: Mapping[str, tuple[str, ...]] = field(default_factory=dict)  # id -> grant rules
     max_classification: str = "public"
     max_classification_rank: int = 0
+    # Current classification rank of each granted source (from this config version).
+    source_classification: Mapping[str, int] = field(default_factory=dict)
+
+    @property
+    def readable_sources(self) -> tuple[str, ...]:
+        """Granted sources at or below the caller's ceiling, by the CURRENT config. This is what the
+        RLS context carries, so raising a source's classification takes effect on the next request
+        without re-ingesting (rows keep their own stamp as a second check; a lowered
+        classification applies once ingest re-stamps the rows: fail closed). A source without a
+        known classification is not readable."""
+        return tuple(
+            sid
+            for sid in sorted(self.data_sources)
+            if self.source_classification.get(sid, 1 << 30) <= self.max_classification_rank
+        )
 
     def allows(self, tool: str) -> bool:
         return tool in self.tools
@@ -96,6 +111,7 @@ class EffectivePolicy:
             "data": {
                 "sources": {sid: list(r) for sid, r in sorted(self.data_sources.items())},
                 "max_classification": self.max_classification,
+                "readable": list(self.readable_sources),
             },
             "agent_context": {
                 "instructions": [
@@ -218,6 +234,9 @@ def resolve(
         data_sources=MappingProxyType(data_sources),
         max_classification=max_level,
         max_classification_rank=max_rank,
+        source_classification=MappingProxyType(
+            {sid: snapshot.sources[sid].classification_rank for sid in data_sources}
+        ),
     )
 
 

@@ -15,6 +15,21 @@ Architecture diagrams and component overview: [ARCHITECTURE.md](ARCHITECTURE.md)
 | 7 — GCP deployment | ⏸️ Deferred to a later phase (2026-09-27) | **Current development phase runs on localhost + Cloudflare Tunnel only**; GCP is required in later stages and resumes from here. Split into **7a deploy** (Terraform, images, Cloud Run, Cloud SQL, Secret Manager; Stage 1–6 gates on GCP) and **7b operations** (config bundles + Pub/Sub reload, `compile`, CI promotion). Decisions: env `staging` in `cloud-migration-agent` / `asia-south1`; Cloud Run `*.run.app` URLs first (custom hostnames later); staging callback added to the existing `sdlc-client`. **7a status:** built and committed (`infra/gcp` Terraform, `scripts/gcp_deploy.ps1`, `sdlc-db bootstrap`); on GCP: state bucket, APIs and Artifact Registry created; images `mcp-bootstrap`, `agent-bootstrap`, `ingest` (tag `57f55cc3ef68`) and mirrored `oauth2-proxy` pushed; staging OAuth callback registered on `sdlc-client`. **Deferred** by decision: Cloud SQL, secrets, service accounts, Cloud Run services and jobs (43 resources) not created; the saved plan was discarded. Resume: `plan` (`-ImageTag 57f55cc3ef68` or rebuilt images) → `apply` → `db` → `ingest` → Stage 1–6 gates. Design, diagrams and runbook: [GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md). |
 | 8–9 | ⏳ Not started | |
 
+### Current phase: local development backlog (while GCP is deferred)
+Work that needs only localhost + the Cloudflare Tunnel, in the agreed order (analysis of 2026-09-27).
+
+| # | Item | Status |
+|---|---|---|
+| H1 | Classification changes apply without re-ingest: the RLS context carries `readable_sources` (granted AND at or below the ceiling by the current config); rows keep their stamp as a second check (lowering waits for ingest: fail closed) | ✅ Done (2026-09-27) |
+| H2 | E7: Entra login/Graph hosts from `platform.yaml` instead of hard-coded | ⏳ Next |
+| H3 | CI on GitHub Actions: ruff, unit + DB tests (pgvector service), `sdlc-config validate`/`diff`, `terraform fmt`/`validate` | ⏳ |
+| H4 | Config bundles, local part of 7b: `sdlc-config compile`, folder store with `current` pointer, last-known-good, rollback | ⏳ |
+| H5 | Stage 8 Antigravity via the tunnel MCP endpoint (same `whoami(explain)` as the web UI) | ⏳ |
+| H6 | CODEOWNERS for config and schemas | ⏳ |
+| H7 | E8 egress docs + JWKS through an HTTPS proxy; E3 `oid` denylist | ⏳ |
+| H8 | Stage 9 locally: team rate limits, OpenTelemetry, `git` source type (bigger corpus for graph ranking) | ⏳ |
+| H9 | Persistent agent sessions (design: agents get no DB credentials); skill-hidden audit as policy deny; `/run_live` binding | ⏳ |
+
 ## Context
 Greenfield project (`c:\Users\shaheenks\pg\dev\agentic-sdlc` is empty). Goal: an agentic SDLC assistant built on Google ADK. Agents are composed from **skills**. Central **MCP server(s)** serve all skills, tools and knowledge, and enforce **user identity + RBAC with selective disclosure**. Access and team-specific behavior are driven by **declarative YAML config**, keyed on **Entra ID identity + Entra group membership**. Start small (local Docker), then grow to GCP and to more user surfaces (adk web → Gemini Enterprise → Antigravity).
 
@@ -255,7 +270,7 @@ Each request takes a single snapshot, so a reload mid-request cannot mix two ver
 | MCP server(s) | full bundle | `ConfigStore` → `EffectivePolicy` per request; drives tools/list, tools/call, skills, RLS vars |
 | ADK agent | nothing directly | per-user view via MCP: filtered `tools/list`, `list_skills`/`load_skill`, `get_agent_context` (team addenda + context) at session start |
 | Ingest | `Source.spec` only | `ConfigStore` in the job; stamps `source_id` + `classification` on rows |
-| Postgres | `sources` registry table only | on each version change the MCP server upserts `sources(id, classification_rank, config_version)`; RLS reads session vars `app.allowed_sources` / `app.max_classification`, which are set per transaction by `sdlc_db` |
+| Postgres | `sources` registry table only | ingest upserts `sources(id, classification_rank, config_version)` and stamps rows; the MCP server needs no writes: RLS reads session vars `app.allowed_sources` (the caller's `readable_sources`, filtered by the **current** config's classification) / `app.max_classification_rank`, set per transaction by `sdlc_db`, so a raised classification applies on the next request |
 | Surfaces (Gemini Enterprise, Antigravity) | nothing | identical per-user view, because they go through the same MCP server |
 
 ### 5. Human / admin exposure (also RBAC-gated)
@@ -272,7 +287,7 @@ The audit log records `config_version` + the matched rule, so every decision can
 - **Stage 2:** `ConfigStore` (local folder source), fail-closed startup, `config_version` in `/healthz` and the audit log.
 - **Stage 3:** `compile` + bundle/manifest, snapshots + EffectivePolicy cache, `whoami(explain)`, `config_explain`/`config_info` admin tools.
 - **Stage 4:** skill content packaged into the bundle; `get_agent_context`.
-- **Stage 5:** `sources` registry sync to Postgres on version change; ingest reads `Source.spec` from the store.
+- **Stage 5:** `sources` registry sync to Postgres by ingest; ingest reads `Source.spec` from the store; the RLS context uses the current config's classification (`readable_sources`).
 - **Stage 7:** GCS bundle store + `current` pointer + Pub/Sub reload, last-known-good, rollback runbook, CI promotion.
 
 ## Enterprise Tenant Readiness

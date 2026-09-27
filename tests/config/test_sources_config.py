@@ -116,6 +116,9 @@ def test_granted_source_above_ceiling_is_still_unreadable_by_rank(config_dir):
     dev = resolve(snap, ["eng-all", "payments-devs"])
     # granted by team access, but its classification is above the developer's ceiling
     assert "payments-incidents" in dev.data_sources
+    assert "payments-incidents" not in dev.readable_sources  # granted, but above the ceiling
+    assert set(dev.readable_sources) == {"eng-standards", "payments-code"}
+    assert dev.source_classification["payments-incidents"] == 2
     assert snap.sources["payments-incidents"].classification_rank > dev.max_classification_rank
 
 

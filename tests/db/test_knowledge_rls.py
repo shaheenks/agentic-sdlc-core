@@ -88,6 +88,7 @@ def test_forged_context_values_are_rejected(corpus):
     snap = corpus[1]
     policy = resolve(snap, ["eng-all"])
     object.__setattr__(policy, "data_sources", {"x},{payments-code": ()})
+    object.__setattr__(policy, "source_classification", {"x},{payments-code": 0})
     with pytest.raises(ValueError, match="invalid source id"):
         rls_settings(policy)
 
@@ -175,6 +176,40 @@ def test_classification_change_applies_to_existing_rows(corpus):
     run(_ingest(load_snapshot(config_dir, "local", TEST_ENV), config_dir.parent, ["payments-code"]))
 
 
+def test_raised_classification_applies_without_reingest(corpus):
+    """Config says confidential, rows still say internal: the payments dev loses access on the
+    next request (readable_sources), before any ingest re-stamps the rows."""
+    config_dir, _, _ = corpus
+    source = config_dir / "sources/payments-code.yaml"
+    original = source.read_text()
+    source.write_text(original.replace("classification: internal", "classification: confidential"))
+    try:
+        snapshot = load_snapshot(config_dir, "local", TEST_ENV)  # no ingest after this change
+        dev = resolve(snapshot, ["eng-all", "payments-devs"])
+        lead = resolve(snapshot, ["eng-all", "payments-leads"])
+        assert "payments-code" in dev.data_sources and "payments-code" not in dev.readable_sources
+        assert "payments-code" not in sources_seen(dev)
+        assert "payments-code" in sources_seen(lead)
+    finally:
+        source.write_text(original)
+
+
+def test_lowered_classification_waits_for_reingest(corpus):
+    """Config lowered below the rows' stamp: rows stay hidden until ingest re-stamps them
+    (fail closed)."""
+    config_dir, _, _ = corpus
+    source = config_dir / "sources/payments-incidents.yaml"
+    original = source.read_text()
+    source.write_text(original.replace("classification: confidential", "classification: internal"))
+    try:
+        snapshot = load_snapshot(config_dir, "local", TEST_ENV)
+        dev = resolve(snapshot, ["eng-all", "payments-devs"])  # ceiling internal
+        assert "payments-incidents" in dev.readable_sources  # config now allows it ...
+        assert "payments-incidents" not in sources_seen(dev)  # ... rows still say confidential
+    finally:
+        source.write_text(original)
+
+
 # --- through the MCP server ---------------------------------------------------------------------
 
 
@@ -207,7 +242,8 @@ async def test_search_knowledge_tool_per_user(knowledge_url, entra):
     assert paul_sources <= {"eng-standards", "payments-code"} and "payments-code" in paul_sources
     assert ana_sources <= {"eng-standards", "platform-infra"} and "platform-infra" in ana_sources
     assert paul["max_classification"] == "internal" and lead["max_classification"] == "confidential"
-    assert "payments-incidents" in paul["searched_sources"]  # granted, but above the ceiling
+    assert "payments-incidents" not in paul["searched_sources"]  # granted, above the ceiling
+    assert "payments-incidents" in lead["searched_sources"]
     assert all(r["source"] != "payments-incidents" for r in paul["results"])
 
 
