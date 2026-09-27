@@ -24,7 +24,17 @@ class Recorder:
                 body += message.get("body", b"")
                 if not message.get("more_body"):
                     break
-        self.calls.append({"path": scope["path"], "body": body, "token": get_user_token(None)})
+        self.calls.append(
+            {
+                "path": scope["path"],
+                "body": body,
+                "query": scope.get("query_string", b""),
+                "token": get_user_token(None),
+            }
+        )
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.accept"})
+            return
         await send({"type": "http.response.start", "status": 200, "headers": []})
         await send({"type": "http.response.body", "body": b"ok"})
 
@@ -137,8 +147,7 @@ async def test_token_context_does_not_leak_between_requests(web, entra, downstre
     assert get_user_token(None) is None
 
 
-async def test_websocket_is_refused(entra, downstream):
-    app = EntraUserBindingMiddleware(downstream, entra.verifier())
+async def websocket(app, path="/run_live", headers=(), query=b""):
     sent = []
 
     async def receive():
@@ -147,6 +156,43 @@ async def test_websocket_is_refused(entra, downstream):
     async def send(message):
         sent.append(message)
 
-    await app({"type": "websocket", "path": "/run_live", "headers": []}, receive, send)
+    await app(
+        {"type": "websocket", "path": path, "headers": list(headers), "query_string": query},
+        receive,
+        send,
+    )
+    return sent
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [[], [(b"x-forwarded-access-token", b"forged")], [(b"authorization", b"Bearer not.a.jwt")]],
+)
+async def test_run_live_without_valid_token_is_closed(entra, downstream, headers):
+    app = EntraUserBindingMiddleware(downstream, entra.verifier())
+    assert await websocket(app, headers=headers) == [{"type": "websocket.close", "code": 1008}]
+    assert downstream.calls == []
+
+
+async def test_run_live_is_bound_to_the_token_user(entra, downstream):
+    app = EntraUserBindingMiddleware(downstream, entra.verifier())
+    token = entra.token(oid=OID_A)
+    query = b"app_name=bootstrap&user_id=someone-else&user_id=x&session_id=s1&modalities=TEXT"
+    sent = await websocket(
+        app, headers=[(b"x-forwarded-access-token", token.encode())], query=query
+    )
+    assert sent == [{"type": "websocket.accept"}]
+    [call] = downstream.calls
+    params = call["query"].decode()
+    assert f"user_id={OID_A}" in params and "someone-else" not in params
+    assert params.count("user_id=") == 1 and "session_id=s1" in params
+    assert call["token"] == token  # the agent's MCP calls carry the user's token
+    assert get_user_token(None) is None  # and it does not leak past the connection
+
+
+async def test_other_websockets_are_closed(entra, downstream):
+    app = EntraUserBindingMiddleware(downstream, entra.verifier())
+    token = entra.token(oid=OID_A)
+    sent = await websocket(app, path="/ws", headers=[(b"x-forwarded-access-token", token.encode())])
     assert sent == [{"type": "websocket.close", "code": 1008}]
     assert downstream.calls == []

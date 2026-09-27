@@ -56,6 +56,7 @@ ignore = ["S101"]  # assert is fine in tests
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S603", "S607"]  # tests drive git/subprocess with fixed arguments
+"tests/conftest.py" = ["S603", "S607", "E402"]  # env is cleared before imports (OTLP)
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

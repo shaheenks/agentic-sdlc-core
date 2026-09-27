@@ -47,6 +47,11 @@ server_log = logging.getLogger("sdlc.mcp")
 ERROR_TEXT_LIMIT = 500
 
 
+def error_text(error: BaseException) -> str:
+    """Error text for the audit record, capped so a huge message cannot flood the log."""
+    return str(error)[:ERROR_TEXT_LIMIT]
+
+
 def args_hash(arguments: dict | None) -> str:
     """Hash, not raw values: arguments may contain sensitive data."""
     canonical = json.dumps(arguments or {}, sort_keys=True, default=str, separators=(",", ":"))
@@ -88,6 +93,22 @@ def _who(identity: Identity) -> dict:
         "roles": sorted(identity.policy.roles),
         "config_version": identity.snapshot.version,
     }
+
+
+class HiddenSkillError(ToolError):
+    """load_skill for a skill the caller may not see (or that does not exist). The caller gets
+    "unknown skill" either way; the tool_call audit record gets decision deny + the rule."""
+
+    def __init__(self, skill: str, matched_rule: str, reason: str):
+        super().__init__(f"unknown skill '{skill}'")
+        self.matched_rule, self.reason = matched_rule, reason
+
+
+def _hidden_skill(error: BaseException) -> HiddenSkillError | None:
+    for candidate in (error, error.__cause__, error.__context__):
+        if isinstance(candidate, HiddenSkillError):
+            return candidate
+    return None
 
 
 def audit_skill_access(identity: Identity, skill: str, decision: SkillDecision) -> None:
@@ -172,7 +193,7 @@ class PolicyMiddleware(Middleware):
         record.update(
             outcome="error",
             error_type=f"{type(error).__module__}.{type(error).__qualname__}",
-            error=str(error)[:ERROR_TEXT_LIMIT],
+            error=error_text(error),
         )
         server_log.error(
             "tool '%s' failed request_id=%s",
@@ -232,13 +253,19 @@ class PolicyMiddleware(Middleware):
             record["outcome"] = "ok"
             return result
         except ToolError as e:
+            hidden = _hidden_skill(e)
+            if hidden is not None:  # a policy decision, not a tool failure
+                # the reason names the requested skill: it stays in the skill_access record, since
+                # tool_call records carry argument values only as a hash
+                record.update(decision="deny", matched_rule=hidden.matched_rule, outcome="denied")
+                raise
             # fastmcp re-raises unexpected tool exceptions as ToolError; the original is the cause
             cause = e.__cause__ or e.__context__
             if cause is not None and not isinstance(cause, ToolError):
                 self._record_unexpected(record, tool, request_id, cause)
             else:
                 record.setdefault("outcome", "tool_error")
-                record.update(error_type="ToolError", error=str(e)[:ERROR_TEXT_LIMIT])
+                record.update(error_type="ToolError", error=error_text(e))
             raise
         except Exception as e:
             self._record_unexpected(record, tool, request_id, e)

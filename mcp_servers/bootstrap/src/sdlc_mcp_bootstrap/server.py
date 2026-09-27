@@ -18,7 +18,6 @@ from collections.abc import Callable
 
 import uvicorn
 from fastmcp import FastMCP
-from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import AuthProvider, RemoteAuthProvider
 from sdlc_auth import GraphGroupResolver, GroupResolver
 from sdlc_auth.entra import EntraTokenVerifier
@@ -28,7 +27,12 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from sdlc_mcp_bootstrap.admin_tools import make_admin_tools
-from sdlc_mcp_bootstrap.audit import PolicyMiddleware, audit_skill_access, audit_skills_list
+from sdlc_mcp_bootstrap.audit import (
+    HiddenSkillError,
+    PolicyMiddleware,
+    audit_skill_access,
+    audit_skills_list,
+)
 from sdlc_mcp_bootstrap.auth_audit import AuthFailureAuditMiddleware
 from sdlc_mcp_bootstrap.identity import request_identity
 from sdlc_mcp_bootstrap.knowledge_tools import Knowledge, make_knowledge_tools
@@ -112,7 +116,7 @@ def build_server(
         audit_skill_access(ident, name, decision)  # the audit records the real reason
         # Hidden and non-existent skills get the same answer: existence is not disclosed.
         if not decision.allowed:
-            raise ToolError(f"unknown skill '{name}'")
+            raise HiddenSkillError(name, decision.matched_rule, decision.reason)
         skill = ident.snapshot.skills[name]
         return {
             "name": skill.name,

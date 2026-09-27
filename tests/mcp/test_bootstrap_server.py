@@ -160,7 +160,7 @@ async def test_every_tool_call_is_audited(base_url, entra, caplog):
             await c.call_tool("load_skill", {"name": "secret-plan"})
     records = [json.loads(r.getMessage()) for r in caplog.records if r.name == "sdlc.audit"]
     records = [r for r in records if r["event"] == "tool_call"]
-    assert [r["outcome"] for r in records] == ["ok", "tool_error"]
+    assert [r["outcome"] for r in records] == ["ok", "denied"]  # hidden skill = policy deny
     for r in records:
         assert r["oid"] == "aaaaaaaa-0000-0000-0000-000000000001"
         assert r["tool"] == "load_skill" and r["args_hash"].startswith("sha256:")

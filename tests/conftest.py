@@ -1,8 +1,14 @@
 """Shared fixtures."""
 
 import asyncio
+import os
 import sys
 from pathlib import Path
+
+# Tests never export telemetry, whatever .env says (--env-file .env may set an OTLP endpoint that
+# only resolves inside Docker). Cleared before ADK/fastmcp read the environment.
+for _var in [v for v in os.environ if v.startswith("OTEL_EXPORTER_OTLP_")]:
+    del os.environ[_var]
 
 import pytest
 from fastmcp import FastMCP

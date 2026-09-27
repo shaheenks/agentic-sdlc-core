@@ -5,6 +5,7 @@ import json
 import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
+from sdlc_mcp_bootstrap.audit import ERROR_TEXT_LIMIT, error_text
 
 from tests.support.entra import G_ENG_ALL, G_PAYMENTS_DEVS, G_PLATFORM_DEVS
 
@@ -71,13 +72,10 @@ async def test_denied_skill_access_records_the_real_reason(
     [access] = events(caplog, "skill_access")
     [call] = events(caplog, "tool_call")
     assert (access["decision"], access["matched_rule"], access["reason"]) == ("deny", rule, reason)
-    # the tool call itself was permitted; the skill was not
-    assert (call["decision"], call["outcome"], call["error_type"]) == (
-        "allow",
-        "tool_error",
-        "ToolError",
-    )
-    assert call["error"] == f"unknown skill '{skill}'"
+    # the tool_call record shows the same policy decision (H9), not a tool failure
+    assert (call["decision"], call["outcome"]) == ("deny", "denied")
+    assert call["matched_rule"] == rule
+    assert "error_type" not in call and "reason" not in call  # no argument text in tool_call
     assert call["request_id"] == access["request_id"]
 
 
@@ -112,11 +110,15 @@ async def test_unexpected_error_details_and_traceback(base_url, entra, caplog, m
     assert trace.exc_info and trace.exc_info[0] is RuntimeError  # full traceback logged
 
 
-async def test_long_error_text_is_kept_up_to_limit(base_url, entra, caplog):
+async def test_long_skill_names_never_reach_the_tool_call_record(base_url, entra, caplog):
     caplog.set_level("INFO", logger="sdlc.audit")
     long_name = "x" * 600
     async with client(base_url, entra, [G_ENG_ALL]) as c:
         with pytest.raises(ToolError):
             await c.call_tool("load_skill", {"name": long_name})
     [call] = events(caplog, "tool_call")
-    assert len(call["error"]) == 500
+    assert long_name not in json.dumps(call) and call["outcome"] == "denied"
+
+
+def test_error_text_is_capped():
+    assert len(error_text(RuntimeError("y" * 600))) == ERROR_TEXT_LIMIT == 500

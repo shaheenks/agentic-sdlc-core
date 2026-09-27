@@ -33,6 +33,9 @@ ENV PATH=/app/.venv/bin:$PATH \
     HOST=0.0.0.0 \
     PORT=8000 \
     HOME=/tmp
+# Conversation store (SDLC_SESSION_SERVICE_URI=sqlite:////data/sessions.db): a named volume
+# mounted here inherits this ownership on first use.
+RUN mkdir -p /data && chown nobody /data
 USER nobody
 EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \

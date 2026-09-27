@@ -13,7 +13,9 @@ For every request except public health checks:
      user-bound routes, and the trace of the caller's OWN session). Builder save, deploy,
      evals, tests and event traces are refused (403); the UI's load-time listings get empty
      results. `dev_tools=True` (SDLC_DEV_TOOLS) re-enables everything for local development.
-WebSocket (/run_live) is refused until it can be bound the same way.
+WebSocket: only /run_live, bound the same way: the token from the upgrade request is validated,
+every `user_id` query parameter is replaced by the token's `oid`, and the token stays in context
+for the connection (its MCP calls carry the user). Anything else is closed with 1008.
 Authorization stays in the MCP server; this layer only authenticates and binds identity.
 """
 
@@ -21,6 +23,7 @@ import json
 import re
 from collections.abc import Awaitable, Callable, MutableMapping
 from typing import Any
+from urllib.parse import parse_qsl, urlencode
 
 from fastmcp.server.auth import TokenVerifier
 from sdlc_auth import principal_from_claims
@@ -41,6 +44,7 @@ _DEV_EMPTY_LISTINGS = re.compile(
     r"^/dev/apps/[^/]+/(eval_sets|eval-sets|eval_results|eval-results|tests|builder)$"
 )
 _RUN_PATHS = {"/run", "/run_sse"}
+_WEBSOCKET_PATHS = {"/run_live"}
 _MAX_RUN_BODY = 10 * 1024 * 1024
 
 
@@ -64,8 +68,7 @@ class EntraUserBindingMiddleware:
         if scope["type"] == "lifespan":
             return await self.app(scope, receive, send)
         if scope["type"] == "websocket":
-            # Not bound to the user yet (user_id arrives as a query parameter): refuse.
-            return await send({"type": "websocket.close", "code": 1008})
+            return await self._websocket(scope, receive, send)
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         if scope["path"] in self.public_paths:
@@ -105,6 +108,26 @@ class EntraUserBindingMiddleware:
             ] + [(b"content-length", str(len(body)).encode())]
             receive = _replay(body, receive)
 
+        reset = set_request_token(token)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            reset_request_token(reset)
+
+    async def _websocket(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """/run_live: validate the token and bind `user_id` to its oid; close anything else."""
+        if scope["path"] not in _WEBSOCKET_PATHS:
+            return await send({"type": "websocket.close", "code": 1008})
+        token = self._extract_token(scope)
+        access = await self.verifier.load_access_token(token) if token else None
+        try:
+            oid = principal_from_claims(access.claims).oid if access else None
+        except ValueError:
+            oid = None
+        if oid is None:
+            return await send({"type": "websocket.close", "code": 1008})
+        scope = dict(scope)
+        scope["query_string"] = _bind_query(scope.get("query_string", b""), oid)
         reset = set_request_token(token)
         try:
             await self.app(scope, receive, send)
@@ -159,6 +182,13 @@ class EntraUserBindingMiddleware:
                 if raw[:7].lower() == "bearer ":
                     bearer = raw[7:].strip()
         return forwarded or bearer or None
+
+
+def _bind_query(query_string: bytes, oid: str) -> bytes:
+    """Replace every user_id parameter with the caller's oid (added if missing)."""
+    pairs = [(k, v) for k, v in parse_qsl(query_string.decode("latin-1"), keep_blank_values=True)]
+    pairs = [(k, v) for k, v in pairs if k != "user_id"] + [("user_id", oid)]
+    return urlencode(pairs).encode("latin-1")
 
 
 def _bind_path(path: str, oid: str) -> str:

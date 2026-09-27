@@ -15,6 +15,7 @@ from google.adk.cli.fast_api import get_fast_api_app
 from sdlc_auth.entra import DEFAULT_AUTHORITY_HOST, EntraTokenVerifier
 
 from sdlc_web.middleware import EntraUserBindingMiddleware
+from sdlc_web.retention import sqlite_path, start_retention
 
 log = logging.getLogger("sdlc.web")
 
@@ -27,8 +28,9 @@ def create_app(
     session_service_uri: str = "memory://",
     dev_tools: bool = False,
 ):
-    # Explicit session store (default in-memory): ADK's default local storage writes a SQLite
-    # file into the agent folder. Stage 7 points this at a database (e.g. postgresql://...).
+    # Explicit session store: memory:// by default; docker compose persists conversations in
+    # sqlite:////data/sessions.db on a volume only this container mounts (agents get no DB
+    # credentials). GCP: Agent Engine sessions (agentengine://).
     adk_app = get_fast_api_app(
         agents_dir=str(agents_dir),
         web=True,
@@ -65,12 +67,18 @@ def main() -> None:
     host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "8000"))
     agents_dir = Path(os.environ.get("SDLC_AGENTS_DIR", "agents")).resolve()
+    session_uri = os.environ.get("SDLC_SESSION_SERVICE_URI", "memory://")
+    db_path = sqlite_path(session_uri)
+    if db_path is not None:
+        days = float(os.environ.get("SDLC_SESSION_RETENTION_DAYS", "7"))
+        start_retention(db_path, days)
+        log.info("conversations persisted in %s (retention %s days)", db_path, days)
     app = create_app(
         agents_dir,
         verifier_from_env(),
         host,
         port,
-        session_service_uri=os.environ.get("SDLC_SESSION_SERVICE_URI", "memory://"),
+        session_service_uri=session_uri,
         # Full ADK developer tools (builder, deploy, evals, traces) only when explicitly enabled.
         dev_tools=os.environ.get("SDLC_DEV_TOOLS", "false").lower() == "true",
     )

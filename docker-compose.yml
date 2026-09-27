@@ -123,11 +123,15 @@ services:
       ENTRA_AUTHORITY_HOST: ${ENTRA_AUTHORITY_HOST:-}
       <<: [*vertex-env, *otel-env]
       OTEL_SERVICE_NAME: sdlc-agent-bootstrap
+      # Conversations survive restarts (H9); only this container mounts the volume.
+      SDLC_SESSION_SERVICE_URI: sqlite:////data/sessions.db
+      SDLC_SESSION_RETENTION_DAYS: ${SDLC_SESSION_RETENTION_DAYS:-7}
       # never export prompts/responses (retrieved content can be confidential)
       ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS: "false"
       OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: "false"
     volumes:
       - *adc-mount
+      - agent-sessions:/data
     depends_on:
       mcp-bootstrap:
         condition: service_healthy
@@ -218,3 +222,4 @@ services:
 
 volumes:
   pgdata:
+  agent-sessions:   # agent conversations (SQLite); purged after SDLC_SESSION_RETENTION_DAYS idle

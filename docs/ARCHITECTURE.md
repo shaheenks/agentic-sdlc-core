@@ -244,6 +244,30 @@ flowchart LR
 - **`graph_query`** (developers) returns documents plus the entities and relations it walked; `search_knowledge`
   (everyone with data access) stays vector-only. Both run entirely under the caller's RLS context.
 
+### Conversation storage (agent sessions)
+
+ADK sessions hold the conversation history, including answers built from retrieved (possibly
+confidential) knowledge. The store is chosen by `SDLC_SESSION_SERVICE_URI`; the user-binding
+middleware keeps every user to their own sessions whatever the store.
+
+**Current choice (local development, H9, 2026-09-27):** SQLite on a Docker volume that only the
+agent container mounts (`sqlite:////data/sessions.db`, volume `agent-sessions`), conversations idle
+for more than `SDLC_SESSION_RETENTION_DAYS` (7) are deleted with their events at startup and daily.
+
+The options stay open; they were weighed as follows:
+
+| Option | How | Pros | Cons / conditions | Fits |
+|---|---|---|---|---|
+| In memory | `memory://` (default outside compose) | Nothing stored | Lost on every restart | tests, throwaway runs |
+| **SQLite on an agent-only volume** (current) | `sqlite:////data/sessions.db` + retention job | No DB credentials for agents; no new service; survives restarts | One instance only (file lock); volume backup is manual | local dev; single-instance staging |
+| Separate Postgres database | `postgresql+asyncpg://…` to a dedicated `sdlc_sessions` DB and role that can reach nothing else | Scales out; standard ADK `DatabaseSessionService`; backups with the DB | Agents would hold DB credentials: an explicit, narrow exception to the "agents get no DB credentials" rule (needs a decision + CLAUDE.md change); asyncpg driver; retention via SQL job | self-hosted multi-instance |
+| Session API via the MCP server | Custom ADK `BaseSessionService` calling MCP tools; the MCP server stores sessions per `oid` | Agents stay credential-free and scale out; server-side audit of history access | Custom code in the agent path; extra latency per turn; not a standard ADK store | multi-instance without agent credentials |
+| Vertex AI Agent Engine sessions | `agentengine://<engine id>` (or `GOOGLE_CLOUD_AGENT_ENGINE_ID`) | Managed, scales, IAM via the service identity; the store Gemini Enterprise uses | GCP only (deferred with Stage 7); TTL/retention configured in Agent Engine; data residency by region | GCP staging/prod, Gemini Enterprise |
+
+Switching is configuration plus infrastructure (URI, volume or database, retention), not agent
+code, except for the MCP session API. Whatever the store: retention must be set, content capture in
+traces stays off, and the store is never readable by other workloads.
+
 ## 6. Config lifecycle
 
 ```mermaid
