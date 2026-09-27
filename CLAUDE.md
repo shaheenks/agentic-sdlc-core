@@ -80,6 +80,15 @@ See ARCHITECTURE.md §7.
   code must not assume `localhost` or a tunnel. Use `<service>-sdlc-<env>.shaheenks.co.in` (one level below the zone).
 - After changing Entra redirect URIs, check each entry separately (`az ad app show … -o json`), not the joined TSV output.
 
+## Tenant accounts
+- The dev tenant has test users for sign-in, token and persona checks (payments developer, platform developer,
+  admin, and the owner's own account with no sdlc groups). Their UPNs are NOT kept in the repo; pass them on the
+  command line (e.g. `entra_setup.ps1 -TestUserA … -TestUserB … -AdminUser …`).
+- **The tenant admin account is used only when required and confirmed by the user for that action.** Any Entra
+  change (`az ad …`, Graph writes via `az rest`, `entra_setup.ps1` without `-DryRun`) needs that confirmation.
+  `az` on the dev machine is usually signed in as the admin: check `az account show` before Entra commands.
+  Read-only queries and `-DryRun` are fine, but say which account they run as.
+
 ## Enterprise tenants
 See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md.
 - Keep identity tenant-agnostic: tenant/app IDs come from env, group IDs from the git-ignored groups.yaml.
