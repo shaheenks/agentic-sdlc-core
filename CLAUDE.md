@@ -66,7 +66,11 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
 - All DB reads go through `sdlc_db` with `app.allowed_sources` + `app.max_classification` set (Postgres RLS).
 - Agents forward the user's bearer token via `get_user_token(context)`; never use a service token for user calls.
 - Downstream systems use service credentials only after the RBAC check passes.
-- Audit every tool call: oid, teams, roles, tool, args hash, decision, matched rule, config_version.
+- Audit to the `sdlc.audit` logger (JSON lines), one `event` per record:
+  `tool_call` (oid, teams, roles, tool, args hash, decision, matched rule, outcome, config_version),
+  `tools_list` (who listed tools, visible names, hidden count; hidden names are not logged),
+  `auth_failure` (401/403 on the MCP endpoint: reason from UNVERIFIED claims, client IP, token fingerprint).
+  Never log raw tokens or argument values.
 - Secrets only in `.env` (local) / Secret Manager (GCP). Never commit them.
 
 ## Environments and endpoints

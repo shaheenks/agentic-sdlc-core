@@ -15,6 +15,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+import uvicorn
 import yaml
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
@@ -22,11 +23,13 @@ from fastmcp.server.auth import AuthProvider, RemoteAuthProvider
 from sdlc_auth import GraphGroupResolver, GroupResolver
 from sdlc_auth.entra import EntraTokenVerifier
 from sdlc_config import ConfigStore, PolicyCache, Snapshot
+from starlette.middleware import Middleware as ASGIMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from sdlc_mcp_bootstrap.admin_tools import make_admin_tools
 from sdlc_mcp_bootstrap.audit import PolicyMiddleware
+from sdlc_mcp_bootstrap.auth_audit import AuthFailureAuditMiddleware
 from sdlc_mcp_bootstrap.identity import request_identity
 from sdlc_mcp_bootstrap.sdlc_tools import SDLC_TOOLS
 
@@ -173,6 +176,11 @@ def build_server(
     return mcp
 
 
+def build_http_app(server: FastMCP, store: ConfigStore):
+    """HTTP app with rejected-token auditing (auth_failure events) around the MCP endpoint."""
+    return server.http_app(middleware=[ASGIMiddleware(AuthFailureAuditMiddleware, store=store)])
+
+
 def build_auth(snapshot: Snapshot, public_url: str) -> RemoteAuthProvider:
     """Entra token verification + OAuth protected-resource metadata (RFC 9728).
 
@@ -229,7 +237,7 @@ def main() -> None:
         build_auth(snapshot, os.environ.get("MCP_PUBLIC_URL", f"http://127.0.0.1:{port}")),
         build_group_resolver(snapshot),
     )
-    server.run(transport="http", host=host, port=port)
+    uvicorn.run(build_http_app(server, store), host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":

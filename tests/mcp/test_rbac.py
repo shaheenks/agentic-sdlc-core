@@ -121,6 +121,7 @@ async def test_audit_records_decision_and_rule(base_url, entra, caplog):
         with pytest.raises(ToolError):
             await c.call_tool("config_info", {})
     records = [json.loads(r.getMessage()) for r in caplog.records if r.name == "sdlc.audit"]
+    records = [r for r in records if r["event"] == "tool_call"]
     assert [(r["decision"], r["outcome"]) for r in records] == [
         ("allow", "ok"),
         ("deny", "denied"),

@@ -4,8 +4,9 @@
 - tools/call: authorize the tool AND its arguments (sdlc_policy.authorize) before it runs.
   A call without a validated token is refused even if it reached the server some other way
   (e.g. a non-HTTP transport).
-- Every call is written as one JSON line to the `sdlc.audit` logger: oid, teams, roles, tool,
-  args hash, decision, matched rule, outcome, config version.
+- `sdlc.audit` JSON lines: `tool_call` (oid, teams, roles, tool, args hash, decision, matched
+  rule, outcome, config version) and `tools_list` (who listed tools, visible names, hidden count).
+  Rejected tokens (HTTP 401) are audited as `auth_failure` by auth_audit.py.
 """
 
 import hashlib
@@ -52,11 +53,35 @@ class PolicyMiddleware(Middleware):
         return identity
 
     async def on_list_tools(self, context: MiddlewareContext, call_next):
+        started = time.perf_counter()
         tools = await call_next(context)
         identity = await self._identity()
+        record = {"event": "tools_list", "ts": datetime.now(UTC).isoformat()}
         if identity is None:
-            return []
-        return [tool for tool in tools if identity.policy.allows(tool.name)]
+            visible = []
+            record.update(
+                oid=None,
+                upn=None,
+                outcome="denied_unauthenticated",
+                config_version=self._store.current().version,
+            )
+        else:
+            visible = [tool for tool in tools if identity.policy.allows(tool.name)]
+            record.update(
+                oid=identity.principal.oid,
+                upn=identity.principal.upn,
+                teams=sorted(identity.policy.teams),
+                roles=sorted(identity.policy.roles),
+                outcome="ok",
+                config_version=identity.snapshot.version,
+            )
+        record.update(
+            visible=sorted(tool.name for tool in visible),
+            hidden_count=len(tools) - len(visible),  # names of hidden tools are not disclosed
+            duration_ms=round((time.perf_counter() - started) * 1000, 1),
+        )
+        audit_log.info(json.dumps(record, separators=(",", ":")))
+        return visible
 
     async def on_call_tool(self, context: MiddlewareContext, call_next):
         started = time.perf_counter()
