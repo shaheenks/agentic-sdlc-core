@@ -1,0 +1,16 @@
+apiVersion: sdlc/v1
+kind: Source
+metadata:
+  id: eng-standards
+  owner_team: platform
+  description: engineering standards shared by all teams
+spec:
+  type: local_folder
+  location: samples/sources/eng-standards
+  include: ["**/*.md"]
+  classification: public
+  ingest:
+    chunking: { strategy: markdown, max_tokens: 400, overlap: 0 }
+access:
+  groups: [eng-all]
+  roles: [admin]

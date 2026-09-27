@@ -1,0 +1,16 @@
+apiVersion: sdlc/v1
+kind: Source
+metadata:
+  id: payments-incidents
+  owner_team: payments
+  description: payments incident postmortems (confidential)
+spec:
+  type: local_folder
+  location: samples/sources/payments-incidents
+  include: ["**/*.md"]
+  classification: confidential        # readable only by roles cleared for confidential (lead, admin)
+  ingest:
+    chunking: { strategy: markdown, max_tokens: 400, overlap: 0 }
+access:
+  teams: [payments]
+  roles: [admin]

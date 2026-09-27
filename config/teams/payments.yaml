@@ -28,4 +28,4 @@ addons:                              # visible only to members of this team
   instructions: skills/teams/payments/AGENT_ADDENDUM.md
   context:
     default_project: payments
-    glossary_source: payments-docs
+    glossary_source: payments-code

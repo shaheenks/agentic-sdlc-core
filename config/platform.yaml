@@ -13,6 +13,10 @@ identity:
     overage_fallback: graph_transitive_member_of
     cache_ttl_seconds: 600
 classification_levels: [public, internal, confidential, restricted]   # ascending
+knowledge:
+  # One embedding model for the whole index: mixing models in one vector index breaks search.
+  # Changing it requires re-ingesting every source. The DB column is vector(<dimensions>).
+  embedding: { model: gemini-embedding-2, dimensions: 768 }
 defaults:
   deny_by_default: true
   max_classification: public

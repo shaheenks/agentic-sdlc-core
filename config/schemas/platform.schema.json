@@ -4,7 +4,7 @@
   "title": "Platform",
   "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "kind", "identity", "classification_levels", "defaults"],
+  "required": ["apiVersion", "kind", "identity", "classification_levels", "defaults", "knowledge"],
   "properties": {
     "apiVersion": { "const": "sdlc/v1" },
     "kind": { "const": "Platform" },
@@ -40,6 +40,22 @@
     "classification_levels": {
       "type": "array", "minItems": 1, "uniqueItems": true,
       "items": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" }
+    },
+    "knowledge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["embedding"],
+      "properties": {
+        "embedding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "dimensions"],
+          "properties": {
+            "model": { "type": "string", "minLength": 1 },
+            "dimensions": { "const": 768, "description": "must match the vector(768) column" }
+          }
+        }
+      }
     },
     "defaults": {
       "type": "object",

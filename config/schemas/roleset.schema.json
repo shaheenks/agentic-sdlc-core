@@ -41,8 +41,7 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "max_classification": { "type": "string" },
-              "sources": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+              "max_classification": { "type": "string" }
             }
           }
         }

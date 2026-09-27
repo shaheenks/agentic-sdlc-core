@@ -9,6 +9,9 @@ identities (group aliases + Entra app roles)
      sets `access`, held by one of its roles or teams; plus member teams' add-on skills (with
      their `access` roles). A "*" skill grant (admin) also covers every team's add-ons.
   -> agent context (step 8): member teams' instructions (AGENT_ADDENDUM) and context.
+  -> data (step 7): allowed sources = sources whose `access` matches the caller's teams, roles
+     or group aliases (the ONLY grant for data); max classification = highest level across the
+     caller's roles (platform default otherwise). Postgres RLS enforces both on every query.
 Every role, grant, deny and limit records the config rule it came from.
 """
 
@@ -55,6 +58,9 @@ class EffectivePolicy:
     skills: Mapping[str, SkillGrant] = field(default_factory=dict)  # visible skills only
     agent_instructions: tuple[TeamInstructions, ...] = ()
     context: Mapping[str, Mapping[str, str]] = field(default_factory=dict)  # team -> values
+    data_sources: Mapping[str, tuple[str, ...]] = field(default_factory=dict)  # id -> grant rules
+    max_classification: str = "public"
+    max_classification_rank: int = 0
 
     def allows(self, tool: str) -> bool:
         return tool in self.tools
@@ -86,6 +92,10 @@ class EffectivePolicy:
             "skills": {
                 name: {"granted_by": list(g.granted_by), "team": g.team}
                 for name, g in sorted(self.skills.items())
+            },
+            "data": {
+                "sources": {sid: list(r) for sid, r in sorted(self.data_sources.items())},
+                "max_classification": self.max_classification,
             },
             "agent_context": {
                 "instructions": [
@@ -191,6 +201,9 @@ def resolve(
         if snapshot.teams[team].context
     }
 
+    data_sources = _resolve_sources(snapshot, aliases, role_reasons, team_rules)
+    max_level, max_rank = _max_classification(snapshot, role_reasons)
+
     return EffectivePolicy(
         config_version=snapshot.version,
         group_aliases=aliases,
@@ -202,7 +215,46 @@ def resolve(
         skills=MappingProxyType(skills),
         agent_instructions=instructions,
         context=MappingProxyType(context),
+        data_sources=MappingProxyType(data_sources),
+        max_classification=max_level,
+        max_classification_rank=max_rank,
     )
+
+
+def _resolve_sources(snapshot, aliases, role_reasons, team_rules) -> dict[str, tuple[str, ...]]:
+    held_roles, member_teams, groups = set(role_reasons), set(team_rules), set(aliases)
+    grants: dict[str, tuple[str, ...]] = {}
+    for source in snapshot.sources.values():
+        reasons = (
+            [
+                f"team:{t} <- {source.source}#access/teams"
+                for t in sorted(member_teams & source.access_teams)
+            ]
+            + [
+                f"role:{r} <- {source.source}#access/roles"
+                for r in sorted(held_roles & source.access_roles)
+            ]
+            + [
+                f"group:{g} <- {source.source}#access/groups"
+                for g in sorted(groups & source.access_groups)
+            ]
+        )
+        if reasons:
+            grants[source.id] = tuple(reasons)
+    return grants
+
+
+def _max_classification(snapshot, role_reasons) -> tuple[str, int]:
+    platform = snapshot.platform
+    levels = [
+        snapshot.roles[r].max_classification
+        for r in role_reasons
+        if r in snapshot.roles and snapshot.roles[r].max_classification
+    ]
+    level = max(
+        levels, key=platform.classification_rank, default=platform.default_max_classification
+    )
+    return level, platform.classification_rank(level)
 
 
 def _resolve_skills(snapshot: Snapshot, role_reasons, team_rules) -> dict[str, SkillGrant]:

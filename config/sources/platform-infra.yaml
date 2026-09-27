@@ -1,0 +1,16 @@
+apiVersion: sdlc/v1
+kind: Source
+metadata:
+  id: platform-infra
+  owner_team: platform
+  description: platform infrastructure, CI docs and runbooks
+spec:
+  type: local_folder
+  location: samples/sources/platform-infra
+  include: ["**/*.md", "**/*.tf"]
+  classification: internal
+  ingest:
+    chunking: { strategy: auto, max_tokens: 400, overlap: 40 }
+access:
+  teams: [platform]
+  roles: [admin]

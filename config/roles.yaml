@@ -30,4 +30,4 @@ roles:
     # unconstrained: team argument limits (e.g. allowed repos) don't apply to this role's grants
     tools:  { allow: ["*"], unconstrained: true }
     skills: { allow: ["*"] }
-    data:   { max_classification: restricted, sources: ["*"] }
+    data:   { max_classification: restricted }   # data access itself comes only from Source.access

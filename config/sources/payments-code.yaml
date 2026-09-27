@@ -3,18 +3,17 @@ kind: Source
 metadata:
   id: payments-code
   owner_team: payments
+  description: payments-api service code and docs
 spec:
-  type: local_folder                 # later: git, jira, confluence, sharepoint, gdrive
-  location: /data/sources/payments-api
-  include: ["**/*.py", "**/*.md", "docs/**"]
-  exclude: ["**/tests/fixtures/**", "**/*.lock"]
-  classification: internal           # public < internal < confidential < restricted
+  type: local_folder
+  location: samples/sources/payments-api      # relative to the repo root
+  include: ["**/*.py", "**/*.md"]
+  exclude: ["**/tests/fixtures/**"]
+  classification: internal
   ingest:
-    chunking:  { strategy: code_aware, max_tokens: 800, overlap: 100 }
-    embedding: { model: gemini-embedding-001, dimensions: 768 }
-    graph:     { enabled: true, entity_types: [service, module, api, requirement, owner] }
-    schedule:  manual
+    chunking: { strategy: auto, max_tokens: 400, overlap: 40 }
+    graph:    { enabled: true, entity_types: [service, module, api, requirement, owner] }
+    schedule: manual
 access:                              # the ONLY place that grants read access to this data
   teams: [payments]
   roles: [admin]
-  groups: []

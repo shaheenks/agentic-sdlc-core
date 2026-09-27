@@ -139,9 +139,12 @@ def test_bad_rbac_config_fails(config_dir, file, mutate, message):
 
 
 def test_teams_folder_may_be_empty(config_dir):
-    for team_file in (config_dir / "teams").glob("*.yaml"):
-        team_file.unlink()
-    assert load(config_dir).teams == {}
+    # sources reference teams (owner_team, access), so they go too
+    for folder in ("teams", "sources"):
+        for path in (config_dir / folder).glob("*.yaml"):
+            path.unlink()
+    snap = load(config_dir)
+    assert snap.teams == {} and snap.sources == {}
 
 
 def test_all_problems_reported_together(config_dir):

@@ -1,7 +1,7 @@
 """Load config files → substitute ${VAR} → validate (schema + cross-refs) → Snapshot.
 
 Kinds loaded so far: Platform, GroupMap (Stage 2); RoleSet, ToolCatalog, Team (Stage 3);
-SkillCatalog + Team add-ons (Stage 4). Source (Stage 5) is not read yet.
+SkillCatalog + Team add-ons (Stage 4); Source (Stage 5).
 Skill packages (SKILL.md) and team instructions (AGENT_ADDENDUM.md) are read from <repo>/skills
 and are part of the snapshot and its version.
 """
@@ -29,6 +29,7 @@ from sdlc_config.model import (
     RoleDef,
     SkillDef,
     Snapshot,
+    SourceDef,
     TeamDef,
     ToolDef,
 )
@@ -54,6 +55,7 @@ _KINDS: dict[str, _Kind] = {
     "ToolCatalog": _Kind("toolcatalog.schema.json", "tools.yaml"),
     "Team": _Kind("team.schema.json", "teams/*.yaml", many=True),
     "SkillCatalog": _Kind("skillcatalog.schema.json", "skills.yaml"),
+    "Source": _Kind("source.schema.json", "sources/*.yaml", many=True),
 }
 
 
@@ -110,6 +112,7 @@ def load_snapshot(
     skills = _build_skills(
         docs["SkillCatalog"][0][1], addon_skills, roles, teams, repo_root, raw_files, problems
     )
+    sources = _build_sources(docs["Source"], platform, teams, roles, aliases, problems)
     if problems:
         raise ConfigError(problems)
 
@@ -124,6 +127,7 @@ def load_snapshot(
         tools=MappingProxyType(tools),
         teams=MappingProxyType(teams),
         skills=MappingProxyType(skills),
+        sources=MappingProxyType(sources),
     )
 
 
@@ -193,6 +197,8 @@ def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
         groups_cache_ttl_seconds=ident["groups"]["cache_ttl_seconds"],
         classification_levels=levels,
         default_max_classification=default_max,
+        embedding_model=doc["knowledge"]["embedding"]["model"],
+        embedding_dimensions=doc["knowledge"]["embedding"]["dimensions"],
     )
 
 
@@ -277,6 +283,7 @@ def _build_roles(doc, tools, aliases, platform, problems):
             tools_deny=frozenset(deny),
             unconstrained=tool_rules.get("unconstrained", False),
             skills_allow=frozenset(entry.get("skills", {}).get("allow", [])),
+            max_classification=level,
         )
     for cycle in _inheritance_cycles(roles):
         problems.append(f"{rel}: role inheritance cycle: {' -> '.join(cycle)}")
@@ -458,6 +465,53 @@ def _build_skills(doc, addon_skills, roles, teams, repo_root, raw_files, problem
                     "(team add-ons are granted by team membership)"
                 )
     return skills
+
+
+# --- Sources (Stage 5) --------------------------------------------------------------------------
+
+
+def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> dict[str, SourceDef]:
+    sources: dict[str, SourceDef] = {}
+    for rel, doc in source_docs:
+        meta, spec, access = doc["metadata"], doc["spec"], doc["access"]
+        sid = meta["id"]
+        if sid != Path(rel).stem:
+            problems.append(f"{rel}: metadata/id '{sid}' must match the file name")
+        if sid in sources:
+            problems.append(f"{rel}: duplicate source id '{sid}' (also in {sources[sid].source})")
+            continue
+        if meta["owner_team"] not in teams:
+            problems.append(f"{rel}: metadata/owner_team: unknown team '{meta['owner_team']}'")
+        level = spec["classification"]
+        if level not in platform.classification_levels:
+            problems.append(f"{rel}: spec/classification: unknown level '{level}'")
+            continue
+        for team in access.get("teams", []):
+            if team not in teams:
+                problems.append(f"{rel}: access/teams: unknown team '{team}'")
+        for role in access.get("roles", []):
+            if role not in roles:
+                problems.append(f"{rel}: access/roles: unknown role '{role}'")
+        for group in access.get("groups", []):
+            if group not in aliases:
+                problems.append(f"{rel}: access/groups: unknown group alias '{group}'")
+        sources[sid] = SourceDef(
+            id=sid,
+            source=rel,
+            owner_team=meta["owner_team"],
+            type=spec["type"],
+            location=spec["location"],
+            include=tuple(spec.get("include", ["**/*"])),
+            exclude=tuple(spec.get("exclude", [])),
+            classification=level,
+            classification_rank=platform.classification_rank(level),
+            chunking=MappingProxyType(dict(spec.get("ingest", {}).get("chunking", {}))),
+            access_teams=frozenset(access.get("teams", [])),
+            access_roles=frozenset(access.get("roles", [])),
+            access_groups=frozenset(access.get("groups", [])),
+            description=meta.get("description", ""),
+        )
+    return sources
 
 
 def _version(raw_files: dict[str, bytes], environ: Mapping[str, str]) -> str:

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sdlc/v1/Source",
+  "title": "Source",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec", "access"],
+  "properties": {
+    "apiVersion": { "const": "sdlc/v1" },
+    "kind": { "const": "Source" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "owner_team"],
+      "properties": {
+        "id": { "$ref": "#/$defs/name" },
+        "owner_team": { "$ref": "#/$defs/name" },
+        "description": { "type": "string" }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "location", "classification"],
+      "properties": {
+        "type": { "enum": ["local_folder"], "description": "later: git, jira, confluence, sharepoint" },
+        "location": { "type": "string", "minLength": 1, "description": "folder, relative to the repo root or absolute" },
+        "include": { "type": "array", "items": { "type": "string" } },
+        "exclude": { "type": "array", "items": { "type": "string" } },
+        "classification": { "type": "string" },
+        "ingest": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "chunking": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "strategy": { "enum": ["auto", "markdown", "code", "fixed"] },
+                "max_tokens": { "type": "integer", "minimum": 50, "maximum": 2000 },
+                "overlap": { "type": "integer", "minimum": 0, "maximum": 500 }
+              }
+            },
+            "graph": {
+              "description": "knowledge-graph extraction (Stage 6)",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "entity_types": { "type": "array", "items": { "type": "string" } }
+              }
+            },
+            "schedule": { "type": "string" }
+          }
+        }
+      }
+    },
+    "access": {
+      "description": "The ONLY place that grants read access to this data.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "teams": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/name" } },
+        "roles": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/name" } },
+        "groups": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/name" } }
+      }
+    }
+  },
+  "$defs": {
+    "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+  }
+}

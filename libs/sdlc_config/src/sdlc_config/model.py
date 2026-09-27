@@ -16,6 +16,12 @@ class PlatformConfig:
     groups_cache_ttl_seconds: int
     classification_levels: tuple[str, ...]
     default_max_classification: str
+    embedding_model: str = "gemini-embedding-2"
+    embedding_dimensions: int = 768
+
+    def classification_rank(self, level: str) -> int:
+        """Position of a level in classification_levels (0 = least sensitive)."""
+        return self.classification_levels.index(level)
 
 
 @dataclass(frozen=True)
@@ -69,6 +75,7 @@ class RoleDef:
     tools_deny: frozenset[str]
     unconstrained: bool  # team argument limits don't apply to this role's grants
     skills_allow: frozenset[str] = frozenset()  # global skill names, "tag:<tag>" or "*"
+    max_classification: str | None = None  # data ceiling granted by this role (Stage 5)
 
 
 @dataclass(frozen=True)
@@ -111,6 +118,26 @@ class TeamDef:
 
 
 @dataclass(frozen=True)
+class SourceDef:
+    """A knowledge source. Read access is granted ONLY by its access block."""
+
+    id: str
+    source: str  # e.g. "sources/payments-code.yaml"
+    owner_team: str
+    type: str
+    location: str  # relative to the repo root, or absolute
+    include: tuple[str, ...]
+    exclude: tuple[str, ...]
+    classification: str
+    classification_rank: int
+    chunking: Mapping[str, object]
+    access_teams: frozenset[str] = frozenset()
+    access_roles: frozenset[str] = frozenset()
+    access_groups: frozenset[str] = frozenset()
+    description: str = ""
+
+
+@dataclass(frozen=True)
 class Snapshot:
     """One loaded config version. Take one per request; never mix two versions."""
 
@@ -124,3 +151,4 @@ class Snapshot:
     tools: Mapping[str, ToolDef]
     teams: Mapping[str, TeamDef]
     skills: Mapping[str, SkillDef] = field(default_factory=dict)  # global + team add-ons
+    sources: Mapping[str, SourceDef] = field(default_factory=dict)

@@ -75,7 +75,7 @@ async def test_agent_context_follows_teams(base_url, entra):
     assert [i["team"] for i in payments["instructions"]] == ["payments"]
     assert "pci-checklist" in payments["instructions"][0]["text"]
     assert payments["context"] == {
-        "payments": {"default_project": "payments", "glossary_source": "payments-docs"}
+        "payments": {"default_project": "payments", "glossary_source": "payments-code"}
     }
     assert [i["team"] for i in platform["instructions"]] == ["platform"]
     assert "pci" not in platform["instructions"][0]["text"].lower()
