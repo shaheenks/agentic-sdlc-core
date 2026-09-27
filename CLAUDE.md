@@ -34,7 +34,12 @@ growing bootstrap indefinitely. Shared code goes in `libs/`, never copied betwee
   with placeholder GUIDs; never commit tenant IDs, app IDs, group IDs or test-user UPNs.
 - Resolution: groups → teams (membership) + global bindings → roles (inherits) → tools/skills/sources.
   Deny wins. Arg constraints are unioned across teams. Data access is granted only by `Source.access`.
-- A new tool requires: `tools.yaml` entry + role/team grants + persona-matrix rows.
+- A new tool requires: `tools.yaml` entry (with `args` for any argument a team may limit) + role/team grants +
+  persona-matrix rows (`tests/policy/matrix.yaml`; a test fails if a catalog tool has no rows).
+- Identities in bindings/membership: `group:` (alias), `app_role:` (Entra app role) or `everyone: true` (roles.yaml only;
+  every signed-in user gets the minimal `signed-in` role: ping, whoami).
+- Argument limits: unioned across the teams that constrain a tool; a team that does not constrain it never widens
+  access; roles with `tools.unconstrained: true` (admin) skip limits. Deny wins over any allow.
 - A new source requires: `config/sources/<id>.yaml` with `access` + `classification`.
 - A team add-on (skills, instructions, context) goes in `config/teams/<team>.yaml` + `skills/teams/<team>/`.
 - Every config file has `apiVersion: sdlc/v1` and `kind:`; unknown keys/references must fail validation.
@@ -103,7 +108,10 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md
   (Windows: `az` is az.cmd, so never pass inline JSON or parentheses as az args; use `--body @file`)
 - Tests never read the real `config/env/local/groups.yaml`; the `config_dir` fixture swaps in a fixed test GroupMap
 - `uv run ruff check . && uv run ruff format .`
-- `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values); `explain`/`diff` arrive in Stage 3
+- `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values)
+- `uv run sdlc-config explain --persona payments-dev` | `--groups eng-all,payments-devs [--app-roles X] [--json]` (`--dummy-env` works)
+- `uv run sdlc-config diff [--from HEAD] [--to WORKTREE] [--exit-code]`   per-persona permission changes (review on every config PR)
+- MCP tools: `whoami(explain=true)` (own view with source rules); admin only: `config_info()`, `config_explain(groups, app_roles)`
 
 ## Workspace conventions
 - uv workspace members are listed explicitly in the root `pyproject.toml`; add each new component there.

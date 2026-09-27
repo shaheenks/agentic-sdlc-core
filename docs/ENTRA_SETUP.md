@@ -100,6 +100,13 @@ Notes:
 
 ## 2. Groups and test users
 
+> Windows script: `-AdminUser <upn>` adds a third user to `sdlc-eng-all` + `sdlc-platform-admins` (admin role,
+> e.g. for `config_info` / `config_explain`) and assigns it to `sdlc-mcp`.
+>
+> **Nested groups (gap E2):** app assignment is not inherited through nested groups. Assign the leaf groups
+> (or use Entra app roles; bindings accept `app_role:`), and make sure the `groups` claim carries object IDs,
+> not on-prem names: `whoami` reports `non_guid_group_claims` when names are emitted.
+
 ```bash
 for g in sdlc-eng-all sdlc-payments-devs sdlc-platform-devs; do
   az ad group create --display-name $g --mail-nickname $g --query "{name:displayName,id:id}" -o tsv

@@ -1,0 +1,10 @@
+# Personas for the persona-matrix tests and `sdlc-config explain --persona / diff`.
+# A persona is a set of group aliases (config/env/<env>/groups.yaml) and/or Entra app roles.
+personas:
+  nobody:        { groups: [] }
+  viewer:        { groups: [eng-all] }
+  payments-dev:  { groups: [eng-all, payments-devs] }
+  payments-lead: { groups: [eng-all, payments-leads] }
+  platform-dev:  { groups: [eng-all, platform-devs] }
+  multi-team-dev: { groups: [eng-all, payments-devs, platform-devs] }
+  admin:         { groups: [eng-all, platform-admins] }

@@ -5,6 +5,10 @@ Config loading, validation, resolution and runtime delivery. Stages 2-7.
 **Implemented (Stage 2):** kinds `Platform` + `GroupMap` (schemas in config/schemas/), `${VAR}`
 substitution (unset => error), `load_snapshot`, `ConfigStore` (local folder, file watch,
 fail-closed start, last-known-good reload, subscribers), CLI `validate [--dummy-env]`.
+
+**Implemented (Stage 3):** kinds `RoleSet`, `ToolCatalog`, `Team` (multi-file) with cross-reference
+checks; `resolve()` -> `EffectivePolicy` (source rules for every grant, deny and limit) and
+`PolicyCache`; personas; CLI `explain` and `diff`. `compile` moved to Stage 7.
 Everything else below is planned for later stages.
 Design: docs/IMPLEMENTATION_PLAN.md → "Configuration Model" and "Runtime Config Exposure".
 

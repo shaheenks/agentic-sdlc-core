@@ -141,9 +141,14 @@ The security checkpoints in this flow are:
 
 ```mermaid
 flowchart LR
-    T[Entra token<br/>oid · groups] --> GA[Group aliases<br/>env/&lt;env&gt;/groups.yaml]
+    T[Entra token<br/>oid · groups · roles] --> GA[Group aliases<br/>env/&lt;env&gt;/groups.yaml]
+    T --> AR[App roles<br/>roles claim]
+    T --> EV[Every signed-in user]
     GA --> TM[Teams<br/>teams/*.yaml membership]
+    AR --> TM
     GA --> GB[Global bindings<br/>roles.yaml]
+    AR --> GB
+    EV --> GB
     TM --> R[Roles<br/>+ inherits]
     GB --> R
     R --> TL[Tools<br/>allow − deny<br/>+ arg constraints]
@@ -153,14 +158,22 @@ flowchart LR
     TM --> SRCS[Sources<br/>Source.access]
     R --> SRCS
     TM --> CTX[Agent context<br/>team instructions]
-    TL & SKL & DT & SRCS & CTX --> EP[[EffectivePolicy<br/>cached per user + version]]
+    TL & SKL & DT & SRCS & CTX --> EP[[EffectivePolicy<br/>cached per identities + config version]]
 ```
 
-- **Identity** is the Entra `oid` plus group membership. Entra is the only trusted issuer.
+- **Identity** is the Entra `oid` plus group membership and, for enterprise tenants, Entra **app roles**
+  (`roles` claim). Entra is the only trusted issuer. Every signed-in user also matches `everyone: true`
+  bindings, which grant only the `signed-in` basics (`ping`, `whoami`).
 - **Teams** define who belongs, which roles each group gets, and team add-ons (extra skills, extra agent instructions, tool argument limits).
 - **Roles** are reusable permission bundles. A role can inherit from another.
 - **Data access** is granted only by each source's own `access` block. The sensitivity ceiling comes from roles.
 - **Deny wins**, and anything not explicitly allowed is denied.
+- **Argument limits** (e.g. allowed repos) are unioned across the teams that set them; a team that sets none
+  never widens access; `unconstrained` roles (admin) skip them.
+- **Enforcement (Stage 3, tools):** the MCP server filters `tools/list` to the caller's policy and authorizes every
+  `tools/call` (tool + arguments) before it runs; each decision is audited with the config rule that matched.
+  `whoami(explain=true)` shows a user their own policy; admins use `config_explain`; `sdlc-config diff` shows
+  per-persona permission changes on every config change.
 
 ## 6. Config lifecycle
 

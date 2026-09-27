@@ -1,0 +1,41 @@
+# Persona matrix: every row is checked in CI (tests/policy/test_matrix.py).
+# A new tool needs rows here (CLAUDE.md: tools.yaml entry + grants + persona-matrix rows).
+# expect: allow | deny.  `args` are the call arguments.
+rows:
+  # identity basics: every signed-in user
+  - { persona: nobody,        tool: whoami,          expect: allow }
+  - { persona: nobody,        tool: list_skills,     expect: deny }
+  - { persona: viewer,        tool: list_skills,     expect: allow }
+  - { persona: viewer,        tool: load_skill,      expect: allow }
+  - { persona: viewer,        tool: review_code,     args: { repo: payments-api },   expect: deny }
+  # payments developer: payments repos only, no approvals, no admin tools
+  - { persona: payments-dev,  tool: review_code,     args: { repo: payments-api },   expect: allow }
+  - { persona: payments-dev,  tool: review_code,     args: { repo: payments-ui },    expect: allow }
+  - { persona: payments-dev,  tool: review_code,     args: { repo: platform-infra }, expect: deny }
+  - { persona: payments-dev,  tool: review_code,     args: {},                       expect: deny }
+  - { persona: payments-dev,  tool: generate_tests,  args: { repo: payments-api },   expect: allow }
+  - { persona: payments-dev,  tool: approve_design,  args: { repo: payments-api },   expect: deny }
+  - { persona: payments-dev,  tool: config_info,     expect: deny }
+  # payments lead: approvals within payments
+  - { persona: payments-lead, tool: approve_design,  args: { repo: payments-api },   expect: allow }
+  - { persona: payments-lead, tool: approve_design,  args: { repo: platform-ci },    expect: deny }
+  # platform developer: platform repos only
+  - { persona: platform-dev,  tool: review_code,     args: { repo: platform-infra }, expect: allow }
+  - { persona: platform-dev,  tool: review_code,     args: { repo: payments-api },   expect: deny }
+  - { persona: platform-dev,  tool: generate_tests,  args: { repo: platform-ci },    expect: allow }
+  # member of two teams: union of repos
+  - { persona: multi-team-dev, tool: review_code,    args: { repo: payments-api },   expect: allow }
+  - { persona: multi-team-dev, tool: review_code,    args: { repo: platform-ci },    expect: allow }
+  - { persona: multi-team-dev, tool: review_code,    args: { repo: secret-repo },    expect: deny }
+  # admin: whole catalog, unconstrained
+  - { persona: admin,         tool: config_info,     expect: allow }
+  - { persona: admin,         tool: config_explain,  expect: allow }
+  - { persona: admin,         tool: review_code,     args: { repo: any-repo },       expect: allow }
+  - { persona: admin,         tool: approve_design,  args: { repo: platform-ci },    expect: allow }
+  # catalog tools implemented in later stages (rows keep their grants under test)
+  - { persona: nobody,        tool: ping,              expect: allow }
+  - { persona: viewer,        tool: get_agent_context, expect: allow }
+  - { persona: nobody,        tool: get_agent_context, expect: deny }
+  - { persona: viewer,        tool: search_knowledge,  expect: allow }
+  - { persona: viewer,        tool: graph_query,       expect: deny }
+  - { persona: payments-dev,  tool: graph_query,       expect: allow }
