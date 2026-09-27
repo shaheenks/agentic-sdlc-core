@@ -1,0 +1,8 @@
+# Users denied on every MCP request, even with a valid token (E3: cut access before the token
+# expires). Copy to blocked.yaml (git-ignored: user object IDs are tenant data). Optional: no file
+# means nobody is blocked. Takes effect on the next config reload; no restart.
+apiVersion: sdlc/v1
+kind: BlockList
+blocked:
+  - oid: "00000000-0000-0000-0000-00000000dead"
+    reason: "example: offboarding ticket SEC-123, 2026-09-27"

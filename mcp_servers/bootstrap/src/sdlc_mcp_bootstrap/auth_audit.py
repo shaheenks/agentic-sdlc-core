@@ -49,9 +49,12 @@ def classify(authorization: str | None, store: ConfigStore) -> tuple[str, dict, 
         for k in ("oid", "preferred_username", "tid", "aud", "exp", "iss")
         if claims.get(k) is not None
     }
-    platform = store.current().platform
+    snapshot = store.current()
+    platform = snapshot.platform
     exp = claims.get("exp")
-    if isinstance(exp, int | float) and exp < time.time():
+    if str(claims.get("oid", "")).lower() in snapshot.blocked:
+        reason = "blocked"  # E3 block list (claimed oid; the token was rejected either way)
+    elif isinstance(exp, int | float) and exp < time.time():
         reason = "expired"
     elif claims.get("tid") != platform.tenant_id:
         reason = "wrong_tenant"

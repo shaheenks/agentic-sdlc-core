@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BlockList",
+  "description": "Users denied immediately, whatever their token says (E3: revocation before token expiry). Optional file env/<env>/blocked.yaml, git-ignored (tenant user object IDs).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "blocked"],
+  "properties": {
+    "apiVersion": { "const": "sdlc/v1" },
+    "kind": { "const": "BlockList" },
+    "blocked": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["oid", "reason"],
+        "properties": {
+          "oid": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "description": "Entra object ID of the user"
+          },
+          "reason": { "type": "string", "minLength": 1, "description": "why (ticket, date); audited" }
+        }
+      }
+    }
+  }
+}

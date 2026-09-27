@@ -169,12 +169,15 @@ def build_http_app(server: FastMCP, store: ConfigStore):
     return server.http_app(middleware=[ASGIMiddleware(AuthFailureAuditMiddleware, store=store)])
 
 
-def build_auth(snapshot: Snapshot, public_url: str) -> RemoteAuthProvider:
+def build_auth(
+    snapshot: Snapshot, public_url: str, store: ConfigStore | None = None
+) -> RemoteAuthProvider:
     """Entra token verification + OAuth protected-resource metadata (RFC 9728).
 
     The 401 WWW-Authenticate header points MCP clients (e.g. Antigravity) at
     /.well-known/oauth-protected-resource, which names Entra as the authorization server.
-    Identity settings are read once at startup; changing them needs a restart.
+    Identity settings are read once at startup; changing them needs a restart. The block list
+    (E3) is read from the store's current snapshot on every request, so it applies on reload.
     """
     platform = snapshot.platform
     verifier = EntraTokenVerifier(
@@ -183,6 +186,7 @@ def build_auth(snapshot: Snapshot, public_url: str) -> RemoteAuthProvider:
         required_scopes=list(platform.required_scopes),
         issuer=platform.issuer,
         jwks_uri=platform.jwks_uri,
+        blocked_reason=(lambda oid: store.current().blocked.get(oid)) if store else None,
     )
     return RemoteAuthProvider(
         token_verifier=verifier,
@@ -234,7 +238,7 @@ def main() -> None:
     knowledge = build_knowledge(snapshot)
     server = build_server(
         store,
-        build_auth(snapshot, os.environ.get("MCP_PUBLIC_URL", f"http://127.0.0.1:{port}")),
+        build_auth(snapshot, os.environ.get("MCP_PUBLIC_URL", f"http://127.0.0.1:{port}"), store),
         build_group_resolver(snapshot),
         knowledge,
     )

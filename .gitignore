@@ -11,6 +11,7 @@ __pycache__/
 
 # Tenant-specific group object IDs: keep out of the repo; commit only groups.yaml.example
 config/env/*/groups.yaml
+config/env/*/blocked.yaml
 
 # ADK local session/artifact storage
 .adk/

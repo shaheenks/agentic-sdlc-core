@@ -215,3 +215,38 @@ Troubleshooting:
 - **`groups` missing or empty:** check that the group is assigned to the enterprise app, the user
   is a member, and `groupMembershipClaims` is set. Sign out and in again to get a fresh token.
 - **AADSTS65001 (consent):** run admin consent for `sdlc-client`, or re-check `preAuthorizedApplications`.
+
+## 6. Network egress (E8)
+
+Outbound HTTPS each component needs (hosts come from `platform.yaml` `identity.authority_host` /
+`graph_host`; the commercial cloud is shown):
+
+| Component | Destination | Why |
+|---|---|---|
+| MCP server | `login.microsoftonline.com` (`/<tenant>/discovery/v2.0/keys`) | JWKS: token signature keys (cached 1 h, re-fetched on an unknown `kid`) |
+| MCP server (optional) | `login.microsoftonline.com` (`/<tenant>/oauth2/v2.0/token`), `graph.microsoft.com` | Group-overage fallback (only with `ENTRA_GRAPH_CLIENT_SECRET`) |
+| Agent web app | `login.microsoftonline.com` (JWKS) | Re-validates the forwarded user token |
+| oauth2-proxy | `login.microsoftonline.com` (OIDC discovery, authorize redirect, token endpoint) | User sign-in |
+| MCP server, agent, ingest | Vertex AI (`aiplatform.googleapis.com`) or the Gemini API | Model calls and embeddings |
+
+Behind a corporate proxy, set the standard variables on each service: `HTTPS_PROXY` (and
+`HTTP_PROXY`), plus `NO_PROXY` for internal names (for example `postgres,mcp-bootstrap,localhost`).
+Token validation honours them (verified by `tests/auth/test_egress_proxy.py`: keys are fetched through
+the proxy; without a route the token is rejected, never accepted). If JWKS cannot be reached, every
+request is refused (fail closed); the audit reason is `invalid_token`.
+
+## 7. Blocking a user immediately (E3)
+
+Disabling a user in Entra does not end access tokens that were already issued (60-90 minutes). To
+cut access on the next request:
+
+1. Copy `config/env/<env>/blocked.yaml.example` to `blocked.yaml` (git-ignored: object IDs are tenant
+   data) and add the user's object ID with a reason (ticket, date).
+2. The MCP server applies it on the next config reload (file watch locally; bundle pointer later), no
+   restart. Every MCP request from that user is refused with 401 and audited as `auth_failure` with
+   reason `blocked`, even with a valid token. The web UI may still open, but every tool call fails.
+3. Also disable the account in Entra (and revoke its sessions) so no new tokens are issued; remove the
+   entry once the account is disabled and old tokens have expired.
+
+Also add `blocked.yaml` to any environment that needs it (on GCP, as a Secret Manager file next to
+`groups.yaml`: planned with the 7b bundles).

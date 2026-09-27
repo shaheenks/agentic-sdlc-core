@@ -160,6 +160,8 @@ class Snapshot:
     teams: Mapping[str, TeamDef]
     skills: Mapping[str, SkillDef] = field(default_factory=dict)  # global + team add-ons
     sources: Mapping[str, SourceDef] = field(default_factory=dict)
+    # E3: user object IDs (lower-case) denied on every request -> reason (env/<env>/blocked.yaml)
+    blocked: Mapping[str, str] = field(default_factory=dict)
     # Every file this version was built from, repo-relative (config/..., skills/...) -> sha256.
     # sdlc-config compile copies exactly these into a bundle.
     files: Mapping[str, str] = field(default_factory=dict)

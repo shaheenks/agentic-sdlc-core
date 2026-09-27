@@ -46,6 +46,7 @@ class _Kind:
     schema: str
     path: str  # relative to the config dir; {env} is substituted; a glob if `many`
     many: bool = False  # several files of this kind (e.g. teams/*.yaml); zero is allowed
+    optional: bool = False  # a single file that may be absent (e.g. env/<env>/blocked.yaml)
 
 
 _KINDS: dict[str, _Kind] = {
@@ -56,6 +57,7 @@ _KINDS: dict[str, _Kind] = {
     "Team": _Kind("team.schema.json", "teams/*.yaml", many=True),
     "SkillCatalog": _Kind("skillcatalog.schema.json", "skills.yaml"),
     "Source": _Kind("source.schema.json", "sources/*.yaml", many=True),
+    "BlockList": _Kind("blocklist.schema.json", "env/{env}/blocked.yaml", optional=True),
 }
 
 
@@ -85,6 +87,9 @@ def load_snapshot(
             paths = sorted(config_dir.glob(pattern))
         else:
             path = config_dir / pattern
+            if not path.is_file() and spec.optional:
+                docs[kind] = []
+                continue
             if not path.is_file():
                 hint = ""
                 if path.with_name(path.name + ".example").is_file():
@@ -131,6 +136,13 @@ def load_snapshot(
         teams=MappingProxyType(teams),
         skills=MappingProxyType(skills),
         sources=MappingProxyType(sources),
+        blocked=MappingProxyType(
+            {
+                entry["oid"].lower(): entry["reason"]
+                for _, doc in docs.get("BlockList", [])
+                for entry in doc["blocked"]
+            }
+        ),
         files=MappingProxyType(
             {
                 (f"config/{rel}" if rel in config_keys else rel): hashlib.sha256(raw).hexdigest()

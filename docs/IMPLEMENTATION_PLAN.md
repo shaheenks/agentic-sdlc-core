@@ -24,10 +24,10 @@ Work that needs only localhost + the Cloudflare Tunnel, in the agreed order (ana
 | H2 | E7: Entra login/Graph hosts from `platform.yaml` instead of hard-coded | ✅ Done (2026-09-27) |
 | H3 | CI on GitHub Actions: ruff, unit + DB tests (pgvector service), `sdlc-config validate`/`diff`, `terraform fmt`/`validate` | ✅ Done (2026-09-27): `.github/workflows/ci.yml` (jobs lint, config, test, terraform); no secrets or cloud access; the test job runs `sdlc-db bootstrap` + `migrate` on a fresh pgvector service first (rehearsed locally on an empty cluster); PR diff is informational until `main` has Stage 6 config |
 | H4 | Config bundles, local part of 7b: `sdlc-config compile`, folder store with `current` pointer, last-known-good, rollback | ✅ Done (2026-09-27): `sdlc_config.bundles`, CLI `compile`/`activate`/`bundles`, `ConfigStore.from_bundles` (`SDLC_CONFIG_BUNDLES`); every load verifies file hashes, no extra files, version and env; tests for tamper, rollback, last-known-good. GCS + Pub/Sub remain for 7b on GCP |
-| H5 | Stage 8 Antigravity via the tunnel MCP endpoint (same `whoami(explain)` as the web UI) | ⏳ Next |
-| H6 | CODEOWNERS for config and schemas | ⏳ |
-| H7 | E8 egress docs + JWKS through an HTTPS proxy; E3 `oid` denylist | ⏳ |
-| H8 | Stage 9 locally: team rate limits, OpenTelemetry, `git` source type (bigger corpus for graph ranking) | ⏳ |
+| H5 | Stage 8 Antigravity via the tunnel MCP endpoint (same `whoami(explain)` as the web UI) | ⏸️ Waiting for the user (Antigravity MCP/OAuth settings; Entra public-client redirect is an admin change) |
+| H6 | CODEOWNERS for config and schemas | ✅ Done (2026-09-27): `.github/CODEOWNERS` (single maintainer today; each rule names the Entra alias it stands for), `tests/policy/test_codeowners.py` fails when a team, team skill folder, source or security-critical path has no rule |
+| H7 | E8 egress docs + JWKS through an HTTPS proxy; E3 `oid` denylist | ✅ Done (2026-09-27): egress table + proxy guidance (ENTRA_SETUP §6), proxy test (JWKS only via the proxy, fail closed without it, `NO_PROXY` honoured); optional kind `BlockList` (`env/<env>/blocked.yaml`, git-ignored) checked by the MCP token verifier on every request, audited as `blocked`, applied on reload (ENTRA_SETUP §7) |
+| H8 | Stage 9 locally: team rate limits, OpenTelemetry, `git` source type (bigger corpus for graph ranking) | ⏳ Next |
 | H9 | Persistent agent sessions (design: agents get no DB credentials); skill-hidden audit as policy deny; `/run_live` binding | ⏳ |
 
 ## Context
@@ -303,12 +303,12 @@ Known gaps for enterprise tenants, and where they are addressed:
 |---|---|---|---|
 | E1 | **Group overage**: enterprise users are often in more than 200 groups; on `SecurityGroup` claims they then get no groups unless the Graph fallback is set, and that needs the `GroupMember.Read.All` app permission, which many tenants refuse | Support **Entra app roles** as an identity source next to groups: `roles` claim, no overage. Config maps app-role values to teams/roles like group aliases. Prefer P1 assigned groups otherwise | 3 |
 | E2 | **Nested groups** do not inherit app assignment: users in nested groups get no token when assignment is required | Assign leaf groups, or use app roles (E1); document in ENTRA_SETUP | 3 |
-| E3 | **Revocation latency**: disabled users keep access until token expiry (60–90 min; longer with CAE-capable clients); CAE claims challenges not supported | Short token lifetime policy, CAE claims-challenge support or an `oid` denylist | 9 |
+| E3 | **Revocation latency**: disabled users keep access until token expiry (60–90 min; longer with CAE-capable clients); CAE claims challenges not supported | ✅ `oid` block list (`BlockList`, applied on reload, audited `blocked`; H7). Still open: short token lifetime policy, CAE claims challenges | H7 / 9 |
 | E4 | **Client secrets** (`sdlc-client`, Graph fallback): often banned or capped at 6–12 months | Certificates or **federated credentials** (Entra trusts GCP workload identity; no secret) | 7 |
 | E5 | **Provisioning** by script does not fit change control | `azuread` Terraform module in `infra/` + reviewable app manifest; `entra_setup.ps1` stays for dev | 7 |
 | E6 | **Azure CLI pre-authorization** is a dev shortcut, may be blocked by Conditional Access, and must not exist in prod | `entra_setup.ps1 -NoAzCliPreAuth`; off outside dev | 2d |
 | E7 | **Sovereign clouds** (GCC High, China): the Graph fallback hard-codes the commercial login/Graph hosts | ✅ `identity.authority_host` / `graph_host` in `platform.yaml` (issuer/JWKS must use the authority host; Graph token scope derived from the Graph host); `ENTRA_AUTHORITY_HOST` for the agent web app and oauth2-proxy | H2 (done) |
-| E8 | **Egress**: the MCP server must reach the Entra JWKS endpoint | Document the allowlist/proxy; test behind a proxy | 7 |
+| E8 | **Egress**: the MCP server must reach the Entra JWKS endpoint | ✅ Egress table + proxy variables documented (ENTRA_SETUP §6); proxy test (H7) | H7 |
 | E9 | **Multi-tenant** (users authenticating in their own home tenant, not as guests) is rejected by design | Allow-list of tenants if ever needed | out of scope |
 | E10 | **On-prem synced groups** emitting names (`sAMAccountName`) instead of object IDs silently map to nothing | Require object IDs in ENTRA_SETUP; `whoami` flags non-GUID group values | 3 |
 

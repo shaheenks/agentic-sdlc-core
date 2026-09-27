@@ -75,6 +75,9 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
   `tid` = our tenant, plus signature (JWKS) and exp. Implemented in `sdlc_auth.entra.EntraTokenVerifier`.
 - The MCP server refuses to start without valid config and `ENTRA_TENANT_ID` / `ENTRA_API_CLIENT_ID` (fail closed).
 - Users whose token omits groups (overage) get no groups unless the Graph fallback secret is set.
+- Block list (E3): `config/env/<env>/blocked.yaml` (kind `BlockList`, optional, git-ignored like groups.yaml) is checked by
+  the MCP token verifier on every request (via `store.current()`); blocked users get 401, audited as reason `blocked`.
+- Egress (E8): token validation honours `HTTPS_PROXY`/`NO_PROXY`; unreachable JWKS = every request refused (docs/ENTRA_SETUP.md §6).
 - Deny-by-default. Filter tools/list AND re-check on every tools/call.
 - All DB reads go through `sdlc_db` with `app.allowed_sources` + `app.max_classification` set (Postgres RLS).
 - Agents forward the user's bearer token via `get_user_token(context)`; never use a service token for user calls.
@@ -197,4 +200,5 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md
   `--force` after changing a source's graph settings. Graph extraction uses thinking `low` (`minimal` is unsupported).
 - `gemini-embedding-2` accepts one input per call (a list is silently merged); `sdlc_db.GeminiEmbedder` handles this.
   psycopg async needs a `SelectorEventLoop` on Windows (CLIs, test server and pytest already set it).
+- CODEOWNERS (`.github/CODEOWNERS`): a new team, team skill folder or source needs its own rule (a test enforces it).
 - New config kinds: add a JSON Schema in `config/schemas/` and register the kind in `sdlc_config/loader.py` (`_KINDS`).

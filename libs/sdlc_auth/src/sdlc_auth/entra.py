@@ -8,6 +8,7 @@ the server answer 401 + WWW-Authenticate. On top of that we require:
 """
 
 import logging
+from collections.abc import Callable
 
 from fastmcp.server.auth import AccessToken
 from fastmcp.server.auth.providers.jwt import JWTVerifier
@@ -40,8 +41,10 @@ class EntraTokenVerifier(JWTVerifier):
         public_key: str | bytes | None = None,  # tests only; production uses JWKS
         base_url: str | None = None,
         authority_host: str = DEFAULT_AUTHORITY_HOST,  # used when issuer/jwks_uri are not given
+        blocked_reason: Callable[[str], str | None] | None = None,  # E3: oid -> reason if blocked
     ):
         self.tenant_id = tenant_id
+        self.blocked_reason = blocked_reason
         jwks_uri = jwks_uri or entra_jwks_uri(tenant_id, authority_host)
         super().__init__(
             public_key=public_key,
@@ -67,4 +70,9 @@ class EntraTokenVerifier(JWTVerifier):
         if claims.get("idtyp") == "app" or not claims.get("scp"):
             log.info("token rejected: not a delegated user token")
             return None
+        if self.blocked_reason is not None:
+            reason = self.blocked_reason(str(claims["oid"]).lower())
+            if reason is not None:
+                log.warning("token rejected: user oid=%s is blocked (%s)", claims["oid"], reason)
+                return None
         return access

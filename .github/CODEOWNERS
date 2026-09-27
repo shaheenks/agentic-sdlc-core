@@ -1,0 +1,40 @@
+# Review ownership (plan: "Governance"). GitHub resolves the LAST matching rule, so specific paths
+# come after the default. Each rule names the Entra group alias it stands for; while the repo has a
+# single maintainer every rule maps to @shaheenks. When GitHub teams exist, replace the handle with
+# the team that mirrors the alias (e.g. @org/payments-leads), per rule.
+# tests/policy/test_codeowners.py fails if a team or source file, or a security-critical path, has
+# no rule of its own.
+
+# default (platform-admins)
+*                                   @shaheenks
+
+# --- platform-admins: access model, identity, enforcement, data layer, delivery -----------------
+/config/platform.yaml               @shaheenks
+/config/roles.yaml                  @shaheenks
+/config/tools.yaml                  @shaheenks
+/config/skills.yaml                 @shaheenks
+/config/schemas/                    @shaheenks
+/config/env/                        @shaheenks
+/libs/sdlc_auth/                    @shaheenks
+/libs/sdlc_policy/                  @shaheenks
+/libs/sdlc_config/                  @shaheenks
+/libs/sdlc_db/                      @shaheenks
+/libs/sdlc_web/                     @shaheenks
+/db/                                @shaheenks
+/infra/                             @shaheenks
+/scripts/                           @shaheenks
+/.github/                           @shaheenks
+/docker-compose.yml                 @shaheenks
+/tests/policy/                      @shaheenks
+
+# --- team files: owners = config/teams/<team>.yaml metadata.owners ------------------------------
+/config/teams/payments.yaml         @shaheenks
+/skills/teams/payments/             @shaheenks
+/config/teams/platform.yaml         @shaheenks
+/skills/teams/platform/             @shaheenks
+
+# --- sources: owners = the owner team's leads (Source metadata.owner_team) ----------------------
+/config/sources/payments-code.yaml       @shaheenks
+/config/sources/payments-incidents.yaml  @shaheenks
+/config/sources/platform-infra.yaml      @shaheenks
+/config/sources/eng-standards.yaml       @shaheenks
