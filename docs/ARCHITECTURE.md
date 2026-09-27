@@ -280,7 +280,8 @@ Rules that follow from this:
 - **Hostnames are configuration, not code:** `SDLC_APP_HOST`, `SDLC_MCP_HOST` and
   `MCP_PUBLIC_URL` per environment. Nothing in code may assume `localhost` or a tunnel.
 
-Details for dev exposure: [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md).
+Details for dev exposure: [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md). GCP design, diagrams and deployment runbook:
+[GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md).
 
 ## 8. Deployment views
 

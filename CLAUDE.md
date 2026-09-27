@@ -99,6 +99,8 @@ See ARCHITECTURE.md §7.
 - **Staging on GCP** (Stage 7a): project `cloud-migration-agent`, region `asia-south1`, Cloud Run `*.run.app` URLs for now
   (temporary exception to the CNAME rule). Infra is Terraform in `infra/gcp`; the staging callback is on `sdlc-client`.
   Public Cloud Run services use `invoker_iam_disabled` (org policy forbids `allUsers`); Entra stays the gate.
+  **Deployment is deferred**: only the state bucket, APIs, registry and images exist; no Cloud SQL or Cloud Run yet.
+  Design and runbook: docs/GCP_DEPLOYMENT.md.
 - Hostnames and public URLs are configuration (`SDLC_APP_HOST`, `SDLC_MCP_HOST`, `MCP_PUBLIC_URL`), never hard-coded;
   code must not assume `localhost` or a tunnel. Use `<service>-sdlc-<env>.shaheenks.co.in` (one level below the zone).
 - After changing Entra redirect URIs, check each entry separately (`az ad app show … -o json`), not the joined TSV output.
@@ -149,7 +151,7 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md
 - `uv run ruff check . && uv run ruff format .`
 - `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values)
 - `.\scripts\gcp_deploy.ps1 -EnvName staging -Step state|base|images|plan|apply|db|ingest|urls`   GCP deployment (see
-  infra/README.md). PowerShell, not bash (Windows). Commit first: images and plan use the commit SHA as tag.
+  docs/GCP_DEPLOYMENT.md). PowerShell, not bash (Windows). Commit first: images and plan use the commit SHA as tag.
   `base`/`apply` create billable resources: only with the user's go-ahead. The saved plan contains secrets (git-ignored,
   deleted by `apply`).
 - `uv run --env-file .env sdlc-db bootstrap`   extension, roles, schema, grants (idempotent; no true superuser needed, as on

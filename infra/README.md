@@ -2,6 +2,7 @@
 
 Terraform for GCP. One root module, `gcp/`, deploys one environment per state prefix
 (Stage 7a: `staging`). Driven by `scripts/gcp_deploy.ps1` (Windows PowerShell 5.1 or `pwsh`).
+Design, diagrams, IAM/secrets, cost and runbook: [docs/GCP_DEPLOYMENT.md](../docs/GCP_DEPLOYMENT.md).
 
 | File | What |
 |---|---|
