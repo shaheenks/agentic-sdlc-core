@@ -61,8 +61,10 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
 - Only MCP servers (full bundle) and ingest (`Source.spec`) read config. Agents and prompts never read
   `config/`; they get per-user views through MCP tools (tools/list, list_skills, get_agent_context, whoami).
 - Read config only through `ConfigStore.current()`. Take one snapshot per request; never cache policy across versions.
-- `sdlc-config compile --env <env>` produces an immutable bundle (version = git SHA + content hash).
-  Bundles never contain secrets; `${VAR}` values are resolved from env at load time.
+- `sdlc-config compile --env <env> --out <root> [--activate]` produces an immutable bundle (version = git SHA +
+  content hash); `sdlc-config activate <version> --root <root>` moves the `current` pointer; `SDLC_CONFIG_BUNDLES=<root>`
+  makes services load bundles instead of the folder. Bundles never contain secrets (`${VAR}` stays unresolved until
+  load) but do contain the tenant `groups.yaml`: keep bundle roots out of git (`.bundles/`). Dev uses the watched folder.
 - Startup fails closed without a valid bundle; reload keeps the last-known-good. Rollback = move the `current` pointer.
 - Viewing another user's policy (`config_explain`) is an admin-only tool; `whoami(explain)` shows only the caller's own view.
 

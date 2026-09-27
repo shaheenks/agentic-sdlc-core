@@ -69,6 +69,7 @@ def load_snapshot(
     environ = os.environ if environ is None else environ
     problems: list[str] = []
     raw_files: dict[str, bytes] = {}
+    config_keys: set[str] = set()  # raw_files keys relative to config_dir (the rest: repo root)
     docs: dict[str, list[tuple[str, dict]]] = {}
 
     for kind, spec in _KINDS.items():
@@ -77,6 +78,7 @@ def load_snapshot(
             problems.append(f"schemas/{spec.schema}: schema not found")
             continue
         raw_files[f"schemas/{spec.schema}"] = schema_path.read_bytes()
+        config_keys.add(f"schemas/{spec.schema}")
         schema = json.loads(raw_files[f"schemas/{spec.schema}"])
         pattern = spec.path.format(env=env)
         if spec.many:
@@ -94,6 +96,7 @@ def load_snapshot(
         for path in paths:
             rel = path.relative_to(config_dir).as_posix()
             doc = _read_doc(path, rel, kind, schema, environ, dummy_env, raw_files, problems)
+            config_keys.add(rel)
             if doc is not None:
                 docs[kind].append((rel, doc))
 
@@ -128,6 +131,12 @@ def load_snapshot(
         teams=MappingProxyType(teams),
         skills=MappingProxyType(skills),
         sources=MappingProxyType(sources),
+        files=MappingProxyType(
+            {
+                (f"config/{rel}" if rel in config_keys else rel): hashlib.sha256(raw).hexdigest()
+                for rel, raw in sorted(raw_files.items())
+            }
+        ),
     )
 
 

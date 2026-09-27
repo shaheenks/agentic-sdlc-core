@@ -1,7 +1,8 @@
 """ConfigStore: holds the current Snapshot, reloads atomically, keeps last-known-good.
 
 Startup fails closed: constructing a store with invalid config raises ConfigError.
-Stage 7 adds a GCS bundle source; Stage 2 supports a local config folder with file watching.
+Sources: a local config folder (dev, file watching) or a bundle root with a `current` pointer
+(sdlc_config.bundles; reload when the pointer moves, rollback = point back). GCS: Stage 7b.
 """
 
 import logging
@@ -35,10 +36,22 @@ class ConfigStore:
         return cls(lambda: load_snapshot(config_dir, env), watch_paths=(config_dir,))
 
     @classmethod
+    def from_bundles(cls, root: Path, env: str) -> "ConfigStore":
+        """Serve the bundle `root/current` points at; a pointer move triggers a reload. A broken
+        bundle or pointer fails startup, and on reload keeps the last-known-good version."""
+        from sdlc_config.bundles import load_bundle
+
+        return cls(lambda: load_bundle(root, env), watch_paths=(root,))
+
+    @classmethod
     def from_env(cls) -> "ConfigStore":
-        """SDLC_CONFIG_DIR (default: repo config/) and SDLC_ENV (default: local)."""
+        """SDLC_CONFIG_BUNDLES (a bundle root) if set, else SDLC_CONFIG_DIR (default: repo
+        config/); SDLC_ENV (default: local)."""
+        env = os.environ.get("SDLC_ENV", "local")
+        if os.environ.get("SDLC_CONFIG_BUNDLES"):
+            return cls.from_bundles(Path(os.environ["SDLC_CONFIG_BUNDLES"]), env)
         config_dir = Path(os.environ.get("SDLC_CONFIG_DIR", DEFAULT_CONFIG_DIR))
-        return cls.from_local(config_dir, os.environ.get("SDLC_ENV", "local"))
+        return cls.from_local(config_dir, env)
 
     def current(self) -> Snapshot:
         return self._snapshot

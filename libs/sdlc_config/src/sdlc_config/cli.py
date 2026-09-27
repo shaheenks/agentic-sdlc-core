@@ -1,10 +1,11 @@
 """sdlc-config CLI.
 
-  validate  check config for one environment (schemas + cross-references)
-  explain   effective permissions of a persona or a set of group aliases / app roles
-  diff      per-persona permission changes between two git revisions (for PR review / CI)
-
-(`compile` arrives in Stage 7.)
+validate  check config for one environment (schemas + cross-references)
+explain   effective permissions of a persona or a set of group aliases / app roles
+diff      per-persona permission changes between two git revisions (for PR review / CI)
+compile   validate and write an immutable bundle (optionally activate it)
+activate  point a bundle root's `current` at a version (rollback = an older version)
+bundles   list the bundles under a root and show the active one
 """
 
 import argparse
@@ -65,12 +66,27 @@ def main(argv: list[str] | None = None) -> int:
     diff.add_argument("--personas", type=Path, default=DEFAULT_PERSONAS)
     diff.add_argument("--exit-code", action="store_true", help="exit 1 if permissions changed")
 
+    comp = sub.add_parser("compile", help="write an immutable config bundle")
+    common(comp)
+    comp.add_argument("--out", type=Path, required=True, help="bundle root")
+    comp.add_argument("--activate", action="store_true", help="point `current` at the bundle")
+
+    act = sub.add_parser("activate", help="point the bundle root's `current` at a version")
+    act.add_argument("version")
+    act.add_argument("--root", type=Path, required=True)
+    act.add_argument("--env", help="refuse a bundle compiled for another environment")
+
+    ls = sub.add_parser("bundles", help="list bundles; * marks the active one")
+    ls.add_argument("--root", type=Path, required=True)
+
     args = parser.parse_args(argv)
     try:
         if args.command == "validate":
             return _validate(args)
         if args.command == "explain":
             return _explain(args)
+        if args.command in ("compile", "activate", "bundles"):
+            return _bundle_command(args)
         return _diff(args)
     except ConfigError as e:
         print(e, file=sys.stderr)
@@ -84,6 +100,32 @@ def _validate(args) -> int:
         f"roles={len(snap.roles)} teams={len(snap.teams)} tools={len(snap.tools)} "
         f"tenant={snap.platform.tenant_id}"
     )
+    return 0
+
+
+def _bundle_command(args) -> int:
+    from sdlc_config import bundles
+
+    if args.command == "compile":
+        version, created = bundles.compile_bundle(
+            args.config_dir, args.env, args.out, dummy_env=args.dummy_env
+        )
+        print(f"{'compiled' if created else 'unchanged'} {version} -> {args.out / version}")
+        if args.activate:
+            bundles.activate(args.out, version, args.env)
+            print(f"active: {version}")
+        return 0
+    if args.command == "activate":
+        bundles.activate(args.root, args.version, args.env)
+        print(f"active: {args.version}")
+        return 0
+    try:
+        active = bundles.current_version(args.root)
+    except ConfigError:
+        active = None
+    for m in bundles.list_bundles(args.root):
+        mark = "*" if m["version"] == active else " "
+        print(f"{mark} {m['version']}  env={m['env']}  created={m['created_at']}")
     return 0
 
 

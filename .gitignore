@@ -16,3 +16,6 @@ config/env/*/groups.yaml
 .adk/
 *.tfplan
 tfplan
+
+# Local config bundles (sdlc-config compile): they include the tenant groups.yaml
+.bundles/

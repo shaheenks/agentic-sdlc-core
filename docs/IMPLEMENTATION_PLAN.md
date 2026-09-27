@@ -23,8 +23,8 @@ Work that needs only localhost + the Cloudflare Tunnel, in the agreed order (ana
 | H1 | Classification changes apply without re-ingest: the RLS context carries `readable_sources` (granted AND at or below the ceiling by the current config); rows keep their stamp as a second check (lowering waits for ingest: fail closed) | ✅ Done (2026-09-27) |
 | H2 | E7: Entra login/Graph hosts from `platform.yaml` instead of hard-coded | ✅ Done (2026-09-27) |
 | H3 | CI on GitHub Actions: ruff, unit + DB tests (pgvector service), `sdlc-config validate`/`diff`, `terraform fmt`/`validate` | ✅ Done (2026-09-27): `.github/workflows/ci.yml` (jobs lint, config, test, terraform); no secrets or cloud access; the test job runs `sdlc-db bootstrap` + `migrate` on a fresh pgvector service first (rehearsed locally on an empty cluster); PR diff is informational until `main` has Stage 6 config |
-| H4 | Config bundles, local part of 7b: `sdlc-config compile`, folder store with `current` pointer, last-known-good, rollback | ⏳ Next |
-| H5 | Stage 8 Antigravity via the tunnel MCP endpoint (same `whoami(explain)` as the web UI) | ⏳ |
+| H4 | Config bundles, local part of 7b: `sdlc-config compile`, folder store with `current` pointer, last-known-good, rollback | ✅ Done (2026-09-27): `sdlc_config.bundles`, CLI `compile`/`activate`/`bundles`, `ConfigStore.from_bundles` (`SDLC_CONFIG_BUNDLES`); every load verifies file hashes, no extra files, version and env; tests for tamper, rollback, last-known-good. GCS + Pub/Sub remain for 7b on GCP |
+| H5 | Stage 8 Antigravity via the tunnel MCP endpoint (same `whoami(explain)` as the web UI) | ⏳ Next |
 | H6 | CODEOWNERS for config and schemas | ⏳ |
 | H7 | E8 egress docs + JWKS through an HTTPS proxy; E3 `oid` denylist | ⏳ |
 | H8 | Stage 9 locally: team rate limits, OpenTelemetry, `git` source type (bigger corpus for graph ranking) | ⏳ |
@@ -489,7 +489,7 @@ services use Cloud Run `invoker_iam_disabled` (`run.managed.requireInvokerIam` i
 **7b Operations** (after 7a is tested):
 - Workforce Identity Federation (Entra) where Google-side identity is needed; oauth2-proxy session store (Redis) and a persistent ADK session store so `sdlc-app` can scale out.
 - Config bundles in `gs://sdlc-config-<env>/` with a `current` pointer; Pub/Sub-triggered reload (60s poll fallback); last-known-good; rollback = pointer flip.
-- `sdlc-config compile` → immutable bundle + manifest (moved here from Stage 3).
+- `sdlc-config compile` → immutable bundle + manifest (moved here from Stage 3): ✅ built locally (H4); 7b adds the GCS store behind the same layout and pointer.
 - CI: validate → diff → test → compile + publish bundle → deploy; prod promotion by pointer flip after approval.
 - Endpoints (see ARCHITECTURE.md §7): each higher environment gets its own hostnames (`<service>-sdlc-<env>.shaheenks.co.in`) via DNS **CNAME** (Cloud Run domain mapping or load balancer) and a **managed certificate**. No Cloudflare Tunnel. Its Entra client registers only that environment's HTTPS callback (no localhost, no Azure CLI pre-auth); `MCP_PUBLIC_URL` / `SDLC_APP_HOST` / `SDLC_MCP_HOST` are set per environment.
 - Enterprise (E4, E5, E8): Entra app registrations via the `azuread` Terraform module; certificates or federated credentials (GCP workload identity) instead of client secrets; document JWKS egress.
