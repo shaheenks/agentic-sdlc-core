@@ -12,7 +12,7 @@ Architecture diagrams and component overview: [ARCHITECTURE.md](ARCHITECTURE.md)
 | 4 — Skills + team add-ons | ✅ Done (2026-09-27) | **Gate passed live** (MCP audit log + user checks): each session fetched its team context (`get_agent_context`); payments users (paul, payments-lead account) got the payments add-ons and instructions, platform (ana) got `infra-change-review`, admin (ben) all skills; ana's `load_skill(pci-checklist)` answered "unknown skill"; no auth failures. Built: SkillCatalog + add-ons with naming checks, resolver skills/instructions/context, per-user `list_skills`/`load_skill`, `get_agent_context`, `sdlc_agent.with_team_context`, seed skills. Audit additions after the gate: `skill_access` (allow/deny + real reason) and `skills_list` events, `request_id`, error type/details with tracebacks, `agent_session_id` conversation correlation (one MCP client session per user token + conversation). 256 tests. Note: `load_skill` is granted as a tool; hidden skills show as outcome `tool_error` in the audit, not as a policy deny. |
 | 5 — RAG v1 + data-level RBAC | ✅ Done (2026-09-27) | **Gate passed live** (browser + MCP audit log): paul (payments dev) got `payments-code` + `eng-standards` results only; ana (platform dev) got `platform-infra` + `eng-standards`, disjoint from paul's; the payments-lead account also got the confidential `payments-incidents`; every `search_knowledge` call audited `allow`/`ok` with the user's teams and roles; no auth failures. Built (5a–5f): `Source` kind + resolver data step (`allowed_sources`, `max_classification`); DB roles `sdlc_owner`/`sdlc_app`/`sdlc_ingest` (none bypasses RLS); migration `001_knowledge` (`sources`/`documents`/`chunks`, `vector(768)` HNSW, RLS ENABLE + FORCE, no context = no rows); `libs/sdlc_db` (`scoped()` RLS context, search, `sdlc-db migrate`, `gemini-embedding-2` embedder); `sdlc-ingest` (markdown/code/fixed chunking, content-hash skip, `--force`), on-demand compose services `migrate` / `ingest`; MCP `search_knowledge` under RLS; sample corpus in `samples/sources/`. Verified in the containers with Vertex embeddings: payments dev -> `payments-code` (+ `eng-standards`), platform dev -> `platform-infra` + `eng-standards`, payments lead also -> confidential `payments-incidents`. 308 tests (incl. RLS on a throwaway DB and data rows in the persona matrix). Also fixed: `auth_failure` is audited before the 401/403 is sent (flaky-test race). |
 | 6 — Knowledge graph | ✅ Done (2026-09-27) | **Gate passed live** (browser + MCP audit log): paul (payments dev), ana (platform dev), the payments-lead account and ben (admin) each ran `graph_query`, allowed via their developer/admin roles, with answers only from their readable sources; a user without the developer role did not see `graph_query` in tools/list. The only auth failures were expired tokens from conversations opened before the rebuild (rejected, as intended). Built (6a–6e): migration `002_graph` (`entities`/`mentions`/`edges` with source + classification and FORCE RLS; ingest-only `extraction_cache`); Gemini structured extraction per chunk (`gemini-3.8-flash`, thinking `low`, cached); per-source graph joined by entity key at query time; `graph_query` (vector seed → 1–2 hops → best chunk per document + entities/relations; team `glossary_source` boost); all four sources graph-enabled; sample corpus expanded to 24 files; graph RLS tests + persona rows + 22-question eval. Eval (live): gate met (hybrid recall@5 1.000 ≥ vector 0.985), but the graph's re-ranking itself adds nothing measurable on this corpus (the gain comes from one result per document; recall@3/MRR equal to vector+dedup). |
-| 7 — GCP deployment | ⏭️ Next | |
+| 7 — GCP deployment | 🔨 7a in progress (2026-09-27) | Split into **7a deploy** (Terraform, images, Cloud Run, Cloud SQL, Secret Manager; Stage 1–6 gates on GCP) and **7b operations** (config bundles + Pub/Sub reload, `compile`, CI promotion). Decisions: env `staging` in `cloud-migration-agent` / `asia-south1`; Cloud Run `*.run.app` URLs first (custom hostnames later); staging callback added to the existing `sdlc-client`. |
 | 8–9 | ⏳ Not started | |
 
 ## Context
@@ -442,13 +442,40 @@ expected files, deterministic metrics, run live); **graph extraction on all four
   and ana (platform dev) get `graph_query` answers only from their own sources, a viewer-only user has no `graph_query`.
 
 ### Stage 7 — GCP deployment
-- Terraform: Cloud Run (MCP server, agent), Cloud Run Job (ingest), Cloud SQL + pgvector, Secret Manager, Artifact Registry, Cloud Logging; Workforce Identity Federation (Entra); Vertex AI.
+Decisions (2026-09-27): split into **7a deploy** and **7b operations**; environment **`staging`** in the existing
+project `cloud-migration-agent`, region **`asia-south1`** (Vertex model calls stay on location `global`); endpoints
+are the Cloud Run **`*.run.app`** URLs for now (a deliberate, temporary exception to the CNAME + managed certificate
+rule, which returns with custom hostnames); the staging OAuth callback is **added to the existing `sdlc-client`**
+registration (admin action, confirmed per change).
+
+Org policy findings (read-only check): `iam.allowedPolicyMemberDomains` blocks `allUsers` bindings, so the public
+services use Cloud Run `invoker_iam_disabled` (`run.managed.requireInvokerIam` is not enforced);
+`sql.restrictAuthorizedNetworks` is enforced, which suits the design (Cloud SQL connector only, no authorized networks).
+
+**7a Deploy** (Terraform in `infra/gcp`, state in GCS; `scripts/gcp_deploy.sh` for images, apply and jobs):
+- **Services:** `sdlc-mcp` (public, stateless, scales out; Entra token validation is the gate) and `sdlc-app`
+  (oauth2-proxy as the ingress container, the agent as a sidecar on localhost, so the agent is never exposed;
+  max 1 instance while ADK sessions are in memory; agents still get no DB credentials).
+- **Jobs:** `sdlc-db-setup` (`sdlc-db bootstrap` + `migrate`) and `sdlc-ingest` (sample corpus baked into the image).
+- **Data:** Cloud SQL PostgreSQL 17 + pgvector (smallest Enterprise tier), Cloud SQL connector only; the same three
+  roles and FORCE RLS as local. `sdlc-db bootstrap` replaces the Docker init script where there is no init hook and no
+  true superuser (Cloud SQL `postgres` is `cloudsqlsuperuser`).
+- **Identity:** one service account per workload (least privilege: Cloud SQL client, Vertex AI user, its own secrets);
+  Vertex via the service identity (no ADC file). Secrets in Secret Manager (DB passwords, Entra client/graph secrets,
+  cookie secret, the tenant's `groups.yaml`, mounted as a file). Tenant/app IDs come from `.env` at deploy time and
+  are never committed.
+- **Config:** baked into the images per release (`SDLC_ENV=staging`, no file watch); bundles and hot reload are 7b.
+- **Gate (7a):** Stage 1–6 gates pass on `staging` (sign-in, per-user tools/skills/team context, `search_knowledge`
+  and `graph_query` per user, audit records in Cloud Logging).
+
+**7b Operations** (after 7a is tested):
+- Workforce Identity Federation (Entra) where Google-side identity is needed; oauth2-proxy session store (Redis) and a persistent ADK session store so `sdlc-app` can scale out.
 - Config bundles in `gs://sdlc-config-<env>/` with a `current` pointer; Pub/Sub-triggered reload (60s poll fallback); last-known-good; rollback = pointer flip.
 - `sdlc-config compile` → immutable bundle + manifest (moved here from Stage 3).
 - CI: validate → diff → test → compile + publish bundle → deploy; prod promotion by pointer flip after approval.
 - Endpoints (see ARCHITECTURE.md §7): each higher environment gets its own hostnames (`<service>-sdlc-<env>.shaheenks.co.in`) via DNS **CNAME** (Cloud Run domain mapping or load balancer) and a **managed certificate**. No Cloudflare Tunnel. Its Entra client registers only that environment's HTTPS callback (no localhost, no Azure CLI pre-auth); `MCP_PUBLIC_URL` / `SDLC_APP_HOST` / `SDLC_MCP_HOST` are set per environment.
 - Enterprise (E4, E5, E8): Entra app registrations via the `azuread` Terraform module; certificates or federated credentials (GCP workload identity) instead of client secrets; document JWKS egress.
-- **Gate:** Stage 1–6 gates green on GCP dev.
+- **Gate (7b):** config change promoted by bundle + pointer flip without redeploy; rollback by pointer.
 
 ### Stage 8 — Additional surfaces
 - **Gemini Enterprise:** Agent Engine + OAuth authorization (Entra); token forwarded unchanged.

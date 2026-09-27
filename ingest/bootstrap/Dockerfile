@@ -2,6 +2,7 @@
 # One image, two jobs, run on demand:
 #   docker compose run --rm ingest run --all            (as sdlc_ingest)
 #   docker compose run --rm migrate                     (sdlc-db migrate, as sdlc_owner)
+# On Cloud Run the same image runs the jobs sdlc-db-setup (bootstrap + migrate) and sdlc-ingest.
 FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:0.12.16 /uv /bin/uv
 
@@ -31,6 +32,8 @@ RUN uv sync --frozen --no-dev --package sdlc-ingest
 COPY db/migrations db/migrations
 COPY config config
 COPY skills skills
+# Synthetic sample corpus (config/sources point here); real sources arrive with Stage 9 source types.
+COPY samples samples
 
 ENV PATH=/app/.venv/bin:$PATH \
     SDLC_CONFIG_DIR=/app/config \

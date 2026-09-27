@@ -10,6 +10,7 @@ import os
 import psycopg
 from psycopg import sql
 from sdlc_db import conninfo
+from sdlc_db.bootstrap import bootstrap
 from sdlc_db.migrate import migrate
 
 TEST_DB = "sdlc_test"
@@ -33,30 +34,17 @@ def available() -> str | None:
 
 
 def _superuser(dbname: str) -> str:
-    return conninfo(
-        "app", user="postgres", password=os.environ["POSTGRES_SUPERUSER_PASSWORD"], dbname=dbname
-    )
+    return conninfo("admin", dbname=dbname)
 
 
 def create_test_database() -> None:
-    app_user = os.environ.get("PGUSER", "sdlc_app")
+    """Fresh database, then the same `sdlc-db bootstrap` + `migrate` used on Cloud SQL."""
     with psycopg.connect(_superuser("postgres"), autocommit=True) as admin:
         admin.execute(
             sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(TEST_DB))
         )
         admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(TEST_DB)))
-    with psycopg.connect(_superuser(TEST_DB), autocommit=True) as db:
-        db.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        db.execute("REVOKE ALL ON SCHEMA public FROM PUBLIC")
-        db.execute("CREATE SCHEMA sdlc AUTHORIZATION sdlc_owner")
-        for role in ("sdlc_owner", app_user, "sdlc_ingest"):
-            ident = sql.Identifier(role)
-            db.execute(
-                sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(sql.Identifier(TEST_DB), ident)
-            )
-            db.execute(sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(ident))
-        for role in (app_user, "sdlc_ingest"):
-            db.execute(sql.SQL("GRANT USAGE ON SCHEMA sdlc TO {}").format(sql.Identifier(role)))
+    bootstrap(_superuser(TEST_DB))
     migrate(conninfo("owner", dbname=TEST_DB))
 
 
