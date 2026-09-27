@@ -162,8 +162,9 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md
 - Tests never read the real `config/env/local/groups.yaml`; the `config_dir` fixture swaps in a fixed test GroupMap
 - `uv run ruff check . && uv run ruff format .`
 - Tracing: set `OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318` in `.env`, then `docker compose --profile observability up -d`;
-  Jaeger UI http://localhost:16686. Spans never carry prompts, responses, tokens or argument values; never add a per-call
-  trace header from the agent (it would break one MCP session per conversation). Audit records carry `trace_id`.
+  Jaeger UI http://localhost:16686. One agent turn is one trace across agent, MCP server and Postgres (context travels in
+  MCP `_meta`, not HTTP headers; never add a per-call trace header: it would break one MCP session per conversation).
+  Spans carry no prompts, responses, tokens or argument values (agent tool args export as `{}`). Audit records carry `trace_id`.
 - CI: `.github/workflows/ci.yml` (lint, config validate + PR permission diff, tests on a pgvector service after
   `sdlc-db bootstrap` + `migrate`, terraform fmt/validate). No secrets or cloud calls in CI; tests must pass without `.env`
   (placeholder Entra IDs, example GroupMap, HashEmbedder, FakeEntra).

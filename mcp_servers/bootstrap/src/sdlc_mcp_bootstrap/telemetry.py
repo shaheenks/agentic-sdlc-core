@@ -7,9 +7,11 @@ the exporter and psycopg spans (SQL text only: psycopg instrumentation records n
 Privacy: spans carry no tokens and no tool argument values. The policy middleware adds only
 `sdlc.request_id`, `sdlc.agent_session_id`, `enduser.id` (oid), `sdlc.tool` and the decision, and
 writes the `trace_id` into each audit record, so logs and traces join in both directions.
-Trace context is deliberately NOT sent from the agent as an HTTP header: a per-call header would
-change the MCP session key (one MCP session per conversation, see CLAUDE.md). Correlate agent and
-server spans through `sdlc.agent_session_id` instead.
+Agent -> server propagation works without HTTP headers: the MCP client puts the trace context in
+the request's `_meta` and fastmcp continues it, so one agent turn is one trace (agent, MCP server,
+Postgres). Never add a trace HTTP header instead: a per-call header would change the MCP session key
+(one MCP session per conversation, see CLAUDE.md). Clients without trace context (e.g. Antigravity)
+get a server-rooted trace; `sdlc.agent_session_id` / `trace_id` in the audit log still correlate.
 """
 
 import logging
