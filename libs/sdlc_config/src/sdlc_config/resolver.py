@@ -237,6 +237,45 @@ def _role_grants_skill(allow: frozenset[str], name: str, tags: frozenset[str]) -
     return "*" in allow or name in allow or any(f"tag:{tag}" in allow for tag in tags)
 
 
+@dataclass(frozen=True)
+class SkillDecision:
+    allowed: bool
+    matched_rule: str  # config rule that granted or hid the skill, or "not-found"
+    reason: str  # for the audit log and debugging; never shown to the caller for denials
+
+
+def skill_decision(snapshot: Snapshot, policy: EffectivePolicy, name: str) -> SkillDecision:
+    """Why a skill is (not) visible to a policy. Callers only ever see "unknown skill" for
+    denials; the detailed reason is for the audit log."""
+    grant = policy.skills.get(name)
+    if grant is not None:
+        return SkillDecision(True, "; ".join(grant.granted_by), "visible")
+    skill = snapshot.skills.get(name)
+    if skill is None:
+        return SkillDecision(False, "not-found", f"no skill named '{name}' in config")
+    held = set(policy.roles)
+    wildcard = any("*" in snapshot.roles[r].skills_allow for r in held if r in snapshot.roles)
+    if skill.team is not None and skill.team not in policy.teams and not wildcard:
+        return SkillDecision(
+            False, skill.source, f"team add-on of '{skill.team}'; caller is not a member"
+        )
+    if skill.team is None and not any(
+        _role_grants_skill(snapshot.roles[r].skills_allow, skill.name, skill.tags)
+        for r in held
+        if r in snapshot.roles
+    ):
+        via = ", ".join([f"'{name}'", *(f"'tag:{t}'" for t in sorted(skill.tags)), "'*'"])
+        return SkillDecision(False, "default-deny", f"no role of the caller grants {via}")
+    needs = []
+    if skill.access_roles:
+        needs.append(f"roles {sorted(skill.access_roles)}")
+    if skill.access_teams:
+        needs.append(f"teams {sorted(skill.access_teams)}")
+    return SkillDecision(
+        False, f"{skill.source}/access", f"access requires {' or '.join(needs) or 'nothing'}"
+    )
+
+
 class PolicyCache:
     """EffectivePolicy per (config version, group aliases, app roles).
 

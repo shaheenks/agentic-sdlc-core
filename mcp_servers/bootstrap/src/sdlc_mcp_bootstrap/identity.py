@@ -23,6 +23,7 @@ class Identity:
     group_source: GroupSource
     snapshot: Snapshot
     policy: EffectivePolicy
+    request_id: str = ""  # correlates all audit records (and server logs) of one request
 
 
 def current_principal() -> Principal | None:
@@ -36,11 +37,12 @@ async def resolve_identity(
     snapshot: Snapshot,
     group_resolver: GroupResolver | None,
     cache: PolicyCache,
+    request_id: str = "",
 ) -> Identity:
     group_ids, source = await effective_group_ids(principal, group_resolver)
     aliases, unmapped = snapshot.groups.aliases_for(group_ids)
     policy = cache.get(snapshot, aliases, principal.app_roles)
-    return Identity(principal, aliases, unmapped, source, snapshot, policy)
+    return Identity(principal, aliases, unmapped, source, snapshot, policy, request_id)
 
 
 async def remember_identity(identity: Identity) -> None:

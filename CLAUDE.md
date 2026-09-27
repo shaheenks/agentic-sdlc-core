@@ -80,8 +80,12 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
 - Audit to the `sdlc.audit` logger (JSON lines), one `event` per record:
   `tool_call` (oid, teams, roles, tool, args hash, decision, matched rule, outcome, config_version),
   `tools_list` (who listed tools, visible names, hidden count; hidden names are not logged),
+  `skill_access` (load_skill: skill, allow/deny, matched rule and the real reason; callers only see "unknown skill"),
+  `skills_list` (visible skill names, hidden count),
   `auth_failure` (401/403 on the MCP endpoint: reason from UNVERIFIED claims, client IP, token fingerprint).
-  Never log raw tokens or argument values.
+  Every record carries `request_id`. Failures record `error_type` + `error` (<=500 chars); unexpected exceptions
+  (fastmcp re-raises them as ToolError, the original is the cause) also log a traceback to `sdlc.mcp` with the same
+  `request_id`. Never log raw tokens or argument values.
 - Secrets only in `.env` (local) / Secret Manager (GCP). Never commit them.
 
 ## Environments and endpoints

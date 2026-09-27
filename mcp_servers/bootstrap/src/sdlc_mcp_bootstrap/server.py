@@ -21,13 +21,13 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import AuthProvider, RemoteAuthProvider
 from sdlc_auth import GraphGroupResolver, GroupResolver
 from sdlc_auth.entra import EntraTokenVerifier
-from sdlc_config import ConfigStore, PolicyCache, Snapshot
+from sdlc_config import ConfigStore, PolicyCache, Snapshot, skill_decision
 from starlette.middleware import Middleware as ASGIMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from sdlc_mcp_bootstrap.admin_tools import make_admin_tools
-from sdlc_mcp_bootstrap.audit import PolicyMiddleware
+from sdlc_mcp_bootstrap.audit import PolicyMiddleware, audit_skill_access, audit_skills_list
 from sdlc_mcp_bootstrap.auth_audit import AuthFailureAuditMiddleware
 from sdlc_mcp_bootstrap.identity import request_identity
 from sdlc_mcp_bootstrap.sdlc_tools import SDLC_TOOLS
@@ -97,16 +97,17 @@ def build_server(
         """List the SDLC skills available to you (name + description). Load one with load_skill."""
         ident = await request_identity()
         skills = ident.snapshot.skills
-        return [
-            {"name": name, "description": skills[name].description}
-            for name in sorted(ident.policy.skills)
-        ]
+        visible = sorted(ident.policy.skills)
+        audit_skills_list(ident, visible, len(skills) - len(visible))
+        return [{"name": name, "description": skills[name].description} for name in visible]
 
     async def load_skill(name: str) -> dict[str, str]:
         """Return the full instructions of a skill returned by list_skills."""
         ident = await request_identity()
+        decision = skill_decision(ident.snapshot, ident.policy, name)
+        audit_skill_access(ident, name, decision)  # the audit records the real reason
         # Hidden and non-existent skills get the same answer: existence is not disclosed.
-        if not ident.policy.sees_skill(name):
+        if not decision.allowed:
             raise ToolError(f"unknown skill '{name}'")
         skill = ident.snapshot.skills[name]
         return {

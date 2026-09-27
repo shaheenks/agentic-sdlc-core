@@ -379,6 +379,7 @@ Decisions (2026-09-27): team instructions/context are applied **automatically pe
 - **4c MCP:** `list_skills` / `load_skill` filtered by the policy (hidden skills answer "unknown skill"); `get_agent_context` tool; skills no longer read from a folder at startup.
 - **4d Agent:** async instruction provider appends the caller's team addenda, cached per session. Addenda are guidance, never authorization.
 - **4e Seed content:** global `write-user-story` (moved to `skills/core/`), `test-case-gen`, `design-review` (leads); payments add-ons `pci-checklist`, `ledger-design-review` (leads) + addendum; platform add-on `infra-change-review` + addendum.
+- **Audit (added):** `skill_access` events for every `load_skill` (allow/deny, matched rule, real reason: not a member / access roles / no role grant / not found) and `skills_list` events; all audit records carry `request_id`; failures record `error_type` + `error` (500 chars) and unexpected exceptions log a traceback to `sdlc.mcp` with the same `request_id`.
 - **4f Tests:** schema/cross-refs, resolver, skill rows in the persona matrix, MCP filtering + `get_agent_context`, agent instruction provider.
 - **Gate:** ✅ passed live (2026-09-27). paul (payments dev) sees `pci-checklist` and the payments addendum is applied; ana (platform dev) sees `infra-change-review`, not payments content; the payments-lead account sees `ledger-design-review` and `design-review`; ben (admin) sees all skills; hidden skills answer "unknown skill".
 

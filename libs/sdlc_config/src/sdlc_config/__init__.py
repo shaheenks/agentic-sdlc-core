@@ -3,7 +3,14 @@
 from sdlc_config.errors import ConfigError
 from sdlc_config.loader import load_snapshot
 from sdlc_config.model import GroupMap, PlatformConfig, Snapshot
-from sdlc_config.resolver import EffectivePolicy, PolicyCache, ToolPermission, resolve
+from sdlc_config.resolver import (
+    EffectivePolicy,
+    PolicyCache,
+    SkillDecision,
+    ToolPermission,
+    resolve,
+    skill_decision,
+)
 from sdlc_config.store import ConfigStore
 
 __all__ = [
@@ -11,8 +18,10 @@ __all__ = [
     "ConfigStore",
     "EffectivePolicy",
     "PolicyCache",
+    "SkillDecision",
     "ToolPermission",
     "resolve",
+    "skill_decision",
     "GroupMap",
     "PlatformConfig",
     "Snapshot",
