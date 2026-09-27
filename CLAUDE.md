@@ -91,6 +91,8 @@ See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
 
 ## Environments and endpoints
 See ARCHITECTURE.md §7.
+- **Current phase: development only.** Everything runs on localhost + the Cloudflare Tunnel. GCP (Stage 7) is designed and
+  required later, but deferred: do not create or change GCP resources unless the user asks.
 - **Development** must work on **both** `localhost` (UI :4180, MCP :8080) **and** the Cloudflare Tunnel
   (`app-sdlc-dev` / `mcp-sdlc-dev.shaheenks.co.in`). Keep both oauth2-proxy instances and both Entra callbacks working;
   test changes to sign-in, cookies or URLs on both paths.
@@ -99,7 +101,8 @@ See ARCHITECTURE.md §7.
 - **Staging on GCP** (Stage 7a): project `cloud-migration-agent`, region `asia-south1`, Cloud Run `*.run.app` URLs for now
   (temporary exception to the CNAME rule). Infra is Terraform in `infra/gcp`; the staging callback is on `sdlc-client`.
   Public Cloud Run services use `invoker_iam_disabled` (org policy forbids `allUsers`); Entra stays the gate.
-  **Deployment is deferred**: only the state bucket, APIs, registry and images exist; no Cloud SQL or Cloud Run yet.
+  **Deployment is deferred to a later stage**: only the state bucket, APIs, registry and images exist; no Cloud SQL or
+  Cloud Run yet. Keep `infra/gcp` valid when shared code changes (e.g. new env vars, migrations, jobs).
   Design and runbook: docs/GCP_DEPLOYMENT.md.
 - Hostnames and public URLs are configuration (`SDLC_APP_HOST`, `SDLC_MCP_HOST`, `MCP_PUBLIC_URL`), never hard-coded;
   code must not assume `localhost` or a tunnel. Use `<service>-sdlc-<env>.shaheenks.co.in` (one level below the zone).

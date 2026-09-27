@@ -263,7 +263,7 @@ refuses to serve. A bad reload keeps the last good version. Rollback means movin
 |---|---|---|---|
 | **Development** (`dev`) | Docker Compose on a developer machine | **Both**: `localhost` (4180 UI, 8080 MCP) for the developer, and a **Cloudflare Tunnel** for testers: `app-sdlc-dev.shaheenks.co.in`, `mcp-sdlc-dev.shaheenks.co.in` | Localhost: plain HTTP (Entra allows `http://localhost` callbacks). Tunnel: TLS ends at Cloudflare's edge (Universal SSL); outbound-only connector, no inbound ports |
 | **Higher environments** (staging, prod) | GCP (Stage 7): Cloud Run / load balancer | **Hosted directly** on their own public hostnames. **No tunnel and no localhost access** | DNS **CNAME** to the platform endpoint (Cloud Run domain mapping or load balancer) and a **managed certificate** (Google-managed or Cloudflare edge + origin certificate) |
-| **Staging today** (`staging`, Stage 7a) | GCP `cloud-migration-agent` / `asia-south1`, Cloud Run | Cloud Run's own `https://sdlc-app-staging-<project number>.asia-south1.run.app` and `sdlc-mcp-staging-…` URLs (temporary exception: custom hostnames later) | Google-managed TLS on `*.run.app`; no DNS records yet |
+| **Staging** (`staging`, Stage 7a; **designed, deployment deferred**) | GCP `cloud-migration-agent` / `asia-south1`, Cloud Run | Cloud Run's own `https://sdlc-app-staging-<project number>.asia-south1.run.app` and `sdlc-mcp-staging-…` URLs (temporary exception: custom hostnames later) | Google-managed TLS on `*.run.app`; no DNS records yet |
 
 Rules that follow from this:
 - **Dev needs both paths.** Two oauth2-proxy instances share one Entra client: `oauth2-proxy`
