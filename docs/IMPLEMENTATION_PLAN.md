@@ -371,11 +371,15 @@ Decisions (2026-09-27): stub tools for the RBAC demo; add a platform team; `expl
 - **Gate:** ✅ passed live (2026-09-27). Persona matrix green; live: paul (payments developer) can call `review_code(repo=payments-api)` but not another team's repo or `approve_design`; ana (platform developer) gets platform repos only; the admin test user sees `config_info` / `config_explain`; a user with only `eng-all` sees just the basic tools.
 
 ### Stage 4 — Skills + team add-ons
-- Add `SkillCatalog` and `Team.addons` (skills, instructions, context); resolver steps 6 and 8.
-- `list_skills` / `load_skill` filtered by EffectivePolicy. Agent loads skills on demand, and team instruction addenda are fetched from the server at session start (`get_agent_context` tool).
-- Skill content (SKILL.md, AGENT_ADDENDUM.md) packaged into the config bundle so a version pins policy + content.
-- Seed global skills (user story, test-case gen, design review) plus one payments add-on skill.
-- **Gate:** payments members see `pci-checklist`, platform members don't; addendum applied only for payments.
+Decisions (2026-09-27): team instructions/context are applied **automatically per session** (ADK async instruction provider calls `get_agent_context` with the user's token); skill names are **globally unique**; a **platform add-on** is added for a symmetric check; the owner's own account becomes a **payments lead** for the live check (tenant change only after explicit confirmation).
+- **Skill naming strategy:** lowercase kebab-case, globally unique across `skills.yaml` and all team add-ons (validation fails on duplicates); folder name = `SKILL.md` `name` = config key; global skills in `skills/core/<name>/`, team add-ons in `skills/teams/<team>/<name>/`, team instructions in `skills/teams/<team>/AGENT_ADDENDUM.md`; add-on names domain-specific or team-prefixed when generic; names are stable IDs (rename = remove + add, reviewed with `diff`); tags lowercase kebab-case, granted as `tag:<tag>`.
+- **4a Config:** `SkillCatalog` (skills.yaml) + `Team.addons`; SKILL.md frontmatter checked against the name; role `skills.allow` → known skills/tags; add-on and instruction files must exist and stay inside `skills/`. Skill and addendum content is part of the snapshot and its version.
+- **4b Resolver** (steps 6 and 8): visible skills = global skills allowed by role (name, `tag:`, `*`) and narrowed by `access` (roles/teams) + member teams' add-ons (with `access`); agent instructions + context from member teams; every grant keeps its source rule.
+- **4c MCP:** `list_skills` / `load_skill` filtered by the policy (hidden skills answer "unknown skill"); `get_agent_context` tool; skills no longer read from a folder at startup.
+- **4d Agent:** async instruction provider appends the caller's team addenda, cached per session. Addenda are guidance, never authorization.
+- **4e Seed content:** global `write-user-story` (moved to `skills/core/`), `test-case-gen`, `design-review` (leads); payments add-ons `pci-checklist`, `ledger-design-review` (leads) + addendum; platform add-on `infra-change-review` + addendum.
+- **4f Tests:** schema/cross-refs, resolver, skill rows in the persona matrix, MCP filtering + `get_agent_context`, agent instruction provider.
+- **Gate:** paul (payments dev) sees `pci-checklist` and the payments addendum is applied; ana (platform dev) sees `infra-change-review`, not payments content; the payments-lead account sees `ledger-design-review` and `design-review`; ben (admin) sees all skills; hidden skills answer "unknown skill".
 
 ### Stage 5 — RAG v1 + data-level RBAC
 - Add kind `Source`; resolver step 7.

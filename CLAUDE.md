@@ -42,6 +42,16 @@ growing bootstrap indefinitely. Shared code goes in `libs/`, never copied betwee
   access; roles with `tools.unconstrained: true` (admin) skip limits. Deny wins over any allow.
 - A new source requires: `config/sources/<id>.yaml` with `access` + `classification`.
 - A team add-on (skills, instructions, context) goes in `config/teams/<team>.yaml` + `skills/teams/<team>/`.
+- **Skill naming** (validated at load):
+  - lowercase kebab-case `^[a-z][a-z0-9-]*$`, **globally unique** across `skills.yaml` and every team's add-ons
+    (a duplicate fails validation);
+  - one name everywhere: folder name = `SKILL.md` frontmatter `name` = key in `skills.yaml` / `addons.skills`;
+  - layout: global `skills/core/<name>/SKILL.md`; team add-on `skills/teams/<team>/<name>/SKILL.md`;
+    team instructions `skills/teams/<team>/AGENT_ADDENDUM.md`;
+  - team add-on names are domain-specific (`ledger-design-review`, `infra-change-review`); prefix generic ones
+    with the team (`payments-release-checklist`);
+  - names are stable IDs (roles, `access`, persona matrix reference them): a rename is remove + add, reviewed
+    with `sdlc-config diff`. Tags are lowercase kebab-case and granted as `tag:<tag>`.
 - Every config file has `apiVersion: sdlc/v1` and `kind:`; unknown keys/references must fail validation.
 - Run `uv run sdlc-config validate --env local` after any config change; review `sdlc-config diff`.
 

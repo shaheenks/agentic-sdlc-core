@@ -91,7 +91,7 @@ flowchart TB
 | **ADK agents** | `agents/` | Conversation and reasoning with Gemini. They discover skills and call tools through MCP, forwarding the **user's** token. They make **no** authorization decisions and never read `config/`. |
 | **MCP server(s)** | `mcp_servers/` | The single enforcement point. Validates tokens, resolves the user's `EffectivePolicy`, filters what the user can see, authorizes every call, and audits it. |
 | **Shared libs** | `libs/` | `sdlc_auth` (identity), `sdlc_config` (config + resolver), `sdlc_policy` (enforcement), `sdlc_db` (RLS-scoped DB access). |
-| **Skills** | `skills/` | SKILL.md instruction packages. They hold content only; access is declared in `config/`. |
+| **Skills** | `skills/` | SKILL.md instruction packages. They hold content only; access is declared in `config/`. Naming: lowercase kebab-case, globally unique (global `skills/core/<name>/`, team add-ons `skills/teams/<team>/<name>/`, team instructions `skills/teams/<team>/AGENT_ADDENDUM.md`); folder = frontmatter `name` = config key. |
 | **Config** | `config/` | YAML that declares groups, roles, teams, tools, skills and sources. Compiled into an immutable, versioned bundle. |
 | **Ingest** | `ingest/` | Reads source artefacts declared in `config/sources/`, chunks and embeds them, extracts a knowledge graph, and tags every row with `source_id` + `classification`. |
 | **Postgres + pgvector** | `db/` | Vector search plus the knowledge graph (as edge tables). Row-level security is the last line of defense for data access. |
