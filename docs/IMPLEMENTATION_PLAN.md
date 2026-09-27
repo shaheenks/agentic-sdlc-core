@@ -7,9 +7,9 @@ Architecture diagrams and component overview: [ARCHITECTURE.md](ARCHITECTURE.md)
 |---|---|---|
 | 0 — Foundations | ✅ Done (2026-09-26) | uv workspace, ruff/pytest/pre-commit, docker compose: postgres (pgvector, 127.0.0.1:5432), mcp-bootstrap, agent-bootstrap all healthy. App role `sdlc_app` is non-superuser. (Entra app registrations and groups were provisioned in Stage 2.) |
 | 1 — Walking skeleton | ✅ Done (2026-09-26) | Gate passed: agent calls `list_skills` → `load_skill` and produces the user story, both on the host (`tests/e2e`) and in the agent container via adk web. Gemini `gemini-3.8-flash` on Vertex AI (`cloud-migration-agent`, location `global`) via ADC. |
-| 2 — Identity + config core | ✅ Done (2026-09-26) | **Gates passed live** on the local dev tenant: paul (payments) and ana (platform) get different `whoami` groups; no/invalid token → 401; invalid config → server exits with `ConfigError`; both users sign in at `localhost:4180` (oauth2-proxy), run the skill flow, and the MCP audit log shows each user's own `list_skills`/`load_skill` calls; users cannot see each other's sessions. Built: `sdlc_config`, `sdlc_auth` (EntraTokenVerifier, Principal, Graph overage fallback, token passthrough), MCP server (Entra auth + RFC 9728 metadata, `whoami`, JSON audit), `sdlc_web` (token re-validation, user binding, `/dev/*` developer tools restricted). Entra provisioned by `scripts/entra_setup.ps1`. Follow-ups: oauth2-proxy server-side session store (Redis) in Stage 7; `/run_live` binding when needed. |
+| 2 — Identity + config core | ✅ Done (2026-09-26) | **Gates passed live** on the local dev tenant: paul (payments) and ana (platform) get different `whoami` groups; no/invalid token → 401; invalid config → server exits with `ConfigError`; both users sign in at `localhost:4180` (oauth2-proxy), run the skill flow, and the MCP audit log shows each user's own `list_skills`/`load_skill` calls; users cannot see each other's sessions. Built: `sdlc_config`, `sdlc_auth` (EntraTokenVerifier, Principal, Graph overage fallback, token passthrough), MCP server (Entra auth + RFC 9728 metadata, `whoami`, JSON audit), `sdlc_web` (token re-validation, user binding, `/dev/*` developer tools restricted). Entra provisioned by `scripts/entra_setup.ps1`. Follow-ups: oauth2-proxy server-side session store (Redis) in Stage 7b; `/run_live` binding (done in H9). |
 | 3 — RBAC from config (tools) | ✅ Done (2026-09-27) | **Gate passed live** (MCP audit log): payments dev: `review_code(payments-api)` allowed, `review_code(platform-infra)` denied by `teams/payments.yaml#policy/tools/constraints/review_code`, `approve_design` hidden; platform dev: `generate_tests(platform-ci)` allowed, `review_code(payments-api)` denied by the platform limit; admin: `config_info` / `config_explain` allowed via `roles.yaml#bindings[2]`; a user with no mapped groups gets only `ping`/`whoami` (`everyone` binding). Built: config kinds + cross-refs, resolver + cache, `sdlc_policy` + policy middleware (filter, authorize, audit with matched rule), app roles, non-GUID flag, stub SDLC tools, admin tools, `whoami(explain)`, CLI `explain`/`diff`, persona matrix. 181 tests. |
-| 4 — Skills + team add-ons | ✅ Done (2026-09-27) | **Gate passed live** (MCP audit log + user checks): each session fetched its team context (`get_agent_context`); payments users (paul, payments-lead account) got the payments add-ons and instructions, platform (ana) got `infra-change-review`, admin (ben) all skills; ana's `load_skill(pci-checklist)` answered "unknown skill"; no auth failures. Built: SkillCatalog + add-ons with naming checks, resolver skills/instructions/context, per-user `list_skills`/`load_skill`, `get_agent_context`, `sdlc_agent.with_team_context`, seed skills. Audit additions after the gate: `skill_access` (allow/deny + real reason) and `skills_list` events, `request_id`, error type/details with tracebacks, `agent_session_id` conversation correlation (one MCP client session per user token + conversation). 256 tests. Note: `load_skill` is granted as a tool; hidden skills show as outcome `tool_error` in the audit, not as a policy deny. |
+| 4 — Skills + team add-ons | ✅ Done (2026-09-27) | **Gate passed live** (MCP audit log + user checks): each session fetched its team context (`get_agent_context`); payments users (paul, payments-lead account) got the payments add-ons and instructions, platform (ana) got `infra-change-review`, admin (ben) all skills; ana's `load_skill(pci-checklist)` answered "unknown skill"; no auth failures. Built: SkillCatalog + add-ons with naming checks, resolver skills/instructions/context, per-user `list_skills`/`load_skill`, `get_agent_context`, `sdlc_agent.with_team_context`, seed skills. Audit additions after the gate: `skill_access` (allow/deny + real reason) and `skills_list` events, `request_id`, error type/details with tracebacks, `agent_session_id` conversation correlation (one MCP client session per user token + conversation). 256 tests. Note (resolved in H9): hidden skills are now audited as `decision: deny`, `outcome: denied` in the `tool_call` record too. |
 | 5 — RAG v1 + data-level RBAC | ✅ Done (2026-09-27) | **Gate passed live** (browser + MCP audit log): paul (payments dev) got `payments-code` + `eng-standards` results only; ana (platform dev) got `platform-infra` + `eng-standards`, disjoint from paul's; the payments-lead account also got the confidential `payments-incidents`; every `search_knowledge` call audited `allow`/`ok` with the user's teams and roles; no auth failures. Built (5a–5f): `Source` kind + resolver data step (`allowed_sources`, `max_classification`); DB roles `sdlc_owner`/`sdlc_app`/`sdlc_ingest` (none bypasses RLS); migration `001_knowledge` (`sources`/`documents`/`chunks`, `vector(768)` HNSW, RLS ENABLE + FORCE, no context = no rows); `libs/sdlc_db` (`scoped()` RLS context, search, `sdlc-db migrate`, `gemini-embedding-2` embedder); `sdlc-ingest` (markdown/code/fixed chunking, content-hash skip, `--force`), on-demand compose services `migrate` / `ingest`; MCP `search_knowledge` under RLS; sample corpus in `samples/sources/`. Verified in the containers with Vertex embeddings: payments dev -> `payments-code` (+ `eng-standards`), platform dev -> `platform-infra` + `eng-standards`, payments lead also -> confidential `payments-incidents`. 308 tests (incl. RLS on a throwaway DB and data rows in the persona matrix). Also fixed: `auth_failure` is audited before the 401/403 is sent (flaky-test race). |
 | 6 — Knowledge graph | ✅ Done (2026-09-27) | **Gate passed live** (browser + MCP audit log): paul (payments dev), ana (platform dev), the payments-lead account and ben (admin) each ran `graph_query`, allowed via their developer/admin roles, with answers only from their readable sources; a user without the developer role did not see `graph_query` in tools/list. The only auth failures were expired tokens from conversations opened before the rebuild (rejected, as intended). Built (6a–6e): migration `002_graph` (`entities`/`mentions`/`edges` with source + classification and FORCE RLS; ingest-only `extraction_cache`); Gemini structured extraction per chunk (`gemini-3.8-flash`, thinking `low`, cached); per-source graph joined by entity key at query time; `graph_query` (vector seed → 1–2 hops → best chunk per document + entities/relations; team `glossary_source` boost); all four sources graph-enabled; sample corpus expanded to 24 files; graph RLS tests + persona rows + 22-question eval. Eval (live): gate met (hybrid recall@5 1.000 ≥ vector 0.985), but the graph's re-ranking itself adds nothing measurable on this corpus (the gain comes from one result per document; recall@3/MRR equal to vector+dedup). |
 | 7 — GCP deployment | ⏸️ Deferred to a later phase (2026-09-27) | **Current development phase runs on localhost + Cloudflare Tunnel only**; GCP is required in later stages and resumes from here. Split into **7a deploy** (Terraform, images, Cloud Run, Cloud SQL, Secret Manager; Stage 1–6 gates on GCP) and **7b operations** (config bundles + Pub/Sub reload, `compile`, CI promotion). Decisions: env `staging` in `cloud-migration-agent` / `asia-south1`; Cloud Run `*.run.app` URLs first (custom hostnames later); staging callback added to the existing `sdlc-client`. **7a status:** built and committed (`infra/gcp` Terraform, `scripts/gcp_deploy.ps1`, `sdlc-db bootstrap`); on GCP: state bucket, APIs and Artifact Registry created; images `mcp-bootstrap`, `agent-bootstrap`, `ingest` (tag `57f55cc3ef68`) and mirrored `oauth2-proxy` pushed; staging OAuth callback registered on `sdlc-client`. **Deferred** by decision: Cloud SQL, secrets, service accounts, Cloud Run services and jobs (43 resources) not created; the saved plan was discarded. Resume: `plan` (`-ImageTag 57f55cc3ef68` or rebuilt images) → `apply` → `db` → `ingest` → Stage 1–6 gates. Design, diagrams and runbook: [GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md). |
@@ -32,7 +32,7 @@ Work that needs only localhost + the Cloudflare Tunnel, in the agreed order (ana
 | H9 | Persistent agent sessions (design: agents get no DB credentials); skill-hidden audit as policy deny; `/run_live` binding | ✅ Done (2026-09-27): conversations persist in SQLite on an agent-only volume (`sqlite:////data/sessions.db`), idle > 7 days purged with their events (`SDLC_SESSION_RETENTION_DAYS`); all storage options (memory, SQLite, separate Postgres DB, MCP session API, Agent Engine) with trade-offs are recorded in ARCHITECTURE.md "Conversation storage" and stay open. Hidden/unknown skills: the `tool_call` record is now `decision: deny`, `outcome: denied` with the skill rule (the requested name stays only in `skill_access`). `/run_live` is bound like HTTP (token validated, `user_id` forced to the oid, token in context for the connection); other websockets are closed |
 
 ## Context
-Greenfield project (`c:\Users\shaheenks\pg\dev\agentic-sdlc` is empty). Goal: an agentic SDLC assistant built on Google ADK. Agents are composed from **skills**. Central **MCP server(s)** serve all skills, tools and knowledge, and enforce **user identity + RBAC with selective disclosure**. Access and team-specific behavior are driven by **declarative YAML config**, keyed on **Entra ID identity + Entra group membership**. Start small (local Docker), then grow to GCP and to more user surfaces (adk web → Gemini Enterprise → Antigravity).
+Started as a greenfield project (2026-09-25). Goal: an agentic SDLC assistant built on Google ADK. Agents are composed from **skills**. Central **MCP server(s)** serve all skills, tools and knowledge, and enforce **user identity + RBAC with selective disclosure**. Access and team-specific behavior are driven by **declarative YAML config**, keyed on **Entra ID identity + Entra group membership**. Start small (local Docker), then grow to GCP and to more user surfaces (adk web → Gemini Enterprise → Antigravity).
 
 ### Decisions (clarified with user)
 | Topic | Decision |
@@ -45,7 +45,7 @@ Greenfield project (`c:\Users\shaheenks\pg\dev\agentic-sdlc` is empty). Goal: an
 | RBAC scope | Tool **visibility** (tools/list), tool **invocation** (per tool + args), **data-level** RAG filtering, skill visibility |
 | Skills | SKILL.md-style folders. Content lives in `skills/`; access is set only in `config/` |
 | Downstream calls | Service credential behind the RBAC gate (OBO deferred) |
-| RAG sources (v1) | Local folders only, each declared as a `Source` config |
+| RAG sources | Local folders (v1), then git repositories at a pinned commit (H8), each declared as a `Source` config |
 
 ### Assumptions to confirm during Stage 0
 - Google-account users exist in Entra (B2B guest or federated), because Entra is the single IdP. On GCP, Entra is federated into Google via **Workforce Identity Federation**.
@@ -63,19 +63,21 @@ Greenfield project (`c:\Users\shaheenks\pg\dev\agentic-sdlc` is empty). Goal: an
  ADK Agent (root agent + skill loader + team instruction addenda) ── forwards bearer ──►
    ▼
  MCP Server(s)
-   ├─ AuthN: validate Entra JWT → Principal{oid, upn, group_ids}
+   ├─ AuthN: validate Entra JWT (+ block list) → Principal{oid, upn, group_ids, app_roles}
    ├─ Resolver (libs/sdlc_config): group_ids → aliases → teams → roles → EffectivePolicy
-   ├─ Enforcement: tools/list filter, tools/call authz + arg constraints, skill filter, data scope
-   ├─ Tools: whoami(explain), list_skills, load_skill, search_knowledge, graph_query, …
-   └─ Audit log (oid, teams, roles, tool, args hash, decision, matched rule)
+   ├─ Enforcement: tools/list filter, tools/call authz + arg constraints + rate limits, skill filter, data scope
+   ├─ Tools: whoami(explain), list_skills, load_skill, get_agent_context, search_knowledge, graph_query, …
+   └─ Audit log (oid, teams, roles, tool, args hash, decision, matched rule, trace_id)
    ▼
  Postgres + pgvector — chunks/entities/edges carry source_id + classification; RLS keyed on
-                       app.allowed_sources + app.max_classification
+                       app.allowed_sources (readable sources) + app.max_classification_rank
    ▲
- Ingest pipeline — reads config/sources/*.yaml → chunk → embed → extract graph → upsert
+ Ingest pipeline — reads config/sources/*.yaml (local folders, git at a pinned commit) → chunk → embed → extract graph → upsert
 ```
 
 ## Configuration Model
+
+The examples below show the shape of each kind; the files in `config/` are authoritative.
 
 ### File layout
 ```
@@ -86,9 +88,10 @@ config/
   skills.yaml                # kind: SkillCatalog: global skills + who can use them
   teams/<team>.yaml          # kind: Team: membership (groups→roles) + team add-ons
   sources/<source-id>.yaml   # kind: Source: source artefacts, ingest settings, data access
-  env/<local|dev|prod>/
-    groups.yaml              # kind: GroupMap: alias → Entra group object ID (per tenant)
-    platform.override.yaml   # optional per-env overrides (tenant id, URLs)
+  env/<local|staging|prod>/
+    groups.yaml              # kind: GroupMap: alias → Entra group object ID (per tenant, git-ignored)
+    blocked.yaml             # kind: BlockList (optional, git-ignored): users refused on every request (E3)
+    platform.override.yaml   # planned: per-env overrides (not implemented; env values come from ${VAR}s)
   schemas/*.schema.json      # JSON Schema per kind (validated in CI, pre-commit, and at startup)
 ```
 Every file carries `apiVersion: sdlc/v1` and `kind:`. Loading is strict: unknown keys, unknown group aliases, tools, skills or sources, and inheritance cycles all **fail startup**.
@@ -115,7 +118,7 @@ bindings:                       # global: apply regardless of team
     roles: [admin]
 roles:
   viewer:
-    tools:  { allow: [whoami, list_skills, load_skill, get_agent_context, search_knowledge] }
+    tools:  { allow: [ping, whoami, list_skills, load_skill, get_agent_context, search_knowledge] }
     skills: { allow: ["tag:general"] }
     data:   { max_classification: internal }
   developer:
@@ -128,9 +131,9 @@ roles:
     data:   { max_classification: confidential }
   admin:
     inherits: [lead]
-    tools:  { allow: ["*"] }
+    tools:  { allow: ["*"], unconstrained: true }   # team argument limits don't apply
     skills: { allow: ["*"] }
-    data:   { max_classification: restricted, sources: ["*"] }
+    data:   { max_classification: restricted }       # data access itself comes only from Source.access
 ```
 
 ### tools.yaml
@@ -138,7 +141,7 @@ roles:
 apiVersion: sdlc/v1
 kind: ToolCatalog
 servers:
-  bootstrap: { url: "${MCP_BOOTSTRAP_URL}" }
+  bootstrap: { description: "Bootstrap MCP server (mcp_servers/bootstrap)" }
 tools:
   search_knowledge: { server: bootstrap, risk: low,    data_scoped: true }
   graph_query:      { server: bootstrap, risk: low,    data_scoped: true }
@@ -177,6 +180,9 @@ policy:
       review_code:
         args:
           repo: { in: [payments-api, payments-ui] }
+  limits:                            # per user; the most generous of a user's teams applies
+    tools:
+      graph_query: { calls_per_minute: 30 }
 addons:                              # visible only to members of this team
   skills:
     pci-checklist:        { path: skills/teams/payments/pci-checklist }
@@ -184,7 +190,7 @@ addons:                              # visible only to members of this team
   instructions: skills/teams/payments/AGENT_ADDENDUM.md   # appended to the agent system prompt
   context:
     default_project: payments
-    glossary_source: payments-docs   # biases retrieval toward this source
+    glossary_source: payments-code   # graph_query ranks this source slightly higher
 ```
 
 ### sources/<source-id>.yaml (source artefacts + data access)
@@ -195,16 +201,18 @@ metadata:
   id: payments-code
   owner_team: payments
 spec:
-  type: local_folder                 # later: git, jira, confluence, sharepoint, gdrive
-  location: /data/sources/payments-api
-  include: ["**/*.py", "**/*.md", "docs/**"]
-  exclude: ["**/tests/fixtures/**", "**/*.lock"]
+  type: local_folder                 # or git (+ ref: pinned commit); later: jira, confluence, sharepoint
+  location: samples/sources/payments-api   # relative to the repo root (git: repo path or https URL)
+  include: ["**/*.py", "**/*.md"]    # whole-path globs: ** spans directories
+  exclude: ["**/tests/fixtures/**"]
   classification: internal           # public < internal < confidential < restricted
   ingest:
-    chunking:  { strategy: code_aware, max_tokens: 800, overlap: 100 }
-    embedding: { model: gemini-embedding-001, dimensions: 768 }
-    graph:     { enabled: true, entity_types: [service, module, api, requirement, owner] }
-    schedule:  manual                # later: cron expression
+    chunking: { strategy: auto, max_tokens: 400, overlap: 40 }   # auto | markdown | code | fixed
+    graph:
+      enabled: true
+      entity_types: [service, component, api, data_store, team, alert, process]
+    schedule: manual                 # later: cron expression
+  # the embedding model is platform-wide (platform.yaml knowledge.embedding), not per source
 access:                              # the ONLY place that grants read access to this data
   teams: [payments]                  # all members of the team
   roles: [admin]                     # cross-team access by role
@@ -218,14 +226,15 @@ access:                              # the ONLY place that grants read access to
 4. **Roles:** union of global `bindings` and team `membership` roles, expanded through `inherits`.
 5. **Tools:** union of role `allow`s ∩ catalog, minus every `deny` (deny wins). Argument constraints across the principal's teams are **unioned**, because each team adds its own repos. Any tool with no constraint entry allows any value.
 6. **Skills:** global skills allowed by role (and `access`), plus `addons.skills` of member teams (and `access`).
-7. **Data:** `allowed_sources` = sources whose `access` matches the principal's teams, roles or groups. `max_classification` = highest level across the principal's roles. Both are set as RLS session variables on every DB transaction.
+7. **Data:** granted sources = sources whose `access` matches the principal's teams, roles or groups. `max_classification` = highest level across the principal's roles. `readable_sources` = granted sources whose current classification is at or below that ceiling; it and the ceiling are set as RLS session variables on every DB transaction.
 8. **Agent context:** base instructions + `addons.instructions` from member teams + merged `context`.
+9. **Rate limits:** per scope (all tools, or one tool) the most generous team limit, else the platform baseline.
 
-Output is an immutable `EffectivePolicy`, cached per `(oid, hash(group_ids), config_version)`. `whoami(explain=true)` and the CLI `sdlc-config explain --upn x@corp --env local` print the resolved teams, roles, tools, skills and sources, plus the rule behind each one.
+Blocked users (`blocked.yaml`) never reach the resolver: the token verifier refuses them. Output is an immutable `EffectivePolicy`, cached per `(oid, groups, app roles, config_version)`. `whoami(explain=true)` and the CLI `sdlc-config explain --persona <name>` / `--groups <aliases>` print the resolved teams, roles, tools, skills, sources and rate limits, plus the rule behind each one.
 
 ### Governance
-- Config lives in git. **CODEOWNERS:** `teams/<team>.yaml` and `sources/*` owned by that team's leads; `roles.yaml`, `tools.yaml`, `env/*/groups.yaml` owned by platform-admins.
-- CI runs `sdlc-config validate --env <env>` (schema + cross-refs) and `sdlc-config diff` (effective-permission changes per persona, shown on the PR).
+- Config lives in git. **CODEOWNERS** (`.github/CODEOWNERS`, H6): `teams/<team>.yaml`, the team's skills and `sources/*` owned by that team's leads; `roles.yaml`, `tools.yaml`, `platform.yaml`, schemas, `env/` and the security-critical code owned by platform-admins. A test fails if a team, team skill folder or source has no rule.
+- CI (`.github/workflows/ci.yml`, H3) runs `sdlc-config validate` (schema + cross-refs), `sdlc-config diff` on pull requests (effective-permission changes per persona, in the job summary), the tests and Terraform checks.
 - Runtime delivery, reload and exposure: see **Runtime Config Exposure** below. Every audit log line records `config_version`.
 
 ## Runtime Config Exposure
@@ -234,18 +243,21 @@ Output is an immutable `EffectivePolicy`, cached per `(oid, hash(group_ids), con
 Config is **authorization data**, so it is itself subject to selective disclosure. Only MCP servers (and ingest, for `Source.spec`) read the raw config. Everyone else sees a **per-user, already-resolved view** served by the MCP server. Agents never read `config/`.
 
 ### 1. Build: git → immutable bundle
-`sdlc-config compile --env <env>` runs in CI (or at local startup):
-- validates schemas and cross-references (fails on any error)
-- merges base files with `env/<env>/` overlays (group GUIDs, URLs)
-- pre-expands role `inherits` and indexes the lookups (group GUID → alias → teams/roles)
-- leaves `${SECRET}` placeholders unresolved, so the bundle never contains secrets
-- outputs `bundle.json` + `manifest.json {version: <git-sha>-<content-hash>, env, created_at}`.
-Referenced skill files (SKILL.md, AGENT_ADDENDUM.md) are packaged alongside, so a version pins the policy and the skill content together.
+`sdlc-config compile --env <env> --out <root> [--activate]` (built in H4; CI publishing comes with 7b):
+- validates schemas and cross-references exactly like a service would (fails on any error)
+- copies every file the loader read (config, schemas, the `env/<env>/` files, SKILL.md, AGENT_ADDENDUM.md)
+  into `<root>/<version>/tree/`, so a version pins the policy and the skill content together
+- leaves `${VAR}` placeholders unresolved, so the bundle never contains secrets (it does contain the
+  tenant's group IDs: bundle roots stay out of git)
+- writes `manifest.json {version: <git-sha>-<content-hash>, env, git_sha, created_at, files: {path: sha256}}`;
+  the same content always gives the same version, and a compiled bundle never changes.
+Loading re-validates from the files (no pre-expanded lookups) and verifies every hash, rejects extra files and
+checks that the recomputed version and env match the manifest.
 
 ### 2. Delivery: bundle → running services
 | Env | How the bundle arrives | Reload |
 |---|---|---|
-| local | `config/` + `skills/` bind-mounted; `ConfigStore` compiles in-process | file-watch → recompile → atomic swap |
+| local | `config/` + `skills/` bind-mounted; `ConfigStore` loads the folder (or, with `SDLC_CONFIG_BUNDLES`, a local bundle root) | file-watch → reload → atomic swap (bundles: pointer move) |
 | GCP | `gs://sdlc-config-<env>/bundles/<version>/` + a `current` pointer object | Pub/Sub notification on pointer change (poll every 60s as fallback) → download → verify hash → atomic swap |
 
 Rules:
@@ -257,9 +269,9 @@ Rules:
 
 ### 3. In-process API (`libs/sdlc_config`)
 ```python
-store = ConfigStore.from_env()          # local folder or GCS, per SDLC_CONFIG_SOURCE
+store = ConfigStore.from_env()          # SDLC_CONFIG_BUNDLES (bundle root) or SDLC_CONFIG_DIR (folder); GCS in 7b
 snap  = store.current()                 # immutable Snapshot; hold one per request
-policy = snap.resolve(principal)        # -> EffectivePolicy (cached per oid+groups hash+version)
+policy = resolve(snap, group_aliases, app_roles)   # -> EffectivePolicy (PolicyCache per oid+groups+version)
 snap.version                            # stamped on audit logs, responses, /healthz
 store.subscribe(on_change)              # e.g. clear caches, re-sync DB source registry
 ```
@@ -278,18 +290,20 @@ Each request takes a single snapshot, so a reload mid-request cannot mix two ver
 | Surface | Who | Shows |
 |---|---|---|
 | MCP tool `whoami(explain=true)` | any user | only their own teams/roles/tools/skills/sources + the matching rule for each. Other teams are never listed. |
-| MCP tool `config_explain(upn)` / `config_info()` | `admin` role (tools.yaml, risk: high) | another user's EffectivePolicy; active version, loaded-at time, last reload error |
-| HTTP `/healthz`, `/readyz` | infra | `config_version`, ready = bundle loaded |
-| CLI `sdlc-config explain/diff` | developers, CI | offline resolution against any env/version; persona diff on PRs |
+| MCP tool `config_explain(groups, app_roles)` / `config_info()` | `admin` role (tools.yaml, risk: high) | a persona's EffectivePolicy; active version, loaded-at time, last reload error |
+| HTTP `/healthz` | infra | `config_version`, `config_reload_error` (a separate `/readyz` is planned with 7b) |
+| CLI `sdlc-config explain/diff/bundles` | developers, CI | offline resolution of a persona or group set; persona diff between git revisions; bundle list |
 
-The audit log records `config_version` + the matched rule, so every decision can be replayed with `sdlc-config explain --version <v>`.
+The audit log records `config_version` + the matched rule, so every decision can be replayed: check out the
+git SHA in the version (or load that bundle) and run `sdlc-config explain` for the persona.
 
 ### Stage mapping
 - **Stage 2:** `ConfigStore` (local folder source), fail-closed startup, `config_version` in `/healthz` and the audit log.
-- **Stage 3:** `compile` + bundle/manifest, snapshots + EffectivePolicy cache, `whoami(explain)`, `config_explain`/`config_info` admin tools.
+- **Stage 3:** snapshots + EffectivePolicy cache, `whoami(explain)`, `config_explain`/`config_info` admin tools (`compile` moved to Stage 7).
 - **Stage 4:** skill content packaged into the bundle; `get_agent_context`.
 - **Stage 5:** `sources` registry sync to Postgres by ingest; ingest reads `Source.spec` from the store; the RLS context uses the current config's classification (`readable_sources`).
-- **Stage 7:** GCS bundle store + `current` pointer + Pub/Sub reload, last-known-good, rollback runbook, CI promotion.
+- **H4 (local, done):** `compile` + bundle/manifest, `activate`/rollback, verified loading, `SDLC_CONFIG_BUNDLES`.
+- **Stage 7b:** GCS bundle store + `current` pointer + Pub/Sub reload, rollback runbook, CI promotion.
 
 ## Enterprise Tenant Readiness
 Token validation, identity and the config model are tenant-agnostic: any single Entra tenant works by
@@ -318,33 +332,37 @@ Each top-level area is a **collection of components**. Every area has a `bootstr
 ```
 agentic-sdlc/
   CLAUDE.md
-  docs/IMPLEMENTATION_PLAN.md
-  docker-compose.yml
+  docs/                           # plan, architecture, Entra, tunnel, GCP docs
+  docker-compose.yml              # postgres, mcp, agent, oauth2-proxy (+ profiles tunnel, ingest, observability)
   pyproject.toml                  # uv workspace: each component is a member
+  .github/                        # CI workflow, CODEOWNERS
   agents/
     bootstrap/                    # minimal ADK root agent + FastAPI wrapper (token passthrough)
     <sdlc-agent-n>/
   mcp_servers/
-    bootstrap/                    # FastMCP server (whoami, skills, later knowledge tools)
+    bootstrap/                    # FastMCP server (identity, skills, knowledge, admin tools; audit, tracing)
     <server-n>/
   ingest/
-    bootstrap/                    # single CLI driven by config/sources/*.yaml
-    loaders/ chunkers/ embedders/ extractors/   # later split-out components
+    bootstrap/                    # sdlc-ingest: local folders + git, chunk, embed, graph extraction
+    loaders/ chunkers/ embedders/ extractors/   # later split-out components (READMEs only)
   libs/
     sdlc_auth/                    # Entra JWT validation, Graph overage fallback, get_user_token(context)
-    sdlc_config/                  # config loader, schemas, resolver → EffectivePolicy, CLI (validate/explain/diff)
-    sdlc_policy/                  # enforcement helpers: tools/list filter, call authz, arg constraints
-    sdlc_db/                      # Postgres/pgvector repo, RLS session helpers
+    sdlc_config/                  # loader, schemas, resolver → EffectivePolicy, bundles, CLI (validate/explain/diff/compile)
+    sdlc_policy/                  # enforcement: tools/list filter, call authz, arg constraints, rate limits
+    sdlc_db/                      # Postgres/pgvector: RLS context, search, graph, bootstrap, migrate
+    sdlc_web/                     # agent web app: Entra user binding, /run_live, conversation retention
+    sdlc_agent/                   # agent helpers: per-session team context
   skills/
-    bootstrap/                    # first trivial skill
     core/<skill>/SKILL.md         # global skills
     teams/<team>/<skill>/SKILL.md # team add-on skills (+ AGENT_ADDENDUM.md)
   config/                         # see Configuration Model
   db/
-    bootstrap/                    # extensions, core tables, RLS
-    migrations/
-  infra/                          # Terraform (GCP)
-  tests/                          # persona-matrix, config resolver, RLS, e2e, retrieval evals
+    bootstrap/                    # Docker init: pgvector + roles (sdlc-db bootstrap does the same elsewhere)
+    migrations/                   # numbered SQL: tables + RLS (001 knowledge, 002 graph)
+  samples/                        # synthetic sample corpus (no real data)
+  scripts/                        # entra_setup.ps1, gcp_deploy.ps1, mcp_whoami.py
+  infra/gcp/                      # Terraform (GCP, deferred)
+  tests/                          # persona matrix, config, RLS/graph on Postgres, MCP, web, e2e, retrieval evals
 ```
 
 ## CLAUDE.md
@@ -361,7 +379,7 @@ Each stage is independently deployable and has an exit gate. New config kinds ar
 - **Gate:** `docker compose up` gives three healthy containers.
 
 ### Stage 1 — Walking skeleton (no auth)
-- Bootstrap MCP server: `ping`, `list_skills` (reads `skills/bootstrap`). Bootstrap ADK agent via `McpToolset`; run `adk web`.
+- Bootstrap MCP server: `ping`, `list_skills` (reads `skills/bootstrap`; since Stage 4 skills come from config and `skills/core`). Bootstrap ADK agent via `McpToolset`; run `adk web`.
 - **Gate:** agent lists and follows one skill end-to-end.
 
 ### Stage 2 — Identity + config core
@@ -502,9 +520,10 @@ services use Cloud Run `invoker_iam_disabled` (`run.managed.requireInvokerIam` i
 - **Gate:** the same user gets an identical EffectivePolicy (compared via `whoami(explain)`) on all three surfaces. Antigravity ✅ (2026-09-27, dev token; see H5); Gemini Enterprise pending (GCP).
 
 ### Stage 9 — Expansion (backlog)
-- Source types `git`, `jira`, `confluence`, `sharepoint`, with optional `access.inherit_from_source: true` to map native ACLs.
-- Enterprise E3: token revocation (short lifetimes, CAE claims challenge or `oid` denylist).
-- Entra OBO for downstream calls; OpenTelemetry; rate limits per team (`Team.policy.limits`); ADK evals in CI; OPA/Cedar if rules outgrow YAML; admin UI over config (still git-backed).
+- Source types: `git` ✅ (H8); `jira`, `confluence`, `sharepoint` open, with optional `access.inherit_from_source: true` to map native ACLs.
+- Enterprise E3: `oid` block list ✅ (H7); short token lifetimes and CAE claims challenges open.
+- OpenTelemetry ✅ (H8); rate limits per team (`Team.policy.limits`) ✅ (H8).
+- Open: Entra OBO for downstream calls; ADK evals in CI; retrieval ranking (query-entity extraction, re-ranker) measured on `tests/evals`; OPA/Cedar if rules outgrow YAML; admin UI over config (still git-backed).
 
 ## Key Risks
 - **Group claim overage / nested groups:** mitigated by assigned-groups claim + Graph fallback; app roles planned (E1). See **Enterprise Tenant Readiness**.
@@ -514,6 +533,7 @@ services use Cloud Run `invoker_iam_disabled` (`run.managed.requireInvokerIam` i
 - **Prompt injection in retrieved content/skills:** authorization stays server-side; team addenda are reviewed via CODEOWNERS.
 
 ## Verification
-- Per-stage gates via `docker compose up` + `adk web` with each test user.
-- `pytest`: JWT validation (expired/wrong aud/tenant/overage), config schema + cross-ref failures, resolver unit tests (inheritance, deny-wins, constraint union), persona matrix, RLS tests on a real Postgres container, retrieval evals.
-- `sdlc-config explain` output per test user matches the expected fixtures; audit logs record the matched rule + config_version.
+- Per-stage gates via `docker compose up` + adk web (and Antigravity) with each test user, checked against the MCP audit log.
+- `pytest` (420+ tests; CI on every push): JWT validation (expired/wrong aud/tenant/overage, proxies, block list), config schema + cross-ref failures, resolver (inheritance, deny-wins, constraint union, rate limits), persona matrix (tools, skills, data), bundles, RLS and graph on a throwaway Postgres, MCP server end to end, web binding, telemetry hooks.
+- Retrieval eval (`SDLC_EVAL=1`, live Vertex): 38 questions over the samples and this repository.
+- Audit logs record the matched rule + config_version (and `trace_id` with tracing on).

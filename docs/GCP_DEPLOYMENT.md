@@ -11,8 +11,19 @@ Related: [ARCHITECTURE.md](ARCHITECTURE.md) §7–8 (environments), [infra/READM
 Tunnel only ([ARCHITECTURE.md](ARCHITECTURE.md) §7, [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md)).
 This design is kept current so the deployment can resume when GCP is needed.
 
-Stage 7 is split into **7a deploy** (this document) and **7b operations** (config bundles with
-hot reload, `sdlc-config compile`, CI promotion, custom hostnames, scale-out session stores).
+Stage 7 is split into **7a deploy** (this document) and **7b operations** (GCS config bundles with
+hot reload, CI promotion, custom hostnames, scale-out session stores). Built locally meanwhile and
+reusable on GCP: config bundles (`sdlc-config compile` / `activate`), CI on GitHub Actions, rate limits,
+the user block list, OpenTelemetry tracing, `git` sources and persistent conversations (SQLite).
+
+**Changes since the images were pushed (tag `57f55cc3ef68`)** that a resumed deployment must pick up:
+- **Rebuild the images** from the current commit: the pushed ones predate H1–H9 (readable sources,
+  sovereign hosts, bundles, block list, rate limits, tracing, git sources, persistent sessions).
+- **Terraform variable** `entra_authority_host` (default commercial cloud) feeds oauth2-proxy and the agent.
+- **Not yet in Terraform:** mounting `blocked.yaml` from Secret Manager (like `groups.yaml`), the git source
+  on Cloud Run (the ingest job has no repository; bake the corpus or use an `https` git location), OTLP
+  export to Cloud Trace, and a conversation store for the agent (in memory today; Agent Engine planned,
+  see ARCHITECTURE.md "Conversation storage").
 
 | Item | State |
 |---|---|
@@ -81,8 +92,9 @@ flowchart LR
 - **`sdlc-app-<env>`**: two containers in one instance. oauth2-proxy is the ingress container:
   it signs the user in with Entra and forwards requests with the user's access token to the
   agent, which listens on `127.0.0.1:8000` and cannot be reached any other way. The agent
-  re-validates the token and binds the session to the user, as locally. **Max 1 instance**
-  while ADK sessions are in memory (7b adds a session store). The agent has no DB credentials.
+  re-validates the token and binds the session to the user, as locally. **Max 1 instance**:
+  conversations are in memory on Cloud Run for now (locally they persist in SQLite); Agent Engine
+  sessions are the planned GCP store. The agent has no DB credentials.
 - **`sdlc-mcp-<env>`**: public and stateless, so it scales out (0–3 instances). Every request
   must carry a valid Entra token for the sdlc-mcp API; policy, RLS context and audit work
   exactly as locally.
@@ -156,7 +168,9 @@ The plan for staging: **50 resources** in total (7 already created by `base`, 43
   release); `SDLC_ENV=staging`; file watching is off (`SDLC_CONFIG_WATCH=false`). The only
   environment-specific file, `groups.yaml`, is stored in Secret Manager and mounted as a file.
 - **7b**: config bundles in `gs://sdlc-config-<env>/` with a `current` pointer, Pub/Sub reload,
-  last-known-good, rollback by pointer flip (see "Runtime Config Exposure" in the plan).
+  last-known-good, rollback by pointer flip (see "Runtime Config Exposure" in the plan). The bundle
+  format, verification, `activate` and rollback are already built and tested locally
+  (`libs/sdlc_config/bundles.py`, `SDLC_CONFIG_BUNDLES`); 7b adds the GCS store behind the same layout.
 
 ## 7. Deployment
 
@@ -185,8 +199,9 @@ From the repo root, in PowerShell (Docker Desktop running, `gcloud` signed in, T
   oauth2-proxy is published on quay.io.
 - **Updates**: commit → `images` → `plan` → `apply`. Schema changes: add a migration, then `db`.
   Content changes: `ingest` (unchanged files and cached graph extractions cost nothing).
-- **Resuming the deferred deployment**: the saved plan was discarded; run `plan` again (with
-  `-ImageTag 57f55cc3ef68`, or rebuild images from the current commit), then `apply`, `db`, `ingest`.
+- **Resuming the deferred deployment**: the saved plan was discarded. Rebuild the images from the
+  current commit (`images`; the pushed `57f55cc3ef68` images are outdated, see §1), then `plan`,
+  `apply`, `db`, `ingest`.
 
 ## 8. Verification (7a gate)
 
@@ -219,7 +234,11 @@ cd infra/gcp; terraform destroy -var-file=staging.tfvars   # needs the same TF_V
 
 - Custom hostnames `app-sdlc-staging` / `mcp-sdlc-staging.shaheenks.co.in`: CNAME + Google-managed
   certificate (load balancer or domain mapping), then drop the `*.run.app` exception.
-- Persistent ADK session store and an oauth2-proxy session store, so `sdlc-app` can scale out.
-- Config bundles + Pub/Sub reload, `sdlc-config compile`, CI (validate → diff → test → build → plan → apply).
+- Persistent conversation store (Agent Engine sessions; options in ARCHITECTURE.md "Conversation storage")
+  and an oauth2-proxy session store, so `sdlc-app` can scale out.
+- GCS config bundles + Pub/Sub reload (compile/activate exist), CI deploy stages (validate, diff and tests
+  already run on GitHub Actions; add build → plan → apply).
+- `blocked.yaml` as a Secret Manager file; OTLP export to Cloud Trace; a shared rate-limit store when
+  `sdlc-mcp` runs more than one instance (limits are per instance today).
 - Per-environment Entra client app, certificates or federated credentials instead of client secrets
   (plan gaps E4, E5, E8); Cloud SQL private IP.

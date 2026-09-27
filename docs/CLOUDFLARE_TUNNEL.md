@@ -1,8 +1,9 @@
 # Public endpoints: Cloudflare Tunnel
 
 > **Scope: development environment only.** Dev is reachable both on `localhost` and through
-> this tunnel. Higher environments (staging, prod) are hosted directly with a DNS CNAME and a
-> managed certificate, without a tunnel (see [ARCHITECTURE.md](ARCHITECTURE.md) §7).
+> this tunnel, and development is the current phase (GCP is deferred). Higher environments
+> (staging, prod) are hosted directly, without a tunnel (see [ARCHITECTURE.md](ARCHITECTURE.md) §7
+> and [GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md)).
 
 The local stack is exposed to users of the Entra tenant through a Cloudflare Tunnel. The
 connector dials out to Cloudflare, so no inbound ports are opened on this machine. TLS ends at
@@ -15,12 +16,13 @@ the Cloudflare dashboard**. The connector runs on the **host** as the Windows se
 | Public hostname | Tunnel service URL (host connector) | Container | Purpose |
 |---|---|---|---|
 | `app-sdlc-dev.shaheenks.co.in` | `http://localhost:4181` | `oauth2-proxy-public` | Entra sign-in + agent UI (`/dev-ui/`) |
-| `mcp-sdlc-dev.shaheenks.co.in` | `http://localhost:8080` | `mcp-bootstrap` | MCP endpoint `/mcp` + OAuth metadata for MCP clients (Antigravity) |
+| `mcp-sdlc-dev.shaheenks.co.in` | `http://localhost:8080` | `mcp-bootstrap` | MCP endpoint `/mcp` + OAuth metadata for MCP clients (Antigravity, verified with a user token from `az account get-access-token`) |
 | `api-sdlc-dev.shaheenks.co.in` | *(Stage 8)* | agent API / A2A | Gemini Enterprise / Agent Engine |
 
 Local equivalents (no tunnel): `http://localhost:4180` (sign-in + UI via `oauth2-proxy`) and
-`http://localhost:8080` (MCP). Never exposed: Postgres, the agent container, and ADK developer
-tools (blocked unless `SDLC_DEV_TOOLS=true`).
+`http://localhost:8080` (MCP). Never exposed: Postgres, the agent container, the Jaeger trace UI
+(`localhost:16686` only, profile `observability`), and ADK developer tools (blocked unless
+`SDLC_DEV_TOOLS=true`).
 
 The names are one level below `shaheenks.co.in`, so Cloudflare's free Universal SSL certificate
 (`*.shaheenks.co.in`) covers them. Deeper names like `app.sdlc.dev.…` would need Advanced
@@ -78,9 +80,12 @@ Guest (B2B) users are out of scope for now.
   be published.
 - The public oauth2-proxy trusts `X-Forwarded-*` headers (reverse-proxy mode) and uses
   `Secure` cookies. It is published on `127.0.0.1` only.
+- Cloudflare WAF rate limits (per IP) complement the MCP server's own per-user rate limits
+  (`platform.yaml` `defaults.rate_limit`, `teams/*.yaml` `policy.limits`).
 - The edge times out after 100 s with no data. Agent runs stream over SSE (`/run_sse`), so
   long runs keep the connection alive.
 - MCP clients outside Docker use `https://mcp-sdlc-dev.shaheenks.co.in/mcp`. The server's 401
   challenge advertises it (`MCP_PUBLIC_URL`).
-- Stage 7 (GCP) replaces the tunnel with Cloud Run domains / a load balancer. The hostnames can
-  stay the same.
+- GCP (Stage 7, deferred) does not use this tunnel: staging is designed on Cloud Run `*.run.app`
+  URLs first, then its own `*-sdlc-staging` hostnames with a CNAME and managed certificate.
+  The dev tunnel stays for development.

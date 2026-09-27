@@ -1,4 +1,4 @@
-# Entra ID setup (Stage 2)
+# Entra ID setup (Stage 2, kept current)
 
 This guide registers the apps, groups and test users that the MCP server's identity checks
 need. Run it once per environment (tenant). You need **Application Administrator** (or
@@ -44,9 +44,9 @@ az account show --query "{tenant:tenantId, user:user.name}" -o table
 | Object | Purpose |
 |---|---|
 | App `sdlc-mcp` (API) | The resource. Tokens for it carry `aud=<sdlc-mcp client id>`, `scp=access_as_user`, `groups`. The MCP server validates these. |
-| App `sdlc-client` (web) | Signs users in for adk web via oauth2-proxy (Stage 2d) and requests `sdlc-mcp/access_as_user`. |
-| Security groups | `sdlc-eng-all`, `sdlc-payments-devs`, `sdlc-platform-devs` (+ leads/admins later). Mapped to aliases in `config/env/<env>/groups.yaml`. |
-| 2+ test users | For the Stage 2 check: different groups → different `whoami`. |
+| App `sdlc-client` (web) | Signs users in for adk web via oauth2-proxy (Stage 2d) and requests `sdlc-mcp/access_as_user`. Redirect URIs: `http://localhost:4180/oauth2/callback`, `https://app-sdlc-dev.shaheenks.co.in/oauth2/callback` (tunnel) and the GCP staging callback (see GCP_DEPLOYMENT.md). |
+| Security groups | `sdlc-eng-all`, `sdlc-payments-devs`, `sdlc-payments-leads`, `sdlc-platform-devs`, `sdlc-platform-admins`. Mapped to aliases in `config/env/<env>/groups.yaml`. |
+| Test users | A payments developer, a platform developer, an admin and (optionally) a payments lead: different groups → different `whoami`. UPNs are passed on the command line, never stored in the repo. |
 
 ## 1. API app: `sdlc-mcp`
 
@@ -84,7 +84,8 @@ echo "ENTRA_TENANT_ID=$TENANT_ID"; echo "ENTRA_API_CLIENT_ID=$API_APP_ID"
 
 Notes:
 - **`requestedAccessTokenVersion: 2`** is required. The server only trusts the v2 issuer
-  `https://login.microsoftonline.com/<tenant>/v2.0`, and v2 tokens carry the client ID as `aud`.
+  `https://login.microsoftonline.com/<tenant>/v2.0` (host from `platform.yaml` `identity.authority_host`;
+  sovereign clouds use their own), and v2 tokens carry the client ID as `aud`.
 - **Identifier URI `api://<client id>`**: Entra's default app policy rejects custom URIs such as
   `api://sdlc-mcp` unless they use a verified domain. `config/platform.yaml` expects
   `api://${ENTRA_API_CLIENT_ID}`, so no config change is needed per tenant.
@@ -108,6 +109,7 @@ Notes:
 > not on-prem names: `whoami` reports `non_guid_group_claims` when names are emitted.
 
 ```bash
+# (the Windows script creates all five: + sdlc-payments-leads, sdlc-platform-admins)
 for g in sdlc-eng-all sdlc-payments-devs sdlc-platform-devs; do
   az ad group create --display-name $g --mail-nickname $g --query "{name:displayName,id:id}" -o tsv
 done
@@ -152,6 +154,11 @@ CLIENT_SECRET=$(az ad app credential reset --id $CLIENT_APP_ID --display-name oa
   --years 1 --query password -o tsv)
 echo "ENTRA_CLIENT_ID=$CLIENT_APP_ID"; echo "ENTRA_CLIENT_SECRET=$CLIENT_SECRET"   # -> .env only
 ```
+
+More redirect URIs (tunnel, GCP staging): `.\scripts\entra_setup.ps1 … -RedirectUri <uri>,<uri>` adds the
+missing ones and keeps existing ones (`-DryRun` first). Afterwards check each entry separately with
+`az ad app show --id <client id> --query web.redirectUris -o json`. This is a tenant change: use the admin
+account only with explicit confirmation.
 
 ## 4. Optional: Graph fallback for users with too many groups
 
@@ -205,6 +212,20 @@ $env:SDLC_E2E_USER_TOKEN = az account get-access-token --scope api://<ENTRA_API_
 uv run --env-file .env pytest tests/e2e/test_stage2_agent.py -v
 Remove-Item Env:AZURE_CONFIG_DIR, Env:SDLC_E2E_USER_TOKEN
 ```
+
+### MCP clients (Antigravity, development)
+
+Antigravity connects straight to `https://mcp-sdlc-dev.shaheenks.co.in/mcp`. In development it uses a user
+token from the Azure CLI (works because of the dev-only pre-authorization above):
+
+```powershell
+az account get-access-token --scope api://<ENTRA_API_CLIENT_ID>/access_as_user --query accessToken -o tsv
+```
+
+The token expires after 60–90 minutes and must be pasted again. Verified: the same user gets the same
+policy as in adk web (plan H5). The enterprise path is Antigravity's own OAuth sign-in against Entra
+(discovered from the server's `/.well-known/oauth-protected-resource`) with a pre-registered public client
+and a loopback redirect URI (an admin change; not set up yet).
 
 For prod or enterprise tenants, remove the Azure CLI pre-authorization:
 `.\scripts\entra_setup.ps1 ... -NoAzCliPreAuth` (plan gap E6).
