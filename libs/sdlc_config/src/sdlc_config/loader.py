@@ -199,6 +199,9 @@ def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
         default_max_classification=default_max,
         embedding_model=doc["knowledge"]["embedding"]["model"],
         embedding_dimensions=doc["knowledge"]["embedding"]["dimensions"],
+        graph_model=doc["knowledge"].get("graph", {}).get("model", ""),
+        graph_relation_types=tuple(doc["knowledge"].get("graph", {}).get("relation_types", [])),
+        graph_thinking_level=doc["knowledge"].get("graph", {}).get("thinking_level", ""),
     )
 
 
@@ -495,6 +498,18 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
         for group in access.get("groups", []):
             if group not in aliases:
                 problems.append(f"{rel}: access/groups: unknown group alias '{group}'")
+        graph = spec.get("ingest", {}).get("graph", {})
+        relation_types = tuple(graph.get("relation_types", platform.graph_relation_types))
+        if graph.get("enabled"):
+            if not platform.graph_model:
+                problems.append(f"{rel}: spec/ingest/graph: platform.yaml has no knowledge.graph")
+            if not graph.get("entity_types"):
+                problems.append(f"{rel}: spec/ingest/graph/entity_types: required when enabled")
+            unknown = sorted(set(relation_types) - set(platform.graph_relation_types))
+            if unknown:
+                problems.append(
+                    f"{rel}: spec/ingest/graph/relation_types: not in platform.yaml: {unknown}"
+                )
         sources[sid] = SourceDef(
             id=sid,
             source=rel,
@@ -506,6 +521,9 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             classification=level,
             classification_rank=platform.classification_rank(level),
             chunking=MappingProxyType(dict(spec.get("ingest", {}).get("chunking", {}))),
+            graph_enabled=bool(graph.get("enabled")),
+            entity_types=tuple(graph.get("entity_types", [])),
+            relation_types=relation_types if graph.get("enabled") else (),
             access_teams=frozenset(access.get("teams", [])),
             access_roles=frozenset(access.get("roles", [])),
             access_groups=frozenset(access.get("groups", [])),

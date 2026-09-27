@@ -11,6 +11,9 @@ spec:
   classification: internal
   ingest:
     chunking: { strategy: auto, max_tokens: 400, overlap: 40 }
+    graph:
+      enabled: true
+      entity_types: [service, component, data_store, environment, runbook, metric, team, alert]
 access:
   teams: [platform]
   roles: [admin]

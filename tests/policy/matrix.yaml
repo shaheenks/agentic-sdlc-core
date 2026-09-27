@@ -39,6 +39,9 @@ rows:
   - { persona: viewer,        tool: search_knowledge,  expect: allow }
   - { persona: viewer,        tool: graph_query,       expect: deny }
   - { persona: payments-dev,  tool: graph_query,       expect: allow }
+  - { persona: platform-dev,  tool: graph_query,       expect: allow }
+  - { persona: nobody,        tool: graph_query,       expect: deny }
+  - { persona: admin,         tool: graph_query,       expect: allow }
 
 # Skill visibility (Stage 4). expect: visible | hidden. Every skill needs rows.
 skill_rows:

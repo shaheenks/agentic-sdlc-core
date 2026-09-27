@@ -17,6 +17,14 @@ knowledge:
   # One embedding model for the whole index: mixing models in one vector index breaks search.
   # Changing it requires re-ingesting every source. The DB column is vector(<dimensions>).
   embedding: { model: gemini-embedding-2, dimensions: 768 }
+  # Knowledge-graph extraction (Stage 6): one structured-output LLM call per new chunk of a source
+  # with spec.ingest.graph.enabled (results cached by chunk content). Sources may narrow the
+  # relation types; entity types are always set per source.
+  graph:
+    model: gemini-3.8-flash
+    thinking_level: low        # optional; "low" is ~4x faster than the default with equal quality here
+    relation_types: [depends_on, calls, uses, runs_on, stores_data_in, owns, part_of,
+                     implements, documents, alerts, caused_by, mitigated_by, affects]
 defaults:
   deny_by_default: true
   max_classification: public

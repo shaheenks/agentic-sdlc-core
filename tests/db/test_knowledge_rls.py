@@ -4,9 +4,6 @@ Runs against a throwaway `sdlc_test` database (tests/support/db.py) with the rea
 Needs the Postgres container and .env passwords:  uv run --env-file .env pytest tests/db
 """
 
-import asyncio
-import sys
-
 import psycopg
 import pytest
 from fastmcp import Client
@@ -15,12 +12,12 @@ from psycopg_pool import AsyncConnectionPool
 from sdlc_auth.entra import entra_issuer
 from sdlc_config import load_snapshot, resolve
 from sdlc_db import HashEmbedder, rls_settings, search
-from sdlc_ingest.pipeline import ingest
 from sdlc_mcp_bootstrap.knowledge_tools import Knowledge
 from sdlc_mcp_bootstrap.server import build_http_app, build_server
 
 from tests.support import db
 from tests.support.config import make_config_dir
+from tests.support.db import app_query, ingest_as_ingest_role, run
 from tests.support.entra import (
     G_ENG_ALL,
     G_PAYMENTS_DEVS,
@@ -28,6 +25,7 @@ from tests.support.entra import (
     TENANT,
     TEST_ENV,
 )
+from tests.support.graph import VocabularyExtractor
 from tests.support.servers import free_port, serve
 
 pytestmark = pytest.mark.skipif(bool(db.available()), reason=str(db.available()))
@@ -36,17 +34,10 @@ G_PAYMENTS_LEADS = "00000000-0000-0000-0000-000000000003"
 EMBEDDER = HashEmbedder()
 
 
-def run(coro):
-    if sys.platform == "win32":
-        return asyncio.run(coro, loop_factory=asyncio.SelectorEventLoop)
-    return asyncio.run(coro)
-
-
 async def _ingest(snapshot, repo_root, sources=None):
-    async with await psycopg.AsyncConnection.connect(
-        db.db_conninfo("ingest"), autocommit=True
-    ) as conn:
-        return await ingest(conn, snapshot, EMBEDDER, repo_root, sources)
+    return await ingest_as_ingest_role(
+        snapshot, repo_root, EMBEDDER, VocabularyExtractor(), sources
+    )
 
 
 @pytest.fixture(scope="module")
@@ -57,18 +48,6 @@ def corpus(tmp_path_factory):
     snapshot = load_snapshot(config_dir, "local", TEST_ENV)
     reports = run(_ingest(snapshot, config_dir.parent))
     return config_dir, snapshot, {r.source_id: r for r in reports}
-
-
-def app_query(sql_text: str, policy=None):
-    with psycopg.connect(db.db_conninfo("app")) as conn:
-        if policy is not None:
-            allowed, rank = rls_settings(policy)
-            conn.execute(
-                "SELECT set_config('app.allowed_sources', %s, true),"
-                " set_config('app.max_classification_rank', %s, true)",
-                (allowed, rank),
-            )
-        return conn.execute(sql_text).fetchall()
 
 
 def sources_seen(policy) -> dict[str, int]:
@@ -158,19 +137,24 @@ def test_reingest_skips_changes_and_deletes(corpus):
     config_dir, _, _ = corpus
     snapshot = load_snapshot(config_dir, "local", TEST_ENV)
     unchanged = run(_ingest(snapshot, config_dir.parent, ["eng-standards"]))[0]
-    assert (unchanged.files_changed, unchanged.files_unchanged) == (0, 3)
+    assert (unchanged.files_changed, unchanged.files_unchanged) == (0, 5)
 
     folder = config_dir.parent / "samples/sources/eng-standards"
     (folder / "api-design.md").write_text("# API design\n\nUse plural nouns.\n")
     (folder / "security-baseline.md").unlink()
     report = run(_ingest(snapshot, config_dir.parent, ["eng-standards"]))[0]
-    assert (report.files_changed, report.files_unchanged, report.files_deleted) == (1, 1, 1)
+    assert (report.files_changed, report.files_unchanged, report.files_deleted) == (1, 3, 1)
     admin = resolve(snapshot, ["platform-admins"])
     paths = {
         p
         for (p,) in app_query("SELECT path FROM documents WHERE source_id = 'eng-standards'", admin)
     }
-    assert paths == {"api-design.md", "code-review-guidelines.md"}
+    assert paths == {
+        "api-design.md",
+        "code-review-guidelines.md",
+        "incident-management.md",
+        "service-tiers.md",
+    }
 
 
 def test_classification_change_applies_to_existing_rows(corpus):

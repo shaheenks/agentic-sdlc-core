@@ -62,3 +62,47 @@ def create_test_database() -> None:
 
 def db_conninfo(role: str) -> str:
     return conninfo(role, dbname=TEST_DB)
+
+
+# --- shared helpers for tests/db ----------------------------------------------------------------
+
+
+def run(coro):
+    """psycopg async needs a selector loop on Windows."""
+    import asyncio
+    import sys
+
+    if sys.platform == "win32":
+        return asyncio.run(coro, loop_factory=asyncio.SelectorEventLoop)
+    return asyncio.run(coro)
+
+
+async def ingest_as_ingest_role(snapshot, repo_root, embedder, extractor, sources=None, **kw):
+    from sdlc_ingest.pipeline import ingest
+
+    async with await psycopg.AsyncConnection.connect(
+        db_conninfo("ingest"), autocommit=True
+    ) as conn:
+        return await ingest(conn, snapshot, embedder, repo_root, sources, extractor=extractor, **kw)
+
+
+def app_query(sql_text: str, policy=None, params=()):
+    """Run one query as sdlc_app, with the policy's RLS context (or none)."""
+    from sdlc_db import rls_settings
+
+    with psycopg.connect(db_conninfo("app")) as conn:
+        if policy is not None:
+            allowed, rank = rls_settings(policy)
+            conn.execute(
+                "SELECT set_config('app.allowed_sources', %s, true),"
+                " set_config('app.max_classification_rank', %s, true)",
+                (allowed, rank),
+            )
+        return conn.execute(sql_text, params).fetchall()
+
+
+def superuser_query(sql_text: str, params=()):
+    """Unfiltered view for assertions about what was written (superuser bypasses RLS)."""
+    with psycopg.connect(_superuser(TEST_DB)) as conn:
+        conn.execute("SET search_path = sdlc, public")
+        return conn.execute(sql_text, params).fetchall()

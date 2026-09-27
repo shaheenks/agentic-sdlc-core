@@ -1,0 +1,63 @@
+# Retrieval eval (Stage 6 gate): questions over samples/sources with the files that answer them.
+# `expect` entries are <source id>:<path>. `hops: multi` marks questions whose answer needs facts
+# from several files that the question does not all name (the case the knowledge graph is for).
+# Run: SDLC_EVAL=1 uv run --env-file .env pytest tests/evals -s   (needs the ingested dev DB + Vertex)
+questions:
+  - q: How are refunds retried after a processor timeout?
+    expect: [payments-code:docs/refunds.md]
+  - q: In the duplicate refunds incident, which platform service restarted the worker, and how should it be restarted safely?
+    hops: multi
+    expect:
+      - payments-incidents:INC-2031-duplicate-refunds.md
+      - platform-infra:docs/job-runner.md
+      - platform-infra:runbooks/job-runner-restart.md
+  - q: Where does the refund-worker run and who is paged when it misbehaves?
+    hops: multi
+    expect: [payments-code:docs/architecture.md, payments-code:docs/ownership.md]
+  - q: Which database does ledger-service write to, and does it fail over automatically?
+    hops: multi
+    expect: [payments-code:docs/architecture.md, platform-infra:terraform/cloudsql.tf]
+  - q: What caused the ledger posting lag incident and which alert fired?
+    expect: [payments-incidents:INC-2044-ledger-posting-lag.md, payments-code:docs/alerts.md]
+  - q: What SLO does the canary deployment check against?
+    hops: multi
+    expect: [platform-infra:docs/deploy-pipeline.md, platform-infra:docs/observability.md]
+  - q: How do I roll back a bad deployment?
+    expect: [platform-infra:runbooks/rollback.md]
+  - q: What should I do first when RefundAmountSpike fires?
+    expect: [payments-code:docs/alerts.md]
+  - q: Which squad owns the job that reconciles the ledger with settlement files, and where does that job run?
+    hops: multi
+    expect:
+      - payments-code:docs/ownership.md
+      - payments-code:docs/reconciliation.md
+      - platform-infra:docs/job-runner.md
+  - q: What timeout does payments-api use when calling the processor gateway?
+    expect: [payments-code:src/processor_client.py]
+  - q: How are worker caches kept across job-runner restarts?
+    expect: [platform-infra:docs/job-runner.md]
+  - q: How long do we have to write a postmortem for an incident where customer money was affected?
+    expect: [eng-standards:incident-management.md]
+  - q: Which services are tier 1 and what do they need?
+    expect: [eng-standards:service-tiers.md]
+  - q: Is the refund-worker paged on the same rotation as payments-api?
+    expect: [payments-code:docs/ownership.md]
+  - q: Which region hosts the ledger database and the platform VPC?
+    expect: [platform-infra:terraform/cloudsql.tf, platform-infra:terraform/network.tf]
+  - q: What happens to reconciliation exceptions that stay unresolved?
+    expect: [payments-code:docs/reconciliation.md]
+  - q: How is a refund posted to the double-entry ledger?
+    expect: [payments-code:src/ledger.py]
+  - q: What did the duplicate refunds incident change about idempotency keys, and what does our API standard require for them?
+    hops: multi
+    expect: [payments-incidents:INC-2031-duplicate-refunds.md, eng-standards:api-design.md]
+  - q: Which alert covers processor-gateway timeouts, and which squad owns processor-gateway?
+    hops: multi
+    expect: [payments-code:docs/alerts.md, payments-code:docs/ownership.md]
+  - q: What must a tier-1 service like job-runner have, and how is job-runner restarted?
+    hops: multi
+    expect: [eng-standards:service-tiers.md, platform-infra:runbooks/job-runner-restart.md]
+  - q: What security rules apply to secrets and audit logs?
+    expect: [eng-standards:security-baseline.md]
+  - q: How many approvals does a change to a shared library need?
+    expect: [eng-standards:code-review-guidelines.md]

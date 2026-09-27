@@ -12,7 +12,9 @@ spec:
   classification: internal
   ingest:
     chunking: { strategy: auto, max_tokens: 400, overlap: 40 }
-    graph:    { enabled: true, entity_types: [service, module, api, requirement, owner] }
+    graph:
+      enabled: true
+      entity_types: [service, component, api, data_store, team, alert, process]
     schedule: manual
 access:                              # the ONLY place that grants read access to this data
   teams: [payments]

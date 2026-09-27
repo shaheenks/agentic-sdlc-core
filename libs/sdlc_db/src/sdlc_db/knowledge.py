@@ -2,11 +2,19 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from psycopg import AsyncConnection
 from sdlc_config import EffectivePolicy, Snapshot
 
 from sdlc_db.scoped import scoped
+
+if TYPE_CHECKING:
+    from sdlc_db.graph import Extraction, GraphCounts
+
+# Tables whose rows carry source_id + classification_rank (re-stamped when a source's
+# classification changes). Keep in sync with db/migrations.
+CLASSIFIED_TABLES = ("documents", "chunks", "entities", "mentions", "edges")
 
 
 def vector_literal(values: Sequence[float]) -> str:
@@ -21,7 +29,8 @@ class SearchHit:
     end_line: int
     heading: str | None
     content: str
-    score: float  # cosine similarity, 1 = identical
+    score: float  # cosine similarity, 1 = identical (graph_search: plus graph/glossary bonus)
+    via: str = "vector"  # "vector" | "graph" (reached through the knowledge graph)
 
 
 async def search(
@@ -70,14 +79,12 @@ async def sync_sources(conn: AsyncConnection, snapshot: Snapshot) -> tuple[int, 
                 (s.id, s.classification, s.classification_rank, s.owner_team, snapshot.version),
             )
             # a classification change applies to already-ingested rows too
-            await conn.execute(
-                "UPDATE documents SET classification_rank = %s WHERE source_id = %s",
-                (s.classification_rank, s.id),
-            )
-            await conn.execute(
-                "UPDATE chunks SET classification_rank = %s WHERE source_id = %s",
-                (s.classification_rank, s.id),
-            )
+            for table in CLASSIFIED_TABLES:
+                await conn.execute(
+                    f"UPDATE {table} SET classification_rank = %s"  # noqa: S608 (constant names)
+                    " WHERE source_id = %s AND classification_rank <> %s",
+                    (s.classification_rank, s.id, s.classification_rank),
+                )
         cur = await conn.execute(
             "DELETE FROM sources WHERE NOT (id = ANY(%s)) RETURNING id", (list(snapshot.sources),)
         )
@@ -110,8 +117,13 @@ async def replace_document(
     content_hash: str,
     chunks: Sequence[ChunkRow],
     embedding_model: str,
-) -> None:
-    """Replace one document and all its chunks atomically."""
+    graph: "Sequence[Extraction] | None" = None,
+) -> "GraphCounts | None":
+    """Replace one document, its chunks and (when `graph` is given, one Extraction per chunk)
+    its graph mentions/edges atomically. Returns the graph counts, or None without a graph."""
+    from sdlc_db.graph import drop_orphan_entities, write_graph
+
+    chunk_ids: list[int] = []
     async with conn.transaction():
         await conn.execute(
             "DELETE FROM documents WHERE source_id = %s AND path = %s", (source_id, path)
@@ -125,12 +137,13 @@ async def replace_document(
         )
         (document_id,) = await cur.fetchone()
         for chunk in chunks:
-            await conn.execute(
+            cur = await conn.execute(
                 """
                 INSERT INTO chunks (document_id, source_id, classification_rank, ordinal,
                                     start_line, end_line, heading, content, embedding,
                                     embedding_model)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::vector, %s)
+                RETURNING id
                 """,
                 (
                     document_id,
@@ -145,12 +158,23 @@ async def replace_document(
                     embedding_model,
                 ),
             )
+            chunk_ids.append((await cur.fetchone())[0])
+        counts = None
+        if graph is not None:
+            counts = await write_graph(conn, source_id, classification_rank, chunk_ids, graph)
+        await drop_orphan_entities(conn, source_id)
+    return counts
 
 
 async def delete_documents(conn: AsyncConnection, source_id: str, paths: Sequence[str]) -> int:
     if not paths:
         return 0
-    cur = await conn.execute(
-        "DELETE FROM documents WHERE source_id = %s AND path = ANY(%s)", (source_id, list(paths))
-    )
+    from sdlc_db.graph import drop_orphan_entities
+
+    async with conn.transaction():
+        cur = await conn.execute(
+            "DELETE FROM documents WHERE source_id = %s AND path = ANY(%s)",
+            (source_id, list(paths)),
+        )
+        await drop_orphan_entities(conn, source_id)
     return cur.rowcount

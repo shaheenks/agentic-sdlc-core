@@ -11,6 +11,10 @@ spec:
   classification: confidential        # readable only by roles cleared for confidential (lead, admin)
   ingest:
     chunking: { strategy: markdown, max_tokens: 400, overlap: 0 }
+    graph:
+      enabled: true
+      entity_types: [incident, service, component, data_store, team, alert, process]
+      relation_types: [caused_by, mitigated_by, affects, owns, depends_on, runs_on, alerts]
 access:
   teams: [payments]
   roles: [admin]

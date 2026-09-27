@@ -13,6 +13,12 @@ chunk (`spec.ingest.chunking`: `markdown` by headings, `code` by top-level defin
 replace the document's chunks in one transaction → delete documents whose files are gone.
 Classification is stamped on every row from the Source config; changing it re-stamps existing rows.
 
+**Graph extraction** (`extract.py`, sources with `spec.ingest.graph.enabled`): every changed chunk of a source goes
+to `platform.yaml` `knowledge.graph.model` in one parallel batch (structured JSON, the Source's entity/relation
+types). Output is cleaned before it is stored, and cached in `sdlc.extraction_cache` (key: prompt version, model,
+types, text), so `--force` re-runs are cheap. A file whose extraction fails is not written and is retried next
+run. The run summary shows `entities`, `relations` and `llm_calls` (cache misses); the exit code is 1 on errors.
+
 Runs as `sdlc_ingest` (writes only through its RLS policy; no superuser, no BYPASSRLS).
 `--dry-run` walks and chunks without touching the DB or the embedding API.
 

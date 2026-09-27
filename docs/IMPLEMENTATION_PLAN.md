@@ -11,7 +11,7 @@ Architecture diagrams and component overview: [ARCHITECTURE.md](ARCHITECTURE.md)
 | 3 — RBAC from config (tools) | ✅ Done (2026-09-27) | **Gate passed live** (MCP audit log): payments dev: `review_code(payments-api)` allowed, `review_code(platform-infra)` denied by `teams/payments.yaml#policy/tools/constraints/review_code`, `approve_design` hidden; platform dev: `generate_tests(platform-ci)` allowed, `review_code(payments-api)` denied by the platform limit; admin: `config_info` / `config_explain` allowed via `roles.yaml#bindings[2]`; a user with no mapped groups gets only `ping`/`whoami` (`everyone` binding). Built: config kinds + cross-refs, resolver + cache, `sdlc_policy` + policy middleware (filter, authorize, audit with matched rule), app roles, non-GUID flag, stub SDLC tools, admin tools, `whoami(explain)`, CLI `explain`/`diff`, persona matrix. 181 tests. |
 | 4 — Skills + team add-ons | ✅ Done (2026-09-27) | **Gate passed live** (MCP audit log + user checks): each session fetched its team context (`get_agent_context`); payments users (paul, payments-lead account) got the payments add-ons and instructions, platform (ana) got `infra-change-review`, admin (ben) all skills; ana's `load_skill(pci-checklist)` answered "unknown skill"; no auth failures. Built: SkillCatalog + add-ons with naming checks, resolver skills/instructions/context, per-user `list_skills`/`load_skill`, `get_agent_context`, `sdlc_agent.with_team_context`, seed skills. Audit additions after the gate: `skill_access` (allow/deny + real reason) and `skills_list` events, `request_id`, error type/details with tracebacks, `agent_session_id` conversation correlation (one MCP client session per user token + conversation). 256 tests. Note: `load_skill` is granted as a tool; hidden skills show as outcome `tool_error` in the audit, not as a policy deny. |
 | 5 — RAG v1 + data-level RBAC | ✅ Done (2026-09-27) | **Gate passed live** (browser + MCP audit log): paul (payments dev) got `payments-code` + `eng-standards` results only; ana (platform dev) got `platform-infra` + `eng-standards`, disjoint from paul's; the payments-lead account also got the confidential `payments-incidents`; every `search_knowledge` call audited `allow`/`ok` with the user's teams and roles; no auth failures. Built (5a–5f): `Source` kind + resolver data step (`allowed_sources`, `max_classification`); DB roles `sdlc_owner`/`sdlc_app`/`sdlc_ingest` (none bypasses RLS); migration `001_knowledge` (`sources`/`documents`/`chunks`, `vector(768)` HNSW, RLS ENABLE + FORCE, no context = no rows); `libs/sdlc_db` (`scoped()` RLS context, search, `sdlc-db migrate`, `gemini-embedding-2` embedder); `sdlc-ingest` (markdown/code/fixed chunking, content-hash skip, `--force`), on-demand compose services `migrate` / `ingest`; MCP `search_knowledge` under RLS; sample corpus in `samples/sources/`. Verified in the containers with Vertex embeddings: payments dev -> `payments-code` (+ `eng-standards`), platform dev -> `platform-infra` + `eng-standards`, payments lead also -> confidential `payments-incidents`. 308 tests (incl. RLS on a throwaway DB and data rows in the persona matrix). Also fixed: `auth_failure` is audited before the 401/403 is sent (flaky-test race). |
-| 6 — Knowledge graph | ⏭️ Next | |
+| 6 — Knowledge graph | 🔨 Built, live gate pending (2026-09-27) | Built (6a–6e): migration `002_graph` (`entities`/`mentions`/`edges` with source + classification and FORCE RLS; ingest-only `extraction_cache`); Gemini structured extraction per chunk (`gemini-3.8-flash`, thinking `low`, cached); per-source graph joined by entity key at query time; `graph_query` (vector seed → 1–2 hops → best chunk per document + entities/relations; team `glossary_source` boost); all four sources graph-enabled; sample corpus expanded to 24 files; graph RLS tests + persona rows + 22-question eval. Eval (live): gate met (hybrid recall@5 1.000 ≥ vector 0.985), but the graph's re-ranking itself adds nothing measurable on this corpus (the gain comes from one result per document; recall@3/MRR equal to vector+dedup). **Pending:** live check in the browser. |
 | 7–9 | ⏳ Not started | |
 
 ## Context
@@ -398,9 +398,47 @@ Decisions (2026-09-27): **sample corpus** in `samples/sources/` (no real data); 
 - **Gate:** ✅ passed live (2026-09-27). paul and ana get disjoint results for the same question (payments vs platform sources); both see the shared engineering standards; a payments developer (max `internal`) never sees the confidential incidents source, a payments lead does; a raw query without RLS context returns zero rows.
 
 ### Stage 6 — Knowledge graph
-- `entities`/`edges` tables with `source_id` + `classification` (same RLS); extraction driven by `spec.ingest.graph`.
-- `graph_query`: vector seed → 1–2 hop recursive CTE → subgraph + chunks. `context.glossary_source` biases retrieval.
-- **Gate:** eval set (~20 Q&A) shows hybrid ≥ vector-only; ACL tests still green.
+Decisions (2026-09-27): **Gemini structured extraction** per chunk (entity/relation types from the Source config,
+results cached by chunk content); **per-source graph, joined by entity key at query time** (no global entities, so a
+connection never reveals a source the caller can't read); **expanded sample corpus + recall eval** (~20 Q&A with
+expected files, deterministic metrics, run live); **graph extraction on all four sources**.
+- **6a Config + schema:** `platform.yaml` `knowledge.graph` (model, optional `thinking_level`, relation vocabulary);
+  `Source.spec.ingest.graph` (`enabled`, `entity_types`, optional `relation_types` subset); validated at load.
+  Migration `002_graph`: `entities` (unique per source + `key`), `mentions` (entity ↔ chunk), `edges` (evidence
+  chunk), all with `source_id` + `classification_rank`, RLS ENABLE + FORCE, `app_read` / `ingest_all`; mentions and
+  edges cascade with their chunk; `extraction_cache` is ingest-only (no `sdlc_app` grant).
+- **6b Extraction (`sdlc_ingest.extract`):** one structured-output call per new chunk (JSON schema, temperature 0,
+  prompt says the text is data), all changed chunks of a source in one parallel batch; output is untrusted and is
+  cleaned (allowed types only, relations only between extracted entities, caps); cache key = prompt version + model +
+  types + text. A failed extraction skips that file (retried next run). Orphaned entities are dropped.
+- **6c `graph_query(query, k, hops)`** (developer role): vector top-20 → seeds = entities in the best 3 chunks +
+  entities named in the question → walk 1–2 hops over edges by entity key (recursive CTE, capped at 40 keys) → chunks
+  mentioning reached entities; rank = cosine + graph bonus by depth + glossary boost; best chunk per document; returns
+  results (with `via: vector|graph`), entities and relations. Every step runs under the caller's RLS context.
+- **6d Eval (`tests/evals`, opt-in `SDLC_EVAL=1`):** 22 questions (10 multi-hop) with expected files; recall@5,
+  recall@3, MRR for vector (as `search_knowledge` returns it), vector+dedup, hybrid hops 1/2.
+- **6e Tests:** graph RLS per persona (incl. cross-source key joins limited to readable sources), no-context = no rows,
+  cache hits, failed-extraction retry, orphan cleanup, classification stamping, `graph_query` through the MCP server,
+  output cleaning, config validation, persona-matrix rows.
+- **Eval result (2026-09-27, live Vertex, 24 files / ~40 chunks):**
+
+  | | vector | vector+dedup | hybrid h1 | hybrid h2 |
+  |---|---|---|---|---|
+  | recall@5 (all / multi-hop) | 0.985 / 0.958 | 1.000 / 1.000 | 1.000 / 1.000 | 1.000 / 1.000 |
+  | recall@3 (all / multi-hop) | 0.939 / 0.896 | 0.939 / 0.896 | 0.939 / 0.896 | 0.939 / 0.896 |
+  | MRR (all / multi-hop) | 0.775 / 0.585 | 0.779 / 0.595 | 0.778 / 0.593 | 0.778 / 0.593 |
+
+  The gate is met, but honestly: the improvement over `search_knowledge` comes from returning one result per document,
+  not from the graph ranking. The corpus is small enough that vector search already finds nearly every expected file.
+  A proximity-weighted graph bonus was tried and was worse (recall@3 0.879: hub documents get over-boosted), so the
+  simple depth bonus stays. What the graph adds today is the structured answer (entities, relations, e.g.
+  `refund-worker runs_on job-runner`) and results the vector top-20 misses (`job-runner-restart.md` for the INC-2031
+  question). Re-evaluate ranking with a larger, real corpus (Stage 9 sources) before investing in tuning.
+- **Implementation notes:** `gemini-3.8-flash` with thinking `low` is ~4x faster than the default (4.5 s vs 18 s per
+  chunk) with equal extraction quality; `minimal` is not supported. After changing a source's graph settings, run
+  ingest with `--force` (unchanged chunks are served from the cache).
+- **Gate:** eval set (~20 Q&A) shows hybrid ≥ vector-only ✅ (see above); ACL tests green ✅; live: paul (payments dev)
+  and ana (platform dev) get `graph_query` answers only from their own sources, a viewer-only user has no `graph_query`.
 
 ### Stage 7 — GCP deployment
 - Terraform: Cloud Run (MCP server, agent), Cloud Run Job (ingest), Cloud SQL + pgvector, Secret Manager, Artifact Registry, Cloud Logging; Workforce Identity Federation (Entra); Vertex AI.

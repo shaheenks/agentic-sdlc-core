@@ -10,5 +10,8 @@ an applied migration must never be edited: add a new file instead.
   `sdlc.allowed_sources()` and `sdlc.max_classification_rank()`) and `ingest_all` (for `sdlc_ingest`).
   Missing RLS context = no rows.
 
+- `002_graph.sql`: `entities` (unique per source + key), `mentions` (entity ↔ chunk), `edges` (with the evidence
+  chunk), same RLS as chunks; mentions/edges cascade with their chunk. `extraction_cache` is ingest-only.
+
 Every new data table needs `FORCE ROW LEVEL SECURITY`, a `source_id` + `classification_rank` column,
 and policies for both roles, plus rows in `tests/db`.

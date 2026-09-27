@@ -11,6 +11,9 @@ spec:
   classification: public
   ingest:
     chunking: { strategy: markdown, max_tokens: 400, overlap: 0 }
+    graph:
+      enabled: true
+      entity_types: [standard, process, service, team, metric]
 access:
   groups: [eng-all]
   roles: [admin]

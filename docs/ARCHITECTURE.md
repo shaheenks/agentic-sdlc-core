@@ -220,6 +220,25 @@ flowchart LR
   RLS filtering still returns k results.
 - Ingest runs on demand (`docker compose run --rm ingest run --all`) and skips unchanged files by content hash.
 
+### Knowledge graph (Stage 6)
+
+```mermaid
+flowchart LR
+    CH[changed chunks] -- "structured output<br/>(Source entity/relation types)" --> LLM[Gemini flash]
+    LLM -- "cleaned, cached" --> G[(entities · mentions · edges<br/>per source, FORCE RLS)]
+    Q[graph_query] --> V[vector top-20] --> S[seed entities<br/>best chunks + named in question]
+    S --> W["walk 1-2 hops by entity key<br/>(recursive CTE, under RLS)"] --> R[chunks mentioning reached entities<br/>ranked, best per document]
+```
+
+- **Per-source graph.** An entity belongs to one source; the same name in two sources is two rows with the same
+  `key`. The walk joins by key, and RLS hides rows from sources the caller can't read, so a connection through an
+  unreadable source simply does not exist for that caller. There are no global entities that could leak.
+- **Extraction** runs at ingest (Gemini structured output, temperature 0, types from the Source config). Model output
+  is untrusted: only allowed types and relations between extracted entities are stored. Results are cached by chunk
+  content, so re-ingesting costs model calls only for changed text.
+- **`graph_query`** (developers) returns documents plus the entities and relations it walked; `search_knowledge`
+  (everyone with data access) stays vector-only. Both run entirely under the caller's RLS context.
+
 ## 6. Config lifecycle
 
 ```mermaid

@@ -8,7 +8,7 @@ Stage 3: RBAC from config: tools/list shows only permitted tools, every tools/ca
          tools; admin tools config_info / config_explain; whoami(explain).
 Stage 4: skills come from the config snapshot (skills.yaml + team add-ons) and are filtered
          per user; get_agent_context returns the caller's team instructions and context.
-Stage 5: search_knowledge over the RLS-protected knowledge store (sdlc_app role).
+Stage 5-6: search_knowledge and graph_query over the RLS-protected knowledge store (sdlc_app role).
 """
 
 import inspect

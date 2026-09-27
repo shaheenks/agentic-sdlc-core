@@ -7,15 +7,19 @@ database returns no rows.
 
 from sdlc_db.connect import conninfo
 from sdlc_db.embedding import Embedder, GeminiEmbedder, HashEmbedder
+from sdlc_db.graph import GraphResult, entity_key, graph_search
 from sdlc_db.knowledge import SearchHit, search
 from sdlc_db.scoped import rls_settings, scoped
 
 __all__ = [
     "Embedder",
     "GeminiEmbedder",
+    "GraphResult",
     "HashEmbedder",
     "SearchHit",
     "conninfo",
+    "entity_key",
+    "graph_search",
     "rls_settings",
     "scoped",
     "search",

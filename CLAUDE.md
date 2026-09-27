@@ -136,7 +136,8 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md
 - `docker compose run --rm migrate`   apply `db/migrations` as `sdlc_owner` (host: `uv run --env-file .env sdlc-db migrate`)
 - `docker compose run --rm ingest run --all | --source <id> [--dry-run] [--force]`   ingest `config/sources` as `sdlc_ingest`
   (profile `ingest`, never started by `up`; host: `uv run --env-file .env sdlc-ingest run --all`)
-- `uv run --env-file .env pytest tests/db`   RLS/ingest/search tests on a throwaway `sdlc_test` database (needs the postgres container)
+- `uv run --env-file .env pytest tests/db`   RLS/ingest/search/graph tests on a throwaway `sdlc_test` database (needs the postgres container)
+- `SDLC_EVAL=1 uv run --env-file .env pytest tests/evals -s`   retrieval eval (vector vs hybrid) on the ingested dev DB, live Vertex
 - `uv run --env-file .env pytest tests/e2e`   exit-gate tests (DB + pgvector; the Stage 2 agent e2e needs `SDLC_E2E_USER_TOKEN`, see docs/ENTRA_SETUP.md)
 - `uv run python scripts/mcp_whoami.py --token <entra token>`   manual identity check (see docs/ENTRA_SETUP.md)
 - `.\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> [-DryRun] [-WriteLocalFiles]`   idempotent Entra provisioning
@@ -147,9 +148,11 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md
 - `uv run sdlc-config explain --persona payments-dev` | `--groups eng-all,payments-devs [--app-roles X] [--json]` (`--dummy-env` works)
 - `uv run sdlc-config diff [--from HEAD] [--to WORKTREE] [--exit-code]`   per-persona permission changes (review on every config PR)
 - MCP tools: `whoami(explain=true)` (own view with source rules); `list_skills` / `load_skill` (per-user; hidden skills answer
-  "unknown skill"); `get_agent_context` (team instructions + context); admin only: `config_info()`, `config_explain(groups, app_roles)`
+  "unknown skill"); `get_agent_context` (team instructions + context); `search_knowledge` (viewer+, vector) and
+  `graph_query` (developer+, vector + knowledge graph), both under RLS; admin only: `config_info()`, `config_explain(groups, app_roles)`
 - Skills: a `"*"` skill grant (admin) covers every team's add-ons; team instructions are guidance, never authorization.
-  `sdlc-config diff` cannot compare across the Stage 4 boundary (older revisions lack skills.yaml); later revisions diff normally.
+  `sdlc-config diff` cannot compare across the Stage 4 boundary (older revisions lack skills.yaml) or the Stage 6 boundary
+  (older revisions enable a source graph without `platform.yaml` `knowledge.graph`); later revisions diff normally.
 
 ## Workspace conventions
 - uv workspace members are listed explicitly in the root `pyproject.toml`; add each new component there.
@@ -168,6 +171,10 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md
   Entra-shaped RS256 tokens), fixtures in `tests/conftest.py`. MCP server tests run a real uvicorn server in a thread.
 - Data tables need `source_id` + `classification_rank`, RLS ENABLE + FORCE, policies for `sdlc_app` and `sdlc_ingest`,
   and tests in `tests/db`. All reads go through `sdlc_db.scoped()`; migrations are append-only (checksummed).
+- Knowledge graph: entities/edges are per source and join by `key` (`sdlc_db.entity_key`) at query time, never
+  across sources at write time. Extraction output is untrusted (`Extraction.cleaned`). Bump
+  `sdlc_ingest.extract.PROMPT_VERSION` when the prompt or schema changes (it invalidates the cache); run ingest with
+  `--force` after changing a source's graph settings. Graph extraction uses thinking `low` (`minimal` is unsupported).
 - `gemini-embedding-2` accepts one input per call (a list is silently merged); `sdlc_db.GeminiEmbedder` handles this.
   psycopg async needs a `SelectorEventLoop` on Windows (CLIs, test server and pytest already set it).
 - New config kinds: add a JSON Schema in `config/schemas/` and register the kind in `sdlc_config/loader.py` (`_KINDS`).

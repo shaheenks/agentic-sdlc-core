@@ -18,6 +18,9 @@ class PlatformConfig:
     default_max_classification: str
     embedding_model: str = "gemini-embedding-2"
     embedding_dimensions: int = 768
+    graph_model: str = ""  # knowledge.graph.model; empty = graph extraction not configured
+    graph_relation_types: tuple[str, ...] = ()
+    graph_thinking_level: str = ""  # "" = the model's default
 
     def classification_rank(self, level: str) -> int:
         """Position of a level in classification_levels (0 = least sensitive)."""
@@ -131,6 +134,9 @@ class SourceDef:
     classification: str
     classification_rank: int
     chunking: Mapping[str, object]
+    graph_enabled: bool = False
+    entity_types: tuple[str, ...] = ()
+    relation_types: tuple[str, ...] = ()  # resolved: the source's list or the platform default
     access_teams: frozenset[str] = frozenset()
     access_roles: frozenset[str] = frozenset()
     access_groups: frozenset[str] = frozenset()

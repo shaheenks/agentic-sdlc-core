@@ -45,9 +45,18 @@
               "description": "knowledge-graph extraction (Stage 6)",
               "type": "object",
               "additionalProperties": false,
+              "required": ["enabled"],
               "properties": {
                 "enabled": { "type": "boolean" },
-                "entity_types": { "type": "array", "items": { "type": "string" } }
+                "entity_types": {
+                  "type": "array", "uniqueItems": true, "maxItems": 12,
+                  "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+                },
+                "relation_types": {
+                  "description": "subset of platform.yaml knowledge.graph.relation_types (default: all)",
+                  "type": "array", "uniqueItems": true, "minItems": 1,
+                  "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+                }
               }
             },
             "schedule": { "type": "string" }

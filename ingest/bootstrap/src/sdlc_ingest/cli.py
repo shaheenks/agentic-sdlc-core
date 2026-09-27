@@ -5,7 +5,10 @@
 Config: SDLC_CONFIG_DIR (default: repo config/), SDLC_ENV (default: local). Source locations
 resolve relative to the parent of the config dir (the repo root). Database: the sdlc_ingest role
 (PG* env + SDLC_INGEST_PASSWORD). Embeddings: platform.yaml knowledge.embedding via Vertex AI /
-Gemini API (google-genai env: GOOGLE_GENAI_USE_VERTEXAI, GOOGLE_CLOUD_PROJECT, ...).
+Gemini API (google-genai env: GOOGLE_GENAI_USE_VERTEXAI, GOOGLE_CLOUD_PROJECT, ...). Graph
+extraction: platform.yaml knowledge.graph.model, for sources with spec.ingest.graph.enabled.
+After changing a source's graph settings, re-run with --force (model output is cached, so only
+chunks whose extraction inputs changed call the model again).
 """
 
 import argparse
@@ -21,6 +24,7 @@ from sdlc_config.store import DEFAULT_CONFIG_DIR
 from sdlc_db.connect import conninfo
 from sdlc_db.embedding import GeminiEmbedder
 
+from sdlc_ingest.extract import GeminiExtractor
 from sdlc_ingest.pipeline import ingest
 
 
@@ -46,6 +50,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     platform = snapshot.platform
     embedder = GeminiEmbedder(platform.embedding_model, platform.embedding_dimensions)
+    wanted = list(snapshot.sources) if args.all else args.source
+    needs_graph = any(snapshot.sources[s].graph_enabled for s in wanted if s in snapshot.sources)
+    extractor = (
+        GeminiExtractor(platform.graph_model, platform.graph_thinking_level)
+        if needs_graph and not args.dry_run
+        else None
+    )
     reports = run_async(
         _run(
             snapshot,
@@ -54,14 +65,19 @@ def main(argv: list[str] | None = None) -> int:
             None if args.all else args.source,
             args.dry_run,
             args.force,
+            extractor,
         )
     )
     for r in reports:
         print(
             f"{r.source_id}: files={r.files_seen} changed={r.files_changed} "
-            f"unchanged={r.files_unchanged} deleted={r.files_deleted} chunks={r.chunks_written}"
+            f"unchanged={r.files_unchanged} deleted={r.files_deleted} chunks={r.chunks_written} "
+            f"entities={r.entities_written} relations={r.relations_written} "
+            f"llm_calls={r.extraction_calls}"
         )
-    return 0
+        for error in r.errors:
+            print(f"  error: {error}", file=sys.stderr)
+    return 1 if any(r.errors for r in reports) else 0
 
 
 def run_async(coro):
@@ -71,11 +87,13 @@ def run_async(coro):
     return asyncio.run(coro)
 
 
-async def _run(snapshot, embedder, repo_root, source_ids, dry_run, force=False):
+async def _run(snapshot, embedder, repo_root, source_ids, dry_run, force=False, extractor=None):
     if dry_run:  # walk + chunk only: no database, no embedding calls
         return await ingest(None, snapshot, embedder, repo_root, source_ids, dry_run=True)
     async with await psycopg.AsyncConnection.connect(conninfo("ingest"), autocommit=True) as conn:
-        return await ingest(conn, snapshot, embedder, repo_root, source_ids, dry_run, force)
+        return await ingest(
+            conn, snapshot, embedder, repo_root, source_ids, dry_run, force, extractor
+        )
 
 
 if __name__ == "__main__":
