@@ -76,7 +76,7 @@ sequenceDiagram
     U->>GE: chat (signed in via Workforce Identity Federation, Entra as IdP)
     GE->>E: first use: authorization-code flow for scope api://<sdlc-mcp>/access_as_user
     E-->>GE: user's Entra access token (+ refresh)
-    GE->>A: run the agent; token in session state under the authorization id
+    GE->>A: run the agent, with the token in session state under the authorization id
     A->>M: MCP call, Authorization: Bearer <user's Entra token>
     M->>M: validate token, groups / app roles, block list, rate limits, audit
 ```
