@@ -127,7 +127,7 @@ sequenceDiagram
     G-->>A: call search_knowledge("refunds")
     A->>M: tools/call search_knowledge  [Bearer user token]
     M->>M: authorize call · rate limit · audit
-    M->>D: SET LOCAL app.allowed_sources (readable sources), app.max_classification_rank; vector query
+    M->>D: SET LOCAL app.allowed_sources (readable sources) and app.max_classification_rank, then vector query
     D-->>M: only rows the user is entitled to
     M-->>A: results
     A->>G: results
