@@ -210,6 +210,8 @@ flowchart LR
 
 ### Data access (Stage 5)
 
+Tables, columns, indexes, roles and policies: [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md).
+
 ```mermaid
 flowchart LR
     SRC[config/sources/*.yaml<br/>location · classification · access] --> ING[sdlc-ingest<br/>role sdlc_ingest]

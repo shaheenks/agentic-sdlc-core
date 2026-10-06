@@ -1,5 +1,7 @@
 # db/migrations
 
+The resulting schema (tables, RLS, grants, lifecycle) is explained in `docs/DATABASE_SCHEMA.md`.
+
 Numbered SQL migrations (`NNN_name.sql`), applied in order by `sdlc-db migrate` as `sdlc_owner`
 (`docker compose run --rm migrate`, or `uv run --env-file .env sdlc-db migrate` on the host).
 Each file runs in one transaction and is recorded with its checksum in `sdlc.schema_migrations`;
