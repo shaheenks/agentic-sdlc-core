@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Bootstrap ingest: config-driven sources -> chunks -> embeddings -> Postgres (RLS)"
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "pypdf>=6",
     "sdlc-config",
     "sdlc-db",
 ]

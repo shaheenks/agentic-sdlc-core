@@ -228,6 +228,8 @@ def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
         graph_model=doc["knowledge"].get("graph", {}).get("model", ""),
         graph_relation_types=tuple(doc["knowledge"].get("graph", {}).get("relation_types", [])),
         graph_thinking_level=doc["knowledge"].get("graph", {}).get("thinking_level", ""),
+        ocr_model=doc["knowledge"].get("ocr", {}).get("model", ""),
+        ocr_thinking_level=doc["knowledge"].get("ocr", {}).get("thinking_level", ""),
     )
 
 
@@ -552,6 +554,9 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
                 problems.append(
                     f"{rel}: spec/ingest/graph/relation_types: not in platform.yaml: {unknown}"
                 )
+        pdf = spec.get("ingest", {}).get("pdf", {})
+        if pdf.get("ocr") == "gemini" and not platform.ocr_model:
+            problems.append(f"{rel}: spec/ingest/pdf/ocr: platform.yaml has no knowledge.ocr")
         sources[sid] = SourceDef(
             id=sid,
             source=rel,
@@ -559,6 +564,9 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             type=spec["type"],
             location=spec["location"],
             ref=spec.get("ref"),
+            pdf_ocr=pdf.get("ocr", "none"),
+            pdf_max_mb=float(pdf.get("max_mb", 50)),
+            pdf_max_pages=int(pdf.get("max_pages", 500)),
             include=tuple(spec.get("include", ["**/*"])),
             exclude=tuple(spec.get("exclude", [])),
             classification=level,

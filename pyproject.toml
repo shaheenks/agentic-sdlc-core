@@ -12,6 +12,7 @@ dev = [
     "ruff>=0.16",
     "pre-commit>=4.6",
     "psycopg[binary]>=3.2",
+    "fpdf2>=2.8",
 ]
 
 [tool.uv]

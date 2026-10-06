@@ -30,10 +30,17 @@ class Knowledge:
         return self.pool
 
 
+def _location(hit) -> dict:
+    """Where a snippet is: page range for PDFs, line range for text files."""
+    span = [hit.start_line, hit.end_line]
+    return {"pages": span} if hit.is_pdf else {"lines": span}
+
+
 def make_knowledge_tools(knowledge: Knowledge) -> list:
     async def search_knowledge(query: str, k: int = 5) -> dict:
-        """Search the team knowledge you may read (docs, code, runbooks). Returns the most
-        relevant snippets with source, path and line range. k: number of results (max 20)."""
+        """Search the team knowledge you may read (docs, code, runbooks, PDFs). Returns the most
+        relevant snippets with source, path and line range (`pages` for PDFs: cite them as
+        "file.pdf, p. N"). k: number of results (max 20)."""
         ident = await request_identity()
         policy = ident.policy
         result = {
@@ -52,7 +59,7 @@ def make_knowledge_tools(knowledge: Knowledge) -> list:
             {
                 "source": h.source_id,
                 "path": h.path,
-                "lines": [h.start_line, h.end_line],
+                **_location(h),
                 "heading": h.heading,
                 "score": round(h.score, 4),
                 "snippet": h.content,
@@ -65,8 +72,8 @@ def make_knowledge_tools(knowledge: Knowledge) -> list:
         """Answer questions that span several documents (which service runs where, who owns it,
         which incident affected it, which runbook applies) using the knowledge graph plus
         semantic search, over the knowledge you may read. Returns the best document per match
-        (source, path, lines, snippet, and whether it was reached via the graph), plus the
-        entities and relations found. k: results (max 20). hops: graph distance, 1 or 2."""
+        (source, path, lines or PDF pages, snippet, and whether it was reached via the graph),
+        plus the entities and relations found. k: results (max 20). hops: graph distance, 1 or 2."""
         ident = await request_identity()
         policy = ident.policy
         result = {
@@ -90,7 +97,7 @@ def make_knowledge_tools(knowledge: Knowledge) -> list:
             {
                 "source": h.source_id,
                 "path": h.path,
-                "lines": [h.start_line, h.end_line],
+                **_location(h),
                 "heading": h.heading,
                 "score": round(h.score, 4),
                 "via": h.via,

@@ -62,6 +62,17 @@ questions:
   - q: How many approvals does a change to a shared library need?
     expect: [eng-standards:code-review-guidelines.md]
 
+  # --- PDFs (H10): text layer (incident-policy.pdf) and a scanned page read by OCR (change freeze) ---
+  - q: Within how many minutes must the status page be updated for a SEV1 incident?
+    expect: [eng-standards:incident-policy.pdf]
+  - q: When must affected merchants be notified about a SEV1 refund incident, and whose template is used?
+    expect: [eng-standards:incident-policy.pdf]
+  - q: What happens to a postmortem action that is more than 30 days overdue?
+    expect: [eng-standards:incident-policy.pdf]
+  - q: Are production deploys allowed during the year-end change freeze, and what does a job-runner restart need then?
+    hops: multi
+    expect: [platform-infra:docs/change-freeze-notice.pdf, platform-infra:runbooks/job-runner-restart.md]
+
   # --- sdlc-platform (this repository at the pinned commit in config/sources/sdlc-platform.yaml) ---
   - q: Which Entra token claims does the MCP server check besides signature, issuer and audience?
     expect: [sdlc-platform:libs/sdlc_auth/src/sdlc_auth/entra.py]

@@ -30,6 +30,11 @@ knowledge:
     thinking_level: low        # optional; "low" is ~4x faster than the default with equal quality here
     relation_types: [depends_on, calls, uses, runs_on, stores_data_in, owns, part_of,
                      implements, documents, alerts, caused_by, mitigated_by, affects]
+  # PDF pages without a text layer (scans), for sources with spec.ingest.pdf.ocr: gemini (H10).
+  # One call per text-less page, cached by page content.
+  ocr:
+    model: gemini-3.8-flash
+    thinking_level: low
 defaults:
   deny_by_default: true
   max_classification: public

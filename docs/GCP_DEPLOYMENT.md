@@ -17,8 +17,10 @@ reusable on GCP: config bundles (`sdlc-config compile` / `activate`), CI on GitH
 the user block list, OpenTelemetry tracing, `git` sources and persistent conversations (SQLite).
 
 **Changes since the images were pushed (tag `57f55cc3ef68`)** that a resumed deployment must pick up:
-- **Rebuild the images** from the current commit: the pushed ones predate H1–H9 (readable sources,
-  sovereign hosts, bundles, block list, rate limits, tracing, git sources, persistent sessions).
+- **Rebuild the images** from the current commit: the pushed ones predate H1–H10 (readable sources,
+  sovereign hosts, bundles, block list, rate limits, tracing, git sources, persistent sessions,
+  PDF ingestion). Run the `db` step for migration `003_media_type`; OCR in the ingest job uses the jobs
+  service account's Vertex access (no new permission).
 - **Terraform variable** `entra_authority_host` (default commercial cloud) feeds oauth2-proxy and the agent.
 - **Not yet in Terraform:** mounting `blocked.yaml` from Secret Manager (like `groups.yaml`), the git source
   on Cloud Run (the ingest job has no repository; bake the corpus or use an `https` git location), OTLP

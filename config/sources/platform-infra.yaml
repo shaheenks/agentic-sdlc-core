@@ -7,10 +7,11 @@ metadata:
 spec:
   type: local_folder
   location: samples/sources/platform-infra
-  include: ["**/*.md", "**/*.tf"]
+  include: ["**/*.md", "**/*.tf", "**/*.pdf"]
   classification: internal
   ingest:
     chunking: { strategy: auto, max_tokens: 400, overlap: 40 }
+    pdf: { ocr: gemini }               # scanned notices: text-less pages are read by the model (H10)
     graph:
       enabled: true
       entity_types: [service, component, data_store, environment, runbook, metric, team, alert]

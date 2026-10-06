@@ -60,6 +60,16 @@
                 }
               }
             },
+            "pdf": {
+              "description": "PDF ingestion (H10): text layer first; pages without text go to the model only with ocr: gemini",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "ocr": { "enum": ["none", "gemini"], "description": "default none" },
+                "max_mb": { "type": "number", "exclusiveMinimum": 0, "maximum": 200, "description": "default 50" },
+                "max_pages": { "type": "integer", "minimum": 1, "maximum": 5000, "description": "default 500" }
+              }
+            },
             "schedule": { "type": "string" }
           }
         }

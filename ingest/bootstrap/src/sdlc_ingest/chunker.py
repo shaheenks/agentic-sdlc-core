@@ -132,3 +132,82 @@ def _windows(lines, start, end, max_tokens, overlap):
             back -= 1
         s = max(back + 1, s + 1) if overlap else e + 1
     return windows
+
+
+# --- PDFs (H10) -----------------------------------------------------------------------------------
+
+
+def chunk_pdf(document, max_tokens: int = 400, overlap: int = 40) -> list[Chunk]:
+    """Chunks of a PdfDocument (sdlc_ingest.pdf) whose start_line/end_line are PAGE numbers.
+
+    Sections follow the outline (bookmarks): a section starts at the line that repeats its
+    bookmark title on the bookmarked page (or at the top of that page if the title is not found),
+    and its heading is the bookmark path (`3 Response > 3.2 Escalation matrix`). Without an
+    outline every page is a section headed `page N`. Long sections are windowed like text with the
+    page of each line tracked, so a chunk always knows the pages it spans. Pages without text
+    contribute nothing.
+    """
+    lines: list[str] = []
+    page_of: list[int] = []  # page number of each line (line i is lines[i - 1])
+    first_line: dict[int, int] = {}
+    for page in document.pages:
+        page_lines = page.text.split("\n") if page.text.strip() else []
+        if page_lines:
+            first_line[page.number] = len(lines) + 1
+        lines += page_lines
+        page_of += [page.number] * len(page_lines)
+    if not lines:
+        return []
+
+    starts: dict[int, str | None] = {}  # section start line -> heading
+    if document.outline:
+        starts[1] = None  # front matter before the first bookmark
+        trail: list[str] = []
+        after = 0  # sections are found in outline order, each after the previous one
+        for entry in document.outline:
+            trail = [*trail[: entry.level - 1], entry.title]
+            line = _bookmark_line(lines, page_of, first_line, entry, after)
+            if line is not None:
+                starts[line] = " > ".join(trail)  # same line: the deeper/later bookmark wins
+                after = line
+    else:
+        starts = {first_line[p]: f"page {p}" for p in sorted(first_line)}
+
+    ordered = sorted(starts.items())
+    sections = [
+        (start, (ordered[i + 1][0] - 1 if i + 1 < len(ordered) else len(lines)), heading)
+        for i, (start, heading) in enumerate(ordered)
+    ]
+    # Outline sections: one that is little more than its title (e.g. "3 Response" followed
+    # directly by "3.1 …") merges into the next, as for Markdown, so title-only chunks never
+    # outrank text. Page sections are never merged: a "page N" heading must match its pages.
+    sections = [(start, end, heading) for start, end, heading in sections if end >= start]
+    if document.outline:
+        sections = _close([(start, heading) for start, _, heading in sections], len(lines), lines)
+    chunks: list[Chunk] = []
+    for start, end, heading in sections:
+        for s, e in _windows(lines, start, end, max_tokens, overlap):
+            content = "\n".join(lines[s - 1 : e]).strip()
+            if content:
+                chunks.append(Chunk(len(chunks), page_of[s - 1], page_of[e - 1], heading, content))
+    return chunks
+
+
+def _normalized(text: str) -> str:
+    return " ".join(text.split()).casefold()
+
+
+def _bookmark_line(lines, page_of, first_line, entry, after: int) -> int | None:
+    """Line where a bookmarked section starts: the title line on its page, else the page top."""
+    candidates = [p for p in sorted(first_line) if p >= entry.page]
+    if not candidates:
+        return None
+    page = candidates[0]
+    top = max(first_line[page], after + 1)
+    title = _normalized(entry.title)
+    for n in range(top, len(lines) + 1):
+        if page_of[n - 1] != page:
+            break
+        if _normalized(lines[n - 1]) == title:
+            return n
+    return top if top <= len(lines) and page_of[top - 1] == page else None

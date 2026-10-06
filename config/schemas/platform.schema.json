@@ -70,6 +70,16 @@
               "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
             }
           }
+        },
+        "ocr": {
+          "description": "reading PDF pages that have no text layer (H10), for sources with pdf.ocr: gemini",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model"],
+          "properties": {
+            "model": { "type": "string", "minLength": 1 },
+            "thinking_level": { "enum": ["low", "medium", "high"] }
+          }
         }
       }
     },

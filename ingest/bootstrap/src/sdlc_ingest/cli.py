@@ -25,6 +25,7 @@ from sdlc_db.connect import conninfo
 from sdlc_db.embedding import GeminiEmbedder
 
 from sdlc_ingest.extract import GeminiExtractor
+from sdlc_ingest.pdf import GeminiOcr
 from sdlc_ingest.pipeline import ingest
 
 
@@ -66,6 +67,7 @@ def main(argv: list[str] | None = None) -> int:
             args.dry_run,
             args.force,
             extractor,
+            _ocr_reader(snapshot, wanted, args.dry_run),
         )
     )
     for r in reports:
@@ -73,11 +75,28 @@ def main(argv: list[str] | None = None) -> int:
             f"{r.source_id}: files={r.files_seen} changed={r.files_changed} "
             f"unchanged={r.files_unchanged} deleted={r.files_deleted} chunks={r.chunks_written} "
             f"entities={r.entities_written} relations={r.relations_written} "
-            f"llm_calls={r.extraction_calls}" + (f" commit={r.commit[:12]}" if r.commit else "")
+            f"llm_calls={r.extraction_calls}"
+            + (
+                f" pdf_pages={r.pdf_pages} ocr_calls={r.ocr_calls}"
+                f" pages_without_text={r.pdf_pages_without_text}"
+                if r.pdf_pages
+                else ""
+            )
+            + (f" commit={r.commit[:12]}" if r.commit else "")
         )
         for error in r.errors:
             print(f"  error: {error}", file=sys.stderr)
     return 1 if any(r.errors for r in reports) else 0
+
+
+def _ocr_reader(snapshot, wanted, dry_run):
+    """Model reading of text-less PDF pages, only when a selected source opts in (pdf.ocr)."""
+    if dry_run or not any(
+        snapshot.sources[s].pdf_ocr == "gemini" for s in wanted if s in snapshot.sources
+    ):
+        return None
+    platform = snapshot.platform
+    return GeminiOcr(platform.ocr_model, platform.ocr_thinking_level)
 
 
 def run_async(coro):
@@ -87,12 +106,14 @@ def run_async(coro):
     return asyncio.run(coro)
 
 
-async def _run(snapshot, embedder, repo_root, source_ids, dry_run, force=False, extractor=None):
+async def _run(
+    snapshot, embedder, repo_root, source_ids, dry_run, force=False, extractor=None, ocr=None
+):
     if dry_run:  # walk + chunk only: no database, no embedding calls
         return await ingest(None, snapshot, embedder, repo_root, source_ids, dry_run=True)
     async with await psycopg.AsyncConnection.connect(conninfo("ingest"), autocommit=True) as conn:
         return await ingest(
-            conn, snapshot, embedder, repo_root, source_ids, dry_run, force, extractor
+            conn, snapshot, embedder, repo_root, source_ids, dry_run, force, extractor, ocr
         )
 
 

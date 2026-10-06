@@ -23,6 +23,8 @@ class PlatformConfig:
     graph_model: str = ""  # knowledge.graph.model; empty = graph extraction not configured
     graph_relation_types: tuple[str, ...] = ()
     graph_thinking_level: str = ""  # "" = the model's default
+    ocr_model: str = ""  # knowledge.ocr.model; empty = no model reading of PDF pages
+    ocr_thinking_level: str = ""
     default_calls_per_minute: int | None = None  # defaults/rate_limit (None = no baseline)
 
     def classification_rank(self, level: str) -> int:
@@ -140,6 +142,9 @@ class SourceDef:
     classification_rank: int
     chunking: Mapping[str, object]
     ref: str | None = None  # git sources: commit, tag or branch
+    pdf_ocr: str = "none"  # spec.ingest.pdf.ocr: none | gemini (H10)
+    pdf_max_mb: float = 50.0
+    pdf_max_pages: int = 500
     graph_enabled: bool = False
     entity_types: tuple[str, ...] = ()
     relation_types: tuple[str, ...] = ()  # resolved: the source's list or the platform default

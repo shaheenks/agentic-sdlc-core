@@ -241,6 +241,10 @@ flowchart LR
 - Ingest runs on demand (`docker compose run --rm ingest run --all`) and skips unchanged files by content hash.
   Sources are local folders or git repositories read at a pinned commit (never the working tree), e.g.
   `sdlc-platform` = this repository.
+- **Document types:** UTF-8 text files (Markdown by headings, Python/Terraform by definitions, everything else by
+  line windows) and **PDFs** (H10): the text layer is read locally; pages without text (scans) are read by Gemini
+  only for sources that set `pdf.ocr: gemini`. PDF chunks follow the bookmarks and record **page** ranges, so
+  answers cite `file.pdf, p. N`. PDFs are parsed only in the ingest job, never in the MCP server or agent.
 
 ### Knowledge graph (Stage 6)
 

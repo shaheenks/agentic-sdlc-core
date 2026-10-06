@@ -1,4 +1,4 @@
-"""Source walkers: include/exclude globs, text files only, stable relative paths.
+"""Source walkers: include/exclude globs, text files and PDFs, stable relative paths.
 
   local_folder  files under a folder (working tree)
   git           files of a commit (`spec.ref`) in a local repository or an https URL (partial clone
@@ -6,6 +6,11 @@
 
 Globs match the whole relative path: `*` stays within a directory, `**` spans directories
 (`docs/**` = everything under docs/, `**/*.md` = .md files at any depth, including the top level).
+
+Text files (UTF-8, at most 1 MB, no null bytes) carry their text. PDFs (recognised by the `%PDF-`
+header, H10) carry their bytes for sdlc_ingest.pdf, up to MAX_PDF_BYTES here; each source's own
+`spec.ingest.pdf.max_mb` is enforced by the pipeline, which reports oversized files. Everything else
+is skipped.
 """
 
 import hashlib
@@ -17,13 +22,22 @@ from functools import lru_cache
 from pathlib import Path
 
 MAX_FILE_BYTES = 1_000_000
+MAX_PDF_BYTES = 200 * 1024 * 1024  # hard ceiling (schema maximum of spec.ingest.pdf.max_mb)
+PDF = "application/pdf"
+TEXT = "text/plain"
 
 
 @dataclass(frozen=True)
 class SourceFile:
     path: str  # posix path relative to the source root (folder or repository)
-    text: str
+    text: str  # "" for PDFs (their text comes from sdlc_ingest.pdf)
     content_hash: str
+    media_type: str = TEXT
+    raw: bytes | None = None  # PDFs only
+
+    @property
+    def is_pdf(self) -> bool:
+        return self.media_type == PDF
 
 
 def resolve_location(location: str, repo_root: Path) -> Path:
@@ -61,6 +75,26 @@ def _selected(rel: str, include: tuple[str, ...], exclude: tuple[str, ...]) -> b
     return (not include or _matches(rel, include)) and not (exclude and _matches(rel, exclude))
 
 
+def _is_pdf(raw: bytes) -> bool:
+    return raw[:1024].lstrip().startswith(b"%PDF-")
+
+
+def _source_file(rel: str, raw: bytes) -> SourceFile | None:
+    """A text file or a PDF; None for anything else (binary, too large, not UTF-8)."""
+    digest = hashlib.sha256(raw).hexdigest()
+    if _is_pdf(raw):
+        return SourceFile(rel, "", digest, PDF, raw) if len(raw) <= MAX_PDF_BYTES else None
+    text = _text(raw)
+    return SourceFile(rel, text, digest) if text is not None else None
+
+
+def _too_large(rel: str, size: int) -> bool:
+    """Checked before reading: only `.pdf` names may exceed the text limit (the header is
+    checked after reading)."""
+    limit = MAX_PDF_BYTES if rel.lower().endswith(".pdf") else MAX_FILE_BYTES
+    return size > limit
+
+
 def _text(raw: bytes) -> str | None:
     if len(raw) > MAX_FILE_BYTES or b"\0" in raw[:4096]:
         return None  # large or binary
@@ -77,10 +111,11 @@ def walk(folder: Path, include: tuple[str, ...], exclude: tuple[str, ...]) -> It
         rel = path.relative_to(folder).as_posix()
         if not _selected(rel, include, exclude):
             continue
-        raw = path.read_bytes()
-        text = _text(raw)
-        if text is not None:
-            yield SourceFile(rel, text, hashlib.sha256(raw).hexdigest())
+        if _too_large(rel, path.stat().st_size):
+            continue
+        file = _source_file(rel, path.read_bytes())
+        if file is not None:
+            yield file
 
 
 # --- git ------------------------------------------------------------------------------------------
@@ -137,7 +172,7 @@ def walk_git(
         meta, _, name = entry.partition(b"\t")
         _mode, kind, _sha, size = meta.split()
         rel = name.decode("utf-8", "replace")
-        if kind != b"blob" or size == b"-" or int(size) > MAX_FILE_BYTES:
+        if kind != b"blob" or size == b"-" or _too_large(rel, int(size)):
             continue
         if _selected(rel, include, exclude):
             wanted.append(rel)
@@ -158,6 +193,6 @@ def _read_blobs(repo: Path, commit: str, paths: list[str]) -> Iterator[SourceFil
         size = int(header[2])
         raw = out[header_end + 1 : header_end + 1 + size]
         pos = header_end + 1 + size + 1  # content is followed by a newline
-        text = _text(raw)
-        if text is not None:
-            yield SourceFile(rel, text, hashlib.sha256(raw).hexdigest())
+        file = _source_file(rel, raw)
+        if file is not None:
+            yield file

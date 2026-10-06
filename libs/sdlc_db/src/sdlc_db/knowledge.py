@@ -31,6 +31,11 @@ class SearchHit:
     content: str
     score: float  # cosine similarity, 1 = identical (graph_search: plus graph/glossary bonus)
     via: str = "vector"  # "vector" | "graph" (reached through the knowledge graph)
+    media_type: str = "text/plain"  # application/pdf: start_line/end_line are page numbers
+
+    @property
+    def is_pdf(self) -> bool:
+        return self.media_type == "application/pdf"
 
 
 async def search(
@@ -46,7 +51,7 @@ async def search(
         cur = await conn.execute(
             """
             SELECT c.source_id, d.path, c.start_line, c.end_line, c.heading, c.content,
-                   1 - (c.embedding <=> %s::vector) AS score
+                   1 - (c.embedding <=> %s::vector) AS score, d.media_type
             FROM chunks c JOIN documents d ON d.id = c.document_id
             ORDER BY c.embedding <=> %s::vector
             LIMIT %s
@@ -54,7 +59,7 @@ async def search(
             (vec, vec, k),
         )
         rows = await cur.fetchall()
-    return [SearchHit(*row[:6], score=float(row[6])) for row in rows]
+    return [SearchHit(*row[:6], score=float(row[6]), media_type=row[7]) for row in rows]
 
 
 # --- ingest (sdlc_ingest role; its policy sees every row) ------------------------------------
@@ -118,6 +123,7 @@ async def replace_document(
     chunks: Sequence[ChunkRow],
     embedding_model: str,
     graph: "Sequence[Extraction] | None" = None,
+    media_type: str = "text/plain",
 ) -> "GraphCounts | None":
     """Replace one document, its chunks and (when `graph` is given, one Extraction per chunk)
     its graph mentions/edges atomically. Returns the graph counts, or None without a graph."""
@@ -130,10 +136,10 @@ async def replace_document(
         )
         cur = await conn.execute(
             """
-            INSERT INTO documents (source_id, path, content_hash, classification_rank)
-            VALUES (%s, %s, %s, %s) RETURNING id
+            INSERT INTO documents (source_id, path, content_hash, classification_rank, media_type)
+            VALUES (%s, %s, %s, %s, %s) RETURNING id
             """,
-            (source_id, path, content_hash, classification_rank),
+            (source_id, path, content_hash, classification_rank, media_type),
         )
         (document_id,) = await cur.fetchone()
         for chunk in chunks:

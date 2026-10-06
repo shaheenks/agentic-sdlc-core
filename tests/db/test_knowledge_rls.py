@@ -138,13 +138,13 @@ def test_reingest_skips_changes_and_deletes(corpus):
     config_dir, _, _ = corpus
     snapshot = load_snapshot(config_dir, "local", TEST_ENV)
     unchanged = run(_ingest(snapshot, config_dir.parent, ["eng-standards"]))[0]
-    assert (unchanged.files_changed, unchanged.files_unchanged) == (0, 5)
+    assert (unchanged.files_changed, unchanged.files_unchanged) == (0, 6)  # 5 .md + 1 .pdf
 
     folder = config_dir.parent / "samples/sources/eng-standards"
     (folder / "api-design.md").write_text("# API design\n\nUse plural nouns.\n")
     (folder / "security-baseline.md").unlink()
     report = run(_ingest(snapshot, config_dir.parent, ["eng-standards"]))[0]
-    assert (report.files_changed, report.files_unchanged, report.files_deleted) == (1, 3, 1)
+    assert (report.files_changed, report.files_unchanged, report.files_deleted) == (1, 4, 1)
     admin = resolve(snapshot, ["platform-admins"])
     paths = {
         p
@@ -154,6 +154,7 @@ def test_reingest_skips_changes_and_deletes(corpus):
         "api-design.md",
         "code-review-guidelines.md",
         "incident-management.md",
+        "incident-policy.pdf",
         "service-tiers.md",
     }
 

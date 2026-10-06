@@ -7,7 +7,7 @@ metadata:
 spec:
   type: local_folder
   location: samples/sources/eng-standards
-  include: ["**/*.md"]
+  include: ["**/*.md", "**/*.pdf"]
   classification: public
   ingest:
     chunking: { strategy: markdown, max_tokens: 400, overlap: 0 }

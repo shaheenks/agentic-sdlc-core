@@ -11,6 +11,8 @@ Definitions live in:
 - [`db/migrations/`](../db/migrations/): tables, indexes and RLS policies, applied in order by `sdlc-db migrate`.
   - `001_knowledge.sql` (Stage 5): `sources`, `documents`, `chunks`.
   - `002_graph.sql` (Stage 6): `entities`, `mentions`, `edges`, `extraction_cache`.
+  - `003_media_type.sql` (H10, PDF ingestion): `documents.media_type`; for PDFs the chunks' line columns
+    hold page numbers.
 
 Related: [ARCHITECTURE.md](ARCHITECTURE.md) "Data access" and "Knowledge graph".
 
@@ -56,6 +58,7 @@ erDiagram
         text source_id FK
         text path "unique per source"
         text content_hash "sha256: skip unchanged files"
+        text media_type "text/plain or application/pdf"
         int classification_rank
         timestamptz ingested_at
     }
@@ -129,6 +132,7 @@ One row per ingested file.
 | `source_id` | `text` FK → `sources.id` | Cascade on delete |
 | `path` | `text` | Path relative to the source root; `UNIQUE (source_id, path)` |
 | `content_hash` | `text` | SHA-256 of the file: unchanged files are skipped on re-ingest |
+| `media_type` | `text` | `text/plain` (default) or `application/pdf` (003). Decides how `chunks.start_line`/`end_line` are read |
 | `classification_rank` | `integer` | Stamped from the source |
 | `ingested_at` | `timestamptz` | |
 
@@ -141,7 +145,7 @@ Retrievable pieces of a document, with their embedding.
 | `document_id` | `bigint` FK → `documents.id` | Cascade on delete |
 | `source_id`, `classification_rank` | `text`, `integer` | Repeated for RLS |
 | `ordinal` | `integer` | Order within the document |
-| `start_line`, `end_line` | `integer` | 1-based line range (shown in search results) |
+| `start_line`, `end_line` | `integer` | 1-based **line** range for text files, **page** range for PDFs (`documents.media_type`); search results show `lines` or `pages` accordingly |
 | `heading` | `text` (nullable) | Markdown heading path or code definition |
 | `content` | `text` | The chunk text |
 | `embedding` | `vector(768)` | `gemini-embedding-2`, normalized (`platform.yaml` `knowledge.embedding`) |
@@ -191,11 +195,12 @@ Cached graph-extraction results, so re-ingesting unchanged text makes no model c
 
 | Column | Type | Notes |
 |---|---|---|
-| `cache_key` | `text` PK | SHA-256 of prompt version + model + entity/relation types + chunk text |
+| `cache_key` | `text` PK | Graph extraction: SHA-256 of prompt version + model + entity/relation types + chunk text. PDF page reading (H10): `ocr:` + SHA-256 of prompt version + model + the page's bytes |
 | `result` | `jsonb` | The cleaned extraction (entities + relations) |
 | `created_at` | `timestamptz` | |
 
-Ingest only: `sdlc_app` has no grant on it at all.
+Ingest only: `sdlc_app` has no grant on it at all. It caches two kinds of model output: graph extractions and
+the text the model read from scanned PDF pages (`ocr:` keys, `{text, model}`).
 
 ### `schema_migrations` (created by `sdlc-db migrate`)
 | Column | Type | Notes |
@@ -263,7 +268,9 @@ updates `classification_rank` on all six tables); until then the stricter stamp 
 |---|---|---|
 | Source sync | `sdlc-ingest` | Upsert `sources`; re-stamp `classification_rank` everywhere for changed sources; delete sources removed from config (cascade) |
 | File changed | `sdlc-ingest` | In **one transaction per document**: delete the old document (its chunks, mentions and edges cascade), insert the document and chunks, upsert entities, insert mentions and edges, drop entities left without mentions |
-| File unchanged | `sdlc-ingest` | Skipped by `content_hash` (unless `--force`; graph extraction then comes from `extraction_cache`) |
+| File unchanged | `sdlc-ingest` | Skipped by `content_hash` (unless `--force`; graph extraction and PDF page reading then come from `extraction_cache`) |
+| PDF changed | `sdlc-ingest` | Pages read (text layer, or the model for text-less pages when the source opts in), chunked by bookmarks/pages; the document is written with `media_type = application/pdf` and page ranges in the chunks |
+| File without text | `sdlc-ingest` | Empty files and scans with OCR off are recorded with **no chunks**, so their hash is stored and they are not re-read every run (`--force` re-reads them) |
 | File deleted | `sdlc-ingest` | Delete the document (cascade) and orphaned entities |
 | Search | MCP `search_knowledge` | Nearest chunks by cosine distance, under RLS |
 | Graph query | MCP `graph_query` | Vector seed → entities of the best chunks + entities named in the question → 1–2 hops over `edges` by `key` (recursive CTE) → chunks mentioning the reached entities; every step under RLS |

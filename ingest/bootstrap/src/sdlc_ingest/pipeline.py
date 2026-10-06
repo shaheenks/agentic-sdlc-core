@@ -6,6 +6,9 @@ hash) are skipped; files that disappeared are deleted. Classification comes from
 config and is stamped on every document, chunk and graph row (RLS filters on it).
 Graph extraction runs for sources with spec.ingest.graph.enabled when an extractor is given; a
 document whose extraction fails is not written, so the next run retries it.
+PDFs (H10) are read page by page (sdlc_ingest.pdf: text layer, model OCR for text-less pages only
+when the source sets pdf.ocr: gemini and an OCR reader is given) and chunked by pages
+(chunk_pdf); oversized, encrypted or corrupt PDFs are reported and not written.
 """
 
 import logging
@@ -23,9 +26,10 @@ from sdlc_db.knowledge import (
     sync_sources,
 )
 
-from sdlc_ingest.chunker import chunk_text
+from sdlc_ingest.chunker import chunk_pdf, chunk_text
 from sdlc_ingest.extract import Extractor, extract_chunks
 from sdlc_ingest.files import git_repository, resolve_location, walk, walk_git
+from sdlc_ingest.pdf import OcrReader, PdfError, read_pdf
 
 log = logging.getLogger("sdlc.ingest")
 
@@ -42,6 +46,9 @@ class SourceReport:
     relations_written: int = 0
     extraction_calls: int = 0  # model calls (cache misses)
     commit: str | None = None  # git sources: the resolved commit that was ingested
+    pdf_pages: int = 0  # pages read from changed PDFs
+    pdf_pages_without_text: int = 0  # text-less pages not read by a model (pdf.ocr: none)
+    ocr_calls: int = 0  # model calls for text-less PDF pages (cache misses)
     errors: list[str] = field(default_factory=list)
 
 
@@ -54,6 +61,7 @@ async def ingest(
     dry_run: bool = False,
     force: bool = False,
     extractor: Extractor | None = None,
+    ocr: OcrReader | None = None,
 ) -> list[SourceReport]:
     if embedder.dimensions != snapshot.platform.embedding_dimensions:
         raise ValueError("embedder dimensions do not match platform.yaml knowledge.embedding")
@@ -67,14 +75,14 @@ async def ingest(
             raise ValueError(f"unknown source '{source_id}' (have: {sorted(snapshot.sources)})")
         reports.append(
             await _ingest_source(
-                conn, snapshot, embedder, repo_root, source_id, dry_run, force, extractor
+                conn, snapshot, embedder, repo_root, source_id, dry_run, force, extractor, ocr
             )
         )
     return reports
 
 
 async def _ingest_source(
-    conn, snapshot, embedder, repo_root, source_id, dry_run, force=False, extractor=None
+    conn, snapshot, embedder, repo_root, source_id, dry_run, force=False, extractor=None, ocr=None
 ):
     source = snapshot.sources[source_id]
     report = SourceReport(source_id)
@@ -93,23 +101,53 @@ async def _ingest_source(
         if not force and known.get(file.path) == file.content_hash:
             report.files_unchanged += 1
             continue
-        chunks = chunk_text(
-            file.path,
-            file.text,
-            chunking.get("strategy", "auto"),
-            chunking.get("max_tokens", 400),
-            chunking.get("overlap", 40),
-        )
+        if file.is_pdf:
+            if len(file.raw) > source.pdf_max_mb * 1024 * 1024:
+                report.errors.append(f"{file.path}: PDF larger than max_mb {source.pdf_max_mb}")
+                continue
+            use_ocr = ocr if (source.pdf_ocr == "gemini" and not dry_run) else None
+            try:
+                document = await read_pdf(
+                    None if dry_run else conn,
+                    file.raw,
+                    max_pages=source.pdf_max_pages,
+                    ocr=use_ocr,
+                )
+            except PdfError as e:  # reported, not written: retried next run
+                report.errors.append(f"{file.path}: {e}"[:500])
+                log.warning("PDF skipped %s/%s: %s", source_id, file.path, e)
+                continue
+            report.pdf_pages += len(document.pages)
+            report.pdf_pages_without_text += document.pages_without_text
+            report.ocr_calls += document.ocr_calls
+            chunks = chunk_pdf(
+                document, chunking.get("max_tokens", 400), chunking.get("overlap", 40)
+            )
+        else:
+            chunks = chunk_text(
+                file.path,
+                file.text,
+                chunking.get("strategy", "auto"),
+                chunking.get("max_tokens", 400),
+                chunking.get("overlap", 40),
+            )
         report.files_changed += 1
-        if dry_run or not chunks:
+        if dry_run:
             report.chunks_written += len(chunks)
             continue
+        # A file without text (empty, or a scan with OCR off) is still recorded, with no chunks,
+        # so its hash is stored and it is not re-read every run (`--force` re-reads it, e.g.
+        # after turning OCR on).
         pending.append((file, chunks))
 
     # Model calls for all changed chunks of the source run as one parallel batch.
     graphs: dict[str, list] = {}
     if pending and source.graph_enabled and extractor is not None:
-        items = [(f"{source_id}:{f.path}", c.content) for f, chunks in pending for c in chunks]
+        items = [
+            (f"{source_id}:{f.path}" + (f" p.{c.start_line}" if f.is_pdf else ""), c.content)
+            for f, chunks in pending
+            for c in chunks
+        ]
         results, report.extraction_calls = await extract_chunks(conn, extractor, source, items)
         position = 0
         for f, chunks in pending:
@@ -142,6 +180,7 @@ async def _ingest_source(
             rows,
             embedder.model,
             graphs.get(file.path),
+            file.media_type,
         )
         report.chunks_written += len(chunks)
         if counts is not None:

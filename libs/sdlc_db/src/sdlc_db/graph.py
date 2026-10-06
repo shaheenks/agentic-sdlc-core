@@ -103,20 +103,31 @@ class Extraction:
 # --- ingest writes (sdlc_ingest; call inside the document's transaction) -----------------------
 
 
-async def cached_extraction(conn: AsyncConnection, cache_key: str) -> Extraction | None:
+async def cached_json(conn: AsyncConnection, cache_key: str) -> dict | None:
+    """A cached model result (extraction_cache, ingest only). Keys are namespaced by their users:
+    graph extraction uses a bare sha256, PDF page reading `ocr:<sha256>`."""
     cur = await conn.execute(
         "SELECT result FROM extraction_cache WHERE cache_key = %s", (cache_key,)
     )
     row = await cur.fetchone()
-    return Extraction.from_json(row[0]) if row else None
+    return row[0] if row else None
 
 
-async def store_extraction(conn: AsyncConnection, cache_key: str, extraction: Extraction) -> None:
+async def store_json(conn: AsyncConnection, cache_key: str, result: dict) -> None:
     await conn.execute(
         "INSERT INTO extraction_cache (cache_key, result) VALUES (%s, %s)"
         " ON CONFLICT (cache_key) DO UPDATE SET result = EXCLUDED.result, created_at = now()",
-        (cache_key, Jsonb(extraction.to_json())),
+        (cache_key, Jsonb(result)),
     )
+
+
+async def cached_extraction(conn: AsyncConnection, cache_key: str) -> Extraction | None:
+    data = await cached_json(conn, cache_key)
+    return Extraction.from_json(data) if data is not None else None
+
+
+async def store_extraction(conn: AsyncConnection, cache_key: str, extraction: Extraction) -> None:
+    await store_json(conn, cache_key, extraction.to_json())
 
 
 @dataclass
@@ -224,8 +235,10 @@ class GraphResult:
     seeds: list[str] = field(default_factory=list)
 
 
+# row layout: 0 id, 1 source_id, 2 path, 3 start_line, 4 end_line, 5 heading, 6 content,
+# 7 score, 8 media_type
 _CHUNK_COLUMNS = """c.id, c.source_id, d.path, c.start_line, c.end_line, c.heading, c.content,
-                    1 - (c.embedding <=> %(vec)s::vector) AS score"""
+                    1 - (c.embedding <=> %(vec)s::vector) AS score, d.media_type"""
 
 _WALK = """
 WITH RECURSIVE walk(key, depth) AS (
@@ -298,7 +311,7 @@ async def graph_search(
                 JOIN mentions m ON m.entity_id = e.id
                 JOIN chunks c ON c.id = m.chunk_id
                 JOIN documents d ON d.id = c.document_id
-                GROUP BY c.id, d.path
+                GROUP BY c.id, d.path, d.media_type
                 """,  # noqa: S608
                 {**params, "keys": keys, "depths": depths},
             )
@@ -341,7 +354,10 @@ async def graph_search(
             break
     result.hits = [
         SearchHit(
-            *row[1:7], score=ranked((row, depth)), via="graph" if depth is not None else "vector"
+            *row[1:7],
+            score=ranked((row, depth)),
+            via="graph" if depth is not None else "vector",
+            media_type=row[8],
         )
         for row, depth in top
     ]
