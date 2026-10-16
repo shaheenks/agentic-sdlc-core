@@ -83,7 +83,7 @@ See "Runtime Config Exposure" in docs/version-0.md.
 - Users whose token omits groups (overage) get no groups unless the Graph fallback secret is set.
 - Block list (E3): `config/env/<env>/blocked.yaml` (kind `BlockList`, optional, git-ignored like groups.yaml) is checked by
   the MCP token verifier on every request (via `store.current()`); blocked users get 401, audited as reason `blocked`.
-- Egress (E8): token validation honours `HTTPS_PROXY`/`NO_PROXY`; unreachable JWKS = every request refused (docs/ENTRA_SETUP.md §6).
+- Egress (E8): token validation honours `HTTPS_PROXY`/`NO_PROXY`; unreachable JWKS = every request refused (docs/misc/ENTRA_SETUP.md §6).
 - Deny-by-default. Filter tools/list AND re-check on every tools/call.
 - All DB reads go through `sdlc_db` with `app.allowed_sources` + `app.max_classification` set (Postgres RLS).
 - Agents forward the user's bearer token via `get_user_token(context)`; never use a service token for user calls.
@@ -144,7 +144,7 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/version-0.md.
 - `docker compose --profile tunnel up -d --wait`   also starts `oauth2-proxy-public` on 127.0.0.1:4181. Public endpoints
   `https://app-sdlc-dev.shaheenks.co.in` (UI -> localhost:4181) and `https://mcp-sdlc-dev.shaheenks.co.in/mcp` (-> localhost:8080) go
   through the host's `Cloudflared` Windows service (tunnel + hostnames managed in the Cloudflare dashboard). Run exactly one
-  connector per tunnel. See docs/CLOUDFLARE_TUNNEL.md.
+  connector per tunnel. See docs/misc/CLOUDFLARE_TUNNEL.md.
   Public names are one level deep (`*-sdlc-dev.shaheenks.co.in`) so free Universal SSL covers them.
 - Open **http://localhost:4180** and sign in with Entra to use the agents (dev UI at /dev-ui/). The agent port is not published.
   ADK developer tools (builder, deploy, evals, tests, other users' traces) are off; `SDLC_DEV_TOOLS=true` enables them (never outside local dev).
@@ -158,8 +158,8 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/version-0.md.
   (profile `ingest`, never started by `up`; host: `uv run --env-file .env sdlc-ingest run --all`)
 - `uv run --env-file .env pytest tests/db`   RLS/ingest/search/graph tests on a throwaway `sdlc_test` database (needs the postgres container)
 - `SDLC_EVAL=1 uv run --env-file .env pytest tests/evals -s`   retrieval eval (vector vs hybrid) on the ingested dev DB, live Vertex
-- `uv run --env-file .env pytest tests/e2e`   exit-gate tests (DB + pgvector; the Stage 2 agent e2e needs `SDLC_E2E_USER_TOKEN`, see docs/ENTRA_SETUP.md)
-- `uv run python scripts/mcp_whoami.py --token <entra token>`   manual identity check (see docs/ENTRA_SETUP.md)
+- `uv run --env-file .env pytest tests/e2e`   exit-gate tests (DB + pgvector; the Stage 2 agent e2e needs `SDLC_E2E_USER_TOKEN`, see docs/misc/ENTRA_SETUP.md)
+- `uv run python scripts/mcp_whoami.py --token <entra token>`   manual identity check (see docs/misc/ENTRA_SETUP.md)
 - `.\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> [-DryRun] [-WriteLocalFiles]`   idempotent Entra provisioning
   (Windows: `az` is az.cmd, so never pass inline JSON or parentheses as az args; use `--body @file`)
 - Tests never read the real `config/env/local/groups.yaml`; the `config_dir` fixture swaps in a fixed test GroupMap

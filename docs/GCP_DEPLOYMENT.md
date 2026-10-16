@@ -8,7 +8,7 @@ Related: [ARCHITECTURE.md](ARCHITECTURE.md) §7–8 (environments), [infra/READM
 ## 1. Status (2026-09-27)
 
 **Deferred to a later stage.** The current development phase runs on localhost and the Cloudflare
-Tunnel only ([ARCHITECTURE.md](ARCHITECTURE.md) §7, [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md)).
+Tunnel only ([ARCHITECTURE.md](ARCHITECTURE.md) §7, [CLOUDFLARE_TUNNEL.md](misc/CLOUDFLARE_TUNNEL.md)).
 This design is kept current so the deployment can resume when GCP is needed.
 
 Stage 7 is split into **7a deploy** (this document) and **7b operations** (GCS config bundles with

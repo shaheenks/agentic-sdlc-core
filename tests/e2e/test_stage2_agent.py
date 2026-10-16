@@ -10,7 +10,7 @@ test user's token (e.g. paul), obtained with the Azure CLI:
   $env:SDLC_E2E_USER_TOKEN = az account get-access-token `
       --scope api://<ENTRA_API_CLIENT_ID>/access_as_user --query accessToken -o tsv
   uv run --env-file .env pytest tests/e2e/test_stage2_agent.py
-(see docs/ENTRA_SETUP.md, "Stage 2d")
+(see docs/misc/ENTRA_SETUP.md, "Stage 2d")
 """
 
 import os

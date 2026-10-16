@@ -2,7 +2,7 @@
 # through the Cloudflare Tunnel (host connector -> localhost:4181 / :8080;
 # `docker compose --profile tunnel up -d` starts the public oauth2-proxy).
 # Only oauth2-proxy and the MCP server are published, and only on localhost.
-# Public endpoints: docs/CLOUDFLARE_TUNNEL.md
+# Public endpoints: docs/misc/CLOUDFLARE_TUNNEL.md
 name: agentic-sdlc
 
 # Settings shared by the local and public oauth2-proxy instances (same Entra app, sdlc-client).

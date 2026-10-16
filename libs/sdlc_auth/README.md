@@ -12,4 +12,4 @@ Entra ID identity for the platform. Stage 2.
   With no resolver, overage users get no groups (fail closed).
 - Stage 2d adds `get_user_token(context)` for agents (token passthrough).
 
-Setup: docs/ENTRA_SETUP.md. Tests: tests/auth (tokens minted by tests/support/entra.py).
+Setup: docs/misc/ENTRA_SETUP.md. Tests: tests/auth (tokens minted by tests/support/entra.py).

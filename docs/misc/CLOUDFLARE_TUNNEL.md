@@ -2,8 +2,8 @@
 
 > **Scope: development environment only.** Dev is reachable both on `localhost` and through
 > this tunnel, and development is the current phase (GCP is deferred). Higher environments
-> (staging, prod) are hosted directly, without a tunnel (see [ARCHITECTURE.md](ARCHITECTURE.md) §7
-> and [GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md)).
+> (staging, prod) are hosted directly, without a tunnel (see [ARCHITECTURE.md](../ARCHITECTURE.md) §7
+> and [GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md)).
 
 The local stack is exposed to users of the Entra tenant through a Cloudflare Tunnel. The
 connector dials out to Cloudflare, so no inbound ports are opened on this machine. TLS ends at
