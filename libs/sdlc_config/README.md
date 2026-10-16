@@ -16,7 +16,7 @@ checks; `resolve()` -> `EffectivePolicy` (source rules for every grant, deny and
 **Implemented (H4, local part of Stage 7b):** config bundles (`bundles.py`): `sdlc-config compile`,
 `activate`, `bundles`; `ConfigStore.from_bundles()` (and `SDLC_CONFIG_BUNDLES` in `from_env`).
 GCS + Pub/Sub delivery is still planned (Stage 7b on GCP).
-Design: docs/version-0.md → "Configuration Model" and "Runtime Config Exposure".
+Design: docs/plans/version-0.md → "Configuration Model" and "Runtime Config Exposure".
 
 ## Components
 - **Schemas** - JSON Schema per kind (config/schemas/), strict: unknown keys/refs fail.
