@@ -6,7 +6,7 @@ identity, group membership and the declarative config in `config/`. Knowledge (d
 PDFs and a knowledge graph) lives in Postgres + pgvector behind row-level security.
 
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Database: [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md)
-- Plan and history: [docs/plans/version-0.md](docs/plans/version-0.md)
+- Plans: [current: version-01](docs/plans/version-01.md) (new sources, Gemini Enterprise) · [history: version-0](docs/plans/version-0.md)
 - Setup runbooks: [Entra ID](docs/misc/ENTRA_SETUP.md) · [Cloudflare Tunnel](docs/misc/CLOUDFLARE_TUNNEL.md) · [GCP (deferred)](docs/GCP_DEPLOYMENT.md)
 - Working rules for contributors and coding agents: [CLAUDE.md](CLAUDE.md)
 
