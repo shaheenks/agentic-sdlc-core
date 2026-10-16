@@ -118,6 +118,6 @@ def test_hybrid_retrieval_is_at_least_as_good_as_vector_only(config_dir):
     policy = resolve(snap, ["platform-admins"])
     embedder = GeminiEmbedder(snap.platform.embedding_model, snap.platform.embedding_dimensions)
     summary = report(run(evaluate(policy, embedder)))
-    # Gate (docs/IMPLEMENTATION_PLAN.md Stage 6): hybrid >= vector-only on recall@5.
+    # Gate (docs/version-0.md Stage 6): hybrid >= vector-only on recall@5.
     for group in ("all", "multi-hop"):
         assert summary[group]["hybrid h1"]["recall@5"] >= summary[group]["vector"]["recall@5"]

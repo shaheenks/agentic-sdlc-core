@@ -3,7 +3,7 @@
 How agentic-sdlc runs on Google Cloud: the target design, the resources Terraform creates, how
 identity and secrets flow, and how to deploy, update and tear down an environment.
 Related: [ARCHITECTURE.md](ARCHITECTURE.md) §7–8 (environments), [infra/README.md](../infra/README.md)
-(files), [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) Stage 7 (decisions, progress).
+(files), [version-0.md](version-0.md) Stage 7 (decisions, progress).
 
 ## 1. Status (2026-09-27)
 

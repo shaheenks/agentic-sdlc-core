@@ -4,7 +4,7 @@ ADK-based SDLC agents composed from skills. Central MCP server(s) serve skills, 
 knowledge, and enforce Entra ID identity + group-based RBAC defined in `config/`. Postgres +
 pgvector stores embeddings and the knowledge graph. Local: docker compose. Prod: GCP.
 
-Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Full staged plan: [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md). Check which stage is
+Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Full staged plan: [docs/version-0.md](docs/version-0.md). Check which stage is
 current before adding features, and don't build ahead of the current stage's exit gate.
 
 ## Repo structure
@@ -63,7 +63,7 @@ growing bootstrap indefinitely. Shared code goes in `libs/`, never copied betwee
 - Run `uv run sdlc-config validate --env local` after any config change; review `sdlc-config diff`.
 
 ## Runtime config
-See "Runtime Config Exposure" in docs/IMPLEMENTATION_PLAN.md.
+See "Runtime Config Exposure" in docs/version-0.md.
 - Only MCP servers (full bundle) and ingest (`Source.spec`) read config. Agents and prompts never read
   `config/`; they get per-user views through MCP tools (tools/list, list_skills, get_agent_context, whoami).
 - Read config only through `ConfigStore.current()`. Take one snapshot per request; never cache policy across versions.
@@ -129,7 +129,7 @@ See ARCHITECTURE.md §7.
   Read-only queries and `-DryRun` are fine, but say which account they run as.
 
 ## Enterprise tenants
-See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/IMPLEMENTATION_PLAN.md.
+See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/version-0.md.
 - Keep identity tenant-agnostic: tenant/app IDs come from env, group IDs from the git-ignored groups.yaml.
   Never hard-code login/Graph hosts in new code; take them from `platform.yaml` (`identity.authority_host`, `graph_host`;
   the agent web app and oauth2-proxy use `ENTRA_AUTHORITY_HOST`, since agents never read config).

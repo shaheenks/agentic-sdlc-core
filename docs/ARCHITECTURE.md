@@ -1,7 +1,7 @@
 # Agentic SDLC — System Architecture
 
 High-level view of the platform. For staged delivery, config syntax and exit gates, see
-[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+[version-0.md](version-0.md).
 
 ## 1. What the system does
 
