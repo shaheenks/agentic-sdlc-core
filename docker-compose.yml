@@ -32,7 +32,7 @@ x-oauth2-proxy-env: &oauth2-proxy-env
   OAUTH2_PROXY_COOKIE_REFRESH: 30m      # refresh before the ~60-90 min access token expires
   OAUTH2_PROXY_COOKIE_EXPIRE: 8h
   # API calls from the dev UI get 401 instead of a login redirect when the session lapses.
-  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps)
+  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps|agui|agents/state)
 
 # Tracing (H8.3): off unless OTEL_EXPORTER_OTLP_ENDPOINT is set in .env (e.g. http://jaeger:4318 with
 # `docker compose --profile observability up -d`). Spans never carry prompts, responses, tokens or
@@ -126,6 +126,8 @@ services:
       # Conversations survive restarts (H9); only this container mounts the volume.
       SDLC_SESSION_SERVICE_URI: sqlite:////data/sessions.db
       SDLC_SESSION_RETENTION_DAYS: ${SDLC_SESSION_RETENTION_DAYS:-7}
+      # AG-UI endpoint /agui for the CopilotKit app (version-01 M5); empty = off
+      SDLC_AGUI_AGENT: ${SDLC_AGUI_AGENT-bootstrap}
       # never export prompts/responses (retrieved content can be confidential)
       ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS: "false"
       OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: "false"
