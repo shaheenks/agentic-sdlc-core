@@ -12,6 +12,9 @@ locals {
     PGHOST            = local.cloudsql_socket
     PGDATABASE        = google_sql_database.sdlc.name
     PGUSER            = "sdlc_app"
+    # user connections (version-01 M6): users' own PATs, one Secret Manager secret per user
+    SDLC_USER_SECRETS_BACKEND = "gcp"
+    SDLC_SECRETS_PROJECT      = var.project_id
   })
   mcp_secret_env = merge(
     { PGPASSWORD = "pg-app-password" },

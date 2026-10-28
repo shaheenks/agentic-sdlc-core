@@ -34,6 +34,8 @@ from sdlc_mcp_bootstrap.audit import (
     audit_skills_list,
 )
 from sdlc_mcp_bootstrap.auth_audit import AuthFailureAuditMiddleware
+from sdlc_mcp_bootstrap.connected_tools import Connected, connection_problems, make_connected_tools
+from sdlc_mcp_bootstrap.connections_api import add_connection_routes
 from sdlc_mcp_bootstrap.identity import request_identity
 from sdlc_mcp_bootstrap.knowledge_tools import Knowledge, make_knowledge_tools
 from sdlc_mcp_bootstrap.sdlc_tools import SDLC_TOOLS
@@ -62,6 +64,7 @@ def build_server(
     auth: AuthProvider,
     group_resolver: GroupResolver | None = None,
     knowledge: Knowledge | None = None,
+    connected: Connected | None = None,
 ) -> FastMCP:
     cache = PolicyCache()
     mcp = FastMCP(
@@ -138,11 +141,23 @@ def build_server(
 
     core = [ping, whoami, list_skills, load_skill, get_agent_context]
     knowledge_tools = make_knowledge_tools(knowledge) if knowledge else []
-    for fn in [*core, *SDLC_TOOLS, *make_admin_tools(store, cache), *knowledge_tools]:
+    connected = connected or Connected(service=None)  # tools answer "not configured"
+    connected_tools = make_connected_tools(connected)
+    for fn in [
+        *core,
+        *SDLC_TOOLS,
+        *make_admin_tools(store, cache),
+        *knowledge_tools,
+        *connected_tools,
+    ]:
         register(fn)
+    verifier = getattr(auth, "token_verifier", None)
+    if verifier is not None:  # the Connections API uses the same token checks as MCP
+        add_connection_routes(mcp, connected, verifier)
 
     # Catalog vs code: fail startup on bad constraint args; re-check (log) on every reload.
     problems = catalog_problems(store.current(), registered)
+    problems += connection_problems(store.current(), set(registered))
     if problems:
         raise ValueError("config does not match the registered tools: " + "; ".join(problems))
     uncatalogued = sorted(set(registered) - set(store.current().tools))
@@ -150,7 +165,8 @@ def build_server(
         log.warning("tools not in tools.yaml are never exposed: %s", uncatalogued)
 
     def recheck(snapshot: Snapshot) -> None:
-        for problem in catalog_problems(snapshot, registered):
+        problems = catalog_problems(snapshot, registered)
+        for problem in problems + connection_problems(snapshot, set(registered)):
             log.error("config %s: %s", snapshot.version, problem)
 
     store.subscribe(recheck)
@@ -232,6 +248,40 @@ def build_knowledge(snapshot: Snapshot) -> Knowledge:
     return Knowledge(pool, GeminiEmbedder(platform.embedding_model, platform.embedding_dimensions))
 
 
+def build_connected(store: ConfigStore, knowledge: Knowledge | None) -> Connected:
+    """User connections (version-01 M6): off unless SDLC_USER_SECRETS_BACKEND is set. Writes per
+    user are serialised by a process lock plus a Postgres advisory lock (several instances)."""
+    from contextlib import asynccontextmanager
+
+    from sdlc_connectors.service import ConnectionService, process_locks
+    from sdlc_connectors.user_store import store_from_env
+
+    user_store = store_from_env()
+    page = os.environ.get("SDLC_CONNECTIONS_PAGE", "/chat/connections")
+    if user_store is None:
+        log.info("user connections off (SDLC_USER_SECRETS_BACKEND not set)")
+        return Connected(service=None, page_url=page)
+    local = process_locks()
+
+    @asynccontextmanager
+    async def lock(key: str):
+        async with local(key):
+            if knowledge is None:
+                yield
+                return
+            pool = await knowledge.open_pool()
+            async with pool.connection() as conn, conn.transaction():
+                # advisory locks need no table privileges: fine for the read-only sdlc_app role
+                await conn.execute(
+                    "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                    (f"user-connections:{key}",),
+                )
+                yield
+
+    log.info("user connections on (%s store)", user_store.name)
+    return Connected(ConnectionService(user_store, store.current, lock), page_url=page)
+
+
 def main() -> None:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(message)s")
     setup_tracing()  # no-op unless OTEL_EXPORTER_OTLP_(TRACES_)ENDPOINT is set
@@ -247,6 +297,7 @@ def main() -> None:
         build_auth(snapshot, os.environ.get("MCP_PUBLIC_URL", f"http://127.0.0.1:{port}"), store),
         build_group_resolver(snapshot),
         knowledge,
+        build_connected(store, knowledge),
     )
     uvicorn.run(build_http_app(server, store), host=host, port=port, log_level="info")
 

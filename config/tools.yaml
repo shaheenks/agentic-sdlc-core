@@ -17,3 +17,9 @@ tools:
   approve_design:    { server: bootstrap, risk: high,   args: { repo: { type: string } } }
   config_info:       { server: bootstrap, risk: high }    # admin only (via roles.admin "*")
   config_explain:    { server: bootstrap, risk: high }    # admin only; input: group aliases / app roles
+  # version-01 M6: read-only tools that call an external system AS THE USER, with the user's own
+  # connection (connections.yaml). The provider's own permissions apply on top of this policy.
+  jira_get_issue:      { server: bootstrap, risk: low, credentials: { user: atlassian } }
+  confluence_get_page: { server: bootstrap, risk: low, credentials: { user: atlassian } }
+  github_get_file:     { server: bootstrap, risk: low, credentials: { user: github },    args: { repo: { type: string } } }
+  bitbucket_get_file:  { server: bootstrap, risk: low, credentials: { user: bitbucket }, args: { repo: { type: string } } }

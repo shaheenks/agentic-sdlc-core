@@ -21,6 +21,7 @@ export default function ChatPage() {
         <header className="topbar">
           <span className="brand">SDLC assistant</span>
           <nav>
+            <a href="/chat/connections">Connections</a>
             <a href="/dev-ui/">Developer UI</a>
             <a href="/oauth2/sign_out">Sign out</a>
           </nav>

@@ -300,7 +300,10 @@ GOOD = {
 def configure(config_dir, spec):
     platform = config_dir / "platform.yaml"
     doc = yaml.safe_load(platform.read_text())
-    doc["knowledge"]["allowed_hosts"] = ["acme.atlassian.net", "jira.example.com"]
+    doc["knowledge"]["allowed_hosts"] = [
+        *doc["knowledge"].get("allowed_hosts", []),
+        *["acme.atlassian.net", "jira.example.com"],
+    ]
     platform.write_text(yaml.safe_dump(doc, sort_keys=False))
     path = config_dir / "sources/payments-incidents.yaml"
     doc = yaml.safe_load(path.read_text())

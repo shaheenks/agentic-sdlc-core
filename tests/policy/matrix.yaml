@@ -42,6 +42,16 @@ rows:
   - { persona: platform-dev,  tool: graph_query,       expect: allow }
   - { persona: nobody,        tool: graph_query,       expect: deny }
   - { persona: admin,         tool: graph_query,       expect: allow }
+  # version-01 M6: tools that use the user's own connection (developers and above)
+  - { persona: viewer,        tool: jira_get_issue,      expect: deny }
+  - { persona: payments-dev,  tool: jira_get_issue,      expect: allow }
+  - { persona: nobody,        tool: confluence_get_page, expect: deny }
+  - { persona: platform-dev,  tool: confluence_get_page, expect: allow }
+  - { persona: viewer,        tool: github_get_file,     args: { repo: acme/pay }, expect: deny }
+  - { persona: payments-dev,  tool: github_get_file,     args: { repo: acme/pay }, expect: allow }
+  - { persona: admin,         tool: github_get_file,     args: { repo: any/repo }, expect: allow }
+  - { persona: viewer,        tool: bitbucket_get_file,  args: { repo: ws/pay },   expect: deny }
+  - { persona: platform-dev,  tool: bitbucket_get_file,  args: { repo: ws/infra }, expect: allow }
 
 # Skill visibility (Stage 4). expect: visible | hidden. Every skill needs rows.
 skill_rows:

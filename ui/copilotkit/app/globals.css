@@ -59,3 +59,22 @@ body {
 .entities { margin-top: 4px; }
 .identity-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-top: 4px; }
 .identity-label { color: var(--muted); font-size: 12px; width: 72px; }
+
+.page { flex: 1; overflow-y: auto; max-width: 760px; width: 100%; margin: 0 auto; padding: 16px; }
+.conn-intro { color: var(--muted); font-size: 14px; }
+.conn-state { margin: 2px 0 6px; }
+.conn-state.warn { color: #c2410c; }
+.conn-help { color: var(--muted); font-size: 12px; margin: 4px 0; }
+.conn-form { display: grid; gap: 8px; margin-top: 8px; }
+.conn-form label { display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
+.conn-form input {
+  font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+}
+.conn-actions { display: flex; gap: 8px; }
+.conn-actions button {
+  font: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px;
+  background: var(--chip); color: var(--text); cursor: pointer;
+}
+.conn-actions button:disabled { opacity: 0.6; cursor: default; }
+.conn-error { color: #b91c1c; font-size: 13px; margin-top: 6px; }

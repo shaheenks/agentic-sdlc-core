@@ -44,3 +44,31 @@ resource "google_storage_bucket_iam_member" "gcs_sources" {
   role     = "roles/storage.objectViewer"
   member   = google_service_account.w["jobs"].member
 }
+
+# User connections (version-01 M6): the MCP server alone reads and writes users' own connection
+# tokens, one secret per user named sdlc-<env>-user-<hash>. A custom role on that name prefix only
+# (IAM condition); ingest and the agent get nothing. Check in M7 that the condition also covers
+# secrets.create (the new secret's name); if not, an admin job creates the secret on first connect.
+resource "google_project_iam_custom_role" "user_secrets" {
+  role_id = "sdlcUserSecrets_${replace(var.env, "-", "_")}"
+  title   = "agentic-sdlc ${var.env} user connection secrets"
+  permissions = [
+    "secretmanager.secrets.create",
+    "secretmanager.secrets.get",
+    "secretmanager.secrets.delete",
+    "secretmanager.versions.add",
+    "secretmanager.versions.access",
+    "secretmanager.versions.list",
+    "secretmanager.versions.destroy",
+  ]
+}
+
+resource "google_project_iam_member" "mcp_user_secrets" {
+  project = var.project_id
+  role    = google_project_iam_custom_role.user_secrets.id
+  member  = google_service_account.w["mcp"].member
+  condition {
+    title      = "user connection secrets only"
+    expression = "resource.name.startsWith(\"projects/${data.google_project.this.number}/secrets/sdlc-${var.env}-user-\")"
+  }
+}

@@ -12,6 +12,7 @@ CRITICAL = [
     "/config/roles.yaml",
     "/config/tools.yaml",
     "/config/skills.yaml",
+    "/config/connections.yaml",
     "/config/schemas/",
     "/config/env/",
     "/libs/sdlc_auth/",

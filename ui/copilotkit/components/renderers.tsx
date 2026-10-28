@@ -7,7 +7,15 @@
 import { defineToolCallRenderer } from "@copilotkit/react-core/v2";
 import { z } from "zod";
 
-import { type Citation, citations, graphEntities, identity, location } from "@/lib/results";
+import {
+  type Citation,
+  citations,
+  graphEntities,
+  identity,
+  location,
+  safeUrl,
+  toolPayload,
+} from "@/lib/results";
 
 const done = (status: unknown) => String(status).toLowerCase() === "complete";
 
@@ -57,11 +65,58 @@ function Citations({ result, label }: { result: unknown; label: string }) {
   );
 }
 
+// Tools that read with the user's own account (version-01 M6)
+function ConnectedResult({ result, label }: { result: unknown; label: string }) {
+  const payload = toolPayload(result);
+  if (!payload) return null;
+  if (payload.connected === false) {
+    return (
+      <div className="tool">
+        <div className="tool-title">{label}: account not connected</div>
+        <div>{String(payload.reason ?? "")}</div>
+        <a href="/chat/connections">Connect your account</a>
+      </div>
+    );
+  }
+  const title = String(payload.title ?? payload.summary ?? payload.path ?? payload.key ?? label);
+  const url = safeUrl(payload.url);
+  return (
+    <div className="tool">
+      <div className="tool-title">
+        {label}:{" "}
+        {url ? (
+          <a href={url} target="_blank" rel="noopener noreferrer">
+            {title}
+          </a>
+        ) : (
+          title
+        )}
+      </div>
+      <div className="citation-meta">
+        <span>with your {String(payload.connection ?? "")} account</span>
+        {payload.truncated === true && <span>truncated</span>}
+      </div>
+    </div>
+  );
+}
+
+const connectedRenderer = (name: string, label: string) =>
+  defineToolCallRenderer({
+    name,
+    args: z.object({}).passthrough(),
+    render: ({ status, result }) =>
+      done(status) ? <ConnectedResult result={result} label={label} /> : <Pending label={label} />,
+  });
+
 const searchArgs = z.object({ query: z.string().optional(), k: z.number().optional() });
 const graphArgs = searchArgs.extend({ hops: z.number().optional() });
 const whoamiArgs = z.object({ explain: z.boolean().optional() });
 
 export const toolRenderers = [
+  connectedRenderer("jira_get_issue", "Jira issue"),
+  connectedRenderer("confluence_get_page", "Confluence page"),
+  connectedRenderer("github_get_file", "GitHub file"),
+  connectedRenderer("bitbucket_get_file", "Bitbucket file"),
   defineToolCallRenderer({
     name: "search_knowledge",
     args: searchArgs,

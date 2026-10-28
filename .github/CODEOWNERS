@@ -13,6 +13,7 @@
 /config/roles.yaml                  @shaheenks
 /config/tools.yaml                  @shaheenks
 /config/skills.yaml                 @shaheenks
+/config/connections.yaml            @shaheenks
 /config/schemas/                    @shaheenks
 /config/env/                        @shaheenks
 /libs/sdlc_auth/                    @shaheenks

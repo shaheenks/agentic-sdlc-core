@@ -61,17 +61,24 @@ def test_https_source_needs_an_allowed_host(config_dir):
         load(config_dir)
     edit_yaml(
         config_dir / "platform.yaml",
-        lambda d: d["knowledge"].update(allowed_hosts=["github.com", "*.atlassian.net"]),
+        lambda d: d["knowledge"].update(
+            allowed_hosts=[
+                *d["knowledge"].get("allowed_hosts", []),
+                "github.com",  # *.atlassian.net is in the platform list already
+            ]
+        ),
     )
     snap = load(config_dir)
-    assert snap.platform.allowed_hosts == ("github.com", "*.atlassian.net")
+    assert {"github.com", "*.atlassian.net"} <= set(snap.platform.allowed_hosts)
     assert snap.sources["sdlc-platform"].location == "https://github.com/acme/repo.git"
 
 
 def test_credentials_in_urls_are_refused(config_dir):
     edit_yaml(
         config_dir / "platform.yaml",
-        lambda d: d["knowledge"].update(allowed_hosts=["github.com"]),
+        lambda d: d["knowledge"].update(
+            allowed_hosts=[*d["knowledge"].get("allowed_hosts", []), *["github.com"]]
+        ),
     )
     edit_yaml(
         config_dir / "sources/sdlc-platform.yaml",
@@ -106,7 +113,9 @@ def test_bad_credentials_fail(config_dir, credentials, message):
 def test_credentials_are_kept_as_references(config_dir):
     edit_yaml(
         config_dir / "platform.yaml",
-        lambda d: d["knowledge"].update(allowed_hosts=["github.com"]),
+        lambda d: d["knowledge"].update(
+            allowed_hosts=[*d["knowledge"].get("allowed_hosts", []), *["github.com"]]
+        ),
     )
     edit_yaml(
         config_dir / "sources/sdlc-platform.yaml",
@@ -124,7 +133,9 @@ def test_credentials_are_kept_as_references(config_dir):
 def test_allowed_hosts_schema(config_dir):
     edit_yaml(
         config_dir / "platform.yaml",
-        lambda d: d["knowledge"].update(allowed_hosts=["https://github.com"]),
+        lambda d: d["knowledge"].update(
+            allowed_hosts=[*d["knowledge"].get("allowed_hosts", []), *["https://github.com"]]
+        ),
     )
     with pytest.raises(ConfigError, match="allowed_hosts"):
         load(config_dir)
@@ -160,7 +171,12 @@ def test_allowed_hosts_schema(config_dir):
 def test_bad_remote_git_sources_fail(config_dir, spec, message):
     edit_yaml(
         config_dir / "platform.yaml",
-        lambda d: d["knowledge"].update(allowed_hosts=["github.com", "bb.example.com"]),
+        lambda d: d["knowledge"].update(
+            allowed_hosts=[
+                *d["knowledge"].get("allowed_hosts", []),
+                *["github.com", "bb.example.com"],
+            ]
+        ),
     )
     edit_yaml(config_dir / "sources/sdlc-platform.yaml", lambda d: d["spec"].update(spec))
     with pytest.raises(ConfigError) as exc:
@@ -181,7 +197,12 @@ def test_remote_git_sources_load(config_dir, location, provider):
     edit_yaml(
         config_dir / "platform.yaml",
         lambda d: d["knowledge"].update(
-            allowed_hosts=["github.com", "bitbucket.org", "bb.example.com"]
+            allowed_hosts=[
+                *d["knowledge"].get("allowed_hosts", []),
+                "github.com",
+                "bitbucket.org",
+                "bb.example.com",
+            ]
         ),
     )
     edit_yaml(

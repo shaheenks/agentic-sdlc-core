@@ -15,6 +15,7 @@ current before adding features, and don't build ahead of the current stage's exi
 - `libs/sdlc_config`        Config loader + JSON Schemas + resolver → `EffectivePolicy`; CLI validate/explain/diff
 - `libs/sdlc_policy`        Enforcement: tools/list filtering, call authz, arg constraints
 - `libs/sdlc_db`            Postgres/pgvector access with RLS session context
+- `libs/sdlc_connectors`    External systems: `HttpClient` (host allowlist), Atlassian converters, user connections (providers, per-user secret store, service)
 - `libs/sdlc_secrets`       Secret references (`{env: X}` / `{secret: x}`) resolved at runtime: env or Secret Manager, 5-min cache
 - `libs/sdlc_web`           Serves agents (ADK web app + AG-UI `/agui`) behind oauth2-proxy: token re-validation, user binding, token passthrough
 - `ui/copilotkit`           CopilotKit chat app (Next.js) at `/chat/` behind oauth2-proxy; talks AG-UI to the agent's `/agui`
@@ -49,7 +50,7 @@ growing bootstrap indefinitely. Shared code goes in `libs/`, never copied betwee
   `git` sources read a `ref` (full SHA = pinned, branch = tracked), never the working tree; eval corpora stay pinned.
   Remote git (`https`) needs `provider` (github | bitbucket-cloud | bitbucket-dc); DB tests ingest only `local_folder` sources.
 - Source loaders (version-01): a new source type = a factory in `sdlc_loaders.LOADERS` + its `spec` in the schema. Remote
-  hosts must be in `platform.yaml` `knowledge.allowed_hosts`; remote HTTP goes through `sdlc_loaders.http.HttpClient`
+  hosts must be in `platform.yaml` `knowledge.allowed_hosts`; remote HTTP goes through `sdlc_connectors.http.HttpClient`
   (allowlist on every request and redirect). Credentials are references only (`spec.credentials`), resolved via
   `sdlc_secrets`, never in config, URLs, logs or the DB. Natively restricted items are never ingested.
 - PDFs (H10): text layer via pypdf; model OCR only for sources with `spec.ingest.pdf.ocr: gemini` (`platform.yaml`
@@ -94,7 +95,12 @@ See "Runtime Config Exposure" in docs/plans/version-00.md.
 - Deny-by-default. Filter tools/list AND re-check on every tools/call.
 - All DB reads go through `sdlc_db` with `app.allowed_sources` + `app.max_classification` set (Postgres RLS).
 - Agents forward the user's bearer token via `get_user_token(context)`; never use a service token for user calls.
-- Downstream systems use service credentials only after the RBAC check passes.
+- Downstream systems use the user's own connection or a service credential only after the RBAC check passes.
+- User connections (version-01 M6): users' PATs live only in the per-user secret store (`SDLC_USER_SECRETS_BACKEND`), read and
+  written only by the MCP server; connected through the `/connections/` API (Connections page), never through chat. A tool that
+  uses one declares `credentials: { user: <connection> }` (connection in `config/connections.yaml`, host in `allowed_hosts`) and is
+  in `connected_tools.TOOL_PROVIDERS`; no usable connection = "not connected", never a service-credential fallback. Provider
+  content is untrusted data. Audit: `connection_change`; `tool_call` gets `credential`, `connection`, `connection_outcome`.
 - Audit to the `sdlc.audit` logger (JSON lines), one `event` per record:
   `tool_call` (oid, teams, roles, tool, args hash, decision, matched rule, outcome, config_version),
   `tools_list` (who listed tools, visible names, hidden count; hidden names are not logged),

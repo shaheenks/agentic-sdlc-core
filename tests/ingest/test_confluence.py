@@ -264,7 +264,10 @@ def test_data_center_uses_bearer_and_its_context_path():
 def edit(config_dir, spec, drop=()):
     platform = config_dir / "platform.yaml"
     doc = yaml.safe_load(platform.read_text())
-    doc["knowledge"]["allowed_hosts"] = ["acme.atlassian.net", "wiki.example.com"]
+    doc["knowledge"]["allowed_hosts"] = [
+        *doc["knowledge"].get("allowed_hosts", []),
+        *["acme.atlassian.net", "wiki.example.com"],
+    ]
     platform.write_text(yaml.safe_dump(doc, sort_keys=False))
     path = config_dir / "sources/payments-code.yaml"
     doc = yaml.safe_load(path.read_text())

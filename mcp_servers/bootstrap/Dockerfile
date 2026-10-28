@@ -41,6 +41,8 @@ ENV PATH=/app/.venv/bin:$PATH \
     MCP_HOST=0.0.0.0 \
     MCP_PORT=8080 \
     HOME=/tmp
+# User connections (version-01 M6, local file store): a named volume only this container mounts.
+RUN mkdir -p /data/user-secrets && chown -R nobody /data
 USER nobody
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
