@@ -22,7 +22,7 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | Milestone | Status | Notes |
 |---|---|---|
 | M0 — Source framework | ✅ Built (2026-10-28) | `ingest/loaders` (`sdlc_loaders`: `SourceItem`, `Loader`, registry, `local_folder`/`git` loaders, `HttpClient`), `libs/sdlc_secrets` (env + Secret Manager REST, 5-min cache), migration `004_item_metadata` (`documents.title/url`, `sync_state`), `title`/`url` in search results, `knowledge.allowed_hosts`, `spec.credentials` references. Format converters and per-type `spec` blocks come with their connectors (M1–M4) |
-| M1 — Remote git (GitHub, Bitbucket) | ✅ Built (2026-10-28); live check pending tokens | `provider` (github / bitbucket-cloud / bitbucket-dc), host-scoped auth header via git's environment, branch tracking at FETCH_HEAD (fixes stale branches in the cache), incremental reads via `git diff`, deep links per provider, `SDLC_INGEST_CACHE`, `.env.sources` for the ingest container |
+| M1 — Remote git (GitHub, Bitbucket) | ✅ Built (2026-10-28); no live check | `provider` (github / bitbucket-cloud / bitbucket-dc), host-scoped auth header via git's environment, branch tracking at FETCH_HEAD (fixes stale branches in the cache), incremental reads via `git diff`, deep links per provider, `SDLC_INGEST_CACHE`, `.env.sources` for the ingest container |
 | M2 — GCS buckets | ✅ Built (2026-10-28); no live check | `type: gcs` (`gs://bucket/prefix/`), JSON API with ADC / service identity, downloads only changed generations, deletions from the listing, object links; Terraform `gcs_source_buckets` → `roles/storage.objectViewer` per bucket for the jobs SA |
 | M3 — Confluence (Cloud + DC) | ✅ Built (2026-10-28); no live check | One REST v1 CQL implementation for both editions (v2 has no CQL); every run lists versions/ancestors/read restrictions, restricted pages and descendants skipped + deleted (fail closed); bodies only for changed versions; storage format → Markdown; PDF attachments; Basic (`email:token`) or Bearer (PAT); credentials never sent to cross-host redirects |
 | M4 — Jira (Cloud + DC) | ✅ Built (2026-10-28); no live check | JQL sources; Cloud REST v3 `search/jql`, DC REST v2; every run lists `updated` + `security` (issue security → skipped + deleted); full fields only for changed issues; one Markdown document per issue (ADF / wiki markup converted, no people fields); issue links in the text for the graph |
@@ -31,6 +31,10 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | M7 — GCP staging (resume Stage 7a) | ⏳ | MCP + Cloud SQL + ingest jobs + scheduling + the AG-UI app on Cloud Run + Secret Manager user secrets |
 | M8 — Hardening, evals, docs | ⏳ | Version-01 exit gate |
 | Deferred — Gemini Enterprise | ⏸ Later version | WIF sign-in, Agent Runtime, Gemini Enterprise authorization (§6) |
+
+**Next:** M5, starting with the spike in §3.3. Commits: M0 `91218d2`, M1 `9f8b324`, M2 `b7e72b7`, M3 `28ebf3b`,
+M4 `50ef071` (branch `version-01`). Connectors are tested against local repositories and fake APIs (recorded
+response shapes) only; the live checks are listed in §7.
 
 ## Decisions (2026-10-17)
 
@@ -45,110 +49,155 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | On-behalf access (2026-10-28) | Tools for Confluence, Jira, GitHub and Bitbucket run **as the user** with the user's own **personal access token (PAT only; no OAuth flows)**. Our policy decides whether the tool may run; the provider's native permissions then apply on top. Ingested knowledge keeps the config-only access model above. Never falls back to a service credential |
 | Gemini Enterprise sign-in (deferred) | **WIF with Entra ID as OIDC provider** when it is picked up: users sign in with Entra accounts; no Google accounts to manage |
 | Agent memory | Off, as assessed on the `future-assessment` branch. AG-UI conversations use the existing `SDLC_SESSION_SERVICE_URI` store and retention; no memory service |
+| Live checks (2026-10-28) | M1–M4 are built and tested without network (local bare repositories, fake APIs). Checks against real GitHub, Bitbucket, GCS, Confluence and Jira instances are **deferred** until test instances and tokens exist (§7, §8); they are part of the M8 exit gate |
+| Confluence API (2026-10-28) | REST v1 CQL search for **both** editions instead of Cloud REST v2 (v2 has no CQL). Revisit if Atlassian retires the v1 search on Cloud (§9) |
 | RAG database | Postgres-compatible on GCP (Cloud SQL, as designed in Stage 7a). Spanner stays an open option, not part of version-01 |
 
-## 1. Source framework (M0)
+## 1. Source framework (M0) — built
 
-The ingest pipeline today walks `local_folder` and `git` sources (`ingest/bootstrap/src/sdlc_ingest/files.py`). Version-01 turns
-this into a loader interface and adds the connectors as a **new sibling component `ingest/loaders/`** (package `sdlc_loaders`,
-added to the uv workspace); `ingest/bootstrap` keeps the pipeline (chunk, extract, embed, write).
+Ingest reads every source through a loader. Loaders live in the sibling component **`ingest/loaders/`** (package
+`sdlc_loaders`); `ingest/bootstrap` keeps the pipeline (chunk, extract, embed, write). Details per module:
+[../../ingest/loaders/README.md](../../ingest/loaders/README.md).
 
-- **Loader contract:** `Loader.items(cursor) -> Iterator[SourceItem]` and `Loader.all_ids() -> set[str]`.
-  `SourceItem` = stable `path` (the item id: a file path, `PAY/123456`, `PAY-123`), `media_type`
-  (`text/markdown`, `text/plain`, `application/pdf`), text or bytes, `content_hash`, `title`, `url` (deep link for
-  citations), `updated_at`, `restricted` flag. Existing walkers become the `local_folder` and `git` loaders unchanged.
-- **Formats:** Confluence storage format (XHTML) and Jira descriptions (Atlassian Document Format on Cloud, wiki markup on
-  DC) are converted to Markdown so the existing Markdown chunker keeps headings. PDFs and text go through the H10 path.
-- **Citations:** migration `004_item_metadata`: `documents.title` and `documents.url` (nullable). `search_knowledge` and
-  `graph_query` return `url` and `title` when present, so answers can link to the Confluence page, Jira issue, or
-  `github.com/<org>/<repo>/blob/<commit>/<path>#L10-L20`.
-- **Incremental sync:** migration also adds `sync_state(source_id, cursor jsonb, last_synced_at)` — ingest-only, RLS forced,
-  no `sdlc_app` grant. Content is fetched incrementally (updated since the cursor, changed generations, new commit);
-  deletions are detected by comparing `all_ids()` with stored documents (a cheap id-only listing) on every run.
-- **Credentials:** a Source names its secret, never contains it: `credentials: { env: ATLASSIAN_PAYMENTS_TOKEN }` or
-  `credentials: { secret: atlassian-payments-token }` (a Secret Manager secret id). Both resolve at ingest time through
-  `libs/sdlc_secrets` (§4.2), so config bundles stay secret-free. GCS uses the ingest service identity (no keys). Secrets
-  never appear in logs, URLs or the database.
-- **Host allowlist (SSRF guard):** `platform.yaml` `knowledge.allowed_hosts` lists the hosts sources may point at
-  (`github.com`, `api.bitbucket.org`, `<site>.atlassian.net`, your DC hosts). A config change cannot make ingest call an
-  arbitrary internal URL; validation fails otherwise.
-- **Resilience:** pagination, 429/`Retry-After` and 5xx backoff, per-request timeouts, page-size limits; a failed item is
-  reported and retried next run (as today).
-- **Schema:** `config/schemas/source.schema.json` gains the new `type`s with per-type `spec` blocks (below); unknown keys fail
-  validation. Every new source still needs persona-matrix `data_rows` and a CODEOWNERS rule.
+- **Loader contract** (`base.py`): `items(cursor) -> Iterator[SourceItem]`, `all_ids()` (incremental loaders),
+  `cursor` (saved after the run), `details` (run report). `SourceItem` = stable `path` (the item id: a file path,
+  `PAY/123456`, `PAY-123`), text or PDF bytes, `content_hash`, `media_type` (`text/plain`, `text/markdown`,
+  `application/pdf`), `title`, `url`, `restricted`. Factories take `(source, LoaderContext)` (repo root, cache root,
+  secret resolver, allowed hosts) and are registered in `LOADERS` (`registry.py`).
+- **Pipeline:** streams items (large sources are not held in memory); skips unchanged items by content hash; a changed
+  title/URL with unchanged content updates metadata only (no re-embedding); `restricted` items are never written and a
+  stored copy is deleted; incremental loaders report every existing id (`all_ids`) so deletions are still found; if a
+  loader fails, nothing is written or deleted for that source. The cursor is saved only after a run without errors
+  (failed items are retried); `--force` ignores it. `text/markdown` items use the Markdown chunker in `auto` mode.
+- **Cursor model:** git stores the commit (plus location and a hash of the globs); GCS, Confluence and Jira store a map
+  of item id → generation / version / `updated`. Every run lists ids and versions (cheap, no content) and downloads
+  only what changed; any change of location, globs or query means a full read.
+- **Citations:** migration `004_item_metadata` adds `documents.title` and `documents.url`; `search_knowledge` and
+  `graph_query` return them when present. Links are per document (no `#L10-L20` line anchors; results already carry
+  `lines`/`pages`).
+- **Sync state:** the same migration adds `sync_state(source_id, cursor jsonb, last_synced_at)`: ingest-only, RLS
+  enabled + forced, no `sdlc_app` grant, rows cascade with their source.
+- **Credentials:** a Source names its secret, never contains it: `credentials: { env: NAME }` or
+  `{ secret: name }`, resolved at run time through `libs/sdlc_secrets` (§4.2). Only types that read credentials accept
+  the field (`CREDENTIAL_SOURCE_TYPES`: git, confluence, jira). Locally the values live in a git-ignored `.env.sources`
+  that only the ingest container loads; on GCP the ingest job reads Secret Manager (`SDLC_SECRETS_BACKEND=gcp`).
+- **Host allowlist (SSRF guard):** `platform.yaml` `knowledge.allowed_hosts` (exact names or one wildcard label,
+  e.g. `*.atlassian.net`); empty = no remote sources. Checked by config validation for every `https` location and by
+  `sdlc_loaders.http.HttpClient` on every request and every redirect. Credentials in URLs are refused.
+- **HttpClient:** 429/5xx and connection errors retried with exponential backoff and `Retry-After` (capped);
+  timeouts; credentials from a per-request callable, sent only to the request's own host (never to a cross-host
+  redirect such as a pre-signed download URL); one secret re-read after a 401.
+- **Schema:** `config/schemas/source.schema.json` lists the types `local_folder`, `git`, `gcs`, `confluence`, `jira`.
+  Type-specific keys (`TYPE_OPTIONS` in `sdlc_config/loader.py`, exposed as `SourceDef.options`) are refused on other
+  types. Every new source still needs persona-matrix `data_rows` and a CODEOWNERS rule.
+- **Runtime settings:** `SDLC_INGEST_CACHE` (git clone cache; the ingest image uses `/tmp/sdlc-ingest-cache`, since
+  it runs as `nobody`), `SDLC_SECRETS_*` (§4.2).
 
-## 2. Connectors
+## 2. Connectors — built (M1–M4), not yet checked against live systems
 
 ### 2.1 Remote git: GitHub and Bitbucket (M1)
 ```yaml
 spec:
   type: git
-  location: https://github.com/<org>/<repo>.git         # or https://bitbucket.org/<ws>/<repo>.git, or a DC URL
-  ref: main                                            # branch (tracked) or a full SHA (pinned)
-  credentials: { env: GITHUB_APP_TOKEN }               # optional for public repositories
-  provider: github | bitbucket-cloud | bitbucket-dc    # deep-link format
+  location: https://github.com/<org>/<repo>.git         # bitbucket.org/<ws>/<repo>.git | https://<host>[/<ctx>]/scm/<proj>/<repo>.git
+  provider: github                                     # github | bitbucket-cloud | bitbucket-dc (required for https)
+  ref: main                                            # branch/tag (tracked) or a full SHA (pinned)
+  credentials: { secret: github-acme-token }           # optional for public repositories
 ```
-- Builds on the existing `https` partial clone (`files.git_repository`). Auth via `http.extraHeader` passed in the git
-  process environment (never in the URL or argv). Recommended credentials: a **GitHub App** installation token
-  (read-only contents), Bitbucket Cloud **repository access token**, Bitbucket DC **HTTP access token**.
-- **Branch tracking:** a branch `ref` is resolved per run and the commit recorded in `sync_state`; a SHA stays pinned
-  (keep pinned refs for eval corpora such as `sdlc-platform`).
+- Partial bare clone into the ingest cache. The token is sent as `http.<scheme>://<host>/.extraHeader` in git's
+  environment (`GIT_CONFIG_*`), so only the repository host gets it and it never appears in argv or the URL;
+  credential helpers and prompts are disabled. Header per provider: GitHub `Basic x-access-token:<token>`,
+  Bitbucket Cloud `Basic x-token-auth:<token>`, Bitbucket DC `Bearer <token>`. A failed clone/fetch drops the cached
+  secret.
+- Recommended tokens: GitHub **fine-grained PAT** (Contents: read) or a GitHub App installation token (expires after
+  an hour, so it needs a minting step: not built), Bitbucket Cloud **repository access token**, Bitbucket DC **HTTP
+  access token**.
+- **Branch tracking:** remote repositories are read at `FETCH_HEAD`, so a tracked branch is always its current commit
+  (this also fixed a version-00 bug where a cached bare clone kept the first-cloned branch commit). Pinned SHAs stay
+  pinned (keep them for eval corpora such as `sdlc-platform`).
+- **Incremental:** the next run reads only paths changed since the stored commit (`git diff`); a missing old commit
+  (rewritten history), a new location or changed globs mean a full read.
+- **Links:** GitHub `/<org>/<repo>/blob/<commit>/<path>` (also GitHub Enterprise hosts), Bitbucket Cloud
+  `/<ws>/<repo>/src/<commit>/<path>`, Bitbucket DC `/projects/<PROJ>/repos/<repo>/browse/<path>?at=<commit>`.
+- Validation: provider required for https and refused otherwise; URL shape per provider; credentials only for https.
 
 ### 2.2 Google Cloud Storage (M2)
 ```yaml
 spec:
   type: gcs
   location: gs://<bucket>/<prefix>/
-  include: ["**/*.md", "**/*.pdf"]
+  include: ["**/*.md", "**/*.pdf"]                     # relative to the prefix
 ```
-- Lists objects under the prefix; uses the object **generation** (and CRC32C) to skip unchanged objects without
-  downloading them. Access through the ingest service identity (`roles/storage.objectViewer` on that bucket only);
-  locally through ADC.
+- GCS JSON API (fixed endpoint `storage.googleapis.com`) through `HttpClient`, with ADC and the read-only scope: the
+  ingest service identity on GCP, gcloud ADC locally. No keys and no `credentials`.
+- Paged listing under the prefix; an object is downloaded only when its **generation** differs from the cursor (CRC32C
+  is not used: a new generation already means new content). Objects over the size limits are skipped from the
+  listing size, before download. Links point to `storage.cloud.google.com/<bucket>/<object>`.
+- Terraform: `gcs_source_buckets` grants the jobs service account `roles/storage.objectViewer` on each listed bucket.
 
 ### 2.3 Confluence (M3)
 ```yaml
 spec:
   type: confluence
-  edition: cloud | datacenter
-  location: https://<site>.atlassian.net/wiki            # or the DC base URL
+  edition: cloud                                         # cloud | datacenter
+  location: https://<site>.atlassian.net/wiki            # DC: https://<host>[/<context>]
   space: PAY
   cql: "label = runbook"                                 # optional narrowing
-  attachments: [pdf]                                     # optional: PDF attachments via the H10 path
-  credentials: { env: CONFLUENCE_TOKEN }
+  attachments: [pdf]                                     # optional: PDF attachments of selected pages
+  credentials: { secret: confluence-pay }                # Cloud "<email>:<api token>" (Basic); DC PAT (Bearer)
 ```
-- Built (M3) on REST v1 content search with CQL for **both** editions (`/rest/api/content/search`; Cloud's v2 API
-  has no CQL). Cloud: API token as `<email>:<token>` (Basic); DC: personal access token (Bearer).
-- Incremental by **page version** (cursor), not by `lastmodified`: every run lists all selected pages with
-  versions, ancestors and read restrictions, because adding a restriction does not change a page's version.
-  The ancestor path becomes a `Path:` line under the page title.
+- **One implementation for both editions:** REST v1 content search with CQL (`/rest/api/content/search`, following
+  `_links.next`). The plan's Cloud REST v2 was not used: v2 has no CQL. Atlassian is retiring parts of v1 on Cloud, so
+  the live check must confirm this endpoint first (§9).
+- Every run lists all selected pages with **version, ancestors and read restrictions** (no bodies): adding a
+  restriction does not change a page's version, so restrictions and deletions must be re-checked every run. Bodies
+  (`body.storage`) are fetched only for pages whose version changed.
+- Pages become Markdown: `# Title`, a `Path: A > B > Title` line from the ancestors, then the storage format converted
+  (headings, lists, tables, code macros, panels, links; images and macro parameters dropped). Item id
+  `<SPACE>/<page id>`, link from `_links.base` + `_links.webui`.
+- PDF attachments (`attachments: [pdf]`) of allowed pages only, via the H10 path; id
+  `<SPACE>/<page id>/attachments/<id>`. Cloud downloads redirect to `api.media.atlassian.com`: add it to
+  `allowed_hosts` (credentials are not sent there).
+- Validation: edition, space and credentials required; no `include`/`exclude`; Cloud location must be
+  `https://<site>.atlassian.net/wiki`.
 
 ### 2.4 Jira (M4)
 ```yaml
 spec:
   type: jira
-  edition: cloud | datacenter
-  location: https://<site>.atlassian.net
-  jql: "project = PAY AND issuetype in (Incident, Bug, Story)"
-  fields: [summary, description, status, priority, components, labels, comments]
-  credentials: { env: JIRA_TOKEN }
+  edition: cloud                                         # cloud | datacenter
+  location: https://<site>.atlassian.net                 # DC: https://<host>[/<context>]
+  jql: "project = PAY AND issuetype in (Incident, Bug, Story)"   # no ORDER BY
+  fields: [summary, description, status, priority, components, labels, issuelinks, comment]   # optional
+  credentials: { secret: jira-pay }                      # Cloud "<email>:<api token>"; DC PAT
 ```
-- One document per issue (`PAY-123`), rendered as Markdown with its fields; comments optional (`fields: [..., comment]`);
-  people fields never included. Built (M4) incremental by each issue's `updated` value (cursor), with a cheap
-  listing of `updated` + `security` every run so new issue-security levels and deletions are always seen. Issue
+- Cloud: REST v3 enhanced search `/rest/api/3/search/jql` (`nextPageToken`; rich text in ADF). DC: REST v2
+  `/rest/api/2/search` (`startAt`; wiki markup). Both are converted to Markdown.
+- Every run lists the matching issues with only `updated` and `security`; full fields are fetched (in batches of
+  `key in (...)`) only for issues whose `updated` changed.
+- One document per issue, id = key (`PAY-123`), title `PAY-123: <summary>`, link `<location>/browse/PAY-123`: facts
+  (type, status, priority, resolution), components, fix versions, labels, issue links (`is caused by PAY-7`),
+  description, optional comments. **People fields (assignee, reporter, comment authors) are never included.** Issue
   links and components are in the text, so graph extraction (entity types per source) picks them up.
+- Validation: edition, jql and credentials required; no `ORDER BY`; no `include`/`exclude`; Cloud location must be
+  `https://<site>.atlassian.net`; `fields` from a fixed list that has no people fields.
 
 ### 2.5 Classification and access
 - Each Source keeps one classification and one `access` block. Split by sensitivity with several sources (e.g.
   `payments-confluence` internal, `payments-incidents-jira` confidential), exactly as for folders today.
 
-### 2.6 Native restrictions (security rule)
+### 2.6 Native restrictions (security rule) — built
 Because access is decided by config only, content that its owners restricted inside the tool must never reach a wider
 audience:
-- **Confluence:** pages with view restrictions (on the page or an ancestor) are **skipped**.
-- **Jira:** issues with an **issue security level** are **skipped**.
+- **Confluence:** pages with read restrictions on the page **or any ancestor** are skipped. When the search response
+  does not include a page's restrictions, the page is asked for directly; restrictions that still cannot be read
+  count as restricted (fail closed). Attachments follow their page.
+- **Jira:** issues with an **issue security level** are skipped, also when the level appears between the listing and
+  the full fetch. (An instance without issue security returns no `security` value: treated as not restricted.)
 - **Private repositories / buckets:** the whole source is governed by its `access`; no per-file restrictions exist.
-Skipped items are counted in the run report (never their content). A source can't opt out of this in version-01; mirroring
-native ACLs remains a later option (Stage 9 `inherit_from_source`).
+- Restricted items are checked on **every** run (not only changed ones); a stored copy of an item that became
+  restricted is deleted. They are counted in the run report (`restricted=`), never their content. A source can't opt
+  out of this in version-01; mirroring native ACLs remains a later option (Stage 9 `inherit_from_source`).
 
 ## 3. AG-UI web app with CopilotKit (M5)
 
@@ -336,9 +385,13 @@ auth header form (Bearer vs Basic with email). On GCP: whether IAM conditions on
 
 As designed in [../GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md), with what changed since:
 - Rebuild images (the pushed `57f55cc3ef68` images predate H1–H10); run `db` for migrations 003–004.
-- Terraform additions: `blocked.yaml` as a Secret Manager file; connector secrets (Secret Manager, accessor on the jobs
-  service account only); `roles/storage.objectViewer` per GCS source bucket; OTLP export to Cloud Trace;
-  **Cloud Scheduler** triggering the `sdlc-ingest` job per source group (the Source `schedule` field becomes a cron).
+- Terraform already done in M0–M2: the ingest job reads `{secret: ...}` source credentials from Secret Manager
+  (`SDLC_SECRETS_BACKEND=gcp`, `SDLC_SECRETS_PROJECT`); `gcs_source_buckets` → `roles/storage.objectViewer` per bucket
+  for the jobs service account.
+- Terraform still to add: connector secrets (one Secret Manager secret per source credential, accessor on the jobs
+  service account only); `blocked.yaml` as a Secret Manager file; OTLP export to Cloud Trace; **Cloud Scheduler**
+  triggering the `sdlc-ingest` job per source group (the Source `schedule` field becomes a cron). The ingest job's
+  git cache is `/tmp` (in-memory on Cloud Run): every job run clones afresh, which the incremental cursor tolerates.
 - The `sdlc-app` service (oauth2-proxy + agent) is the user front end on GCP: it gains the CopilotKit UI container
   and serves AG-UI (§3). Local adk web stays the development surface.
 - Gate: Stage 1–6 checks on staging through the MCP server (whoami, tools, skills, search, graph per persona), and
@@ -403,14 +456,21 @@ pre-authorization outside dev). Group overage: configure the Graph fallback or a
 
 ## 7. Tests and verification
 
-- **Unit (CI, no network):** every loader against recorded HTTP fixtures (`httpx` mock transport) for Cloud and DC
-  responses: pagination, incremental cursors, deletions, 429 backoff, restricted items skipped, format conversion
-  (storage XHTML / ADF / wiki markup → Markdown). GCS against a fake client; remote git against a local bare repository.
-- **DB tests:** item metadata and `sync_state` under RLS (no `sdlc_app` access to `sync_state`), URLs in results.
-- **Config:** host allowlist, credential references (never values), per-type spec validation, persona `data_rows`.
-- **Live (manual, needs test instances):** one GitHub repo, one Bitbucket repo, one bucket, one Confluence space and one
-  Jira project per edition; ingest, ask questions, check citations link to the right page/issue/line.
-- **Retrieval eval:** questions per new source type added to `tests/evals/retrieval_questions.yaml`.
+- **Unit (CI, no network) — done for M0–M4** (587 tests passing on 2026-10-28): `tests/secrets/` (references,
+  masking, cache, Secret Manager REST shapes), `tests/ingest/test_http.py` (allowlist, redirects, backoff, 401
+  re-read, no credentials to other hosts), `test_loaders.py`, `test_remote_git.py` (real clone/fetch against a local
+  bare repository via `url.insteadOf`: branch tracking, incremental diff, token only in git's environment),
+  `test_gcs.py`, `test_confluence.py`, `test_jira.py` (fake APIs for Cloud and DC: pagination, cursors, deletions,
+  restricted items, format conversion), plus config validation in `tests/config/test_source_framework_config.py`.
+- **DB tests — done:** `tests/db/test_item_metadata.py` (title/url stored and returned by search, cursor resume and
+  save-only-on-success, metadata-only updates, restricted items deleted, `all_ids` deletions, no `sdlc_app` access to
+  `sync_state`).
+- **Live (manual, deferred — needs test instances):** one GitHub repo, one Bitbucket repo per edition, one bucket, one
+  Confluence space and one Jira project per edition; ingest, ask questions, check citations link to the right
+  page/issue/file. Check first: Confluence Cloud v1 CQL search, Cloud attachment redirects, Jira Cloud `search/jql`
+  paging, the `security` field on instances with and without issue security.
+- **Retrieval eval — to do (M8):** questions per new source type in `tests/evals/retrieval_questions.yaml`, once live
+  sources are ingested.
 - **AG-UI (CI, no network):** `/agui` without a valid token is refused (401); the user id is the token's `oid`
   whatever thread id or body the client sends; a thread owned by another `oid` is refused; client state carrying token
   or `temp:` keys is stripped; persisted session events contain no token; MCP calls carry the user's token and
@@ -439,9 +499,9 @@ pre-authorization outside dev). Group overage: configure the Graph fallback or a
 
 | Needed | For | Who |
 |---|---|---|
-| GitHub App (or fine-grained token) and Bitbucket access tokens, read-only | M1 | Repo owners |
-| A GCS bucket with sample documents | M2 | GCP project owner |
-| Atlassian Cloud test site + a Confluence/Jira Data Center test instance, service accounts with tokens | M3–M4 | Atlassian admin |
+| Read-only tokens: GitHub fine-grained PAT, Bitbucket Cloud repository access token, Bitbucket DC HTTP access token | M1 live check (deferred) | Repo owners |
+| A GCS bucket with sample documents (creating one in `cloud-migration-agent` needs your go-ahead) | M2 live check (deferred) | GCP project owner |
+| Atlassian Cloud test site + a Confluence/Jira Data Center test instance, service accounts with tokens | M3–M4 live check (deferred) | Atlassian admin |
 | Nothing new for AG-UI: it reuses the `sdlc-client` app and both existing callbacks | M5 | — |
 | Test users able to create PATs on each test instance (GitHub, Bitbucket, Atlassian Cloud and DC); PATs enabled on the DC instances | M6 | Repo owners / Atlassian admin |
 | Approval to create billable GCP resources (Cloud SQL, Cloud Run, Scheduler) | M7 | You |
@@ -455,7 +515,16 @@ pre-authorization outside dev). Group overage: configure the Graph fallback or a
 - **Credentials in the ingest path:** env-referenced secrets only, never in config, bundles, logs or the database; ingest
   is the only workload with connector credentials.
 - **SSRF / unexpected hosts:** host allowlist in `platform.yaml`.
-- **API limits and large spaces:** incremental sync, backoff, per-source schedules.
+- **API limits and large spaces:** incremental sync, backoff, per-source schedules. Every run still lists all ids and
+  versions (needed for deletions and restriction changes); for very large spaces/projects that listing is the cost.
+- **Untested against live APIs (M1–M4):** response shapes come from documentation and fakes. Most likely to differ:
+  Confluence Cloud v1 CQL search (Atlassian is retiring v1 endpoints; fallback is v2 listing by space plus
+  per-page restriction calls), attachment download redirects, Jira Cloud `search/jql` paging, Bitbucket DC links
+  behind a context path.
+- **Jira without issue security:** an absent `security` value counts as unrestricted; correct for instances without
+  issue security schemes, but it relies on the field being returned when a level is set (checked in the live test).
+- **GitHub App installation tokens expire after an hour:** fine as a source credential only with a minting step (not
+  built); use fine-grained PATs until then.
 - **AG-UI library defaults are unsafe for us:** `ag_ui_adk` defaults to in-memory sessions, a user id derived from the
   thread id, merging client state into the session, and saving sessions to memory. Each is overridden and tested (§3.2).
 - **Browser-side tools bypass policy:** CopilotKit frontend actions are limited to UI work; data and actions stay MCP
