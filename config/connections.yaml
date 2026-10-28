@@ -22,8 +22,10 @@ connections:
     base_url: https://api.bitbucket.org
     max_token_days: 90
     token_help: >-
-      Atlassian API token with Bitbucket read scopes (repositories: read), used with your
-      Atlassian account email. App passwords no longer work.
+      Atlassian API token WITH SCOPES (id.atlassian.com > Security > "Create API token with
+      scopes" > app Bitbucket) with read:user:bitbucket and read:repository:bitbucket, used with
+      your Atlassian account email (not your Bitbucket username). Unscoped API tokens, app
+      passwords and repository/workspace access tokens do not work.
   atlassian:
     description: Jira and Confluence Cloud (acme.atlassian.net)
     provider: atlassian

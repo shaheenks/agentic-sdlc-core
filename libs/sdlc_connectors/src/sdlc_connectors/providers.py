@@ -31,6 +31,16 @@ from sdlc_connectors.storage_format import storage_to_markdown
 
 MAX_TEXT = 100_000  # characters of file/page/issue text returned by a tool
 
+# Bitbucket Cloud answers 401 for every one of these, with no detail (Atlassian KB "Getting 401
+# HTTP error ... Bitbucket Cloud REST APIs").
+BITBUCKET_CLOUD_HINT = (
+    "Bitbucket Cloud needs an Atlassian API token WITH SCOPES (id.atlassian.com > Security > "
+    "Create API token with scopes > app Bitbucket) including read:user:bitbucket and "
+    "read:repository:bitbucket, used with your Atlassian account email (not your Bitbucket "
+    "username). Unscoped API tokens, app passwords and repository/workspace access tokens do "
+    "not work here"
+)
+
 
 class TokenRejected(ConnectorError):
     """The provider did not accept the token (or it is not an acceptable token type)."""
@@ -109,7 +119,10 @@ def verify(conn: ConnectionDef, token: str, username: str | None, transport=None
     with client_for(conn, token, username, transport) as client:
         if conn.provider == "bitbucket":
             if conn.edition == "cloud":
-                me = _get(client, f"{conn.base_url}/2.0/user")
+                try:
+                    me = _get(client, f"{conn.base_url}/2.0/user")
+                except TokenRejected as e:
+                    raise TokenRejected(f"{e}. {BITBUCKET_CLOUD_HINT}") from None
                 return Account(
                     str(me.get("account_id") or me.get("uuid", "")),
                     str(me.get("display_name") or me.get("nickname", "")),

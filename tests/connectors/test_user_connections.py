@@ -383,3 +383,12 @@ async def test_disconnect_removes_and_deletes_empty_directories():
     assert store.load(OID) is None and not await svc.disconnect(OID, "jira-dc")
     with pytest.raises(NotConnected):
         await svc.credential(OID, "jira-dc")
+
+
+def test_bitbucket_cloud_401_explains_the_token_requirements():
+    t, _ = transport({("GET", "/2.0/user"): httpx.Response(401)})
+    with pytest.raises(providers.TokenRejected) as exc:
+        providers.verify(BB_CLOUD, "tok", "dev@acme.com", t)
+    message = str(exc.value)
+    assert "WITH SCOPES" in message and "read:user:bitbucket" in message
+    assert "Atlassian account email" in message and "tok" not in message.replace("token", "")
