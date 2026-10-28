@@ -2,7 +2,7 @@
 
 import httpx
 import pytest
-from sdlc_loaders.http import HostNotAllowed, HttpClient, HttpError
+from sdlc_connectors.http import HostNotAllowed, HttpClient, HttpError
 
 TOKEN = "pat-value-never-in-errors"  # noqa: S105 (test value)
 ALLOWED = ["api.example.com", "*.atlassian.net"]

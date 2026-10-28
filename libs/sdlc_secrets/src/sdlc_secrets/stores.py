@@ -56,7 +56,7 @@ class EnvSecretStore:
         return value
 
 
-def _adc_token_provider() -> Callable[[], str]:
+def adc_token_provider() -> Callable[[], str]:
     """Bearer tokens from Application Default Credentials (gcloud ADC locally, the service
     identity on Cloud Run), refreshed when they expire."""
     import google.auth
@@ -105,7 +105,7 @@ class GcpSecretStore:
 
     def get(self, name: str) -> str:
         if self._token is None:
-            self._token = _adc_token_provider()
+            self._token = adc_token_provider()
         headers = {"Authorization": f"Bearer {self._token()}"}
         if self._quota_project:
             headers["x-goog-user-project"] = self._quota_project

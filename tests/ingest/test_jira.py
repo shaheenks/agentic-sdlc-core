@@ -5,11 +5,11 @@ import httpx
 import pytest
 import yaml
 from sdlc_config import ConfigError, load_snapshot
+from sdlc_connectors.http import HttpClient
+from sdlc_connectors.jira_text import adf_to_markdown, wiki_to_markdown
 from sdlc_loaders import LoaderContext
 from sdlc_loaders.atlassian import atlassian_client
-from sdlc_loaders.http import HttpClient
 from sdlc_loaders.jira import JiraLoader
-from sdlc_loaders.jira_text import adf_to_markdown, wiki_to_markdown
 
 from tests.support.entra import TEST_ENV
 

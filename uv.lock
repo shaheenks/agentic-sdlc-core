@@ -9,6 +9,7 @@ members = [
     "sdlc-agent-bootstrap",
     "sdlc-auth",
     "sdlc-config",
+    "sdlc-connectors",
     "sdlc-db",
     "sdlc-ingest",
     "sdlc-loaders",
@@ -2097,6 +2098,25 @@ requires-dist = [
 ]
 
 [[package]]
+name = "sdlc-connectors"
+version = "0.1.0"
+source = { editable = "libs/sdlc_connectors" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "httpx" },
+    { name = "sdlc-config" },
+    { name = "sdlc-secrets" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cryptography", specifier = ">=42" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "sdlc-config", editable = "libs/sdlc_config" },
+    { name = "sdlc-secrets", editable = "libs/sdlc_secrets" },
+]
+
+[[package]]
 name = "sdlc-db"
 version = "0.1.0"
 source = { editable = "libs/sdlc_db" }
@@ -2144,6 +2164,7 @@ dependencies = [
     { name = "google-auth" },
     { name = "httpx" },
     { name = "sdlc-config" },
+    { name = "sdlc-connectors" },
     { name = "sdlc-secrets" },
 ]
 
@@ -2152,6 +2173,7 @@ requires-dist = [
     { name = "google-auth", specifier = ">=2.0" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "sdlc-config", editable = "libs/sdlc_config" },
+    { name = "sdlc-connectors", editable = "libs/sdlc_connectors" },
     { name = "sdlc-secrets", editable = "libs/sdlc_secrets" },
 ]
 
@@ -2166,6 +2188,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "sdlc-auth", extra = ["server"] },
     { name = "sdlc-config" },
+    { name = "sdlc-connectors" },
     { name = "sdlc-db" },
     { name = "sdlc-policy" },
 ]
@@ -2178,6 +2201,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "sdlc-auth", extras = ["server"], editable = "libs/sdlc_auth" },
     { name = "sdlc-config", editable = "libs/sdlc_config" },
+    { name = "sdlc-connectors", editable = "libs/sdlc_connectors" },
     { name = "sdlc-db", editable = "libs/sdlc_db" },
     { name = "sdlc-policy", editable = "libs/sdlc_policy" },
 ]

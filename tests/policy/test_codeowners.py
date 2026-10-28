@@ -19,6 +19,7 @@ CRITICAL = [
     "/libs/sdlc_config/",
     "/libs/sdlc_db/",
     "/libs/sdlc_secrets/",
+    "/libs/sdlc_connectors/",  # user tokens, provider calls (version-01 M6)
     "/ingest/loaders/",  # SSRF guard + source credentials (version-01 M0)
     "/ui/copilotkit/",  # token forwarding to /agui (version-01 M5)
     "/db/",

@@ -10,6 +10,7 @@ COPY pyproject.toml uv.lock ./
 COPY libs/sdlc_agent/pyproject.toml libs/sdlc_agent/
 COPY libs/sdlc_auth/pyproject.toml libs/sdlc_auth/
 COPY libs/sdlc_config/pyproject.toml libs/sdlc_config/
+COPY libs/sdlc_connectors/pyproject.toml libs/sdlc_connectors/
 COPY libs/sdlc_db/pyproject.toml libs/sdlc_db/
 COPY libs/sdlc_policy/pyproject.toml libs/sdlc_policy/
 COPY libs/sdlc_secrets/pyproject.toml libs/sdlc_secrets/
@@ -22,8 +23,10 @@ RUN uv sync --frozen --no-dev --package sdlc-mcp-bootstrap --no-install-workspac
 
 COPY libs/sdlc_auth libs/sdlc_auth
 COPY libs/sdlc_config libs/sdlc_config
+COPY libs/sdlc_connectors libs/sdlc_connectors
 COPY libs/sdlc_db libs/sdlc_db
 COPY libs/sdlc_policy libs/sdlc_policy
+COPY libs/sdlc_secrets libs/sdlc_secrets
 COPY mcp_servers/bootstrap mcp_servers/bootstrap
 RUN uv sync --frozen --no-dev --package sdlc-mcp-bootstrap
 

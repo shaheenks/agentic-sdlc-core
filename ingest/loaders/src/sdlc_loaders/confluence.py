@@ -18,11 +18,12 @@ from collections.abc import Callable, Iterator, Mapping
 from typing import Any
 from urllib.parse import urljoin
 
+from sdlc_connectors.http import HttpClient
+from sdlc_connectors.storage_format import storage_to_markdown
+
 from sdlc_loaders.atlassian import atlassian_client
 from sdlc_loaders.base import MARKDOWN, Loader, LoaderContext, SourceItem
 from sdlc_loaders.files import MAX_PDF_BYTES, _source_file
-from sdlc_loaders.http import HttpClient
-from sdlc_loaders.storage_format import storage_to_markdown
 
 PAGE_LIMIT = 50
 RESTRICTIONS = "restrictions.read.restrictions.user,restrictions.read.restrictions.group"

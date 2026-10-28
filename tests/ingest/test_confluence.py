@@ -7,11 +7,11 @@ import httpx
 import pytest
 import yaml
 from sdlc_config import ConfigError, load_snapshot
+from sdlc_connectors.http import HttpClient
+from sdlc_connectors.storage_format import storage_to_markdown
 from sdlc_loaders import LoaderContext
 from sdlc_loaders.atlassian import atlassian_client, auth_header_value
 from sdlc_loaders.confluence import ConfluenceLoader, read_restricted
-from sdlc_loaders.http import HttpClient
-from sdlc_loaders.storage_format import storage_to_markdown
 from sdlc_secrets import EnvSecretStore, SecretResolver
 
 from tests.support.entra import TEST_ENV

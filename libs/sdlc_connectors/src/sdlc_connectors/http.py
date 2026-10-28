@@ -1,4 +1,5 @@
-"""HTTP for remote loaders (version-01 M0): host allowlist, timeouts, retries, credentials.
+"""HTTP to external systems (version-01 M0; shared by ingest loaders and MCP tools since M6): host
+allowlist, timeouts, retries, credentials.
 
 - Every request URL, and every redirect target, must be https on a host in platform.yaml
   knowledge.allowed_hosts (SSRF guard); redirects are followed manually, at most MAX_REDIRECTS.
@@ -21,13 +22,13 @@ from urllib.parse import urljoin
 import httpx
 from sdlc_config.hosts import url_allowed, url_host
 
-from sdlc_loaders.base import LoaderError
+from sdlc_connectors.errors import ConnectorError
 
 MAX_REDIRECTS = 3
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 
-class HttpError(LoaderError):
+class HttpError(ConnectorError):
     def __init__(self, message: str, status: int | None = None) -> None:
         super().__init__(message)
         self.status = status

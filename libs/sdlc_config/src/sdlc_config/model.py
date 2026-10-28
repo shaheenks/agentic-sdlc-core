@@ -109,6 +109,33 @@ class ToolDef:
     risk: str
     data_scoped: bool
     args: frozenset[str]  # arguments that team policies may constrain
+    user_connection: str | None = None  # credentials.user: connection the tool uses as the user
+
+
+# Atlassian Cloud and Bitbucket Cloud tokens are used with the account email (HTTP Basic).
+_NEEDS_USERNAME = {
+    ("bitbucket", "cloud"),
+    ("jira", "cloud"),
+    ("confluence", "cloud"),
+    ("atlassian", "cloud"),
+}
+
+
+@dataclass(frozen=True)
+class ConnectionDef:
+    """A system users connect their own account to (connections.yaml, version-01 M6)."""
+
+    id: str
+    provider: str  # github | bitbucket | jira | confluence | atlassian
+    edition: str  # cloud | datacenter
+    base_url: str  # API base URL, https, host in knowledge.allowed_hosts
+    description: str = ""
+    max_token_days: int = 90
+    token_help: str = ""
+
+    @property
+    def needs_username(self) -> bool:
+        return (self.provider, self.edition) in _NEEDS_USERNAME
 
 
 @dataclass(frozen=True)
@@ -175,6 +202,7 @@ class Snapshot:
     teams: Mapping[str, TeamDef]
     skills: Mapping[str, SkillDef] = field(default_factory=dict)  # global + team add-ons
     sources: Mapping[str, SourceDef] = field(default_factory=dict)
+    connections: Mapping[str, "ConnectionDef"] = field(default_factory=dict)
     # E3: user object IDs (lower-case) denied on every request -> reason (env/<env>/blocked.yaml)
     blocked: Mapping[str, str] = field(default_factory=dict)
     # Every file this version was built from, repo-relative (config/..., skills/...) -> sha256.

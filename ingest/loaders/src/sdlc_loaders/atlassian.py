@@ -10,8 +10,9 @@ through sdlc_secrets (cached briefly) and dropped from the cache after a 401.
 import base64
 from collections.abc import Callable
 
+from sdlc_connectors.http import HttpClient
+
 from sdlc_loaders.base import LoaderContext, LoaderError
-from sdlc_loaders.http import HttpClient
 
 
 def auth_header_value(secret: str) -> str:

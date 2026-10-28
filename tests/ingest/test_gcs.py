@@ -7,9 +7,9 @@ import httpx
 import pytest
 import yaml
 from sdlc_config import ConfigError, load_snapshot
+from sdlc_connectors.http import HttpClient
 from sdlc_loaders import LoaderError
 from sdlc_loaders.gcs import API_HOSTS, GcsLoader, parse_location
-from sdlc_loaders.http import HttpClient
 
 from tests.support.entra import TEST_ENV
 

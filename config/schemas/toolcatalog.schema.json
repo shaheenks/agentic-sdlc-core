@@ -30,6 +30,11 @@
           "server": { "type": "string" },
           "risk": { "enum": ["low", "medium", "high"] },
           "data_scoped": { "type": "boolean" },
+          "credentials": {
+            "description": "the tool calls an external system as the user with their own connection (version-01 M6)",
+            "type": "object", "additionalProperties": false, "required": ["user"],
+            "properties": { "user": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "connection id in connections.yaml" } }
+          },
           "args": {
             "type": "object",
             "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },

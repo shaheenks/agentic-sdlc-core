@@ -16,9 +16,10 @@ from collections.abc import Callable, Iterator, Mapping
 from typing import Any
 from urllib.parse import quote
 
+from sdlc_connectors.http import HttpClient
+
 from sdlc_loaders.base import Loader, LoaderContext, LoaderError, SourceItem
 from sdlc_loaders.files import _selected, _source_file, _too_large
-from sdlc_loaders.http import HttpClient
 
 API = "https://storage.googleapis.com"
 API_HOSTS = ("storage.googleapis.com",)  # fixed endpoint: no config can redirect it

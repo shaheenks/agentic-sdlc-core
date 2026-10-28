@@ -18,11 +18,12 @@
 from collections.abc import Callable, Iterator, Mapping
 from typing import Any
 
+from sdlc_connectors.http import HttpClient
+from sdlc_connectors.jira_text import adf_to_markdown, wiki_to_markdown
+
 from sdlc_loaders.atlassian import atlassian_client
 from sdlc_loaders.base import MARKDOWN, Loader, LoaderContext, SourceItem
 from sdlc_loaders.files import _source_file
-from sdlc_loaders.http import HttpClient
-from sdlc_loaders.jira_text import adf_to_markdown, wiki_to_markdown
 
 DEFAULT_FIELDS = (
     "summary",

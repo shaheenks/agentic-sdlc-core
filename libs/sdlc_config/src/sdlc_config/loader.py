@@ -24,6 +24,7 @@ from jsonschema import Draft202012Validator
 from sdlc_config.errors import ConfigError
 from sdlc_config.hosts import host_allowed, url_host
 from sdlc_config.model import (
+    ConnectionDef,
     GroupMap,
     IdentityRef,
     PlatformConfig,
@@ -72,6 +73,7 @@ _KINDS: dict[str, _Kind] = {
     "SkillCatalog": _Kind("skillcatalog.schema.json", "skills.yaml"),
     "Source": _Kind("source.schema.json", "sources/*.yaml", many=True),
     "BlockList": _Kind("blocklist.schema.json", "env/{env}/blocked.yaml", optional=True),
+    "ConnectionCatalog": _Kind("connectioncatalog.schema.json", "connections.yaml", optional=True),
 }
 
 
@@ -135,6 +137,13 @@ def load_snapshot(
         docs["SkillCatalog"][0][1], addon_skills, roles, teams, repo_root, raw_files, problems
     )
     sources = _build_sources(docs["Source"], platform, teams, roles, aliases, problems)
+    connections = _build_connections(docs["ConnectionCatalog"], platform, problems)
+    for tool in tools.values():
+        if tool.user_connection and tool.user_connection not in connections:
+            problems.append(
+                f"tools.yaml: tools/{tool.name}/credentials/user: unknown connection "
+                f"'{tool.user_connection}' (not in connections.yaml)"
+            )
     if problems:
         raise ConfigError(problems)
 
@@ -150,6 +159,7 @@ def load_snapshot(
         teams=MappingProxyType(teams),
         skills=MappingProxyType(skills),
         sources=MappingProxyType(sources),
+        connections=MappingProxyType(connections),
         blocked=MappingProxyType(
             {
                 entry["oid"].lower(): entry["reason"]
@@ -276,8 +286,36 @@ def _build_tools(doc: dict, problems: list[str]) -> dict[str, ToolDef]:
             risk=entry["risk"],
             data_scoped=entry.get("data_scoped", False),
             args=frozenset(entry.get("args", {})),
+            user_connection=entry.get("credentials", {}).get("user"),
         )
     return tools
+
+
+def _build_connections(conn_docs, platform, problems) -> dict[str, ConnectionDef]:
+    """connections.yaml (optional): systems users connect their own accounts to (version-01 M6)."""
+    if not conn_docs:
+        return {}
+    rel, doc = conn_docs[0]
+    out = {}
+    for cid, entry in doc["connections"].items():
+        host = url_host(entry["base_url"])
+        if host is None or not host_allowed(host, platform.allowed_hosts):
+            problems.append(
+                f"{rel}: connections/{cid}/base_url: host '{host}' is not in platform.yaml "
+                "knowledge.allowed_hosts"
+            )
+        if entry["provider"] == "atlassian" and entry["edition"] != "cloud":
+            problems.append(f"{rel}: connections/{cid}: provider atlassian is Cloud only")
+        out[cid] = ConnectionDef(
+            id=cid,
+            provider=entry["provider"],
+            edition=entry["edition"],
+            base_url=entry["base_url"].rstrip("/"),
+            description=entry.get("description", ""),
+            max_token_days=int(entry.get("max_token_days", 90)),
+            token_help=entry.get("token_help", ""),
+        )
+    return out
 
 
 EVERYONE = IdentityRef("everyone", "*")

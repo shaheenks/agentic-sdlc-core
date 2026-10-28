@@ -19,6 +19,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from sdlc_connectors.errors import ConnectorError
+
 PDF = "application/pdf"
 TEXT = "text/plain"
 MARKDOWN = "text/markdown"
@@ -53,8 +55,9 @@ class LoaderContext:
     allowed_hosts: tuple[str, ...] = ()  # platform.yaml knowledge.allowed_hosts
 
 
-class LoaderError(RuntimeError):
-    """A source cannot be read at all (missing folder, unreachable host, bad credentials)."""
+# A source cannot be read at all (missing folder, unreachable host, bad credentials). The same
+# class as sdlc_connectors' errors, so HTTP failures (HttpError) are loader errors too.
+LoaderError = ConnectorError
 
 
 class Loader(ABC):
