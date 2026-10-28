@@ -55,8 +55,11 @@ locals {
     SDLC_AGENT_MODEL = var.agent_model
     # 0.0.0.0, not 127.0.0.1: Cloud Run's startup probes do not connect over loopback. Still private:
     # only the ingress container's port (oauth2-proxy, 4180) is exposed by a multi-container service.
-    HOST             = "0.0.0.0"
-    SDLC_AGUI_AGENT  = "bootstrap" # AG-UI endpoint /agui for the CopilotKit app (version-01 M5)
+    HOST            = "0.0.0.0"
+    SDLC_AGUI_AGENT = "bootstrap" # AG-UI endpoint /agui for the CopilotKit app (version-01 M5)
+    # oauth2-proxy does not pass the browser's Host (PASS_HOST_HEADER=false), so ADK's cross-origin
+    # guard needs the public origin explicitly, or the dev UI's scripts get 403.
+    SDLC_ALLOWED_ORIGINS = "https://${local.app_host}"
   })
 
   # CopilotKit chat app sidecar (version-01 M5): forwards only the proxy's token header to /agui.

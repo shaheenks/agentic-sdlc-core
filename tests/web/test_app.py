@@ -120,3 +120,18 @@ async def test_bare_chat_path_redirects_to_the_chat_app(web, entra):
     resp = await web.get("/chat", headers=as_user(entra, OID_A))
     assert resp.status_code == 307 and resp.headers["location"] == "/chat/"
     assert (await web.get("/chat")).status_code == 401  # still behind sign-in
+
+
+async def test_public_origin_is_allowed_when_the_proxy_rewrites_host(entra):
+    # Cloud Run: oauth2-proxy sends Host 127.0.0.1:8000, the browser sends its real Origin
+    public = "https://sdlc-app-dev-123.asia-southeast1.run.app"
+    headers = {**as_user(entra, OID_A), "Origin": public, "Host": "127.0.0.1:8000"}
+    plain = create_app(AGENTS_DIR, entra.verifier(), host="127.0.0.1", port=8000)
+    allowed = create_app(
+        AGENTS_DIR, entra.verifier(), host="127.0.0.1", port=8000, allow_origins=[public]
+    )
+    for app, status in ((plain, 403), (allowed, 200)):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1:8000"
+        ) as client:
+            assert (await client.get("/list-apps", headers=headers)).status_code == status

@@ -28,6 +28,7 @@ def create_app(
     session_service_uri: str = "memory://",
     dev_tools: bool = False,
     agui_agent: str | None = None,
+    allow_origins: list[str] | None = None,
 ):
     # Explicit session store: memory:// by default; docker compose persists conversations in
     # sqlite:////data/sessions.db on a volume only this container mounts (agents get no DB
@@ -40,6 +41,10 @@ def create_app(
         session_service_uri=session_service_uri,
         artifact_service_uri="memory://",
         use_local_storage=False,
+        # The app's public origin(s), when the proxy in front does not forward the browser's Host
+        # (Cloud Run: oauth2-proxy sends Host 127.0.0.1:8000). Without it ADK's cross-origin guard
+        # refuses the dev UI's module scripts (403). Unset: same-origin only, as before.
+        allow_origins=allow_origins or None,
     )
 
     @adk_app.get("/healthz", include_in_schema=False)
@@ -97,6 +102,9 @@ def main() -> None:
         dev_tools=os.environ.get("SDLC_DEV_TOOLS", "false").lower() == "true",
         # AG-UI endpoint (/agui) for the CopilotKit app; off unless an agent is named
         agui_agent=os.environ.get("SDLC_AGUI_AGENT") or None,
+        allow_origins=[
+            o.strip() for o in os.environ.get("SDLC_ALLOWED_ORIGINS", "").split(",") if o.strip()
+        ],
     )
     log.info("serving agents from %s on %s:%s (Entra user binding on)", agents_dir, host, port)
     uvicorn.run(app, host=host, port=port, proxy_headers=True, forwarded_allow_ips="*")
