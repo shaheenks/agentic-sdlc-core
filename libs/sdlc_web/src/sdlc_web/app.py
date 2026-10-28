@@ -46,6 +46,13 @@ def create_app(
     async def healthz() -> dict:
         return {"status": "ok"}
 
+    @adk_app.get("/chat", include_in_schema=False)
+    async def chat_redirect():
+        # oauth2-proxy sends the "/chat/" prefix to the CopilotKit app; a bare /chat lands here
+        from fastapi.responses import RedirectResponse
+
+        return RedirectResponse("/chat/", status_code=307)
+
     agui_path = None
     if agui_agent:  # version-01 M5: the CopilotKit web app talks AG-UI to this agent
         from sdlc_web.agui import AGUI_PATH, mount_agui

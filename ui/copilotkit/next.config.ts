@@ -17,6 +17,9 @@ const csp = [
 // Served behind oauth2-proxy at /chat (the proxy routes /chat/ here, everything else to the agent).
 const config: NextConfig = {
   basePath: "/chat",
+  // The proxy routes the "/chat/" prefix here; Next's default /chat/ -> /chat redirect would send
+  // the browser to a path the proxy gives to the agent instead.
+  skipTrailingSlashRedirect: true,
   output: "standalone",
   poweredByHeader: false,
   reactStrictMode: true,

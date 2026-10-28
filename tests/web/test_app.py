@@ -113,3 +113,10 @@ async def test_dev_tools_switch_restores_developer_routes(entra):
     ) as web:
         resp = await web.get("/dev/apps/bootstrap/deploy/defaults", headers=as_user(entra, OID_A))
     assert resp.status_code != 403
+
+
+async def test_bare_chat_path_redirects_to_the_chat_app(web, entra):
+    # oauth2-proxy routes the "/chat/" prefix to the CopilotKit app; "/chat" reaches the agent
+    resp = await web.get("/chat", headers=as_user(entra, OID_A))
+    assert resp.status_code == 307 and resp.headers["location"] == "/chat/"
+    assert (await web.get("/chat")).status_code == 401  # still behind sign-in
