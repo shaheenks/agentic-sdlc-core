@@ -16,7 +16,8 @@ x-oauth2-proxy-env: &oauth2-proxy-env
   # The access token is for the MCP API (aud = sdlc-mcp); offline_access enables refresh.
   OAUTH2_PROXY_SCOPE: openid profile email offline_access api://${ENTRA_API_CLIENT_ID}/access_as_user
   OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
-  OAUTH2_PROXY_UPSTREAMS: http://agent-bootstrap:8000
+  # /chat/ -> CopilotKit app (version-01 M5); everything else -> the agent (adk web, /agui)
+  OAUTH2_PROXY_UPSTREAMS: http://agent-bootstrap:8000/,http://ui-copilotkit:3000/chat/
   OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
   OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
   OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
@@ -32,7 +33,7 @@ x-oauth2-proxy-env: &oauth2-proxy-env
   OAUTH2_PROXY_COOKIE_REFRESH: 30m      # refresh before the ~60-90 min access token expires
   OAUTH2_PROXY_COOKIE_EXPIRE: 8h
   # API calls from the dev UI get 401 instead of a login redirect when the session lapses.
-  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps|agui|agents/state)
+  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/)
 
 # Tracing (H8.3): off unless OTEL_EXPORTER_OTLP_ENDPOINT is set in .env (e.g. http://jaeger:4318 with
 # `docker compose --profile observability up -d`). Spans never carry prompts, responses, tokens or
@@ -138,6 +139,23 @@ services:
       mcp-bootstrap:
         condition: service_healthy
 
+  # CopilotKit chat app (version-01 M5): reached only via oauth2-proxy at /chat/. It forwards the
+  # user's token (X-Forwarded-Access-Token, set by the proxy) to the agent's /agui and nothing
+  # else; it gets no secrets and stores no conversations.
+  ui-copilotkit:
+    build:
+      context: .
+      dockerfile: ui/copilotkit/Dockerfile
+    expose: ["3000"]
+    environment:
+      SDLC_AGUI_URL: http://agent-bootstrap:8000/agui
+      NEXT_TELEMETRY_DISABLED: "1"
+      COPILOTKIT_TELEMETRY_DISABLED: "true"
+      DO_NOT_TRACK: "1"
+    depends_on:
+      agent-bootstrap:
+        condition: service_healthy
+
   # Local sign-in: http://localhost:4180 (published on localhost only).
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4-alpine
@@ -149,6 +167,8 @@ services:
     depends_on:
       agent-bootstrap:
         condition: service_healthy
+      ui-copilotkit:
+        condition: service_started   # adk web keeps working if the chat app is down
 
   # Public sign-in: https://${SDLC_APP_HOST} via the Cloudflare Tunnel (TLS ends at Cloudflare).
   # The tunnel connector runs on the host (Windows service `Cloudflared`, managed in the
@@ -167,6 +187,8 @@ services:
     depends_on:
       agent-bootstrap:
         condition: service_healthy
+      ui-copilotkit:
+        condition: service_started   # adk web keeps working if the chat app is down
 
   # Trace viewer (profile "observability"): UI http://localhost:16686, OTLP/HTTP on jaeger:4318
   # (internal only). Set OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 in .env, then up -d.

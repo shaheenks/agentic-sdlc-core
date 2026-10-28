@@ -21,6 +21,7 @@
 /libs/sdlc_db/                      @shaheenks
 /libs/sdlc_secrets/                 @shaheenks
 /ingest/loaders/                    @shaheenks
+/ui/copilotkit/                     @shaheenks
 /libs/sdlc_web/                     @shaheenks
 /db/                                @shaheenks
 /infra/                             @shaheenks

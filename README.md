@@ -34,18 +34,19 @@ IDs, group IDs, user names or secrets.
 ## Run the stack
 
 ```bash
-docker compose up -d --build --wait          # postgres, mcp-bootstrap, agent-bootstrap, oauth2-proxy
+docker compose up -d --build --wait          # postgres, mcp-bootstrap, agent-bootstrap, ui-copilotkit, oauth2-proxy
 docker compose run --rm migrate              # database schema + row-level security (first time, and after new migrations)
 docker compose run --rm ingest run --all     # build the knowledge store (embeddings, graph, PDFs)
 ```
 
-Open **http://localhost:4180** and sign in with an Entra test user (dev UI at `/dev-ui/`).
+Open **http://localhost:4180** and sign in with an Entra test user: chat app at **`/chat/`** (CopilotKit, version-01), developer UI at `/dev-ui/`.
 
 | Endpoint | URL |
 |---|---|
-| Agent UI (local) | http://localhost:4180 |
+| Chat app (local) | http://localhost:4180/chat/ |
+| Agent developer UI (local) | http://localhost:4180/dev-ui/ |
 | MCP server (local) | http://localhost:8080/mcp (health: `/healthz`) |
-| Agent UI (public, profile `tunnel`) | https://app-sdlc-dev.shaheenks.co.in |
+| Chat app / developer UI (public, profile `tunnel`) | https://app-sdlc-dev.shaheenks.co.in/chat/ · `/dev-ui/` |
 | MCP server (public, via the tunnel) | https://mcp-sdlc-dev.shaheenks.co.in/mcp |
 | Trace viewer (profile `observability`) | http://localhost:16686 |
 

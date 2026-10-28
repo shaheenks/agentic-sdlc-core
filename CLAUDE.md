@@ -16,7 +16,8 @@ current before adding features, and don't build ahead of the current stage's exi
 - `libs/sdlc_policy`        Enforcement: tools/list filtering, call authz, arg constraints
 - `libs/sdlc_db`            Postgres/pgvector access with RLS session context
 - `libs/sdlc_secrets`       Secret references (`{env: X}` / `{secret: x}`) resolved at runtime: env or Secret Manager, 5-min cache
-- `libs/sdlc_web`           Serves agents (ADK web app) behind oauth2-proxy: token re-validation, user binding, token passthrough
+- `libs/sdlc_web`           Serves agents (ADK web app + AG-UI `/agui`) behind oauth2-proxy: token re-validation, user binding, token passthrough
+- `ui/copilotkit`           CopilotKit chat app (Next.js) at `/chat/` behind oauth2-proxy; talks AG-UI to the agent's `/agui`
 - `libs/sdlc_agent`         Agent helpers: `with_team_context` (per-session team instructions/context via `get_agent_context`, as the user)
 - `skills/core/`, `skills/teams/<team>/`   SKILL.md content only (no access rules inside skills)
 - `config/`                 platform, roles, tools, skills, `teams/`, `sources/`, `env/<env>/groups.yaml`, `schemas/`
@@ -152,7 +153,10 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
   through the host's `Cloudflared` Windows service (tunnel + hostnames managed in the Cloudflare dashboard). Run exactly one
   connector per tunnel. See docs/misc/CLOUDFLARE_TUNNEL.md.
   Public names are one level deep (`*-sdlc-dev.shaheenks.co.in`) so free Universal SSL covers them.
-- Open **http://localhost:4180** and sign in with Entra to use the agents (dev UI at /dev-ui/). The agent port is not published.
+- Open **http://localhost:4180** and sign in with Entra to use the agents (dev UI at /dev-ui/, CopilotKit chat at /chat/). The agent
+  and chat app ports are not published. AG-UI rules: the chat app forwards ONLY `X-Forwarded-Access-Token` to `/agui`
+  (`forwardHeaders.allow`), stores no conversations (`PassThroughAgentRunner`, never `InMemoryAgentRunner`), has no frontend
+  tools that read data; `/agui` binds the user id to the token `oid` and strips client `temp:`/`app:`/`user:` state.
   ADK developer tools (builder, deploy, evals, tests, other users' traces) are off; `SDLC_DEV_TOOLS=true` enables them (never outside local dev).
 - DB connections use standard `PG*` env vars. Roles: `sdlc_owner` (migrations), `sdlc_app` (MCP, read-only), `sdlc_ingest`
   (writes); none bypasses RLS. Init: `db/bootstrap/README.md`. On the host use `PGHOST=127.0.0.1` (`localhost` tries IPv6
@@ -174,7 +178,8 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
   Jaeger UI http://localhost:16686. One agent turn is one trace across agent, MCP server and Postgres (context travels in
   MCP `_meta`, not HTTP headers; never add a per-call trace header: it would break one MCP session per conversation).
   Spans carry no prompts, responses, tokens or argument values (agent tool args export as `{}`). Audit records carry `trace_id`.
-- CI: `.github/workflows/ci.yml` (lint, config validate + PR permission diff, tests on a pgvector service after
+- `cd ui/copilotkit; npm ci; npm test; npm run typecheck; npm run build`   chat app checks (exact versions pinned; telemetry off)
+- CI: `.github/workflows/ci.yml` (lint, config validate + PR permission diff, UI typecheck/test/build, tests on a pgvector service after
   `sdlc-db bootstrap` + `migrate`, terraform fmt/validate). No secrets or cloud calls in CI; tests must pass without `.env`
   (placeholder Entra IDs, example GroupMap, HashEmbedder, FakeEntra).
 - `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values)

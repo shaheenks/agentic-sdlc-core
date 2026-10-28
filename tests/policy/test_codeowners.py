@@ -20,6 +20,7 @@ CRITICAL = [
     "/libs/sdlc_db/",
     "/libs/sdlc_secrets/",
     "/ingest/loaders/",  # SSRF guard + source credentials (version-01 M0)
+    "/ui/copilotkit/",  # token forwarding to /agui (version-01 M5)
     "/db/",
     "/infra/",
     "/.github/",

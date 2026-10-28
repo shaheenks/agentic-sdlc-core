@@ -26,13 +26,13 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | M2 — GCS buckets | ✅ Built (2026-10-28); no live check | `type: gcs` (`gs://bucket/prefix/`), JSON API with ADC / service identity, downloads only changed generations, deletions from the listing, object links; Terraform `gcs_source_buckets` → `roles/storage.objectViewer` per bucket for the jobs SA |
 | M3 — Confluence (Cloud + DC) | ✅ Built (2026-10-28); no live check | One REST v1 CQL implementation for both editions (v2 has no CQL); every run lists versions/ancestors/read restrictions, restricted pages and descendants skipped + deleted (fail closed); bodies only for changed versions; storage format → Markdown; PDF attachments; Basic (`email:token`) or Bearer (PAT); credentials never sent to cross-host redirects |
 | M4 — Jira (Cloud + DC) | ✅ Built (2026-10-28); no live check | JQL sources; Cloud REST v3 `search/jql`, DC REST v2; every run lists `updated` + `security` (issue security → skipped + deleted); full fields only for changed issues; one Markdown document per issue (ADF / wiki markup converted, no people fields); issue links in the text for the graph |
-| M5 — AG-UI web app (CopilotKit) | 🔨 Spike done (2026-10-28) | `/agui` endpoint built and tested in `sdlc_web` (§3.3 results); next: the `ui/copilotkit` app behind oauth2-proxy, localhost + tunnel |
+| M5 — AG-UI web app (CopilotKit) | 🔨 Built locally (2026-10-28); browser sign-in check pending | `/agui` in `sdlc_web` (spike, §3.3) + `ui/copilotkit` (Next.js 16, CopilotKit 1.79.0) at `/chat/` behind oauth2-proxy; header allowlist, no thread storage in Node, citation cards, CSP; CI job |
 | M6 — User connections (on behalf of the user) | ⏳ | Per-user secret directory of PATs, Connections page, first read-only tool per product |
 | M7 — GCP staging (resume Stage 7a) | ⏳ | MCP + Cloud SQL + ingest jobs + scheduling + the AG-UI app on Cloud Run + Secret Manager user secrets |
 | M8 — Hardening, evals, docs | ⏳ | Version-01 exit gate |
 | Deferred — Gemini Enterprise | ⏸ Later version | WIF sign-in, Agent Runtime, Gemini Enterprise authorization (§6) |
 
-**Next:** M5 — build the CopilotKit app (`ui/copilotkit`, §3.1) on the `/agui` endpoint from the spike. Commits: M0 `91218d2`, M1 `9f8b324`, M2 `b7e72b7`, M3 `28ebf3b`,
+**Next:** M5 — sign-in check in the browser on localhost and the tunnel (§3.4), then M6 (user connections). Commits: M0 `91218d2`, M1 `9f8b324`, M2 `b7e72b7`, M3 `28ebf3b`,
 M4 `50ef071` (branch `version-01`). Connectors are tested against local repositories and fake APIs (recorded
 response shapes) only; the live checks are listed in §7.
 
@@ -222,15 +222,28 @@ sequenceDiagram
     C-->>U: chat + tool results rendered as components
 ```
 
-### 3.1 Components
-- **Backend:** an AG-UI endpoint (`/agui`) in `libs/sdlc_web`, built with `ag_ui_adk` (`ADKAgent` +
-  `add_adk_fastapi_endpoint`) around the same `root_agent` (agent chosen by env, e.g. `SDLC_AGUI_AGENT=bootstrap`).
-  It sits behind the existing `sdlc_web` middleware, so token validation, the block list and the ContextVar token path
-  in `sdlc_auth.adk` are reused unchanged. adk web and its dev UI keep working next to it.
-- **Frontend:** a new `ui/copilotkit/` component (Next.js + CopilotKit runtime; own Dockerfile and compose service).
-  The agent port stays unpublished; oauth2-proxy routes the UI, and the CopilotKit runtime calls `/agui` server-side.
-- **Generative UI:** render `search_knowledge` / `graph_query` results as citation cards (title, URL from the M0 item
-  metadata, pages for PDFs) and `whoami` as an identity panel. Rendering only; no new data paths.
+### 3.1 Components (built)
+- **Backend:** `/agui` in `libs/sdlc_web` (`agui.py`, `ag_ui_adk` `ADKAgent` + `add_adk_fastapi_endpoint`) around the
+  agent named by `SDLC_AGUI_AGENT` (compose: `bootstrap`; empty = off). Behind the existing middleware: token
+  validation, block list, ContextVar token path, plus `current_oid()` and AG-UI body sanitising. adk web keeps working.
+- **Frontend:** `ui/copilotkit/` (Next.js 16.4.1, React 19.2.9, `@copilotkit/runtime` + `react-core` 1.79.0 v2 API,
+  `@ag-ui/client` 1.0.2; exact pins). Compose service `ui-copilotkit` (internal :3000, not published). oauth2-proxy has
+  two upstreams: **`/chat/` → the app**, everything else → the agent; both proxy instances (localhost, tunnel), so no
+  new Entra callback. `/chat/api/` is an API route for the proxy (401 instead of a login redirect).
+- **Runtime (server side):** `CopilotRuntime` with one `HttpAgent` to `SDLC_AGUI_URL` (internal
+  `http://agent-bootstrap:8000/agui`), `forwardHeaders: { allow: ["x-forwarded-access-token"] }` (tested: cookies,
+  browser `Authorization`, `x-forwarded-for` and other headers are not forwarded).
+- **`PassThroughAgentRunner` (finding):** CopilotKit's default `InMemoryAgentRunner` keeps every thread in one
+  process-wide map keyed only by thread id and replays it on `connect` (and can list threads). The Node layer does not
+  authenticate users, so that would let one user read another's conversation. The app uses a runner that stores
+  nothing and replays nothing (tested); `/info` reports all thread endpoints off.
+- **Generative UI:** `search_knowledge` / `graph_query` render as citation cards (title, link, source, lines/pages,
+  heading, graph badge, entities), `whoami` as an identity panel. Rendering only (no frontend tools); links only
+  `http(s)`; CSP `connect-src 'self'` (no third-party calls from the browser). Telemetry off (CopilotKit, Next).
+- **Next.js basePath:** route handlers get the URL without `/chat`; the route puts it back before the CopilotKit
+  handler routes on it.
+- **Known limitations:** after a page reload the chat starts empty (history is kept per user in the agent's session
+  store but not yet loaded back into the UI: `/agents/state` can feed it later); the UI has no thread list.
 
 ### 3.2 Security requirements
 1. **User id = the token's `oid`.** `ADKAgent` defaults the user id to the thread id; set `user_id_extractor` to read
@@ -274,6 +287,11 @@ Decisions for the build: keep `/agui` on the agent container (same middleware, s
 CopilotKit app uses `@copilotkit/runtime/v2` (`CopilotRuntime` + `createCopilotRuntimeHandler`, `HttpAgent` from
 `@ag-ui/client` pointing at the internal `/agui` URL) with the allowlist above. Check how the runtime's
 `InMemoryAgentRunner` keeps thread state (it should hold nothing beyond what the browser already has).
+
+### 3.4 Browser check (to do)
+Sign in at `http://localhost:4180/chat/` as a test user (and `https://app-sdlc-dev…/chat/` with the tunnel profile): ask
+"who am I?" (identity panel shows your teams/roles), ask a knowledge question (citation cards), check the MCP audit log
+shows your `oid`, and a second test user in a private window gets their own view.
 
 ## 4. User connections and secrets (M6)
 
@@ -487,7 +505,10 @@ pre-authorization outside dev). Group overage: configure the Graph fallback or a
   paging, the `security` field on instances with and without issue security.
 - **Retrieval eval — to do (M8):** questions per new source type in `tests/evals/retrieval_questions.yaml`, once live
   sources are ingested.
-- **AG-UI (CI, no network):** `/agui` without a valid token is refused (401); the user id is the token's `oid`
+- **AG-UI — done:** `tests/web/test_agui.py` (Python) and `ui/copilotkit/tests/` (`npm test`: results parsing; the real
+  runtime handler against a fake `/agui`: only the token header forwarded, no replay across users, thread endpoints
+  off), CI job `ui` (typecheck, test, build). Originally planned:
+  `/agui` without a valid token is refused (401); the user id is the token's `oid`
   whatever thread id or body the client sends; a thread owned by another `oid` is refused; client state carrying token
   or `temp:` keys is stripped; persisted session events contain no token; MCP calls carry the user's token and
   `X-SDLC-Agent-Session` (FakeEntra + a stub MCP server, as in the existing `sdlc_web` tests).
@@ -547,6 +568,10 @@ pre-authorization outside dev). Group overage: configure the Graph fallback or a
   tools (§3.2 item 5), checked in review.
 - **Token handling in the Node layer:** the CopilotKit runtime sees the forwarded header; it must not log it or send
   it to the browser. Covered by the spike (§3.3) and a log check in the gate.
+- **CopilotKit defaults assume a trusted single user:** the default in-memory runner shares threads across users by
+  id, and the default header policy forwards `authorization` and `x-*`. Both are replaced (PassThroughAgentRunner,
+  header allowlist) and tested; re-check on every CopilotKit upgrade (releases ship several times a day; pinned to a
+  ~2-week-old release). Install scripts stay blocked (npm blocked `@scarf/scarf` telemetry).
 - **Two moving client libraries** (CopilotKit, `ag_ui_adk`): pin exact versions (`ag-ui-adk` 0.11.0 locked); keep
   adk web as the fallback UI. `ag_ui_adk`'s experimental `/agents/state` route may change: it is covered by
   `tests/web/test_agui.py`.

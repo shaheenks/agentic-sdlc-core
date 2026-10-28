@@ -1,0 +1,32 @@
+{
+  "name": "sdlc-copilotkit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SDLC agents chat (CopilotKit over AG-UI), served behind oauth2-proxy at /chat (version-01 M5)",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types tests/*.test.ts"
+  },
+  "dependencies": {
+    "@ag-ui/client": "1.0.2",
+    "@copilotkit/react-core": "1.79.0",
+    "@copilotkit/runtime": "1.79.0",
+    "next": "16.4.1",
+    "react": "19.2.9",
+    "react-dom": "19.2.9",
+    "zod": "4.6.7",
+    "rxjs": "7.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
