@@ -28,7 +28,7 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | M4 — Jira (Cloud + DC) | ✅ Built (2026-10-28); no live check | JQL sources; Cloud REST v3 `search/jql`, DC REST v2; every run lists `updated` + `security` (issue security → skipped + deleted); full fields only for changed issues; one Markdown document per issue (ADF / wiki markup converted, no people fields); issue links in the text for the graph |
 | M5 — AG-UI web app (CopilotKit) | ✅ Done (2026-10-28); browser check passed on localhost and the tunnel | `/agui` in `sdlc_web` (spike, §3.3) + `ui/copilotkit` (Next.js 16, CopilotKit 1.79.0) at `/chat/` behind oauth2-proxy; header allowlist, no thread storage in Node, citation cards, CSP; CI job |
 | M6 — User connections (on behalf of the user) | ✅ Done (2026-10-28); GitHub + Bitbucket Cloud verified live; Jira/Confluence and all DC editions not tested (no instance) | `libs/sdlc_connectors` (providers, per-user secret store: file/Secret Manager, service), `connections.yaml`, `/connections/` API on the MCP server, Connections page `/chat/connections`, tools `jira_get_issue`, `confluence_get_page`, `github_get_file`, `bitbucket_get_file`; Terraform custom role on the user-secret prefix |
-| M7 — GCP staging (resume Stage 7a) | ⏳ | MCP + Cloud SQL + ingest jobs + scheduling + the AG-UI app on Cloud Run + Secret Manager user secrets |
+| M7 — GCP dev (was: staging) | 🔨 Applied (2026-10-28): services ready; db + ingest jobs, Entra callback and sign-in check pending | Project `sdlc-demo-env01`, `asia-southeast1`, env `dev` (§5.1); images `d3c13dbd3493`; Cloud SQL, Cloud Run `sdlc-app-dev` (proxy + agent + chat app) and `sdlc-mcp-dev`, jobs, secrets, IAM |
 | M8 — Hardening, evals, docs | ⏳ | Version-01 exit gate |
 | Deferred — Gemini Enterprise | ⏸ Later version | WIF sign-in, Agent Runtime, Gemini Enterprise authorization (§6) |
 
@@ -504,6 +504,16 @@ As designed in [../GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md), with what changed s
   service (`OAUTH2_PROXY_PASS_HOST_HEADER=false`, since Cloud Run routes by Host) and the API routes as in compose;
   `SDLC_AGUI_AGENT=bootstrap` on the agent; `cloudresourcemanager.googleapis.com` in the API list (enable it by hand
   before the first plan: `data.google_project` needs it).
+- **Applied 2026-10-28** (images `d3c13dbd3493`, Terraform at `bffe7d8`): `sdlc-app-dev` and `sdlc-mcp-dev` ready.
+  App `https://sdlc-app-dev-279238348734.asia-southeast1.run.app` (sign in here: the OAuth redirect and cookie domain
+  use this deterministic host, not the hashed `status.url`), MCP `https://sdlc-mcp-dev-279238348734.asia-southeast1.run.app/mcp`.
+  Signed-out checks pass: `/` and `/chat/` redirect to Entra, `/connections/`, `/agui`, `/chat/api/…` and `/mcp` answer
+  401, MCP serves its RFC 9728 metadata.
+- **Fixed on the way:** the agent and chat app sidecars listened on `127.0.0.1`; Cloud Run startup probes do not connect
+  over loopback, so the revision never started. Both bind `0.0.0.0` (only port 4180 is exposed). Apply deploys the
+  saved plan file: re-plan after every Terraform change.
+- **Cloud Run reserves paths ending in `z`:** `/healthz` returns Google's 404 from outside (probes reach the container
+  directly, so health checks work). Use the startup probe or logs to check health, not `curl …/healthz`.
 - Known for the first run: the `sdlc-platform` git source reads this repository's `.git`, which the ingest image does not
   contain, so `ingest run --all` reports an error for it (the other sources ingest); the agent keeps conversations in
   memory (`app_max_instances = 1`); `secrets.create` under the IAM condition is unverified (first Connections save shows it).
