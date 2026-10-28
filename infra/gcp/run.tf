@@ -53,14 +53,16 @@ locals {
   agent_env = merge(local.vertex_env, local.agent_entra_env, {
     SDLC_MCP_URL     = "https://${local.mcp_host}/mcp"
     SDLC_AGENT_MODEL = var.agent_model
-    HOST             = "127.0.0.1" # reachable only through oauth2-proxy in the same instance
+    # 0.0.0.0, not 127.0.0.1: Cloud Run's startup probes do not connect over loopback. Still private:
+    # only the ingress container's port (oauth2-proxy, 4180) is exposed by a multi-container service.
+    HOST             = "0.0.0.0"
     SDLC_AGUI_AGENT  = "bootstrap" # AG-UI endpoint /agui for the CopilotKit app (version-01 M5)
   })
 
   # CopilotKit chat app sidecar (version-01 M5): forwards only the proxy's token header to /agui.
   ui_env = {
     SDLC_AGUI_URL                 = "http://127.0.0.1:8000/agui"
-    HOSTNAME                      = "127.0.0.1" # reachable only through oauth2-proxy
+    HOSTNAME                      = "0.0.0.0" # probes need it; only port 4180 is exposed (see agent_env)
     PORT                          = "3000"
     NEXT_TELEMETRY_DISABLED       = "1"
     COPILOTKIT_TELEMETRY_DISABLED = "true"
