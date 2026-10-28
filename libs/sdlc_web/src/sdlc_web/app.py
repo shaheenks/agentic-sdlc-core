@@ -27,6 +27,7 @@ def create_app(
     port: int,
     session_service_uri: str = "memory://",
     dev_tools: bool = False,
+    agui_agent: str | None = None,
 ):
     # Explicit session store: memory:// by default; docker compose persists conversations in
     # sqlite:////data/sessions.db on a volume only this container mounts (agents get no DB
@@ -45,7 +46,13 @@ def create_app(
     async def healthz() -> dict:
         return {"status": "ok"}
 
-    return EntraUserBindingMiddleware(adk_app, verifier, dev_tools=dev_tools)
+    agui_path = None
+    if agui_agent:  # version-01 M5: the CopilotKit web app talks AG-UI to this agent
+        from sdlc_web.agui import AGUI_PATH, mount_agui
+
+        mount_agui(adk_app, agents_dir, agui_agent, session_service_uri)
+        agui_path = AGUI_PATH
+    return EntraUserBindingMiddleware(adk_app, verifier, dev_tools=dev_tools, agui_path=agui_path)
 
 
 def verifier_from_env() -> EntraTokenVerifier:
@@ -81,6 +88,8 @@ def main() -> None:
         session_service_uri=session_uri,
         # Full ADK developer tools (builder, deploy, evals, traces) only when explicitly enabled.
         dev_tools=os.environ.get("SDLC_DEV_TOOLS", "false").lower() == "true",
+        # AG-UI endpoint (/agui) for the CopilotKit app; off unless an agent is named
+        agui_agent=os.environ.get("SDLC_AGUI_AGENT") or None,
     )
     log.info("serving agents from %s on %s:%s (Entra user binding on)", agents_dir, host, port)
     uvicorn.run(app, host=host, port=port, proxy_headers=True, forwarded_allow_ips="*")

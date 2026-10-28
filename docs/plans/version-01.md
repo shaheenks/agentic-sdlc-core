@@ -26,13 +26,13 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | M2 — GCS buckets | ✅ Built (2026-10-28); no live check | `type: gcs` (`gs://bucket/prefix/`), JSON API with ADC / service identity, downloads only changed generations, deletions from the listing, object links; Terraform `gcs_source_buckets` → `roles/storage.objectViewer` per bucket for the jobs SA |
 | M3 — Confluence (Cloud + DC) | ✅ Built (2026-10-28); no live check | One REST v1 CQL implementation for both editions (v2 has no CQL); every run lists versions/ancestors/read restrictions, restricted pages and descendants skipped + deleted (fail closed); bodies only for changed versions; storage format → Markdown; PDF attachments; Basic (`email:token`) or Bearer (PAT); credentials never sent to cross-host redirects |
 | M4 — Jira (Cloud + DC) | ✅ Built (2026-10-28); no live check | JQL sources; Cloud REST v3 `search/jql`, DC REST v2; every run lists `updated` + `security` (issue security → skipped + deleted); full fields only for changed issues; one Markdown document per issue (ADF / wiki markup converted, no people fields); issue links in the text for the graph |
-| M5 — AG-UI web app (CopilotKit) | ⏳ | `/agui` endpoint in `sdlc_web`, CopilotKit UI behind oauth2-proxy; localhost + tunnel |
+| M5 — AG-UI web app (CopilotKit) | 🔨 Spike done (2026-10-28) | `/agui` endpoint built and tested in `sdlc_web` (§3.3 results); next: the `ui/copilotkit` app behind oauth2-proxy, localhost + tunnel |
 | M6 — User connections (on behalf of the user) | ⏳ | Per-user secret directory of PATs, Connections page, first read-only tool per product |
 | M7 — GCP staging (resume Stage 7a) | ⏳ | MCP + Cloud SQL + ingest jobs + scheduling + the AG-UI app on Cloud Run + Secret Manager user secrets |
 | M8 — Hardening, evals, docs | ⏳ | Version-01 exit gate |
 | Deferred — Gemini Enterprise | ⏸ Later version | WIF sign-in, Agent Runtime, Gemini Enterprise authorization (§6) |
 
-**Next:** M5, starting with the spike in §3.3. Commits: M0 `91218d2`, M1 `9f8b324`, M2 `b7e72b7`, M3 `28ebf3b`,
+**Next:** M5 — build the CopilotKit app (`ui/copilotkit`, §3.1) on the `/agui` endpoint from the spike. Commits: M0 `91218d2`, M1 `9f8b324`, M2 `b7e72b7`, M3 `28ebf3b`,
 M4 `50ef071` (branch `version-01`). Connectors are tested against local repositories and fake APIs (recorded
 response shapes) only; the live checks are listed in §7.
 
@@ -237,13 +237,14 @@ sequenceDiagram
    the `oid` bound by the middleware for this request. A thread/session belongs to one `oid` (the same ownership check
    the middleware does for adk web sessions).
 2. **The token is never stored.** Do not use `extract_headers=["authorization"]` or similar: it copies headers into
-   saved session state. The token travels only in the request ContextVar. Verify that `ag_ui_adk`'s background run
-   inherits the request's contextvars; if not, inject it under the `temp:` key server-side and strip it from every
-   persisted event.
+   saved session state. The token travels only in the request ContextVar (confirmed by the spike: the run task
+   inherits it).
 3. **The token never reaches browser JavaScript.** It stays in oauth2-proxy and is added by the proxy; the CopilotKit
-   runtime forwards the header to `/agui` on the internal network only.
-4. **Client state is untrusted.** `RunAgentInput.state` is merged into session state, so the middleware strips token
-   and `temp:` keys (as it already does for `state_delta`); `allow_scoped_state_keys` stays off.
+   runtime forwards only that header to `/agui` on the internal network (`forwardHeaders: { allow:
+   ["x-forwarded-access-token"] }`).
+4. **Client state is untrusted.** `RunAgentInput.state` is merged into session state, so the middleware strips the
+   token key and every `temp:`, `app:` and `user:` key, and replaces any client `userId` with the `oid` (built);
+   `allow_scoped_state_keys` stays off.
 5. **Frontend tools are UI only.** CopilotKit actions defined in the browser run outside the MCP server and its
    policy, so they may only render, navigate or ask for confirmation. Anything that reads data or changes something
    is an MCP tool. Human-in-the-loop approval in the UI is UX, never authorization.
@@ -254,10 +255,25 @@ sequenceDiagram
 8. **Tracing and audit unchanged:** one agent turn is one trace; the conversation id still travels as
    `X-SDLC-Agent-Session`, so there is one MCP session per (user token, conversation).
 
-### 3.3 Spike first
-Before building the UI, confirm with a minimal `/agui` endpoint: the `ag_ui_adk` version works with our ADK 2 pin
-(`google-adk>=1.28.1,<3`), contextvars reach tool calls (requirement 2), `user_id_extractor` can bind the `oid`, and
-how the CopilotKit runtime forwards request headers to the AG-UI agent (requirement 3). Record the results here.
+### 3.3 Spike results (2026-10-28)
+Built: `libs/sdlc_web/src/sdlc_web/agui.py` (`mount_agui`), enabled with `SDLC_AGUI_AGENT=<agent folder>`; the
+middleware gained `current_oid()` and AG-UI body sanitising. Tested in `tests/web/test_agui.py` with a scripted test
+agent (`tests/support/agui_agents/probe`: a fake model calls one tool that records what it sees), no LLM.
+
+| Question | Result |
+|---|---|
+| `ag_ui_adk` with our ADK | **Works:** `ag-ui-adk` 0.11.0 (`ag-ui-protocol` 1.0.0) with `google-adk` 2.10.0. It pulls in a PyPI `asyncio` 4.0.0 that is an empty placeholder (metadata only; the standard library module still loads) |
+| Token reaches tool calls (req. 2) | **Yes:** `ADKAgent.run` starts the agent with `asyncio.create_task` inside the request, so the task copies the request context; the probe tool sees the caller's token via `get_user_token` and nothing is put in state |
+| User id = `oid` (req. 1) | **Yes:** `user_id_extractor` reads `current_oid()` (ContextVar set by the middleware; fails closed outside a request). A client `userId` is ignored. Sessions are keyed by (thread, user): another user with the same thread id gets their own session |
+| `/agents/state` | `add_adk_fastapi_endpoint` also registers an experimental **`POST /agents/state`** (thread state + message history). Behind the middleware and with the extractor, it answers only for the caller: another user asking for the same thread id never sees its history (tested) |
+| Client state (req. 4) | Sanitised by the middleware (tested: forged token, `temp:`, `user:`, `app:` keys dropped; ordinary keys kept) |
+| CopilotKit header forwarding (req. 3) | From the CopilotKit v2 runtime docs (not yet run): the runtime clones the agent per request and by default forwards `authorization` and `x-*` headers minus a built-in denylist (proxy/CDN headers). Use **allowlist mode** `forwardHeaders: { allow: ["x-forwarded-access-token"] }`: only the proxy's token header reaches `/agui` (no cookies, no other headers). Server-set agent headers win over forwarded ones. To verify in the app build |
+
+Decisions for the build: keep `/agui` on the agent container (same middleware, same session store via
+`create_session_service_from_options`, ag_ui_adk's cleanup neither deletes sessions nor saves to memory); the
+CopilotKit app uses `@copilotkit/runtime/v2` (`CopilotRuntime` + `createCopilotRuntimeHandler`, `HttpAgent` from
+`@ag-ui/client` pointing at the internal `/agui` URL) with the allowlist above. Check how the runtime's
+`InMemoryAgentRunner` keeps thread state (it should hold nothing beyond what the browser already has).
 
 ## 4. User connections and secrets (M6)
 
@@ -531,7 +547,9 @@ pre-authorization outside dev). Group overage: configure the Graph fallback or a
   tools (§3.2 item 5), checked in review.
 - **Token handling in the Node layer:** the CopilotKit runtime sees the forwarded header; it must not log it or send
   it to the browser. Covered by the spike (§3.3) and a log check in the gate.
-- **Two moving client libraries** (CopilotKit, `ag_ui_adk`): pin exact versions; keep adk web as the fallback UI.
+- **Two moving client libraries** (CopilotKit, `ag_ui_adk`): pin exact versions (`ag-ui-adk` 0.11.0 locked); keep
+  adk web as the fallback UI. `ag_ui_adk`'s experimental `/agents/state` route may change: it is covered by
+  `tests/web/test_agui.py`.
 - **The MCP server holds every user's PATs:** a compromise of the MCP service exposes them. Mitigations: least-scope
   and short-lived PATs (guidance on the Connections page, expiry required on DC), IAM limited to the user-secret
   prefix, data-access audit logs, optional CMEK. If review asks for more, move user secrets behind a separate small

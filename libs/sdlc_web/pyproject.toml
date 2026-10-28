@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Serves ADK agents (adk web) behind oauth2-proxy with Entra user binding and token passthrough"
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "ag-ui-adk>=0.11.0",
     "google-adk[mcp]>=2.10",
     "opentelemetry-exporter-otlp-proto-http>=1.42.1",
     "sdlc-auth[server]",
