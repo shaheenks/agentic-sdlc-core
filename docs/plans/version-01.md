@@ -26,14 +26,15 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | M2 — GCS buckets | ✅ Built (2026-10-28); no live check | `type: gcs` (`gs://bucket/prefix/`), JSON API with ADC / service identity, downloads only changed generations, deletions from the listing, object links; Terraform `gcs_source_buckets` → `roles/storage.objectViewer` per bucket for the jobs SA |
 | M3 — Confluence (Cloud + DC) | ✅ Built (2026-10-28); no live check | One REST v1 CQL implementation for both editions (v2 has no CQL); every run lists versions/ancestors/read restrictions, restricted pages and descendants skipped + deleted (fail closed); bodies only for changed versions; storage format → Markdown; PDF attachments; Basic (`email:token`) or Bearer (PAT); credentials never sent to cross-host redirects |
 | M4 — Jira (Cloud + DC) | ✅ Built (2026-10-28); no live check | JQL sources; Cloud REST v3 `search/jql`, DC REST v2; every run lists `updated` + `security` (issue security → skipped + deleted); full fields only for changed issues; one Markdown document per issue (ADF / wiki markup converted, no people fields); issue links in the text for the graph |
-| M5 — AG-UI web app (CopilotKit) | 🔨 Built locally (2026-10-28); browser sign-in check pending | `/agui` in `sdlc_web` (spike, §3.3) + `ui/copilotkit` (Next.js 16, CopilotKit 1.79.0) at `/chat/` behind oauth2-proxy; header allowlist, no thread storage in Node, citation cards, CSP; CI job |
+| M5 — AG-UI web app (CopilotKit) | ✅ Done (2026-10-28); browser check passed on localhost and the tunnel | `/agui` in `sdlc_web` (spike, §3.3) + `ui/copilotkit` (Next.js 16, CopilotKit 1.79.0) at `/chat/` behind oauth2-proxy; header allowlist, no thread storage in Node, citation cards, CSP; CI job |
 | M6 — User connections (on behalf of the user) | ⏳ | Per-user secret directory of PATs, Connections page, first read-only tool per product |
 | M7 — GCP staging (resume Stage 7a) | ⏳ | MCP + Cloud SQL + ingest jobs + scheduling + the AG-UI app on Cloud Run + Secret Manager user secrets |
 | M8 — Hardening, evals, docs | ⏳ | Version-01 exit gate |
 | Deferred — Gemini Enterprise | ⏸ Later version | WIF sign-in, Agent Runtime, Gemini Enterprise authorization (§6) |
 
-**Next:** M5 — sign-in check in the browser on localhost and the tunnel (§3.4), then M6 (user connections). Commits: M0 `91218d2`, M1 `9f8b324`, M2 `b7e72b7`, M3 `28ebf3b`,
-M4 `50ef071` (branch `version-01`). Connectors are tested against local repositories and fake APIs (recorded
+**Next:** M6 — user connections (per-user PATs in a secret directory, Connections page, first read-only tools), starting with
+the spike in §4.8. Commits: M0 `91218d2`, M1 `9f8b324`, M2 `b7e72b7`, M3 `28ebf3b`,
+M4 `50ef071`, M5 spike `6c94829`, M5 app `6c0d85b` + fix `ccdc8f5` (branch `version-01`). Connectors are tested against local repositories and fake APIs (recorded
 response shapes) only; the live checks are listed in §7.
 
 ## Decisions (2026-10-17)
@@ -288,10 +289,13 @@ CopilotKit app uses `@copilotkit/runtime/v2` (`CopilotRuntime` + `createCopilotR
 `@ag-ui/client` pointing at the internal `/agui` URL) with the allowlist above. Check how the runtime's
 `InMemoryAgentRunner` keeps thread state (it should hold nothing beyond what the browser already has).
 
-### 3.4 Browser check (to do)
+### 3.4 Browser check — passed (2026-10-28)
 Sign in at `http://localhost:4180/chat/` as a test user (and `https://app-sdlc-dev…/chat/` with the tunnel profile): ask
 "who am I?" (identity panel shows your teams/roles), ask a knowledge question (citation cards), check the MCP audit log
 shows your `oid`, and a second test user in a private window gets their own view.
+Result: works as expected on both paths. Fixed on the way: Next.js redirected `/chat/` to `/chat`, which the proxy
+routes to the agent (404); the app now sets `skipTrailingSlashRedirect` and the agent redirects a bare `/chat` to
+`/chat/`. Use a test user, not the tenant admin, for these checks (a lingering admin session skips the login page).
 
 ## 4. User connections and secrets (M6)
 
