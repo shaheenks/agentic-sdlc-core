@@ -494,6 +494,20 @@ As designed in [../GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md), with what changed s
 - Gate: Stage 1–6 checks on staging through the MCP server (whoami, tools, skills, search, graph per persona), and
   the AG-UI gate (§7) on the staging URL.
 
+### 5.1 Retarget (2026-10-28): GCP is the **dev** environment
+- Project **`sdlc-demo-env01`**, region **`asia-southeast1`**, env `dev` (`infra/gcp/dev.tfvars`, state
+  `gs://sdlc-demo-env01-tf-state` prefix `dev`, `config/env/dev/groups.yaml`). The earlier `cloud-migration-agent`
+  staging attempt is abandoned (its state and resources are ignored); `staging.*` files stay for a later staging.
+- **The user runs Terraform and the deploy script** (decision 2026-10-28); Claude edits and reviews the files only.
+- Terraform review fixes: the CopilotKit chat app as a third container in `sdlc-app-dev` (`ui-copilotkit` image, built
+  by `gcp_deploy.ps1 -Step images`); oauth2-proxy upstreams `/` → agent, `/chat/` → chat app, `/connections/` → MCP
+  service (`OAUTH2_PROXY_PASS_HOST_HEADER=false`, since Cloud Run routes by Host) and the API routes as in compose;
+  `SDLC_AGUI_AGENT=bootstrap` on the agent; `cloudresourcemanager.googleapis.com` in the API list (enable it by hand
+  before the first plan: `data.google_project` needs it).
+- Known for the first run: the `sdlc-platform` git source reads this repository's `.git`, which the ingest image does not
+  contain, so `ingest run --all` reports an error for it (the other sources ingest); the agent keeps conversations in
+  memory (`app_max_instances = 1`); `secrets.create` under the IAM condition is unverified (first Connections save shows it).
+
 ## 6. Deferred: Gemini Enterprise with Entra sign-in
 
 **Not part of version-01.** Kept as the design for a later version. It reuses the agent, the MCP server and the

@@ -5,7 +5,17 @@ identity and secrets flow, and how to deploy, update and tear down an environmen
 Related: [ARCHITECTURE.md](ARCHITECTURE.md) §7–8 (environments), [infra/README.md](../infra/README.md)
 (files), [version-00.md](plans/version-00.md) Stage 7 (decisions, progress).
 
-## 1. Status (2026-09-27)
+## 1. Status
+
+**2026-10-28 (version-01 M7): new target.** GCP becomes the **dev** environment in project **`sdlc-demo-env01`**,
+region **`asia-southeast1`** (`infra/gcp/dev.tfvars`, state `gs://sdlc-demo-env01-tf-state` prefix `dev`). The earlier
+staging attempt in `cloud-migration-agent` / asia-south1 below is history: ignore its state and resources. Since then
+Terraform also deploys the CopilotKit chat app (sidecar in `sdlc-app-dev`; oauth2-proxy routes `/chat/` to it and
+`/connections/` to the MCP service), enables `/agui` on the agent, and runs the MCP server with the Secret Manager
+user-connection store (custom role on the `sdlc-dev-user-` prefix). The user runs Terraform; steps in §6 and
+version-01 §5.
+
+### Earlier status (2026-09-27, `cloud-migration-agent`, abandoned)
 
 **Deferred to a later stage.** The current development phase runs on localhost and the Cloudflare
 Tunnel only ([ARCHITECTURE.md](ARCHITECTURE.md) §7, [CLOUDFLARE_TUNNEL.md](misc/CLOUDFLARE_TUNNEL.md)).

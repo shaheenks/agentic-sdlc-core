@@ -122,12 +122,12 @@ See ARCHITECTURE.md §7.
   test changes to sign-in, cookies or URLs on both paths.
 - **Higher environments** (staging, prod) are hosted directly: DNS CNAME + managed certificate, no tunnel, no localhost
   callbacks, no Azure CLI pre-authorization.
-- **Staging on GCP** (Stage 7a): project `cloud-migration-agent`, region `asia-south1`, Cloud Run `*.run.app` URLs for now
-  (temporary exception to the CNAME rule). Infra is Terraform in `infra/gcp`; the staging callback is on `sdlc-client`.
-  Public Cloud Run services use `invoker_iam_disabled` (org policy forbids `allUsers`); Entra stays the gate.
-  **Deployment is deferred to a later stage**: only the state bucket, APIs, registry and images exist; no Cloud SQL or
-  Cloud Run yet. Keep `infra/gcp` valid when shared code changes (e.g. new env vars, migrations, jobs).
-  Design and runbook: docs/GCP_DEPLOYMENT.md.
+- **Dev on GCP** (version-01 M7, 2026-10-28): project `sdlc-demo-env01`, region `asia-southeast1`, env `dev`
+  (`infra/gcp/dev.tfvars`, state `gs://sdlc-demo-env01-tf-state` prefix `dev`, `config/env/dev/groups.yaml`), Cloud Run
+  `*.run.app` URLs (temporary exception to the CNAME rule); the dev callback goes on `sdlc-client`. Public Cloud Run
+  services use `invoker_iam_disabled`; Entra stays the gate. The earlier `cloud-migration-agent` / asia-south1 staging
+  attempt is abandoned (ignore its state). **The user runs Terraform and the deploy script; do not run `terraform` or
+  `gcp_deploy.ps1` yourself** (2026-10-28). Keep `infra/gcp` valid when shared code changes. Runbook: docs/GCP_DEPLOYMENT.md.
 - Hostnames and public URLs are configuration (`SDLC_APP_HOST`, `SDLC_MCP_HOST`, `MCP_PUBLIC_URL`), never hard-coded;
   code must not assume `localhost` or a tunnel. Use `<service>-sdlc-<env>.shaheenks.co.in` (one level below the zone).
 - After changing Entra redirect URIs, check each entry separately (`az ad app show … -o json`), not the joined TSV output.

@@ -12,6 +12,7 @@ locals {
     "artifactregistry.googleapis.com",
     "aiplatform.googleapis.com",
     "iam.googleapis.com",
+    "cloudresourcemanager.googleapis.com", # data.google_project; enable once by hand before the first plan
   ]
 
   # Cloud Run's deterministic URLs (https://<service>-<project number>.<region>.run.app), known
@@ -26,6 +27,7 @@ locals {
     mcp          = "${local.registry}/mcp-bootstrap:${var.image_tag}"
     agent        = "${local.registry}/agent-bootstrap:${var.image_tag}"
     ingest       = "${local.registry}/ingest:${var.image_tag}"
+    ui           = "${local.registry}/ui-copilotkit:${var.image_tag}" # CopilotKit chat app (version-01 M5)
     oauth2_proxy = "${local.registry}/oauth2-proxy:${var.oauth2_proxy_tag}"
   }
 

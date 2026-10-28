@@ -29,7 +29,11 @@ locals {
     OAUTH2_PROXY_CLIENT_ID                            = var.entra_client_id
     OAUTH2_PROXY_SCOPE                                = "openid profile email offline_access api://${var.entra_api_client_id}/access_as_user"
     OAUTH2_PROXY_CODE_CHALLENGE_METHOD                = "S256"
-    OAUTH2_PROXY_UPSTREAMS                            = "http://127.0.0.1:8000"
+    # /chat/ -> CopilotKit app (sidecar), /connections/ -> MCP service (users' own connections),
+    # everything else -> the agent (adk web, /agui). As in docker-compose.yml.
+    OAUTH2_PROXY_UPSTREAMS                            = "http://127.0.0.1:8000/,http://127.0.0.1:3000/chat/,https://${local.mcp_host}/connections/"
+    # Cloud Run routes by Host: the MCP upstream must get its own host, not the app's.
+    OAUTH2_PROXY_PASS_HOST_HEADER                     = "false"
     OAUTH2_PROXY_HTTP_ADDRESS                         = "0.0.0.0:4180"
     OAUTH2_PROXY_PASS_ACCESS_TOKEN                    = "true"
     OAUTH2_PROXY_SKIP_PROVIDER_BUTTON                 = "true"
@@ -39,7 +43,7 @@ locals {
     OAUTH2_PROXY_EMAIL_DOMAINS                        = "*"
     OAUTH2_PROXY_COOKIE_REFRESH                       = "30m"
     OAUTH2_PROXY_COOKIE_EXPIRE                        = "8h"
-    OAUTH2_PROXY_API_ROUTES                           = "^/(run|run_sse|apps/|list-apps)"
+    OAUTH2_PROXY_API_ROUTES                           = "^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/)"
     OAUTH2_PROXY_REDIRECT_URL                         = "https://${local.app_host}/oauth2/callback"
     OAUTH2_PROXY_COOKIE_SECURE                        = "true"
     OAUTH2_PROXY_REVERSE_PROXY                        = "true" # Cloud Run's front end sets X-Forwarded-*
@@ -50,7 +54,18 @@ locals {
     SDLC_MCP_URL     = "https://${local.mcp_host}/mcp"
     SDLC_AGENT_MODEL = var.agent_model
     HOST             = "127.0.0.1" # reachable only through oauth2-proxy in the same instance
+    SDLC_AGUI_AGENT  = "bootstrap" # AG-UI endpoint /agui for the CopilotKit app (version-01 M5)
   })
+
+  # CopilotKit chat app sidecar (version-01 M5): forwards only the proxy's token header to /agui.
+  ui_env = {
+    SDLC_AGUI_URL                 = "http://127.0.0.1:8000/agui"
+    HOSTNAME                      = "127.0.0.1" # reachable only through oauth2-proxy
+    PORT                          = "3000"
+    NEXT_TELEMETRY_DISABLED       = "1"
+    COPILOTKIT_TELEMETRY_DISABLED = "true"
+    DO_NOT_TRACK                  = "1"
+  }
 
   jobs_db_env = {
     PGHOST     = local.cloudsql_socket
@@ -160,7 +175,7 @@ resource "google_cloud_run_v2_service" "app" {
     containers {
       name       = "oauth2-proxy"
       image      = local.images.oauth2_proxy
-      depends_on = ["agent"]
+      depends_on = ["agent", "ui"]
       ports {
         container_port = 4180
       }
@@ -211,6 +226,29 @@ resource "google_cloud_run_v2_service" "app" {
         http_get {
           path = "/healthz"
           port = 8000
+        }
+        period_seconds    = 5
+        failure_threshold = 24
+      }
+    }
+
+    containers {
+      name  = "ui"
+      image = local.images.ui
+      resources {
+        limits = { cpu = "1", memory = "512Mi" }
+      }
+      dynamic "env" {
+        for_each = local.ui_env
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+      startup_probe {
+        http_get {
+          path = "/chat/api/healthz"
+          port = 3000
         }
         period_seconds    = 5
         failure_threshold = 24
