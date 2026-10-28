@@ -26,6 +26,9 @@ the user block list, OpenTelemetry tracing, `git` sources and persistent convers
   on Cloud Run (the ingest job has no repository; bake the corpus or use an `https` git location), OTLP
   export to Cloud Trace, and a conversation store for the agent (in memory today; Agent Engine planned,
   see ARCHITECTURE.md "Conversation storage").
+- **Sources (version-01):** `gcs_source_buckets` grants the jobs service account `roles/storage.objectViewer` on
+  each listed bucket; the ingest job resolves `{secret: ...}` source credentials from Secret Manager
+  (`SDLC_SECRETS_BACKEND=gcp`). Connector secrets and their accessor grants are added per source (M7).
 
 | Item | State |
 |---|---|

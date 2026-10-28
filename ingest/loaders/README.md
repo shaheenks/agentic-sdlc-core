@@ -9,6 +9,7 @@ Source loaders for the ingest pipeline (version-01 M0). A loader reads one sourc
 | `files.py` | Include/exclude globs, text/PDF detection, the folder walker and the git reader (pinned ref, partial clone of https URLs) |
 | `local.py` | `local_folder` loader (full scans) |
 | `git.py` | `git` loader (M1): local or https (GitHub, Bitbucket Cloud/DC); pinned SHA or tracked branch read at FETCH_HEAD; incremental via `git diff` from the stored commit; per-provider auth header (host-scoped `http.<url>.extraHeader` in git's environment) and deep links |
+| `gcs.py` | `gcs` loader (M2): GCS JSON API with ADC (read-only scope), paged listing under the prefix, downloads only objects whose generation changed (cursor), size limits from the listing, links to the object |
 | `registry.py` | `LOADERS` (source type -> factory) and `make_loader(source, repo_root, cache_root, secrets)` |
 | `http.py` | `HttpClient` for remote loaders: host allowlist on every request and redirect, 429/5xx backoff with `Retry-After`, timeouts, credentials as a per-request header callable, one re-read of the secret after a 401 |
 

@@ -36,3 +36,11 @@ resource "google_secret_manager_secret_iam_member" "w" {
   role      = "roles/secretmanager.secretAccessor"
   member    = google_service_account.w[each.value.workload].member
 }
+
+# gcs sources (version-01 M2): read-only access for the ingest job, per bucket, no keys.
+resource "google_storage_bucket_iam_member" "gcs_sources" {
+  for_each = toset(var.gcs_source_buckets)
+  bucket   = each.value
+  role     = "roles/storage.objectViewer"
+  member   = google_service_account.w["jobs"].member
+}

@@ -23,8 +23,8 @@
       "additionalProperties": false,
       "required": ["type", "location", "classification"],
       "properties": {
-        "type": { "enum": ["local_folder", "git"], "description": "later: jira, confluence, sharepoint" },
-        "location": { "type": "string", "minLength": 1, "description": "local_folder: folder; git: repository path or https URL. Paths are relative to the repo root or absolute" },
+        "type": { "enum": ["local_folder", "git", "gcs"], "description": "version-01 adds confluence and jira" },
+        "location": { "type": "string", "minLength": 1, "description": "local_folder: folder; git: repository path or https URL; gcs: gs://<bucket>/<prefix>/. Paths are relative to the repo root or absolute" },
         "ref": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$", "description": "git only (required): a full commit SHA (pinned) or a branch/tag (tracked: resolved every run)" },
         "provider": { "enum": ["github", "bitbucket-cloud", "bitbucket-dc"], "description": "git over https only (required there): auth header format and deep links (version-01 M1)" },
         "include": { "type": "array", "items": { "type": "string" } },

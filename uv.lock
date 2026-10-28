@@ -1998,6 +1998,7 @@ name = "sdlc-loaders"
 version = "0.1.0"
 source = { editable = "ingest/loaders" }
 dependencies = [
+    { name = "google-auth" },
     { name = "httpx" },
     { name = "sdlc-config" },
     { name = "sdlc-secrets" },
@@ -2005,6 +2006,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "google-auth", specifier = ">=2.0" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "sdlc-config", editable = "libs/sdlc_config" },
     { name = "sdlc-secrets", editable = "libs/sdlc_secrets" },

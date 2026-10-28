@@ -44,7 +44,9 @@ DUMMY_ENV_VALUE = "00000000-0000-0000-0000-000000000000"
 
 # Source types whose loaders use `spec.credentials` (version-01: GCS and Atlassian add themselves
 # as their loaders land). Others must not name a secret they would never read.
-CREDENTIAL_SOURCE_TYPES: frozenset[str] = frozenset({"git"})
+CREDENTIAL_SOURCE_TYPES: frozenset[str] = frozenset({"git"})  # gcs: service identity, no keys
+# gs://bucket[/prefix]: bucket names per Cloud Storage naming rules (lowercase, digits, - _ .)
+_GCS_LOCATION = re.compile(r"gs://[a-z0-9][a-z0-9._-]{1,220}[a-z0-9](/[^\s]*)?")
 
 
 @dataclass(frozen=True)
@@ -548,7 +550,12 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
         if spec["type"] != "git" and spec.get("ref"):
             problems.append(f"{rel}: spec/ref: only git sources have a ref")
         location = spec["location"]
-        if location.startswith(("http://", "git@", "ssh://")):
+        if spec["type"] == "gcs":
+            if not _GCS_LOCATION.fullmatch(location):
+                problems.append(f"{rel}: spec/location: expected gs://<bucket>/<prefix>/")
+        elif location.startswith("gs://"):
+            problems.append(f"{rel}: spec/location: gs:// locations are for gcs sources")
+        elif location.startswith(("http://", "git@", "ssh://")):
             problems.append(f"{rel}: spec/location: only local paths and https URLs are supported")
         elif location.startswith("https://"):
             host = url_host(location)

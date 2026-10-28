@@ -23,6 +23,11 @@ Types:
   token (read), Bitbucket DC HTTP access token (repository read). The token is sent as an HTTP header to the
   repository host only, through git's environment (never the URL or argv). Results link to the file at its commit.
 
+- `gcs` (version-01 M2): objects under `location: gs://<bucket>/<prefix>/`; globs match names relative to the
+  prefix. Read with Application Default Credentials (gcloud ADC locally, the ingest service identity on GCP:
+  add the bucket to Terraform `gcs_source_buckets` for `roles/storage.objectViewer` on that bucket only). No
+  `credentials`, no keys. Unchanged objects (same generation) are not downloaded; results link to the object.
+
 Remote sources (version-01): an `https://` location must be on a host listed in `platform.yaml`
 `knowledge.allowed_hosts` (exact names or `*.example.net`; SSRF guard), and never carries credentials in the URL.
 A source that needs a credential names it, never its value: `spec.credentials: { env: NAME }` or

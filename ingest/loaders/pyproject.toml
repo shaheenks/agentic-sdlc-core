@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Source loaders for ingest: local folders, git, and (version-01) remote sources"
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "google-auth>=2.0",  # gcs: Application Default Credentials
     "httpx>=0.28",
     "sdlc-config",
     "sdlc-secrets",
