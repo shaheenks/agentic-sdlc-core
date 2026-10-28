@@ -13,6 +13,8 @@ Source loaders for the ingest pipeline (version-01 M0). A loader reads one sourc
 | `atlassian.py` | Shared by Confluence/Jira: secret `<email>:<token>` -> Basic (Cloud), `<token>` -> Bearer (DC PAT); client factory |
 | `confluence.py` | `confluence` loader (M3): REST v1 CQL search (Cloud and DC), every run lists pages with versions, ancestors and read restrictions; restricted pages/descendants skipped and deleted (fail closed when restrictions are not returned); bodies only for changed versions; PDF attachments of allowed pages |
 | `storage_format.py` | Confluence storage format (XHTML) -> Markdown: headings, lists, tables, code macros, panels, links |
+| `jira.py` | `jira` loader (M4): Cloud REST v3 `search/jql` (nextPageToken) or DC REST v2 `search` (startAt); every run lists keys with `updated` + `security`; issues with a security level skipped and deleted; full fields only for changed issues, rendered as one Markdown document per issue (no people fields) |
+| `jira_text.py` | Atlassian Document Format (Cloud) and wiki markup (DC) -> Markdown |
 | `registry.py` | `LOADERS` (source type -> factory) and `make_loader(source, repo_root, cache_root, secrets)` |
 | `http.py` | `HttpClient` for remote loaders: host allowlist on every request and redirect, 429/5xx backoff with `Retry-After`, timeouts, credentials as a per-request header callable, one re-read of the secret after a 401 |
 

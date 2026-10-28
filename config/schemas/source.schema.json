@@ -23,10 +23,16 @@
       "additionalProperties": false,
       "required": ["type", "location", "classification"],
       "properties": {
-        "type": { "enum": ["local_folder", "git", "gcs", "confluence"], "description": "version-01 adds jira (M4)" },
+        "type": { "enum": ["local_folder", "git", "gcs", "confluence", "jira"] },
         "edition": { "enum": ["cloud", "datacenter"], "description": "confluence/jira: Atlassian Cloud or Data Center/Server" },
         "space": { "type": "string", "pattern": "^~?[A-Za-z0-9_-]+$", "description": "confluence: space key" },
         "cql": { "type": "string", "minLength": 1, "description": "confluence: optional CQL narrowing, ANDed with the space (e.g. label = runbook)" },
+        "jql": { "type": "string", "minLength": 1, "description": "jira: the issues to ingest (no ORDER BY)" },
+        "fields": {
+          "type": "array", "uniqueItems": true, "minItems": 1,
+          "items": { "enum": ["summary", "description", "issuetype", "status", "priority", "components", "labels", "issuelinks", "resolution", "fixVersions", "comment"] },
+          "description": "jira: fields rendered into each issue document (default: summary, description, issuetype, status, priority, components, labels, issuelinks). People fields are never included"
+        },
         "attachments": { "type": "array", "uniqueItems": true, "items": { "enum": ["pdf"] }, "description": "confluence: attachment types to ingest with their page" },
         "location": { "type": "string", "minLength": 1, "description": "local_folder: folder; git: repository path or https URL; gcs: gs://<bucket>/<prefix>/. Paths are relative to the repo root or absolute" },
         "ref": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$", "description": "git only (required): a full commit SHA (pinned) or a branch/tag (tracked: resolved every run)" },

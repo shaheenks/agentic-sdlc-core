@@ -25,7 +25,7 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | M1 — Remote git (GitHub, Bitbucket) | ✅ Built (2026-10-28); live check pending tokens | `provider` (github / bitbucket-cloud / bitbucket-dc), host-scoped auth header via git's environment, branch tracking at FETCH_HEAD (fixes stale branches in the cache), incremental reads via `git diff`, deep links per provider, `SDLC_INGEST_CACHE`, `.env.sources` for the ingest container |
 | M2 — GCS buckets | ✅ Built (2026-10-28); no live check | `type: gcs` (`gs://bucket/prefix/`), JSON API with ADC / service identity, downloads only changed generations, deletions from the listing, object links; Terraform `gcs_source_buckets` → `roles/storage.objectViewer` per bucket for the jobs SA |
 | M3 — Confluence (Cloud + DC) | ✅ Built (2026-10-28); no live check | One REST v1 CQL implementation for both editions (v2 has no CQL); every run lists versions/ancestors/read restrictions, restricted pages and descendants skipped + deleted (fail closed); bodies only for changed versions; storage format → Markdown; PDF attachments; Basic (`email:token`) or Bearer (PAT); credentials never sent to cross-host redirects |
-| M4 — Jira (Cloud + DC) | ⏳ | Projects/JQL as sources, issue security excluded |
+| M4 — Jira (Cloud + DC) | ✅ Built (2026-10-28); no live check | JQL sources; Cloud REST v3 `search/jql`, DC REST v2; every run lists `updated` + `security` (issue security → skipped + deleted); full fields only for changed issues; one Markdown document per issue (ADF / wiki markup converted, no people fields); issue links in the text for the graph |
 | M5 — AG-UI web app (CopilotKit) | ⏳ | `/agui` endpoint in `sdlc_web`, CopilotKit UI behind oauth2-proxy; localhost + tunnel |
 | M6 — User connections (on behalf of the user) | ⏳ | Per-user secret directory of PATs, Connections page, first read-only tool per product |
 | M7 — GCP staging (resume Stage 7a) | ⏳ | MCP + Cloud SQL + ingest jobs + scheduling + the AG-UI app on Cloud Run + Secret Manager user secrets |
@@ -132,8 +132,10 @@ spec:
   fields: [summary, description, status, priority, components, labels, comments]
   credentials: { env: JIRA_TOKEN }
 ```
-- One document per issue (`PAY-123`), rendered as Markdown with its fields; comments optional. Incremental via JQL
-  `updated >= cursor`. Issues, components and linked issues feed the knowledge graph (entity types per source).
+- One document per issue (`PAY-123`), rendered as Markdown with its fields; comments optional (`fields: [..., comment]`);
+  people fields never included. Built (M4) incremental by each issue's `updated` value (cursor), with a cheap
+  listing of `updated` + `security` every run so new issue-security levels and deletions are always seen. Issue
+  links and components are in the text, so graph extraction (entity types per source) picks them up.
 
 ### 2.5 Classification and access
 - Each Source keeps one classification and one `access` block. Split by sensitivity with several sources (e.g.

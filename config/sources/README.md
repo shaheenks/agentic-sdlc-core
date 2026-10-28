@@ -46,6 +46,22 @@ Types:
   Pages become Markdown (`# Title`, the ancestor path, the body); results link to the page. Cloud PDF attachments
   download through `api.media.atlassian.com`: add it to `allowed_hosts` (credentials are not sent to it).
 
+- `jira` (version-01 M4): the issues a JQL query selects, Cloud or Data Center.
+
+  ```yaml
+  spec:
+    type: jira
+    edition: cloud                                  # cloud | datacenter
+    location: https://acme.atlassian.net            # DC: https://<host>[/<context>]
+    jql: "project = PAY AND issuetype in (Incident, Bug)"   # no ORDER BY
+    fields: [summary, description, status, priority, components, labels, issuelinks, comment]   # optional
+    credentials: { secret: jira-pay }               # Cloud: "<email>:<api token>"; DC: a personal access token
+  ```
+
+  One Markdown document per issue (`PAY-123`, linked to `/browse/PAY-123`); people fields (assignee, reporter,
+  comment authors) are never included. Issues with an issue security level are never ingested and a stored copy
+  is deleted, checked on every run. Only issues whose `updated` changed are fetched in full.
+
 Remote sources (version-01): an `https://` location must be on a host listed in `platform.yaml`
 `knowledge.allowed_hosts` (exact names or `*.example.net`; SSRF guard), and never carries credentials in the URL.
 A source that needs a credential names it, never its value: `spec.credentials: { env: NAME }` or

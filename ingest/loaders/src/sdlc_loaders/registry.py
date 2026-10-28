@@ -7,7 +7,7 @@ from pathlib import Path
 from sdlc_config.model import SourceDef
 from sdlc_secrets import SecretResolver
 
-from sdlc_loaders import confluence, gcs, git, local
+from sdlc_loaders import confluence, gcs, git, jira, local
 from sdlc_loaders.base import Loader, LoaderContext, LoaderError
 
 LoaderFactory = Callable[[SourceDef, LoaderContext], Loader]
@@ -17,6 +17,7 @@ LOADERS: dict[str, LoaderFactory] = {
     "git": git.git,
     "gcs": gcs.gcs,
     "confluence": confluence.confluence,
+    "jira": jira.jira,
 }
 
 

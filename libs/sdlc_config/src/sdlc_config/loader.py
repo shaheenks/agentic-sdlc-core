@@ -44,10 +44,11 @@ DUMMY_ENV_VALUE = "00000000-0000-0000-0000-000000000000"
 
 # Source types whose loaders use `spec.credentials` (version-01: GCS and Atlassian add themselves
 # as their loaders land). Others must not name a secret they would never read.
-CREDENTIAL_SOURCE_TYPES: frozenset[str] = frozenset({"git", "confluence"})  # gcs: identity
+CREDENTIAL_SOURCE_TYPES: frozenset[str] = frozenset({"git", "confluence", "jira"})  # not gcs
 # spec keys only some source types use (everything else in spec is common to all types)
 TYPE_OPTIONS: dict[str, frozenset[str]] = {
     "confluence": frozenset({"edition", "space", "cql", "attachments"}),
+    "jira": frozenset({"edition", "jql", "fields"}),
 }
 _ALL_OPTIONS = frozenset().union(*TYPE_OPTIONS.values())
 # gs://bucket[/prefix]: bucket names per Cloud Storage naming rules (lowercase, digits, - _ .)
@@ -591,6 +592,10 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             problems.append(f"{rel}: spec/{key}: not used by {spec['type']} sources")
         if spec["type"] == "confluence":
             problems.extend(f"{rel}: {p}" for p in _atlassian_problems(spec, ("edition", "space")))
+        if spec["type"] == "jira":
+            problems.extend(f"{rel}: {p}" for p in _atlassian_problems(spec, ("edition", "jql")))
+            if re.search(r"\border\s+by\b", spec.get("jql", ""), re.IGNORECASE):
+                problems.append(f"{rel}: spec/jql: no ORDER BY (the loader pages through results)")
         credentials = None
         if "credentials" in spec:
             ((cred_kind, cred_name),) = spec["credentials"].items()
@@ -662,6 +667,9 @@ def _atlassian_problems(spec: dict, required: tuple[str, ...]) -> list[str]:
             or parts.path.rstrip("/") != "/wiki"
         ):
             out.append("spec/location: Confluence Cloud is https://<site>.atlassian.net/wiki")
+    elif spec.get("edition") == "cloud" and spec["type"] == "jira":
+        if not (parts.hostname or "").endswith(".atlassian.net") or parts.path.rstrip("/"):
+            out.append("spec/location: Jira Cloud is https://<site>.atlassian.net")
     return out
 
 
