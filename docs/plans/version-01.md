@@ -28,11 +28,11 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | M4 — Jira (Cloud + DC) | ✅ Built (2026-10-28); no live check | JQL sources; Cloud REST v3 `search/jql`, DC REST v2; every run lists `updated` + `security` (issue security → skipped + deleted); full fields only for changed issues; one Markdown document per issue (ADF / wiki markup converted, no people fields); issue links in the text for the graph |
 | M5 — AG-UI web app (CopilotKit) | ✅ Done (2026-10-28); browser check passed on localhost and the tunnel | `/agui` in `sdlc_web` (spike, §3.3) + `ui/copilotkit` (Next.js 16, CopilotKit 1.79.0) at `/chat/` behind oauth2-proxy; header allowlist, no thread storage in Node, citation cards, CSP; CI job |
 | M6 — User connections (on behalf of the user) | ✅ Done (2026-10-28); GitHub + Bitbucket Cloud verified live; Jira/Confluence and all DC editions not tested (no instance) | `libs/sdlc_connectors` (providers, per-user secret store: file/Secret Manager, service), `connections.yaml`, `/connections/` API on the MCP server, Connections page `/chat/connections`, tools `jira_get_issue`, `confluence_get_page`, `github_get_file`, `bitbucket_get_file`; Terraform custom role on the user-secret prefix |
-| M7 — GCP dev (was: staging) | 🔨 Applied (2026-10-28): services ready; db + ingest jobs, Entra callback and sign-in check pending | Project `sdlc-demo-env01`, `asia-southeast1`, env `dev` (§5.1); images `d3c13dbd3493`; Cloud SQL, Cloud Run `sdlc-app-dev` (proxy + agent + chat app) and `sdlc-mcp-dev`, jobs, secrets, IAM |
+| M7 — GCP dev (was: staging) | ✅ Deployed and checked (2026-10-28); ingest deferred | Project `sdlc-demo-env01`, `asia-southeast1`, env `dev` (§5.1). Services ready, sign-in, `/chat/` and `/dev-ui/` checked in the browser; `sdlc-db-setup-dev` succeeded (schema + RLS); **ingest not run: sources config to be updated first**; Entra dev callback registered |
 | M8 — Hardening, evals, docs | ⏳ | Version-01 exit gate |
 | Deferred — Gemini Enterprise | ⏸ Later version | WIF sign-in, Agent Runtime, Gemini Enterprise authorization (§6) |
 
-**Next:** M7 — GCP staging (needs your go-ahead: billable resources). Open from M6: live checks of Jira/Confluence Cloud
+**Next:** update `config/sources/` for the dev environment, then run the `sdlc-ingest-dev` job (`gcp_deploy.ps1 -EnvName dev -Step ingest`; config is baked into the image, so rebuild images + plan + apply after changing sources). Then M8 (hardening, evals, docs). Open from M6: live checks of Jira/Confluence Cloud
 and every Data Center edition (§4.9), the reconcile job (§4.7). Commits: M0 `91218d2`, M1 `9f8b324`, M2 `b7e72b7`, M3 `28ebf3b`,
 M4 `50ef071`, M5 spike `6c94829`, M5 app `6c0d85b` + fix `ccdc8f5`, M6 part 1 `6dad7e6` (branch `version-01`). Connectors are tested against local repositories and fake APIs (recorded
 response shapes) only; the live checks are listed in §7.
@@ -512,6 +512,15 @@ As designed in [../GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md), with what changed s
 - **Fixed on the way:** the agent and chat app sidecars listened on `127.0.0.1`; Cloud Run startup probes do not connect
   over loopback, so the revision never started. Both bind `0.0.0.0` (only port 4180 is exposed). Apply deploys the
   saved plan file: re-plan after every Terraform change.
+- **`/dev-ui` 403 (fixed, `0b795a5`):** with `PASS_HOST_HEADER=false` the agent sees `Host: 127.0.0.1:8000`, so ADK's
+  cross-origin guard refused the dev UI's module scripts; `SDLC_ALLOWED_ORIGINS` (agent env, Terraform: the app's public
+  URL) feeds ADK's `allow_origins`. Remaining 404 for `/dev-ui/prism-dark.css` is an ADK packaging gap (also locally),
+  cosmetic only.
+- **Ingest deferred (2026-10-28):** sources are being updated first. When it runs: config is baked into the images
+  (`SDLC_CONFIG_WATCH=false`), so a sources change needs `images` + `plan` + `apply` before `ingest`; remote sources
+  need their hosts in `allowed_hosts`, `{secret: …}` credentials as Secret Manager secrets with accessor for the jobs
+  service account (not in Terraform yet), and GCS buckets in `gcs_source_buckets`; `sdlc-platform` (local `.git`)
+  cannot run on Cloud Run (use an https git location or drop it for dev).
 - **Cloud Run reserves paths ending in `z`:** `/healthz` returns Google's 404 from outside (probes reach the container
   directly, so health checks work). Use the startup probe or logs to check health, not `curl …/healthz`.
 - Known for the first run: the `sdlc-platform` git source reads this repository's `.git`, which the ingest image does not
