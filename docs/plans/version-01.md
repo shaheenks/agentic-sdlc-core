@@ -452,6 +452,24 @@ open for M7: whether the IAM condition on the name prefix covers `secrets.create
   from the provider); the chat renders "account not connected" with a link, and results with their link.
 - **Not built yet:** the reconcile job of §4.7 (blocked users, expired tokens, users not seen for 90 days); the
   14-day expiry warning shows on the Connections page only (`expiring_soon`), not in tool answers.
+- **Data Center connections — supported in code, not configured (gaps, 2026-10-28):**
+  - Code: `providers.py` handles `edition: datacenter` for Bitbucket (HTTP access token, Bearer), Jira (PAT, Bearer,
+    REST v2, wiki markup) and Confluence (PAT, Bearer, no `/wiki` prefix); DC tokens report no expiry, so the user
+    always enters one (capped by `max_token_days`).
+  - Config: `config/connections.yaml` ships **Cloud entries only**; `jira-dc`, `confluence-dc`, `bitbucket-dc` are
+    commented examples. Enabling one = an entry with the real `base_url` (include a context path such as
+    `https://host/jira`), its host in `platform.yaml` `knowledge.allowed_hosts`, and the tool pointed at it in
+    `tools.yaml` (`credentials: { user: jira-dc }`).
+  - **One connection per tool:** each tool names exactly one connection, so Cloud and DC of the same product cannot be
+    offered side by side (e.g. `jira_get_issue` is either `atlassian` or `jira-dc`). Supporting both needs a small code
+    change: several connections per tool, chosen by a `connection` argument or by the item's site.
+  - **No combined DC connection:** `provider: atlassian` (one token for Jira + Confluence) is Cloud-only; on DC users
+    enter one PAT per product.
+  - **Tests:** Jira DC and Bitbucket DC verification run against fakes; **Confluence DC has no test yet** (only Cloud);
+    no DC read tool (`jira_issue` v2, `confluence_page`, `bitbucket_file` raw) is tested against a DC-shaped fake.
+  - **Unverified:** the Bitbucket DC "who am I" endpoint (`/plugins/servlet/applinks/whoami`) is not in Atlassian's
+    REST docs: check first against a live instance; fallback = an authenticated REST call that returns the user.
+  - Live checks for all three need a DC test instance with PATs enabled (§8, M6 row).
 
 ### 4.10 Browser check (to do)
 Sign in at `/chat/connections` as a test user, connect a token (or check that a wrong token is refused with the
