@@ -28,6 +28,24 @@ Types:
   add the bucket to Terraform `gcs_source_buckets` for `roles/storage.objectViewer` on that bucket only). No
   `credentials`, no keys. Unchanged objects (same generation) are not downloaded; results link to the object.
 
+- `confluence` (version-01 M3): the pages of one space, Cloud or Data Center.
+
+  ```yaml
+  spec:
+    type: confluence
+    edition: cloud                                  # cloud | datacenter
+    location: https://acme.atlassian.net/wiki       # DC: https://<host>[/<context>]
+    space: PAY
+    cql: "label = runbook"                          # optional narrowing
+    attachments: [pdf]                              # optional: PDF attachments of selected pages
+    credentials: { secret: confluence-pay }         # Cloud: "<email>:<api token>"; DC: a personal access token
+  ```
+
+  No `include`/`exclude` (narrow with `cql`). Pages with view restrictions on themselves or an ancestor are never
+  ingested and a stored copy is deleted, checked on every run. Only pages whose version changed are downloaded.
+  Pages become Markdown (`# Title`, the ancestor path, the body); results link to the page. Cloud PDF attachments
+  download through `api.media.atlassian.com`: add it to `allowed_hosts` (credentials are not sent to it).
+
 Remote sources (version-01): an `https://` location must be on a host listed in `platform.yaml`
 `knowledge.allowed_hosts` (exact names or `*.example.net`; SSRF guard), and never carries credentials in the URL.
 A source that needs a credential names it, never its value: `spec.credentials: { env: NAME }` or

@@ -13,11 +13,10 @@
 """
 
 from collections.abc import Callable, Iterator, Mapping
-from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from sdlc_loaders.base import Loader, LoaderError, SourceItem
+from sdlc_loaders.base import Loader, LoaderContext, LoaderError, SourceItem
 from sdlc_loaders.files import _selected, _source_file, _too_large
 from sdlc_loaders.http import HttpClient
 
@@ -150,5 +149,5 @@ class GcsLoader(Loader):
         return set(self._ids)
 
 
-def gcs(source, repo_root: Path, cache_root: Path, secrets=None) -> Loader:
+def gcs(source, ctx: LoaderContext) -> Loader:
     return GcsLoader(source.location, source.include, source.exclude)

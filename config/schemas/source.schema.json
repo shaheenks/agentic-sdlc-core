@@ -23,7 +23,11 @@
       "additionalProperties": false,
       "required": ["type", "location", "classification"],
       "properties": {
-        "type": { "enum": ["local_folder", "git", "gcs"], "description": "version-01 adds confluence and jira" },
+        "type": { "enum": ["local_folder", "git", "gcs", "confluence"], "description": "version-01 adds jira (M4)" },
+        "edition": { "enum": ["cloud", "datacenter"], "description": "confluence/jira: Atlassian Cloud or Data Center/Server" },
+        "space": { "type": "string", "pattern": "^~?[A-Za-z0-9_-]+$", "description": "confluence: space key" },
+        "cql": { "type": "string", "minLength": 1, "description": "confluence: optional CQL narrowing, ANDed with the space (e.g. label = runbook)" },
+        "attachments": { "type": "array", "uniqueItems": true, "items": { "enum": ["pdf"] }, "description": "confluence: attachment types to ingest with their page" },
         "location": { "type": "string", "minLength": 1, "description": "local_folder: folder; git: repository path or https URL; gcs: gs://<bucket>/<prefix>/. Paths are relative to the repo root or absolute" },
         "ref": { "type": "string", "pattern": "^[A-Za-z0-9._/-]+$", "description": "git only (required): a full commit SHA (pinned) or a branch/tag (tracked: resolved every run)" },
         "provider": { "enum": ["github", "bitbucket-cloud", "bitbucket-dc"], "description": "git over https only (required there): auth header format and deep links (version-01 M1)" },

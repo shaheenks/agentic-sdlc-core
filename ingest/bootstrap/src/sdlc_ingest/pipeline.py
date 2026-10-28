@@ -119,7 +119,7 @@ async def _ingest_source(
 ):
     source = snapshot.sources[source_id]
     report = SourceReport(source_id)
-    loader = make_loader(source, repo_root, cache_root, secrets)
+    loader = make_loader(source, repo_root, cache_root, secrets, snapshot.platform.allowed_hosts)
     # --force re-reads everything, so incremental loaders start from scratch too
     cursor = None if (dry_run or force) else await get_sync_cursor(conn, source_id)
     known = {} if dry_run else await stored_documents(conn, source_id)
@@ -172,10 +172,13 @@ async def _ingest_source(
                 document, chunking.get("max_tokens", 400), chunking.get("overlap", 40)
             )
         else:
+            strategy = chunking.get("strategy", "auto")
+            if strategy == "auto" and file.media_type == "text/markdown":
+                strategy = "markdown"  # converted pages/issues have no file extension
             chunks = chunk_text(
                 file.path,
                 file.text,
-                chunking.get("strategy", "auto"),
+                strategy,
                 chunking.get("max_tokens", 400),
                 chunking.get("overlap", 40),
             )

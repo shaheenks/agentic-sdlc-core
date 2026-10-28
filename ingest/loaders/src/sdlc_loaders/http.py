@@ -5,8 +5,9 @@
 - 429 and 5xx (and connection errors) are retried with exponential backoff, honouring
   `Retry-After` (seconds or an HTTP date), up to `max_attempts`; the wait is capped.
 - Credentials are a callable returning headers, called per request, so a secret is revealed only
-  at send time. After a 401 the client calls `on_unauthorized` (drop the cached secret) and retries
-  once with fresh headers.
+  at send time, and only to the request's own host (not to a cross-host redirect target).
+  After a 401 the client calls `on_unauthorized` (drop the cached secret) and retries once with
+  fresh headers.
 - Nothing about requests is logged here; errors carry method, host and status, never headers.
 """
 
@@ -129,7 +130,9 @@ class HttpClient:
         for _ in range(MAX_REDIRECTS + 1):
             self._check(current)
             headers = dict(extra_headers)
-            if self._auth_headers is not None:
+            # credentials go to the host the request was made for, never to a redirect target
+            # on another host (e.g. a pre-signed download URL on a media/CDN host)
+            if self._auth_headers is not None and url_host(current) == url_host(url):
                 headers.update(self._auth_headers())
             try:
                 response = self._client.request(

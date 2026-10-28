@@ -1,22 +1,22 @@
 """Source type -> loader factory. A new source type registers its factory here (and its `spec`
 block in config/schemas/source.schema.json)."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from sdlc_config.model import SourceDef
 from sdlc_secrets import SecretResolver
 
-from sdlc_loaders import gcs, git, local
-from sdlc_loaders.base import Loader, LoaderError
+from sdlc_loaders import confluence, gcs, git, local
+from sdlc_loaders.base import Loader, LoaderContext, LoaderError
 
-# factory(source, repo_root, cache_root, secrets) -> Loader
-LoaderFactory = Callable[[SourceDef, Path, Path, SecretResolver | None], Loader]
+LoaderFactory = Callable[[SourceDef, LoaderContext], Loader]
 
 LOADERS: dict[str, LoaderFactory] = {
     "local_folder": local.local_folder,
     "git": git.git,
     "gcs": gcs.gcs,
+    "confluence": confluence.confluence,
 }
 
 
@@ -25,8 +25,12 @@ def make_loader(
     repo_root: Path,
     cache_root: Path | None = None,
     secrets: SecretResolver | None = None,
+    allowed_hosts: Iterable[str] = (),
 ) -> Loader:
     factory = LOADERS.get(source.type)
     if factory is None:
         raise LoaderError(f"no loader for source type '{source.type}'")
-    return factory(source, repo_root, cache_root or repo_root / ".cache", secrets)
+    context = LoaderContext(
+        repo_root, cache_root or repo_root / ".cache", secrets, tuple(allowed_hosts)
+    )
+    return factory(source, context)

@@ -24,7 +24,7 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | M0 — Source framework | ✅ Built (2026-10-28) | `ingest/loaders` (`sdlc_loaders`: `SourceItem`, `Loader`, registry, `local_folder`/`git` loaders, `HttpClient`), `libs/sdlc_secrets` (env + Secret Manager REST, 5-min cache), migration `004_item_metadata` (`documents.title/url`, `sync_state`), `title`/`url` in search results, `knowledge.allowed_hosts`, `spec.credentials` references. Format converters and per-type `spec` blocks come with their connectors (M1–M4) |
 | M1 — Remote git (GitHub, Bitbucket) | ✅ Built (2026-10-28); live check pending tokens | `provider` (github / bitbucket-cloud / bitbucket-dc), host-scoped auth header via git's environment, branch tracking at FETCH_HEAD (fixes stale branches in the cache), incremental reads via `git diff`, deep links per provider, `SDLC_INGEST_CACHE`, `.env.sources` for the ingest container |
 | M2 — GCS buckets | ✅ Built (2026-10-28); no live check | `type: gcs` (`gs://bucket/prefix/`), JSON API with ADC / service identity, downloads only changed generations, deletions from the listing, object links; Terraform `gcs_source_buckets` → `roles/storage.objectViewer` per bucket for the jobs SA |
-| M3 — Confluence (Cloud + DC) | ⏳ | Spaces as sources, restricted pages excluded, attachments |
+| M3 — Confluence (Cloud + DC) | ✅ Built (2026-10-28); no live check | One REST v1 CQL implementation for both editions (v2 has no CQL); every run lists versions/ancestors/read restrictions, restricted pages and descendants skipped + deleted (fail closed); bodies only for changed versions; storage format → Markdown; PDF attachments; Basic (`email:token`) or Bearer (PAT); credentials never sent to cross-host redirects |
 | M4 — Jira (Cloud + DC) | ⏳ | Projects/JQL as sources, issue security excluded |
 | M5 — AG-UI web app (CopilotKit) | ⏳ | `/agui` endpoint in `sdlc_web`, CopilotKit UI behind oauth2-proxy; localhost + tunnel |
 | M6 — User connections (on behalf of the user) | ⏳ | Per-user secret directory of PATs, Connections page, first read-only tool per product |
@@ -116,8 +116,11 @@ spec:
   attachments: [pdf]                                     # optional: PDF attachments via the H10 path
   credentials: { env: CONFLUENCE_TOKEN }
 ```
-- Cloud: REST v2 (`/wiki/api/v2/...`) with an API token (or OAuth 2.0 service app); DC: REST (`/rest/api/content`)
-  with a personal access token. Incremental via CQL `lastmodified > cursor`; page hierarchy becomes the heading path.
+- Built (M3) on REST v1 content search with CQL for **both** editions (`/rest/api/content/search`; Cloud's v2 API
+  has no CQL). Cloud: API token as `<email>:<token>` (Basic); DC: personal access token (Bearer).
+- Incremental by **page version** (cursor), not by `lastmodified`: every run lists all selected pages with
+  versions, ancestors and read restrictions, because adding a restriction does not change a page's version.
+  The ancestor path becomes a `Path:` line under the page title.
 
 ### 2.4 Jira (M4)
 ```yaml

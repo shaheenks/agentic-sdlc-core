@@ -44,7 +44,12 @@ DUMMY_ENV_VALUE = "00000000-0000-0000-0000-000000000000"
 
 # Source types whose loaders use `spec.credentials` (version-01: GCS and Atlassian add themselves
 # as their loaders land). Others must not name a secret they would never read.
-CREDENTIAL_SOURCE_TYPES: frozenset[str] = frozenset({"git"})  # gcs: service identity, no keys
+CREDENTIAL_SOURCE_TYPES: frozenset[str] = frozenset({"git", "confluence"})  # gcs: identity
+# spec keys only some source types use (everything else in spec is common to all types)
+TYPE_OPTIONS: dict[str, frozenset[str]] = {
+    "confluence": frozenset({"edition", "space", "cql", "attachments"}),
+}
+_ALL_OPTIONS = frozenset().union(*TYPE_OPTIONS.values())
 # gs://bucket[/prefix]: bucket names per Cloud Storage naming rules (lowercase, digits, - _ .)
 _GCS_LOCATION = re.compile(r"gs://[a-z0-9][a-z0-9._-]{1,220}[a-z0-9](/[^\s]*)?")
 
@@ -581,6 +586,11 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             )
         if spec["type"] == "git" and "credentials" in spec and not remote:
             problems.append(f"{rel}: spec/credentials: only https git sources use credentials")
+        options = {k: spec[k] for k in sorted(_ALL_OPTIONS) if k in spec}
+        for key in sorted(set(options) - TYPE_OPTIONS.get(spec["type"], frozenset())):
+            problems.append(f"{rel}: spec/{key}: not used by {spec['type']} sources")
+        if spec["type"] == "confluence":
+            problems.extend(f"{rel}: {p}" for p in _atlassian_problems(spec, ("edition", "space")))
         credentials = None
         if "credentials" in spec:
             ((cred_kind, cred_name),) = spec["credentials"].items()
@@ -613,6 +623,7 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             ref=spec.get("ref"),
             credentials=credentials,
             provider=provider,
+            options=MappingProxyType(options),
             pdf_ocr=pdf.get("ocr", "none"),
             pdf_max_mb=float(pdf.get("max_mb", 50)),
             pdf_max_pages=int(pdf.get("max_pages", 500)),
@@ -630,6 +641,28 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             description=meta.get("description", ""),
         )
     return sources
+
+
+def _atlassian_problems(spec: dict, required: tuple[str, ...]) -> list[str]:
+    """Confluence/Jira sources (version-01 M3-M4): https site, edition, credentials, no globs."""
+    out = [
+        f"spec/{key}: required for {spec['type']} sources" for key in required if key not in spec
+    ]
+    if "credentials" not in spec:
+        out.append(f"spec/credentials: required for {spec['type']} sources")
+    for key in ("include", "exclude"):
+        if key in spec:
+            out.append(f"spec/{key}: not used by {spec['type']} sources (narrow with the query)")
+    parts = urlsplit(spec["location"])
+    if parts.scheme != "https":
+        out.append("spec/location: must be the https base URL of the site")
+    elif spec.get("edition") == "cloud" and spec["type"] == "confluence":
+        if (
+            not (parts.hostname or "").endswith(".atlassian.net")
+            or parts.path.rstrip("/") != "/wiki"
+        ):
+            out.append("spec/location: Confluence Cloud is https://<site>.atlassian.net/wiki")
+    return out
 
 
 def _git_url_problems(provider: str, location: str) -> list[str]:

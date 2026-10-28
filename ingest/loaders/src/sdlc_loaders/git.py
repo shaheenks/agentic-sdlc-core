@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlsplit
 
-from sdlc_loaders.base import Loader, LoaderError, SourceItem
+from sdlc_loaders.base import Loader, LoaderContext, LoaderError, SourceItem
 from sdlc_loaders.files import (
     FETCHED,
     GitSourceError,
@@ -155,15 +155,15 @@ class GitLoader(Loader):
         return set(self._ids)
 
 
-def git(source, repo_root: Path, cache_root: Path, secrets=None) -> Loader:
+def git(source, ctx: LoaderContext) -> Loader:
     return GitLoader(
         source.location,
         source.ref,
         source.include,
         source.exclude,
-        repo_root,
-        cache_root / "git",
+        ctx.repo_root,
+        ctx.cache_root / "git",
         provider=source.provider,
-        secrets=secrets,
+        secrets=ctx.secrets,
         credentials=source.credentials,
     )

@@ -64,7 +64,7 @@ def env(tmp_path_factory):
     snapshot = load_snapshot(config_dir, "local", TEST_ENV)
     fake = replace(snapshot.sources["eng-standards"], id=SOURCE, type="fake", source="fake")
     snapshot = replace(snapshot, sources={**snapshot.sources, SOURCE: fake})
-    LOADERS["fake"] = lambda source, repo_root, cache_root, secrets: FakeLoader()
+    LOADERS["fake"] = lambda source, ctx: FakeLoader()
     yield config_dir, snapshot
     LOADERS.pop("fake", None)
 

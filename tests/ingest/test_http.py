@@ -146,3 +146,17 @@ def test_client_errors_are_not_retried():
     with pytest.raises(HttpError, match="returned 404"):
         c.request("GET", "https://api.example.com/x")
     assert sleeps == []
+
+
+def test_credentials_are_not_sent_to_a_redirect_on_another_host():
+    seen = {}
+
+    def handler(request):
+        seen[request.url.host] = request.headers.get("Authorization")
+        if request.url.host == "acme.atlassian.net":
+            return httpx.Response(302, headers={"Location": "https://media.atlassian.net/file/1"})
+        return httpx.Response(200, content=b"%PDF-")
+
+    c, _ = client(handler, auth_headers=lambda: {"Authorization": f"Bearer {TOKEN}"})
+    assert c.request("GET", "https://acme.atlassian.net/download/1").content == b"%PDF-"
+    assert seen == {"acme.atlassian.net": f"Bearer {TOKEN}", "media.atlassian.net": None}

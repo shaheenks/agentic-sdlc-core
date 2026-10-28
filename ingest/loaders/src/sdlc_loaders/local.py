@@ -5,7 +5,7 @@ from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
-from sdlc_loaders.base import Loader, LoaderError, SourceItem
+from sdlc_loaders.base import Loader, LoaderContext, LoaderError, SourceItem
 from sdlc_loaders.files import resolve_location, walk
 
 
@@ -23,7 +23,7 @@ class LocalFolderLoader(Loader):
             raise LoaderError(str(e)) from e
 
 
-def local_folder(source, repo_root: Path, cache_root: Path, secrets=None) -> Loader:
+def local_folder(source, ctx: LoaderContext) -> Loader:
     return LocalFolderLoader(
-        resolve_location(source.location, repo_root), source.include, source.exclude
+        resolve_location(source.location, ctx.repo_root), source.include, source.exclude
     )

@@ -16,6 +16,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 PDF = "application/pdf"
@@ -40,6 +41,16 @@ class SourceItem:
     @property
     def is_pdf(self) -> bool:
         return self.media_type == PDF
+
+
+@dataclass(frozen=True)
+class LoaderContext:
+    """What a loader factory gets besides its Source."""
+
+    repo_root: Path  # local locations resolve against it
+    cache_root: Path  # writable cache (git clones)
+    secrets: Any = None  # sdlc_secrets.SecretResolver, for spec.credentials
+    allowed_hosts: tuple[str, ...] = ()  # platform.yaml knowledge.allowed_hosts
 
 
 class LoaderError(RuntimeError):
