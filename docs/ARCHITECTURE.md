@@ -89,7 +89,7 @@ flowchart TB
 
 | Component | Location | Responsibility |
 |---|---|---|
-| **Surfaces** | external | Where users talk to the agent. adk web (dev), Gemini Enterprise (business users, needs GCP), Antigravity (IDE; connects straight to MCP; verified with a dev token). |
+| **Surfaces** | external | Where users talk to the agent. adk web (dev), AG-UI web app with CopilotKit (business users, version-01), Gemini Enterprise (deferred, needs GCP), Antigravity (IDE; connects straight to MCP; verified with a dev token). |
 | **Entra ID** | external | The single identity provider. Tokens carry `oid`, `upn` and `groups`. |
 | **ADK agents** | `agents/` | Conversation and reasoning with Gemini. They discover skills and call tools through MCP, forwarding the **user's** token. They make **no** authorization decisions, never read `config/` and hold no DB credentials. Conversations are stored per user (see "Conversation storage"). |
 | **MCP server(s)** | `mcp_servers/` | The single enforcement point. Validates tokens (and the block list), resolves the user's `EffectivePolicy`, filters what the user can see, authorizes and rate-limits every call, and audits it (with a `trace_id` when tracing is on). |
