@@ -14,11 +14,13 @@ is skipped.
 """
 
 import hashlib
+import os
 import re
 import subprocess
 from collections.abc import Iterator
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from sdlc_loaders.base import PDF, SourceItem
 
@@ -111,11 +113,18 @@ class GitSourceError(RuntimeError):
     pass
 
 
-def _git(repo: Path, *args: str, stdin: bytes | None = None) -> bytes:
+FETCHED = "FETCH_HEAD"  # remote repositories are read at the commit the last fetch resolved
+
+
+def _git(
+    repo: Path, *args: str, stdin: bytes | None = None, env: dict[str, str] | None = None
+) -> bytes:
     # safe.directory: the ingest container reads a read-only mount owned by another user
     cmd = ["git", "-c", "safe.directory=*", "-C", str(repo), *args]
     try:
-        return subprocess.run(cmd, input=stdin, capture_output=True, check=True).stdout  # noqa: S603
+        return subprocess.run(  # noqa: S603
+            cmd, input=stdin, capture_output=True, check=True, env=env
+        ).stdout
     except subprocess.CalledProcessError as e:
         detail = e.stderr.decode("utf-8", "replace").strip()[:300]
         raise GitSourceError(f"git {' '.join(args[:2])} failed: {detail}") from e
@@ -123,13 +132,32 @@ def _git(repo: Path, *args: str, stdin: bytes | None = None) -> bytes:
         raise GitSourceError("git is not installed") from e
 
 
-def git_repository(location: str, repo_root: Path, cache_root: Path, ref: str) -> Path:
-    """Local repository path, or a partial bare clone of an https URL (cached, ref fetched)."""
+def remote_git_env(location: str, auth_header: str | None = None) -> dict[str, str]:
+    """Environment for git talking to an https remote: never prompt, ignore credential helpers,
+    and send `auth_header` only to the repository's own host (http.<url>.extraHeader). The token
+    travels in the git process environment, never in argv or the URL."""
+    parts = urlsplit(location)
+    entries = [("credential.helper", "")]  # an empty value clears configured helpers
+    if auth_header:
+        entries.append((f"http.{parts.scheme}://{parts.netloc}/.extraHeader", auth_header))
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG_KEY_")}
+    env.update(GIT_TERMINAL_PROMPT="0", GCM_INTERACTIVE="never", GIT_CONFIG_COUNT=str(len(entries)))
+    for i, (key, value) in enumerate(entries):
+        env[f"GIT_CONFIG_KEY_{i}"], env[f"GIT_CONFIG_VALUE_{i}"] = key, value
+    return env
+
+
+def git_repository(
+    location: str, repo_root: Path, cache_root: Path, ref: str, auth_header: str | None = None
+) -> Path:
+    """Local repository path, or a partial bare clone of an https URL (cached; `ref` fetched, so
+    read it at FETCH_HEAD: a tracked branch then always means its current commit)."""
     if not location.startswith("https://"):
         path = resolve_location(location, repo_root)
         if not path.exists():
             raise GitSourceError(f"git source not found: {path}")
         return path
+    env = remote_git_env(location, auth_header)
     cache = cache_root / hashlib.sha256(location.encode()).hexdigest()[:16]
     if not (cache / "HEAD").is_file():
         cache.parent.mkdir(parents=True, exist_ok=True)
@@ -138,18 +166,23 @@ def git_repository(location: str, repo_root: Path, cache_root: Path, ref: str) -
                 ["git", "clone", "--bare", "--filter=blob:none", "--quiet", location, str(cache)],  # noqa: S607
                 capture_output=True,
                 check=True,
+                env=env,
             )
         except subprocess.CalledProcessError as e:
             raise GitSourceError(f"git clone failed: {e.stderr.decode()[:300]}") from e
-    _git(cache, "fetch", "--quiet", "--filter=blob:none", "origin", ref)
+    _git(cache, "fetch", "--quiet", "--filter=blob:none", "origin", ref, env=env)
     return cache
 
 
-def walk_git(
-    repo: Path, ref: str, include: tuple[str, ...], exclude: tuple[str, ...]
-) -> tuple[str, Iterator[SourceItem]]:
-    """(resolved commit, files of that commit) for the selected paths."""
-    commit = _git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
+def resolve_commit(repo: Path, rev: str) -> str:
+    return _git(repo, "rev-parse", "--verify", f"{rev}^{{commit}}").decode().strip()
+
+
+def selected_paths(
+    repo: Path, commit: str, include: tuple[str, ...], exclude: tuple[str, ...]
+) -> list[str]:
+    """Paths of the commit that match the globs and are not too large (sorted). Trees only: no
+    file content is fetched for this listing."""
     listing = _git(repo, "ls-tree", "-r", "-z", "-l", commit).split(b"\0")
     wanted = []
     for entry in listing:
@@ -162,10 +195,32 @@ def walk_git(
             continue
         if _selected(rel, include, exclude):
             wanted.append(rel)
-    return commit, _read_blobs(repo, commit, sorted(wanted))
+    return sorted(wanted)
 
 
-def _read_blobs(repo: Path, commit: str, paths: list[str]) -> Iterator[SourceItem]:
+def changed_paths(repo: Path, old: str, new: str) -> set[str] | None:
+    """Paths that differ between two commits, or None when `old` is not available (e.g. history
+    rewritten): the caller then reads everything."""
+    try:
+        _git(repo, "cat-file", "-e", f"{old}^{{commit}}")
+    except GitSourceError:
+        return None
+    out = _git(repo, "diff", "--name-only", "--no-renames", "-z", old, new)
+    return {p.decode("utf-8", "replace") for p in out.split(b"\0") if p}
+
+
+def walk_git(
+    repo: Path,
+    ref: str,
+    include: tuple[str, ...],
+    exclude: tuple[str, ...],
+) -> tuple[str, Iterator[SourceItem]]:
+    """(resolved commit, files of that commit) for the selected paths."""
+    commit = resolve_commit(repo, ref)
+    return commit, read_blobs(repo, commit, selected_paths(repo, commit, include, exclude))
+
+
+def read_blobs(repo: Path, commit: str, paths: list[str]) -> Iterator[SourceItem]:
     if not paths:
         return
     request = "".join(f"{commit}:{p}\n" for p in paths).encode()

@@ -6,7 +6,8 @@ from dataclasses import replace
 import pytest
 from sdlc_config import load_snapshot
 from sdlc_loaders import LOADERS, LoaderError, SourceItem, make_loader
-from sdlc_loaders.local import GitLoader, LocalFolderLoader
+from sdlc_loaders.git import GitLoader
+from sdlc_loaders.local import LocalFolderLoader
 
 from tests.support.entra import TEST_ENV
 
@@ -64,7 +65,7 @@ def test_git_loader_reports_and_stores_the_commit(snapshot, tmp_path):
     assert isinstance(loader, GitLoader)
     assert [i.path for i in loader.items()] == ["a.md"]
     commit = loader.details["commit"]
-    assert len(commit) == 40 and loader.cursor == {"commit": commit}
+    assert len(commit) == 40 and loader.cursor["commit"] == commit
 
 
 def test_git_errors_are_loader_errors(snapshot, tmp_path):

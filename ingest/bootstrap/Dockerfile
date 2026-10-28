@@ -45,6 +45,7 @@ COPY samples samples
 ENV PATH=/app/.venv/bin:$PATH \
     SDLC_CONFIG_DIR=/app/config \
     SDLC_ENV=local \
+    SDLC_INGEST_CACHE=/tmp/sdlc-ingest-cache \
     HOME=/tmp
 USER nobody
 ENTRYPOINT ["sdlc-ingest"]

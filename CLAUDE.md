@@ -45,7 +45,8 @@ growing bootstrap indefinitely. Shared code goes in `libs/`, never copied betwee
 - Rate limits: `platform.yaml` `defaults.rate_limit` (baseline) + `teams/<team>.yaml` `policy.limits` (overall and per tool);
   most generous team wins; enforced per user after authorization; audited `outcome: rate_limited` with the rule.
 - A new source requires: `config/sources/<id>.yaml` with `access` + `classification`, persona-matrix `data_rows`, a CODEOWNERS rule.
-  `git` sources read a pinned `ref` (full SHA), never the working tree; DB tests ingest only `local_folder` sources.
+  `git` sources read a `ref` (full SHA = pinned, branch = tracked), never the working tree; eval corpora stay pinned.
+  Remote git (`https`) needs `provider` (github | bitbucket-cloud | bitbucket-dc); DB tests ingest only `local_folder` sources.
 - Source loaders (version-01): a new source type = a factory in `sdlc_loaders.LOADERS` + its `spec` in the schema. Remote
   hosts must be in `platform.yaml` `knowledge.allowed_hosts`; remote HTTP goes through `sdlc_loaders.http.HttpClient`
   (allowlist on every request and redirect). Credentials are references only (`spec.credentials`), resolved via

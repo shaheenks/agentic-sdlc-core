@@ -55,7 +55,7 @@ def test_url_host(url, host):
 def test_https_source_needs_an_allowed_host(config_dir):
     edit_yaml(
         config_dir / "sources/sdlc-platform.yaml",
-        lambda d: d["spec"].update(location="https://github.com/acme/repo.git"),
+        lambda d: d["spec"].update(location="https://github.com/acme/repo.git", provider="github"),
     )
     with pytest.raises(ConfigError, match="host 'github.com' is not in platform.yaml"):
         load(config_dir)
@@ -75,7 +75,9 @@ def test_credentials_in_urls_are_refused(config_dir):
     )
     edit_yaml(
         config_dir / "sources/sdlc-platform.yaml",
-        lambda d: d["spec"].update(location="https://x:token@github.com/acme/repo.git"),
+        lambda d: d["spec"].update(
+            location="https://x:token@github.com/acme/repo.git", provider="github"
+        ),
     )
     with pytest.raises(ConfigError, match="no credentials in URLs"):
         load(config_dir)
@@ -101,15 +103,22 @@ def test_bad_credentials_fail(config_dir, credentials, message):
     assert message in str(exc.value), exc.value
 
 
-def test_credentials_are_kept_as_references(config_dir, monkeypatch):
-    from sdlc_config import loader
-
-    monkeypatch.setattr(loader, "CREDENTIAL_SOURCE_TYPES", frozenset({"git"}))
+def test_credentials_are_kept_as_references(config_dir):
+    edit_yaml(
+        config_dir / "platform.yaml",
+        lambda d: d["knowledge"].update(allowed_hosts=["github.com"]),
+    )
     edit_yaml(
         config_dir / "sources/sdlc-platform.yaml",
-        lambda d: d["spec"].update(credentials={"secret": "github-sdlc-token"}),
+        lambda d: d["spec"].update(
+            location="https://github.com/acme/repo.git",
+            provider="github",
+            credentials={"secret": "github-sdlc-token"},
+        ),
     )
-    assert load(config_dir).sources["sdlc-platform"].credentials == ("secret", "github-sdlc-token")
+    source = load(config_dir).sources["sdlc-platform"]
+    assert source.credentials == ("secret", "github-sdlc-token")
+    assert source.provider == "github"
 
 
 def test_allowed_hosts_schema(config_dir):
@@ -119,3 +128,71 @@ def test_allowed_hosts_schema(config_dir):
     )
     with pytest.raises(ConfigError, match="allowed_hosts"):
         load(config_dir)
+
+
+# --- version-01 M1: remote git providers ----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("spec", "message"),
+    [
+        ({"location": "https://github.com/acme/repo.git"}, "spec/provider: required"),
+        ({"provider": "github"}, "spec/provider: only for git sources with an https location"),
+        ({"credentials": {"env": "GITHUB_TOKEN"}}, "only https git sources use credentials"),
+        (
+            {"location": "https://github.com/acme/team/repo.git", "provider": "github"},
+            "expected https://github.com/<owner>/<repo>.git",
+        ),
+        (
+            {"location": "https://github.com/acme/repo.git", "provider": "bitbucket-cloud"},
+            "bitbucket-cloud repositories are on bitbucket.org",
+        ),
+        (
+            {
+                "location": "https://bb.example.com/projects/PAY/repo.git",
+                "provider": "bitbucket-dc",
+            },
+            "/scm/<project>/<repo>.git",
+        ),
+        ({"location": "https://github.com/acme/repo.git", "provider": "gitlab"}, "spec/provider"),
+    ],
+)
+def test_bad_remote_git_sources_fail(config_dir, spec, message):
+    edit_yaml(
+        config_dir / "platform.yaml",
+        lambda d: d["knowledge"].update(allowed_hosts=["github.com", "bb.example.com"]),
+    )
+    edit_yaml(config_dir / "sources/sdlc-platform.yaml", lambda d: d["spec"].update(spec))
+    with pytest.raises(ConfigError) as exc:
+        load(config_dir)
+    assert message in str(exc.value), exc.value
+
+
+@pytest.mark.parametrize(
+    ("location", "provider"),
+    [
+        ("https://github.com/acme/repo.git", "github"),
+        ("https://bitbucket.org/ws/repo.git", "bitbucket-cloud"),
+        ("https://bb.example.com/scm/pay/repo.git", "bitbucket-dc"),
+        ("https://bb.example.com/bitbucket/scm/pay/repo.git", "bitbucket-dc"),
+    ],
+)
+def test_remote_git_sources_load(config_dir, location, provider):
+    edit_yaml(
+        config_dir / "platform.yaml",
+        lambda d: d["knowledge"].update(
+            allowed_hosts=["github.com", "bitbucket.org", "bb.example.com"]
+        ),
+    )
+    edit_yaml(
+        config_dir / "sources/sdlc-platform.yaml",
+        lambda d: d["spec"].update(
+            location=location, provider=provider, ref="main", credentials={"secret": "repo-token"}
+        ),
+    )
+    source = load(config_dir).sources["sdlc-platform"]
+    assert (source.provider, source.ref, source.credentials) == (
+        provider,
+        "main",
+        ("secret", "repo-token"),
+    )

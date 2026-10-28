@@ -7,7 +7,7 @@ from pathlib import Path
 from sdlc_config.model import SourceDef
 from sdlc_secrets import SecretResolver
 
-from sdlc_loaders import local
+from sdlc_loaders import git, local
 from sdlc_loaders.base import Loader, LoaderError
 
 # factory(source, repo_root, cache_root, secrets) -> Loader
@@ -15,7 +15,7 @@ LoaderFactory = Callable[[SourceDef, Path, Path, SecretResolver | None], Loader]
 
 LOADERS: dict[str, LoaderFactory] = {
     "local_folder": local.local_folder,
-    "git": local.git,
+    "git": git.git,
 }
 
 

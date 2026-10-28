@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
+from urllib.parse import urlsplit
 
 import yaml
 from jsonschema import Draft202012Validator
@@ -41,9 +42,9 @@ _VAR = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
 # Used by `validate --dummy-env` so CI can check structure without real tenant values.
 DUMMY_ENV_VALUE = "00000000-0000-0000-0000-000000000000"
 
-# Source types whose loaders use `spec.credentials` (version-01: remote git, GCS, Atlassian add
-# themselves as their loaders land). Others must not name a secret they would never read.
-CREDENTIAL_SOURCE_TYPES: frozenset[str] = frozenset()
+# Source types whose loaders use `spec.credentials` (version-01: GCS and Atlassian add themselves
+# as their loaders land). Others must not name a secret they would never read.
+CREDENTIAL_SOURCE_TYPES: frozenset[str] = frozenset({"git"})
 
 
 @dataclass(frozen=True)
@@ -558,6 +559,21 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
                     f"{rel}: spec/location: host '{host}' is not in platform.yaml "
                     "knowledge.allowed_hosts"
                 )
+        provider = spec.get("provider")
+        remote = location.startswith("https://")
+        if provider and (spec["type"] != "git" or not remote):
+            problems.append(f"{rel}: spec/provider: only for git sources with an https location")
+        elif spec["type"] == "git" and remote and not provider:
+            problems.append(
+                f"{rel}: spec/provider: required for https git sources "
+                "(github | bitbucket-cloud | bitbucket-dc)"
+            )
+        elif provider and url_host(location):
+            problems.extend(
+                f"{rel}: spec/location: {p}" for p in _git_url_problems(provider, location)
+            )
+        if spec["type"] == "git" and "credentials" in spec and not remote:
+            problems.append(f"{rel}: spec/credentials: only https git sources use credentials")
         credentials = None
         if "credentials" in spec:
             ((cred_kind, cred_name),) = spec["credentials"].items()
@@ -589,6 +605,7 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             location=spec["location"],
             ref=spec.get("ref"),
             credentials=credentials,
+            provider=provider,
             pdf_ocr=pdf.get("ocr", "none"),
             pdf_max_mb=float(pdf.get("max_mb", 50)),
             pdf_max_pages=int(pdf.get("max_pages", 500)),
@@ -606,6 +623,19 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             description=meta.get("description", ""),
         )
     return sources
+
+
+def _git_url_problems(provider: str, location: str) -> list[str]:
+    """Remote git URL shapes the deep links rely on (version-01 M1)."""
+    parts = urlsplit(location)
+    segments = [s for s in parts.path.split("/") if s]
+    if provider == "bitbucket-cloud" and parts.hostname != "bitbucket.org":
+        return ["bitbucket-cloud repositories are on bitbucket.org"]
+    if provider in ("github", "bitbucket-cloud") and len(segments) != 2:
+        return [f"expected https://{parts.hostname}/<owner>/<repo>.git"]
+    if provider == "bitbucket-dc" and (len(segments) < 3 or segments[-3] != "scm"):
+        return ["expected https://<host>[/<context>]/scm/<project>/<repo>.git"]
+    return []
 
 
 def _version(raw_files: dict[str, bytes], environ: Mapping[str, str]) -> str:

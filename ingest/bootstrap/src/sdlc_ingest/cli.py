@@ -9,6 +9,7 @@ Gemini API (google-genai env: GOOGLE_GENAI_USE_VERTEXAI, GOOGLE_CLOUD_PROJECT, .
 extraction: platform.yaml knowledge.graph.model, for sources with spec.ingest.graph.enabled.
 After changing a source's graph settings, re-run with --force (model output is cached, so only
 chunks whose extraction inputs changed call the model again).
+Remote git clones are cached under SDLC_INGEST_CACHE (default: <repo root>/.cache).
 Source credentials (`spec.credentials`) resolve through sdlc_secrets: SDLC_SECRETS_BACKEND=env
 (default; `{secret: x}` reads SDLC_SECRET_X) or gcp (Secret Manager, SDLC_SECRETS_PROJECT).
 """
@@ -77,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
             extractor,
             _ocr_reader(snapshot, wanted, args.dry_run),
             secrets,
+            Path(os.environ["SDLC_INGEST_CACHE"]) if os.environ.get("SDLC_INGEST_CACHE") else None,
         )
     )
     for r in reports:
@@ -94,6 +96,7 @@ def main(argv: list[str] | None = None) -> int:
             + (f" restricted={r.files_restricted}" if r.files_restricted else "")
             + (f" metadata_updated={r.metadata_updated}" if r.metadata_updated else "")
             + (f" commit={r.commit[:12]}" if r.commit else "")
+            + (" incremental" if r.mode == "incremental" else "")
         )
         for error in r.errors:
             print(f"  error: {error}", file=sys.stderr)
@@ -127,10 +130,18 @@ async def _run(
     extractor=None,
     ocr=None,
     secrets=None,
+    cache_root=None,
 ):
     if dry_run:  # walk + chunk only: no database, no embedding calls
         return await ingest(
-            None, snapshot, embedder, repo_root, source_ids, dry_run=True, secrets=secrets
+            None,
+            snapshot,
+            embedder,
+            repo_root,
+            source_ids,
+            dry_run=True,
+            secrets=secrets,
+            cache_root=cache_root,
         )
     async with await psycopg.AsyncConnection.connect(conninfo("ingest"), autocommit=True) as conn:
         return await ingest(
@@ -144,6 +155,7 @@ async def _run(
             extractor,
             ocr,
             secrets,
+            cache_root,
         )
 
 

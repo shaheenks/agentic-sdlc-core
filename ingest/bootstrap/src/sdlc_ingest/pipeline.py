@@ -56,6 +56,7 @@ class SourceReport:
     relations_written: int = 0
     extraction_calls: int = 0  # model calls (cache misses)
     commit: str | None = None  # git sources: the resolved commit that was ingested
+    mode: str = "full"  # "incremental": only items changed since the stored cursor were read
     pdf_pages: int = 0  # pages read from changed PDFs
     pdf_pages_without_text: int = 0  # text-less pages not read by a model (pdf.ocr: none)
     ocr_calls: int = 0  # model calls for text-less PDF pages (cache misses)
@@ -73,6 +74,7 @@ async def ingest(
     extractor: Extractor | None = None,
     ocr: OcrReader | None = None,
     secrets: SecretResolver | None = None,
+    cache_root: Path | None = None,
 ) -> list[SourceReport]:
     if embedder.dimensions != snapshot.platform.embedding_dimensions:
         raise ValueError("embedder dimensions do not match platform.yaml knowledge.embedding")
@@ -96,6 +98,7 @@ async def ingest(
                 extractor,
                 ocr,
                 secrets,
+                cache_root,
             )
         )
     return reports
@@ -112,10 +115,11 @@ async def _ingest_source(
     extractor=None,
     ocr=None,
     secrets=None,
+    cache_root=None,
 ):
     source = snapshot.sources[source_id]
     report = SourceReport(source_id)
-    loader = make_loader(source, repo_root, secrets=secrets)
+    loader = make_loader(source, repo_root, cache_root, secrets)
     # --force re-reads everything, so incremental loaders start from scratch too
     cursor = None if (dry_run or force) else await get_sync_cursor(conn, source_id)
     known = {} if dry_run else await stored_documents(conn, source_id)
@@ -132,7 +136,6 @@ async def _ingest_source(
             report.errors.append(str(e)[:500])
             log.warning("source %s not readable: %s", source_id, e)
             return report
-        report.commit = loader.details.get("commit")
         report.files_seen += 1
         if file.restricted:  # never ingested; a stored copy is deleted below
             report.files_restricted += 1
@@ -184,6 +187,9 @@ async def _ingest_source(
         # so its hash is stored and it is not re-read every run (`--force` re-reads it, e.g.
         # after turning OCR on).
         pending.append((file, chunks))
+
+    report.commit = loader.details.get("commit")
+    report.mode = loader.details.get("mode", "full")
 
     # Model calls for all changed chunks of the source run as one parallel batch.
     graphs: dict[str, list] = {}

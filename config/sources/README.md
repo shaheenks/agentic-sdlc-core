@@ -5,8 +5,23 @@ kind: Source — source artefact location, include/exclude, classification, inge
 Types:
 - `local_folder`: files under `location` (working tree).
 - `git`: files of the commit `ref` in a repository at `location` (a path, e.g. `.` for this repo, or an
-  `https://` URL, partially cloned into `.cache/git/`). Never the working tree; pin a full commit SHA so the
-  corpus (and evals built on it) is reproducible, and bump it deliberately to re-index.
+  `https://` URL, partially cloned into the ingest cache). Never the working tree. `ref` is a full commit SHA
+  (pinned: keep this for eval corpora such as `sdlc-platform`) or a branch/tag (tracked: resolved every run).
+  Re-runs read only files changed since the last ingested commit.
+  Remote repositories (version-01 M1) need `provider` and, if private, `credentials`:
+
+  ```yaml
+  spec:
+    type: git
+    location: https://github.com/acme/payments.git   # bitbucket.org/<ws>/<repo>.git | https://<host>/scm/<proj>/<repo>.git
+    provider: github                                 # github | bitbucket-cloud | bitbucket-dc
+    ref: main
+    credentials: { secret: github-acme-token }       # read-only token; never the value
+  ```
+
+  Tokens: GitHub App installation token or fine-grained PAT (Contents: read), Bitbucket Cloud repository access
+  token (read), Bitbucket DC HTTP access token (repository read). The token is sent as an HTTP header to the
+  repository host only, through git's environment (never the URL or argv). Results link to the file at its commit.
 
 Remote sources (version-01): an `https://` location must be on a host listed in `platform.yaml`
 `knowledge.allowed_hosts` (exact names or `*.example.net`; SSRF guard), and never carries credentials in the URL.

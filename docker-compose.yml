@@ -199,6 +199,11 @@ services:
       dockerfile: ingest/bootstrap/Dockerfile
     profiles: ["ingest"]
     command: ["run", "--all"]
+    # Connector credentials (version-01): SDLC_SECRET_<NAME> / env names referenced by
+    # config/sources spec.credentials. Optional, git-ignored, loaded by this service only.
+    env_file:
+      - path: .env.sources
+        required: false
     environment:
       SDLC_ENV: ${SDLC_ENV:-local}
       PGHOST: postgres

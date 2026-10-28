@@ -143,9 +143,9 @@ class SourceDef:
     classification_rank: int
     chunking: Mapping[str, object]
     ref: str | None = None  # git sources: commit, tag or branch
-    credentials: tuple[str, str] | None = (
-        None  # ("env" | "secret", name): a reference, never a value
-    )
+    # ("env" | "secret", name): a reference to the secret, never its value
+    credentials: tuple[str, str] | None = None
+    provider: str | None = None  # git over https: github | bitbucket-cloud | bitbucket-dc
     pdf_ocr: str = "none"  # spec.ingest.pdf.ocr: none | gemini (H10)
     pdf_max_mb: float = 50.0
     pdf_max_pages: int = 500
