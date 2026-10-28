@@ -27,12 +27,13 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | M3 — Confluence (Cloud + DC) | ✅ Built (2026-10-28); no live check | One REST v1 CQL implementation for both editions (v2 has no CQL); every run lists versions/ancestors/read restrictions, restricted pages and descendants skipped + deleted (fail closed); bodies only for changed versions; storage format → Markdown; PDF attachments; Basic (`email:token`) or Bearer (PAT); credentials never sent to cross-host redirects |
 | M4 — Jira (Cloud + DC) | ✅ Built (2026-10-28); no live check | JQL sources; Cloud REST v3 `search/jql`, DC REST v2; every run lists `updated` + `security` (issue security → skipped + deleted); full fields only for changed issues; one Markdown document per issue (ADF / wiki markup converted, no people fields); issue links in the text for the graph |
 | M5 — AG-UI web app (CopilotKit) | ✅ Done (2026-10-28); browser check passed on localhost and the tunnel | `/agui` in `sdlc_web` (spike, §3.3) + `ui/copilotkit` (Next.js 16, CopilotKit 1.79.0) at `/chat/` behind oauth2-proxy; header allowlist, no thread storage in Node, citation cards, CSP; CI job |
-| M6 — User connections (on behalf of the user) | 🔨 Built locally (2026-10-28); browser check pending; no live provider check | `libs/sdlc_connectors` (providers, per-user secret store: file/Secret Manager, service), `connections.yaml`, `/connections/` API on the MCP server, Connections page `/chat/connections`, tools `jira_get_issue`, `confluence_get_page`, `github_get_file`, `bitbucket_get_file`; Terraform custom role on the user-secret prefix |
+| M6 — User connections (on behalf of the user) | ✅ Done (2026-10-28); GitHub + Bitbucket Cloud verified live; Jira/Confluence and all DC editions not tested (no instance) | `libs/sdlc_connectors` (providers, per-user secret store: file/Secret Manager, service), `connections.yaml`, `/connections/` API on the MCP server, Connections page `/chat/connections`, tools `jira_get_issue`, `confluence_get_page`, `github_get_file`, `bitbucket_get_file`; Terraform custom role on the user-secret prefix |
 | M7 — GCP staging (resume Stage 7a) | ⏳ | MCP + Cloud SQL + ingest jobs + scheduling + the AG-UI app on Cloud Run + Secret Manager user secrets |
 | M8 — Hardening, evals, docs | ⏳ | Version-01 exit gate |
 | Deferred — Gemini Enterprise | ⏸ Later version | WIF sign-in, Agent Runtime, Gemini Enterprise authorization (§6) |
 
-**Next:** M6 — browser check of the Connections page and one connected tool (§4.10), then M7 (GCP staging). Commits: M0 `91218d2`, M1 `9f8b324`, M2 `b7e72b7`, M3 `28ebf3b`,
+**Next:** M7 — GCP staging (needs your go-ahead: billable resources). Open from M6: live checks of Jira/Confluence Cloud
+and every Data Center edition (§4.9), the reconcile job (§4.7). Commits: M0 `91218d2`, M1 `9f8b324`, M2 `b7e72b7`, M3 `28ebf3b`,
 M4 `50ef071`, M5 spike `6c94829`, M5 app `6c0d85b` + fix `ccdc8f5`, M6 part 1 `6dad7e6` (branch `version-01`). Connectors are tested against local repositories and fake APIs (recorded
 response shapes) only; the live checks are listed in §7.
 
@@ -376,7 +377,7 @@ user**, so the provider's native permissions apply on top of our policy. Agents 
 | Connection | Token type | Minimum scope for the first (read-only) tools |
 |---|---|---|
 | GitHub | Fine-grained PAT, limited to the needed repositories (classic PATs refused) | Contents: read, Metadata: read |
-| Bitbucket Cloud | API token (app passwords are being retired) | Repositories: read |
+| Bitbucket Cloud | Atlassian API token **with scopes** (app Bitbucket) + account email; app passwords are shut off | `read:user:bitbucket` (connect check), `read:repository:bitbucket` (files) |
 | Bitbucket Data Center | HTTP access token (personal) | Repository read |
 | Jira / Confluence Cloud | Atlassian API token, scoped where available, used with the account email | Read scopes for Jira work / Confluence content |
 | Jira / Confluence Data Center | Personal access token | Inherits the user's permissions (no scopes): an expiry is required |
@@ -417,8 +418,8 @@ user**, so the provider's native permissions apply on top of our policy. Agents 
 
 | Connection | Auth | "Who am I" (identity checked, not just the status) | Expiry readable? |
 |---|---|---|---|
-| GitHub (cloud / GHE `…/api/v3`) | `Bearer`; only fine-grained PATs (`github_pat_…`), classic `ghp_` refused | `GET /user` → `login` | **Yes:** `GitHub-Authentication-Token-Expiration` header |
-| Bitbucket Cloud | Basic `email:API token` (app passwords are shut off) | `GET /2.0/user` → `account_id` | No: the user enters it |
+| GitHub (cloud / GHE `…/api/v3`) — **verified live** (cloud) | `Bearer`; only fine-grained PATs (`github_pat_…`), classic `ghp_` refused | `GET /user` → `login` | **Yes:** `GitHub-Authentication-Token-Expiration` header |
+| Bitbucket Cloud — **verified live** | Basic `email:API token`; the token must be created **with scopes** and include `read:user:bitbucket` (unscoped tokens, app passwords, wrong username and repository/workspace access tokens all get a bare 401; the connect error now says so) | `GET /2.0/user` → `account_id` | No: the user enters it |
 | Bitbucket Data Center | `Bearer` (HTTP access token) | `GET /plugins/servlet/applinks/whoami` → user name (**unverified**: no documented REST "current user"; check first when live) | No |
 | Jira Cloud / Atlassian Cloud | Basic `email:API token` | `GET /rest/api/3/myself` → `accountId` | No |
 | Jira Data Center | `Bearer` (PAT) | `GET /rest/api/2/myself` → `name`/`key` | No |
@@ -471,9 +472,11 @@ open for M7: whether the IAM condition on the name prefix covers `secrets.create
     REST docs: check first against a live instance; fallback = an authenticated REST call that returns the user.
   - Live checks for all three need a DC test instance with PATs enabled (§8, M6 row).
 
-### 4.10 Browser check (to do)
-Sign in at `/chat/connections` as a test user, connect a token (or check that a wrong token is refused with the
-provider's reason), then ask the chat to read one issue, page or file; a second user sees no connection.
+### 4.10 Browser check — done (2026-10-28)
+Connected with real tokens on the Connections page and read through the chat: **GitHub (cloud) and Bitbucket Cloud
+work**. Found on the way: Bitbucket Cloud refuses unscoped Atlassian API tokens with a bare 401; the connect error
+and the page help now name the needed token type, scopes and username. **Not tested (no instance available):** Jira
+and Confluence Cloud (`atlassian` connection), and every Data Center edition (§4.9).
 
 ## 5. GCP staging (M7, resumes Stage 7a)
 
