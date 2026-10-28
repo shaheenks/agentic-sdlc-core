@@ -23,15 +23,15 @@ locals {
 
   # Same settings as the local oauth2-proxy (docker-compose.yml x-oauth2-proxy-env).
   oauth2_proxy_env = {
-    OAUTH2_PROXY_PROVIDER                             = "oidc"
-    OAUTH2_PROXY_PROVIDER_DISPLAY_NAME                = "Entra ID"
-    OAUTH2_PROXY_OIDC_ISSUER_URL                      = "${var.entra_authority_host}/${var.entra_tenant_id}/v2.0"
-    OAUTH2_PROXY_CLIENT_ID                            = var.entra_client_id
-    OAUTH2_PROXY_SCOPE                                = "openid profile email offline_access api://${var.entra_api_client_id}/access_as_user"
-    OAUTH2_PROXY_CODE_CHALLENGE_METHOD                = "S256"
+    OAUTH2_PROXY_PROVIDER              = "oidc"
+    OAUTH2_PROXY_PROVIDER_DISPLAY_NAME = "Entra ID"
+    OAUTH2_PROXY_OIDC_ISSUER_URL       = "${var.entra_authority_host}/${var.entra_tenant_id}/v2.0"
+    OAUTH2_PROXY_CLIENT_ID             = var.entra_client_id
+    OAUTH2_PROXY_SCOPE                 = "openid profile email offline_access api://${var.entra_api_client_id}/access_as_user"
+    OAUTH2_PROXY_CODE_CHALLENGE_METHOD = "S256"
     # /chat/ -> CopilotKit app (sidecar), /connections/ -> MCP service (users' own connections),
     # everything else -> the agent (adk web, /agui). As in docker-compose.yml.
-    OAUTH2_PROXY_UPSTREAMS                            = "http://127.0.0.1:8000/,http://127.0.0.1:3000/chat/,https://${local.mcp_host}/connections/"
+    OAUTH2_PROXY_UPSTREAMS = "http://127.0.0.1:8000/,http://127.0.0.1:3000/chat/,https://${local.mcp_host}/connections/"
     # Cloud Run routes by Host: the MCP upstream must get its own host, not the app's.
     OAUTH2_PROXY_PASS_HOST_HEADER                     = "false"
     OAUTH2_PROXY_HTTP_ADDRESS                         = "0.0.0.0:4180"
