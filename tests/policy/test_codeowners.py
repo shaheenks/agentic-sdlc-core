@@ -18,6 +18,8 @@ CRITICAL = [
     "/libs/sdlc_policy/",
     "/libs/sdlc_config/",
     "/libs/sdlc_db/",
+    "/libs/sdlc_secrets/",
+    "/ingest/loaders/",  # SSRF guard + source credentials (version-01 M0)
     "/db/",
     "/infra/",
     "/.github/",

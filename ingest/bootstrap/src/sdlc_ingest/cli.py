@@ -9,6 +9,8 @@ Gemini API (google-genai env: GOOGLE_GENAI_USE_VERTEXAI, GOOGLE_CLOUD_PROJECT, .
 extraction: platform.yaml knowledge.graph.model, for sources with spec.ingest.graph.enabled.
 After changing a source's graph settings, re-run with --force (model output is cached, so only
 chunks whose extraction inputs changed call the model again).
+Source credentials (`spec.credentials`) resolve through sdlc_secrets: SDLC_SECRETS_BACKEND=env
+(default; `{secret: x}` reads SDLC_SECRET_X) or gcp (Secret Manager, SDLC_SECRETS_PROJECT).
 """
 
 import argparse
@@ -23,6 +25,7 @@ from sdlc_config import ConfigError, load_snapshot
 from sdlc_config.store import DEFAULT_CONFIG_DIR
 from sdlc_db.connect import conninfo
 from sdlc_db.embedding import GeminiEmbedder
+from sdlc_secrets import SecretError, resolver_from_env
 
 from sdlc_ingest.extract import GeminiExtractor
 from sdlc_ingest.pdf import GeminiOcr
@@ -49,6 +52,11 @@ def main(argv: list[str] | None = None) -> int:
     except ConfigError as e:
         print(e, file=sys.stderr)
         return 1
+    try:
+        secrets = resolver_from_env()
+    except SecretError as e:
+        print(e, file=sys.stderr)
+        return 1
     platform = snapshot.platform
     embedder = GeminiEmbedder(platform.embedding_model, platform.embedding_dimensions)
     wanted = list(snapshot.sources) if args.all else args.source
@@ -68,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
             args.force,
             extractor,
             _ocr_reader(snapshot, wanted, args.dry_run),
+            secrets,
         )
     )
     for r in reports:
@@ -82,6 +91,8 @@ def main(argv: list[str] | None = None) -> int:
                 if r.pdf_pages
                 else ""
             )
+            + (f" restricted={r.files_restricted}" if r.files_restricted else "")
+            + (f" metadata_updated={r.metadata_updated}" if r.metadata_updated else "")
             + (f" commit={r.commit[:12]}" if r.commit else "")
         )
         for error in r.errors:
@@ -107,13 +118,32 @@ def run_async(coro):
 
 
 async def _run(
-    snapshot, embedder, repo_root, source_ids, dry_run, force=False, extractor=None, ocr=None
+    snapshot,
+    embedder,
+    repo_root,
+    source_ids,
+    dry_run,
+    force=False,
+    extractor=None,
+    ocr=None,
+    secrets=None,
 ):
     if dry_run:  # walk + chunk only: no database, no embedding calls
-        return await ingest(None, snapshot, embedder, repo_root, source_ids, dry_run=True)
+        return await ingest(
+            None, snapshot, embedder, repo_root, source_ids, dry_run=True, secrets=secrets
+        )
     async with await psycopg.AsyncConnection.connect(conninfo("ingest"), autocommit=True) as conn:
         return await ingest(
-            conn, snapshot, embedder, repo_root, source_ids, dry_run, force, extractor, ocr
+            conn,
+            snapshot,
+            embedder,
+            repo_root,
+            source_ids,
+            dry_run,
+            force,
+            extractor,
+            ocr,
+            secrets,
         )
 
 

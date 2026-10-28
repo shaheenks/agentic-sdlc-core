@@ -17,27 +17,13 @@ import hashlib
 import re
 import subprocess
 from collections.abc import Iterator
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from sdlc_loaders.base import PDF, SourceItem
+
 MAX_FILE_BYTES = 1_000_000
 MAX_PDF_BYTES = 200 * 1024 * 1024  # hard ceiling (schema maximum of spec.ingest.pdf.max_mb)
-PDF = "application/pdf"
-TEXT = "text/plain"
-
-
-@dataclass(frozen=True)
-class SourceFile:
-    path: str  # posix path relative to the source root (folder or repository)
-    text: str  # "" for PDFs (their text comes from sdlc_ingest.pdf)
-    content_hash: str
-    media_type: str = TEXT
-    raw: bytes | None = None  # PDFs only
-
-    @property
-    def is_pdf(self) -> bool:
-        return self.media_type == PDF
 
 
 def resolve_location(location: str, repo_root: Path) -> Path:
@@ -79,13 +65,13 @@ def _is_pdf(raw: bytes) -> bool:
     return raw[:1024].lstrip().startswith(b"%PDF-")
 
 
-def _source_file(rel: str, raw: bytes) -> SourceFile | None:
+def _source_file(rel: str, raw: bytes) -> SourceItem | None:
     """A text file or a PDF; None for anything else (binary, too large, not UTF-8)."""
     digest = hashlib.sha256(raw).hexdigest()
     if _is_pdf(raw):
-        return SourceFile(rel, "", digest, PDF, raw) if len(raw) <= MAX_PDF_BYTES else None
+        return SourceItem(rel, "", digest, PDF, raw) if len(raw) <= MAX_PDF_BYTES else None
     text = _text(raw)
-    return SourceFile(rel, text, digest) if text is not None else None
+    return SourceItem(rel, text, digest) if text is not None else None
 
 
 def _too_large(rel: str, size: int) -> bool:
@@ -104,7 +90,7 @@ def _text(raw: bytes) -> str | None:
         return None
 
 
-def walk(folder: Path, include: tuple[str, ...], exclude: tuple[str, ...]) -> Iterator[SourceFile]:
+def walk(folder: Path, include: tuple[str, ...], exclude: tuple[str, ...]) -> Iterator[SourceItem]:
     if not folder.is_dir():
         raise FileNotFoundError(f"source folder not found: {folder}")
     for path in sorted(p for p in folder.rglob("*") if p.is_file()):
@@ -161,7 +147,7 @@ def git_repository(location: str, repo_root: Path, cache_root: Path, ref: str) -
 
 def walk_git(
     repo: Path, ref: str, include: tuple[str, ...], exclude: tuple[str, ...]
-) -> tuple[str, Iterator[SourceFile]]:
+) -> tuple[str, Iterator[SourceItem]]:
     """(resolved commit, files of that commit) for the selected paths."""
     commit = _git(repo, "rev-parse", "--verify", f"{ref}^{{commit}}").decode().strip()
     listing = _git(repo, "ls-tree", "-r", "-z", "-l", commit).split(b"\0")
@@ -179,7 +165,7 @@ def walk_git(
     return commit, _read_blobs(repo, commit, sorted(wanted))
 
 
-def _read_blobs(repo: Path, commit: str, paths: list[str]) -> Iterator[SourceFile]:
+def _read_blobs(repo: Path, commit: str, paths: list[str]) -> Iterator[SourceItem]:
     if not paths:
         return
     request = "".join(f"{commit}:{p}\n" for p in paths).encode()

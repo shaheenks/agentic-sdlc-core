@@ -292,7 +292,13 @@ resource "google_cloud_run_v2_job" "ingest" {
           limits = { cpu = "1", memory = "1Gi" }
         }
         dynamic "env" {
-          for_each = merge(local.vertex_env, local.entra_env, local.jobs_db_env, { SDLC_ENV = var.env })
+          # Source credentials (spec.credentials {secret: x}) come from Secret Manager at run time
+          # (version-01 M0); the jobs service account needs accessor on each connector secret.
+          for_each = merge(local.vertex_env, local.entra_env, local.jobs_db_env, {
+            SDLC_ENV             = var.env
+            SDLC_SECRETS_BACKEND = "gcp"
+            SDLC_SECRETS_PROJECT = var.project_id
+          })
           content {
             name  = env.key
             value = env.value

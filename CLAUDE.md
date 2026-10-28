@@ -10,11 +10,12 @@ current before adding features, and don't build ahead of the current stage's exi
 ## Repo structure
 - `agents/<name>/`          ADK agents (`agents/bootstrap` = starter root agent)
 - `mcp_servers/<name>/`     FastMCP servers, streamable HTTP (`mcp_servers/bootstrap` = starter)
-- `ingest/<component>/`     RAG + KG pipeline (`ingest/bootstrap` = single CLI; loaders/chunkers/embedders/extractors later)
+- `ingest/<component>/`     RAG + KG pipeline (`ingest/bootstrap` = pipeline + CLI; `ingest/loaders` = `sdlc_loaders`, one loader per source type)
 - `libs/sdlc_auth`          Entra JWT validation, group overage fallback, `get_user_token(context)`
 - `libs/sdlc_config`        Config loader + JSON Schemas + resolver → `EffectivePolicy`; CLI validate/explain/diff
 - `libs/sdlc_policy`        Enforcement: tools/list filtering, call authz, arg constraints
 - `libs/sdlc_db`            Postgres/pgvector access with RLS session context
+- `libs/sdlc_secrets`       Secret references (`{env: X}` / `{secret: x}`) resolved at runtime: env or Secret Manager, 5-min cache
 - `libs/sdlc_web`           Serves agents (ADK web app) behind oauth2-proxy: token re-validation, user binding, token passthrough
 - `libs/sdlc_agent`         Agent helpers: `with_team_context` (per-session team instructions/context via `get_agent_context`, as the user)
 - `skills/core/`, `skills/teams/<team>/`   SKILL.md content only (no access rules inside skills)
@@ -45,6 +46,10 @@ growing bootstrap indefinitely. Shared code goes in `libs/`, never copied betwee
   most generous team wins; enforced per user after authorization; audited `outcome: rate_limited` with the rule.
 - A new source requires: `config/sources/<id>.yaml` with `access` + `classification`, persona-matrix `data_rows`, a CODEOWNERS rule.
   `git` sources read a pinned `ref` (full SHA), never the working tree; DB tests ingest only `local_folder` sources.
+- Source loaders (version-01): a new source type = a factory in `sdlc_loaders.LOADERS` + its `spec` in the schema. Remote
+  hosts must be in `platform.yaml` `knowledge.allowed_hosts`; remote HTTP goes through `sdlc_loaders.http.HttpClient`
+  (allowlist on every request and redirect). Credentials are references only (`spec.credentials`), resolved via
+  `sdlc_secrets`, never in config, URLs, logs or the DB. Natively restricted items are never ingested.
 - PDFs (H10): text layer via pypdf; model OCR only for sources with `spec.ingest.pdf.ocr: gemini` (`platform.yaml`
   `knowledge.ocr`), cached as `ocr:` keys; chunks store PAGE ranges (`documents.media_type`), results return `pages`.
   PDFs are parsed only in ingest. Sample PDFs come from `scripts/make_sample_pdfs.py` (edit the script, not the PDFs).

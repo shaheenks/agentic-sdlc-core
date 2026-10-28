@@ -21,7 +21,7 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 
 | Milestone | Status | Notes |
 |---|---|---|
-| M0 — Source framework | ⏳ Not started | Loader interface, item metadata (URL, title), sync state, host allowlist, credential references (`env:` / `secret:` via `sdlc_secrets`) |
+| M0 — Source framework | ✅ Built (2026-10-28) | `ingest/loaders` (`sdlc_loaders`: `SourceItem`, `Loader`, registry, `local_folder`/`git` loaders, `HttpClient`), `libs/sdlc_secrets` (env + Secret Manager REST, 5-min cache), migration `004_item_metadata` (`documents.title/url`, `sync_state`), `title`/`url` in search results, `knowledge.allowed_hosts`, `spec.credentials` references. Format converters and per-type `spec` blocks come with their connectors (M1–M4) |
 | M1 — Remote git (GitHub, Bitbucket) | ⏳ | Authenticated clones, branch tracking, deep links |
 | M2 — GCS buckets | ⏳ | Object listing by generation, service-identity access |
 | M3 — Confluence (Cloud + DC) | ⏳ | Spaces as sources, restricted pages excluded, attachments |
@@ -221,11 +221,12 @@ user**, so the provider's native permissions apply on top of our policy. Agents 
 
 ### 4.2 Global secrets: resolved at runtime
 - New `libs/sdlc_secrets` with a `SecretStore` interface and backends `env` (local, CI) and `gcp` (Secret Manager API,
-  regional secrets in the environment's project and region, service identity / ADC). Which backend is used is
-  configuration (`platform.yaml` `secrets.backend`), never code.
+  global or regional secrets, service identity / ADC). Which backend is used is environment configuration
+  (`SDLC_SECRETS_BACKEND=env|gcp`, `SDLC_SECRETS_PROJECT`, `SDLC_SECRETS_LOCATION`), never code: `platform.yaml` is
+  shared by all environments. Built in M0.
 - References: `{ env: NAME }` (today) or `{ secret: name }`. Locally the `env` backend maps `secret: atlassian-payments-token`
   to `SDLC_SECRET_ATLASSIAN_PAYMENTS_TOKEN`, so the same config works in both places. `sdlc-config validate` checks the
-  form; `--check-secrets` (optional, needs cloud access) checks that each secret exists.
+  form; a `--check-secrets` option (needs cloud access) to check that each secret exists is left for M7 (GCP).
 - Values are cached for 5 minutes; a 401 from the downstream drops the cached value and re-reads once (picks up rotation).
 - Secrets needed at startup stay Cloud Run env/file mounts: DB passwords, Entra values, `groups.yaml`, `blocked.yaml`.
 - Values are wrapped in a type whose `repr` is masked; never logged, never in bundles, the DB, traces or audit.

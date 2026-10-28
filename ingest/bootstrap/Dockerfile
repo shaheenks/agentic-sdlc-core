@@ -18,14 +18,18 @@ COPY libs/sdlc_auth/pyproject.toml libs/sdlc_auth/
 COPY libs/sdlc_config/pyproject.toml libs/sdlc_config/
 COPY libs/sdlc_db/pyproject.toml libs/sdlc_db/
 COPY libs/sdlc_policy/pyproject.toml libs/sdlc_policy/
+COPY libs/sdlc_secrets/pyproject.toml libs/sdlc_secrets/
 COPY libs/sdlc_web/pyproject.toml libs/sdlc_web/
 COPY ingest/bootstrap/pyproject.toml ingest/bootstrap/
+COPY ingest/loaders/pyproject.toml ingest/loaders/
 COPY mcp_servers/bootstrap/pyproject.toml mcp_servers/bootstrap/
 COPY agents/bootstrap/pyproject.toml agents/bootstrap/
 RUN uv sync --frozen --no-dev --package sdlc-ingest --no-install-workspace
 
 COPY libs/sdlc_config libs/sdlc_config
 COPY libs/sdlc_db libs/sdlc_db
+COPY libs/sdlc_secrets libs/sdlc_secrets
+COPY ingest/loaders ingest/loaders
 COPY ingest/bootstrap ingest/bootstrap
 RUN uv sync --frozen --no-dev --package sdlc-ingest
 

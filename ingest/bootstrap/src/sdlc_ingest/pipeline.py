@@ -9,6 +9,10 @@ document whose extraction fails is not written, so the next run retries it.
 PDFs (H10) are read page by page (sdlc_ingest.pdf: text layer, model OCR for text-less pages only
 when the source sets pdf.ocr: gemini and an OCR reader is given) and chunked by pages
 (chunk_pdf); oversized, encrypted or corrupt PDFs are reported and not written.
+Items come from the source's loader (sdlc_loaders, version-01 M0). Natively restricted items are
+never written (a stored copy is deleted); a changed title/URL with unchanged content updates the
+metadata only. Incremental loaders resume from their sync_state cursor and report every existing
+id (all_ids) so deletions are still found; the cursor is saved only after a run without errors.
 """
 
 import logging
@@ -21,14 +25,18 @@ from sdlc_db.embedding import Embedder
 from sdlc_db.knowledge import (
     ChunkRow,
     delete_documents,
-    document_hashes,
+    get_sync_cursor,
     replace_document,
+    set_sync_cursor,
+    stored_documents,
     sync_sources,
+    update_document_metadata,
 )
+from sdlc_loaders import LoaderError, make_loader
+from sdlc_secrets import SecretResolver
 
 from sdlc_ingest.chunker import chunk_pdf, chunk_text
 from sdlc_ingest.extract import Extractor, extract_chunks
-from sdlc_ingest.files import git_repository, resolve_location, walk, walk_git
 from sdlc_ingest.pdf import OcrReader, PdfError, read_pdf
 
 log = logging.getLogger("sdlc.ingest")
@@ -41,6 +49,8 @@ class SourceReport:
     files_changed: int = 0
     files_unchanged: int = 0
     files_deleted: int = 0
+    files_restricted: int = 0  # natively restricted items skipped (version-01 §2.6)
+    metadata_updated: int = 0  # title/url refreshed without re-embedding
     chunks_written: int = 0
     entities_written: int = 0
     relations_written: int = 0
@@ -62,6 +72,7 @@ async def ingest(
     force: bool = False,
     extractor: Extractor | None = None,
     ocr: OcrReader | None = None,
+    secrets: SecretResolver | None = None,
 ) -> list[SourceReport]:
     if embedder.dimensions != snapshot.platform.embedding_dimensions:
         raise ValueError("embedder dimensions do not match platform.yaml knowledge.embedding")
@@ -75,31 +86,65 @@ async def ingest(
             raise ValueError(f"unknown source '{source_id}' (have: {sorted(snapshot.sources)})")
         reports.append(
             await _ingest_source(
-                conn, snapshot, embedder, repo_root, source_id, dry_run, force, extractor, ocr
+                conn,
+                snapshot,
+                embedder,
+                repo_root,
+                source_id,
+                dry_run,
+                force,
+                extractor,
+                ocr,
+                secrets,
             )
         )
     return reports
 
 
 async def _ingest_source(
-    conn, snapshot, embedder, repo_root, source_id, dry_run, force=False, extractor=None, ocr=None
+    conn,
+    snapshot,
+    embedder,
+    repo_root,
+    source_id,
+    dry_run,
+    force=False,
+    extractor=None,
+    ocr=None,
+    secrets=None,
 ):
     source = snapshot.sources[source_id]
     report = SourceReport(source_id)
-    if source.type == "git":
-        repo = git_repository(source.location, repo_root, repo_root / ".cache" / "git", source.ref)
-        report.commit, files = walk_git(repo, source.ref, source.include, source.exclude)
-    else:
-        files = walk(resolve_location(source.location, repo_root), source.include, source.exclude)
-    known = {} if dry_run else await document_hashes(conn, source_id)
+    loader = make_loader(source, repo_root, secrets=secrets)
+    # --force re-reads everything, so incremental loaders start from scratch too
+    cursor = None if (dry_run or force) else await get_sync_cursor(conn, source_id)
+    known = {} if dry_run else await stored_documents(conn, source_id)
     chunking = dict(source.chunking)
-    seen = set()
+    seen, restricted = set(), set()
     pending = []  # (file, chunks) to (re)write
-    for file in files:
+    files = loader.items(cursor)  # lazy: large sources are not held in memory
+    while True:
+        try:
+            file = next(files)
+        except StopIteration:
+            break
+        except LoaderError as e:  # nothing is written or deleted when a source cannot be read
+            report.errors.append(str(e)[:500])
+            log.warning("source %s not readable: %s", source_id, e)
+            return report
+        report.commit = loader.details.get("commit")
         report.files_seen += 1
+        if file.restricted:  # never ingested; a stored copy is deleted below
+            report.files_restricted += 1
+            restricted.add(file.path)
+            continue
         seen.add(file.path)
-        if not force and known.get(file.path) == file.content_hash:
+        stored = known.get(file.path)
+        if not force and stored is not None and stored.content_hash == file.content_hash:
             report.files_unchanged += 1
+            if (stored.title, stored.url) != (file.title, file.url) and not dry_run:
+                await update_document_metadata(conn, source_id, file.path, file.title, file.url)
+                report.metadata_updated += 1
             continue
         if file.is_pdf:
             if len(file.raw) > source.pdf_max_mb * 1024 * 1024:
@@ -181,13 +226,25 @@ async def _ingest_source(
             embedder.model,
             graphs.get(file.path),
             file.media_type,
+            file.title,
+            file.url,
         )
         report.chunks_written += len(chunks)
         if counts is not None:
             report.entities_written += counts.entities
             report.relations_written += counts.relations
-    gone = sorted(set(known) - seen)
+    if loader.incremental:  # changed items only were yielded: ask for every id that still exists
+        try:
+            existing = loader.all_ids() - restricted
+        except LoaderError as e:  # without a full listing nothing is deleted this run
+            report.errors.append(f"listing ids failed: {e}"[:500])
+            existing = set(known)
+    else:
+        existing = seen
+    gone = sorted(set(known) - existing)
     if gone and not dry_run:
         report.files_deleted = await delete_documents(conn, source_id, gone)
+    if not dry_run and not report.errors:  # a failed item is retried: keep the old cursor
+        await set_sync_cursor(conn, source_id, loader.cursor)
     log.info("ingested %s: %s", source_id, report)
     return report

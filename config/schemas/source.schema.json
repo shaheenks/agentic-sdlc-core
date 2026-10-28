@@ -29,6 +29,19 @@
         "include": { "type": "array", "items": { "type": "string" } },
         "exclude": { "type": "array", "items": { "type": "string" } },
         "classification": { "type": "string" },
+        "credentials": {
+          "description": "names the secret ingest uses for this source; never the value (version-01 M0)",
+          "oneOf": [
+            {
+              "type": "object", "additionalProperties": false, "required": ["env"],
+              "properties": { "env": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$", "description": "environment variable" } }
+            },
+            {
+              "type": "object", "additionalProperties": false, "required": ["secret"],
+              "properties": { "secret": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "secret id in the secret store (Secret Manager on GCP)" } }
+            }
+          ]
+        },
         "ingest": {
           "type": "object",
           "additionalProperties": false,

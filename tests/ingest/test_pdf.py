@@ -9,8 +9,9 @@ import pytest
 from fpdf import FPDF
 from sdlc_config import ConfigError, load_snapshot
 from sdlc_ingest.chunker import chunk_pdf
-from sdlc_ingest.files import PDF, TEXT, walk, walk_git
 from sdlc_ingest.pdf import PdfDocument, PdfError, PdfPage, read_pdf
+from sdlc_loaders.base import PDF, TEXT
+from sdlc_loaders.files import walk, walk_git
 
 from tests.config.test_sources_config import edit_yaml
 from tests.support.entra import TEST_ENV

@@ -11,8 +11,10 @@ members = [
     "sdlc-config",
     "sdlc-db",
     "sdlc-ingest",
+    "sdlc-loaders",
     "sdlc-mcp-bootstrap",
     "sdlc-policy",
+    "sdlc-secrets",
     "sdlc-web",
 ]
 
@@ -1978,6 +1980,8 @@ dependencies = [
     { name = "pypdf" },
     { name = "sdlc-config" },
     { name = "sdlc-db" },
+    { name = "sdlc-loaders" },
+    { name = "sdlc-secrets" },
 ]
 
 [package.metadata]
@@ -1985,6 +1989,25 @@ requires-dist = [
     { name = "pypdf", specifier = ">=6" },
     { name = "sdlc-config", editable = "libs/sdlc_config" },
     { name = "sdlc-db", editable = "libs/sdlc_db" },
+    { name = "sdlc-loaders", editable = "ingest/loaders" },
+    { name = "sdlc-secrets", editable = "libs/sdlc_secrets" },
+]
+
+[[package]]
+name = "sdlc-loaders"
+version = "0.1.0"
+source = { editable = "ingest/loaders" }
+dependencies = [
+    { name = "httpx" },
+    { name = "sdlc-config" },
+    { name = "sdlc-secrets" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "sdlc-config", editable = "libs/sdlc_config" },
+    { name = "sdlc-secrets", editable = "libs/sdlc_secrets" },
 ]
 
 [[package]]
@@ -2024,6 +2047,23 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "sdlc-config", editable = "libs/sdlc_config" }]
+
+[[package]]
+name = "sdlc-secrets"
+version = "0.1.0"
+source = { editable = "libs/sdlc_secrets" }
+dependencies = [
+    { name = "google-auth" },
+    { name = "httpx" },
+    { name = "requests" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "google-auth", specifier = ">=2.0" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "requests", specifier = ">=2.0" },
+]
 
 [[package]]
 name = "sdlc-web"

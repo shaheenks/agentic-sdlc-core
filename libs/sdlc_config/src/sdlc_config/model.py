@@ -26,6 +26,7 @@ class PlatformConfig:
     ocr_model: str = ""  # knowledge.ocr.model; empty = no model reading of PDF pages
     ocr_thinking_level: str = ""
     default_calls_per_minute: int | None = None  # defaults/rate_limit (None = no baseline)
+    allowed_hosts: tuple[str, ...] = ()  # knowledge.allowed_hosts: remote source hosts (SSRF guard)
 
     def classification_rank(self, level: str) -> int:
         """Position of a level in classification_levels (0 = least sensitive)."""
@@ -142,6 +143,9 @@ class SourceDef:
     classification_rank: int
     chunking: Mapping[str, object]
     ref: str | None = None  # git sources: commit, tag or branch
+    credentials: tuple[str, str] | None = (
+        None  # ("env" | "secret", name): a reference, never a value
+    )
     pdf_ocr: str = "none"  # spec.ingest.pdf.ocr: none | gemini (H10)
     pdf_max_mb: float = 50.0
     pdf_max_pages: int = 500

@@ -19,6 +19,8 @@
 /libs/sdlc_policy/                  @shaheenks
 /libs/sdlc_config/                  @shaheenks
 /libs/sdlc_db/                      @shaheenks
+/libs/sdlc_secrets/                 @shaheenks
+/ingest/loaders/                    @shaheenks
 /libs/sdlc_web/                     @shaheenks
 /db/                                @shaheenks
 /infra/                             @shaheenks

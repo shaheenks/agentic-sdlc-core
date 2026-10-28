@@ -236,9 +236,9 @@ class GraphResult:
 
 
 # row layout: 0 id, 1 source_id, 2 path, 3 start_line, 4 end_line, 5 heading, 6 content,
-# 7 score, 8 media_type
+# 7 score, 8 media_type, 9 title, 10 url
 _CHUNK_COLUMNS = """c.id, c.source_id, d.path, c.start_line, c.end_line, c.heading, c.content,
-                    1 - (c.embedding <=> %(vec)s::vector) AS score, d.media_type"""
+                    1 - (c.embedding <=> %(vec)s::vector) AS score, d.media_type, d.title, d.url"""
 
 _WALK = """
 WITH RECURSIVE walk(key, depth) AS (
@@ -311,7 +311,7 @@ async def graph_search(
                 JOIN mentions m ON m.entity_id = e.id
                 JOIN chunks c ON c.id = m.chunk_id
                 JOIN documents d ON d.id = c.document_id
-                GROUP BY c.id, d.path, d.media_type
+                GROUP BY c.id, d.path, d.media_type, d.title, d.url
                 """,  # noqa: S608
                 {**params, "keys": keys, "depths": depths},
             )
@@ -358,6 +358,8 @@ async def graph_search(
             score=ranked((row, depth)),
             via="graph" if depth is not None else "vector",
             media_type=row[8],
+            title=row[9],
+            url=row[10],
         )
         for row, depth in top
     ]

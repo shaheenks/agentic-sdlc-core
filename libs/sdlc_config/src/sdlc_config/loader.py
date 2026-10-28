@@ -21,6 +21,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 from sdlc_config.errors import ConfigError
+from sdlc_config.hosts import host_allowed, url_host
 from sdlc_config.model import (
     GroupMap,
     IdentityRef,
@@ -39,6 +40,10 @@ API_VERSION = "sdlc/v1"
 _VAR = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
 # Used by `validate --dummy-env` so CI can check structure without real tenant values.
 DUMMY_ENV_VALUE = "00000000-0000-0000-0000-000000000000"
+
+# Source types whose loaders use `spec.credentials` (version-01: remote git, GCS, Atlassian add
+# themselves as their loaders land). Others must not name a secret they would never read.
+CREDENTIAL_SOURCE_TYPES: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -230,6 +235,7 @@ def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
         graph_thinking_level=doc["knowledge"].get("graph", {}).get("thinking_level", ""),
         ocr_model=doc["knowledge"].get("ocr", {}).get("model", ""),
         ocr_thinking_level=doc["knowledge"].get("ocr", {}).get("thinking_level", ""),
+        allowed_hosts=tuple(doc["knowledge"].get("allowed_hosts", [])),
     )
 
 
@@ -540,8 +546,26 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             problems.append(f"{rel}: spec/ref: required for git sources (pin a commit)")
         if spec["type"] != "git" and spec.get("ref"):
             problems.append(f"{rel}: spec/ref: only git sources have a ref")
-        if spec["location"].startswith(("http://", "git@", "ssh://")):
+        location = spec["location"]
+        if location.startswith(("http://", "git@", "ssh://")):
             problems.append(f"{rel}: spec/location: only local paths and https URLs are supported")
+        elif location.startswith("https://"):
+            host = url_host(location)
+            if host is None:
+                problems.append(f"{rel}: spec/location: invalid https URL (no credentials in URLs)")
+            elif not host_allowed(host, platform.allowed_hosts):
+                problems.append(
+                    f"{rel}: spec/location: host '{host}' is not in platform.yaml "
+                    "knowledge.allowed_hosts"
+                )
+        credentials = None
+        if "credentials" in spec:
+            ((cred_kind, cred_name),) = spec["credentials"].items()
+            credentials = (cred_kind, cred_name)
+            if spec["type"] not in CREDENTIAL_SOURCE_TYPES:
+                problems.append(
+                    f"{rel}: spec/credentials: {spec['type']} sources take no credentials"
+                )
         graph = spec.get("ingest", {}).get("graph", {})
         relation_types = tuple(graph.get("relation_types", platform.graph_relation_types))
         if graph.get("enabled"):
@@ -564,6 +588,7 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             type=spec["type"],
             location=spec["location"],
             ref=spec.get("ref"),
+            credentials=credentials,
             pdf_ocr=pdf.get("ocr", "none"),
             pdf_max_mb=float(pdf.get("max_mb", 50)),
             pdf_max_pages=int(pdf.get("max_pages", 500)),

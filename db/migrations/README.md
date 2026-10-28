@@ -15,5 +15,10 @@ an applied migration must never be edited: add a new file instead.
 - `002_graph.sql`: `entities` (unique per source + key), `mentions` (entity ↔ chunk), `edges` (with the evidence
   chunk), same RLS as chunks; mentions/edges cascade with their chunk. `extraction_cache` is ingest-only.
 
+- `003_media_type.sql`: `documents.media_type` (PDF chunks store page ranges).
+
+- `004_item_metadata.sql`: `documents.title` and `documents.url` (citations); `sync_state` (incremental loader
+  cursors), ingest-only like `extraction_cache` (RLS forced, no `sdlc_app` grant).
+
 Every new data table needs `FORCE ROW LEVEL SECURITY`, a `source_id` + `classification_rank` column,
 and policies for both roles, plus rows in `tests/db`.
