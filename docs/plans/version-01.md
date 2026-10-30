@@ -32,7 +32,7 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | M8 — Hardening, evals, docs | ✅ Done (2026-10-30); applied and checked on GCP dev | Agent Engine conversation store on GCP, connection expiry warning in tool answers, Data Center tests, docs as-built (§10). Commit `8982da8`. The rest of the version-01 exit gate waits on the pending items (§10.3) |
 | Deferred — Gemini Enterprise | ⏸ Later version | WIF sign-in, Agent Runtime, Gemini Enterprise authorization (§6) |
 
-**Next:** the pending items of §10.3, which close the version-01 exit gate: dev sources + the `sdlc-ingest-dev` run, live checks
+**Continued in [version-02.md](version-02.md)** (2026-10-30): every open item below moved there. Was next: the pending items of §10.3, which close the version-01 exit gate: dev sources + the `sdlc-ingest-dev` run, live checks
 of Jira/Confluence Cloud and every Data Center edition (§4.9), then the block list / secret management review (incl. the
 reconcile job, §4.7) and Cloud Trace. Commits (branch `version-01`): M0 `91218d2`, M1 `9f8b324`,
 M2 `b7e72b7`, M3 `28ebf3b`, M4 `50ef071`, M5 spike `6c94829`, M5 app `6c0d85b` + fix `ccdc8f5`, M6 part 1 `6dad7e6` + part 2

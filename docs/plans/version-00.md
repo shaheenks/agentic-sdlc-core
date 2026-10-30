@@ -1,5 +1,8 @@
 # Agentic SDLC — Incremental Deployment Plan
 
+> **History.** Open items from this plan (Stage 7b, Stage 8, the Stage 9 backlog, enterprise gaps) are tracked in
+> [version-02.md](version-02.md) §9 since 2026-10-30.
+
 Architecture diagrams and component overview: [ARCHITECTURE.md](../ARCHITECTURE.md).
 
 ## Progress
