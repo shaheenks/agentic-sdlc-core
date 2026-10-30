@@ -1,0 +1,41 @@
+apiVersion: sdlc/v1
+kind: ConnectionCatalog
+# Systems users connect their OWN accounts to (version-01 M6). Users add a personal access token
+# per connection on the chat app's Connections page; tools that declare
+# `credentials: { user: <id> }` in tools.yaml then call the system as that user, after the policy
+# check. Tokens live in the per-user secret store (SDLC_USER_SECRETS_BACKEND), never in config.
+# base_url is the API base; its host must be in platform.yaml knowledge.allowed_hosts.
+connections:
+  github:
+    description: GitHub.com
+    provider: github
+    edition: cloud
+    base_url: https://api.github.com
+    max_token_days: 90
+    token_help: >-
+      Fine-grained personal access token (github_pat_…), limited to the repositories you need,
+      with Contents: read and Metadata: read, and an expiry of at most 90 days.
+  bitbucket:
+    description: Bitbucket Cloud
+    provider: bitbucket
+    edition: cloud
+    base_url: https://api.bitbucket.org
+    max_token_days: 90
+    token_help: >-
+      Atlassian API token WITH SCOPES (id.atlassian.com > Security > "Create API token with
+      scopes" > app Bitbucket) with read:user:bitbucket and read:repository:bitbucket, used with
+      your Atlassian account email (not your Bitbucket username). Unscoped API tokens, app
+      passwords and repository/workspace access tokens do not work.
+  atlassian:
+    description: Jira and Confluence Cloud (acme.atlassian.net)
+    provider: atlassian
+    edition: cloud
+    base_url: https://acme.atlassian.net   # replace with your site
+    max_token_days: 90
+    token_help: >-
+      Atlassian API token (scoped to read Jira work and Confluence content where available), used
+      with your Atlassian account email. Set an expiry.
+  # Data Center examples (add the host to knowledge.allowed_hosts):
+  # jira-dc:       { provider: jira,       edition: datacenter, base_url: "https://jira.example.com" }
+  # confluence-dc: { provider: confluence, edition: datacenter, base_url: "https://wiki.example.com" }
+  # bitbucket-dc:  { provider: bitbucket,  edition: datacenter, base_url: "https://bitbucket.example.com" }

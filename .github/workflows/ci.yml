@@ -5,7 +5,7 @@ name: ci
 
 on:
   push:
-    branches: [main, version-0]
+    branches: [main, version-0, version-01]
   pull_request:
 
 permissions:
@@ -86,6 +86,28 @@ jobs:
           uv run sdlc-db migrate
       - name: Tests (unit, config, policy matrix, MCP, RLS/ingest/graph on Postgres)
         run: uv run pytest -q -rs
+
+  ui:
+    # CopilotKit chat app (version-01 M5): typecheck, unit + runtime tests (fake /agui), build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui/copilotkit
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      COPILOTKIT_TELEMETRY_DISABLED: "true"
+      DO_NOT_TRACK: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/copilotkit/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
 
   terraform:
     runs-on: ubuntu-latest

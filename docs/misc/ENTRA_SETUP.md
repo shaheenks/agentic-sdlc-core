@@ -7,7 +7,7 @@ Cloud Application Administrator) plus rights to create groups. A **Global Admini
 
 > **Windows (cmd / PowerShell): use the script instead of the bash commands below.**
 > On Windows `az` is `az.cmd`, so cmd.exe re-parses every argument and breaks inline JSON
-> bodies and filters containing `(` `)`. [`scripts/entra_setup.ps1`](../scripts/entra_setup.ps1)
+> bodies and filters containing `(` `)`. [`scripts/entra_setup.ps1`](../../scripts/entra_setup.ps1)
 > does steps 1–3 idempotently, passes JSON via temp files, detects Free vs P1, and has
 > `-DryRun`:
 > ```powershell

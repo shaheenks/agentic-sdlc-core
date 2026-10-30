@@ -6,7 +6,7 @@
   Run from anywhere; paths resolve from the repo root. Steps, in order for a first deployment:
     state    create the Terraform state bucket (once per project)
     base     APIs + Artifact Registry (targeted apply; images need the registry)
-    images   build + push mcp/agent/ingest images (tag = git short SHA), mirror oauth2-proxy
+    images   build + push mcp/agent/ingest/ui images (tag = git short SHA), mirror oauth2-proxy
     plan     full terraform plan -> infra/gcp/<env>.tfplan (review it)
     apply    apply the saved plan (deleted afterwards: it contains secret values)
     db       run the sdlc-db-setup job (bootstrap roles/schema + migrate)
@@ -18,7 +18,7 @@
   Images and the plan use the same tag (the current commit), so commit before `images` and `plan`.
 
 .EXAMPLE
-  .\scripts\gcp_deploy.ps1 -EnvName staging -Step plan
+  .\scripts\gcp_deploy.ps1 -EnvName dev -Step plan
 #>
 param(
     [Parameter(Mandatory = $true)][string]$EnvName,
@@ -140,6 +140,7 @@ switch ($Step) {
             'mcp-bootstrap'   = 'mcp_servers/bootstrap/Dockerfile'
             'agent-bootstrap' = 'agents/bootstrap/Dockerfile'
             'ingest'          = 'ingest/bootstrap/Dockerfile'
+            'ui-copilotkit'   = 'ui/copilotkit/Dockerfile'   # CopilotKit chat app (version-01 M5)
         }
         foreach ($name in $images.Keys) {
             Invoke-Native 'docker' @('build', '--platform', 'linux/amd64', '-f', (Join-Path $Root $images[$name]),

@@ -52,7 +52,9 @@ def serve(app, port: int) -> Iterator[str]:
         thread.join(timeout=5)
 
 
-def build_test_mcp_server(entra: FakeEntra, store: ConfigStore, port: int) -> FastMCP:
+def build_test_mcp_server(
+    entra: FakeEntra, store: ConfigStore, port: int, connected=None
+) -> FastMCP:
     """Bootstrap MCP server wired like production (build_auth), with the fake issuer's keys."""
     auth = RemoteAuthProvider(
         token_verifier=entra.verifier(),
@@ -60,4 +62,4 @@ def build_test_mcp_server(entra: FakeEntra, store: ConfigStore, port: int) -> Fa
         base_url=f"http://127.0.0.1:{port}",
         resource_name="sdlc-mcp",
     )
-    return build_server(store, auth)
+    return build_server(store, auth, connected=connected)

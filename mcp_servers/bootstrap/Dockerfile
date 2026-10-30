@@ -10,18 +10,23 @@ COPY pyproject.toml uv.lock ./
 COPY libs/sdlc_agent/pyproject.toml libs/sdlc_agent/
 COPY libs/sdlc_auth/pyproject.toml libs/sdlc_auth/
 COPY libs/sdlc_config/pyproject.toml libs/sdlc_config/
+COPY libs/sdlc_connectors/pyproject.toml libs/sdlc_connectors/
 COPY libs/sdlc_db/pyproject.toml libs/sdlc_db/
 COPY libs/sdlc_policy/pyproject.toml libs/sdlc_policy/
+COPY libs/sdlc_secrets/pyproject.toml libs/sdlc_secrets/
 COPY libs/sdlc_web/pyproject.toml libs/sdlc_web/
 COPY ingest/bootstrap/pyproject.toml ingest/bootstrap/
+COPY ingest/loaders/pyproject.toml ingest/loaders/
 COPY mcp_servers/bootstrap/pyproject.toml mcp_servers/bootstrap/
 COPY agents/bootstrap/pyproject.toml agents/bootstrap/
 RUN uv sync --frozen --no-dev --package sdlc-mcp-bootstrap --no-install-workspace
 
 COPY libs/sdlc_auth libs/sdlc_auth
 COPY libs/sdlc_config libs/sdlc_config
+COPY libs/sdlc_connectors libs/sdlc_connectors
 COPY libs/sdlc_db libs/sdlc_db
 COPY libs/sdlc_policy libs/sdlc_policy
+COPY libs/sdlc_secrets libs/sdlc_secrets
 COPY mcp_servers/bootstrap mcp_servers/bootstrap
 RUN uv sync --frozen --no-dev --package sdlc-mcp-bootstrap
 
@@ -36,6 +41,8 @@ ENV PATH=/app/.venv/bin:$PATH \
     MCP_HOST=0.0.0.0 \
     MCP_PORT=8080 \
     HOME=/tmp
+# User connections (version-01 M6, local file store): a named volume only this container mounts.
+RUN mkdir -p /data/user-secrets && chown -R nobody /data
 USER nobody
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \

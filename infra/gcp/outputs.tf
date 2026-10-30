@@ -12,6 +12,11 @@ output "mcp_url" {
   value = "https://${local.mcp_host}/mcp"
 }
 
+output "session_engine" {
+  description = "Agent Engine that stores agent conversations."
+  value       = google_vertex_ai_reasoning_engine.sessions.id
+}
+
 output "registry" {
   value = local.registry
 }

@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from sdlc_ingest.chunker import chunk_text
-from sdlc_ingest.files import walk
+from sdlc_loaders.files import walk
 
 MD = """# Refunds
 

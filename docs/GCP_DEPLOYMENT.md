@@ -1,57 +1,46 @@
-# GCP deployment (Stage 7)
+# GCP deployment
 
-How agentic-sdlc runs on Google Cloud: the target design, the resources Terraform creates, how
-identity and secrets flow, and how to deploy, update and tear down an environment.
+How agentic-sdlc runs on Google Cloud: the design, the resources Terraform creates, how identity and
+secrets flow, and how to deploy, update and tear down an environment.
 Related: [ARCHITECTURE.md](ARCHITECTURE.md) §7–8 (environments), [infra/README.md](../infra/README.md)
-(files), [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) Stage 7 (decisions, progress).
+(files), [version-01.md](plans/version-01.md) §5 and §10 (M7–M8 progress), [version-00.md](plans/version-00.md)
+Stage 7 (original decisions).
 
-## 1. Status (2026-09-27)
+## 1. Status
 
-**Deferred to a later stage.** The current development phase runs on localhost and the Cloudflare
-Tunnel only ([ARCHITECTURE.md](ARCHITECTURE.md) §7, [CLOUDFLARE_TUNNEL.md](CLOUDFLARE_TUNNEL.md)).
-This design is kept current so the deployment can resume when GCP is needed.
-
-Stage 7 is split into **7a deploy** (this document) and **7b operations** (GCS config bundles with
-hot reload, CI promotion, custom hostnames, scale-out session stores). Built locally meanwhile and
-reusable on GCP: config bundles (`sdlc-config compile` / `activate`), CI on GitHub Actions, rate limits,
-the user block list, OpenTelemetry tracing, `git` sources and persistent conversations (SQLite).
-
-**Changes since the images were pushed (tag `57f55cc3ef68`)** that a resumed deployment must pick up:
-- **Rebuild the images** from the current commit: the pushed ones predate H1–H10 (readable sources,
-  sovereign hosts, bundles, block list, rate limits, tracing, git sources, persistent sessions,
-  PDF ingestion). Run the `db` step for migration `003_media_type`; OCR in the ingest job uses the jobs
-  service account's Vertex access (no new permission).
-- **Terraform variable** `entra_authority_host` (default commercial cloud) feeds oauth2-proxy and the agent.
-- **Not yet in Terraform:** mounting `blocked.yaml` from Secret Manager (like `groups.yaml`), the git source
-  on Cloud Run (the ingest job has no repository; bake the corpus or use an `https` git location), OTLP
-  export to Cloud Trace, and a conversation store for the agent (in memory today; Agent Engine planned,
-  see ARCHITECTURE.md "Conversation storage").
+**GCP is the `dev` environment** (version-01 M7, 2026-10-28): project **`sdlc-demo-env01`**, region
+**`asia-southeast1`** (`infra/gcp/dev.tfvars`, state `gs://sdlc-demo-env01-tf-state` prefix `dev`,
+`config/env/dev/groups.yaml`). **The user runs Terraform and `gcp_deploy.ps1`.**
 
 | Item | State |
 |---|---|
-| Terraform (`infra/gcp`), deploy script (`scripts/gcp_deploy.ps1`), `sdlc-db bootstrap` | Built and committed |
-| State bucket `gs://cloud-migration-agent-sdlc-tfstate` (versioned, no public access) | Created |
-| APIs (Run, Cloud SQL Admin, Secret Manager, Artifact Registry, Vertex AI, IAM) | Enabled |
-| Artifact Registry `asia-south1-docker.pkg.dev/cloud-migration-agent/sdlc` | Created; images `mcp-bootstrap`, `agent-bootstrap`, `ingest` (tag `57f55cc3ef68`) and mirrored `oauth2-proxy:v7.15.4-alpine` pushed |
-| Staging OAuth callback on the `sdlc-client` Entra app | Registered |
-| Cloud SQL, secrets, service accounts, Cloud Run services and jobs (43 resources) | **Deferred**: not created |
+| Services `sdlc-app-dev` (oauth2-proxy + agent + CopilotKit chat app) and `sdlc-mcp-dev` | Deployed 2026-10-28 (images `d3c13dbd3493`, Terraform at `bffe7d8`); sign-in, `/chat/` and `/dev-ui/` checked in the browser |
+| Job `sdlc-db-setup-dev` (schema + RLS) | Ran successfully |
+| Job `sdlc-ingest-dev` | **Not run**: the dev sources are updated first (version-01 §10.3) |
+| Entra dev callback on `sdlc-client` | Registered |
+| Agent Engine sessions (`sessions.tf`, version-01 M8) | Applied 2026-10-30 (images `8982da8`); conversations checked in the browser |
 
-What exists costs cents per month (bucket and registry storage). The deferred part is where the
-cost is (mainly Cloud SQL, see §9).
+**Not yet in Terraform** (version-01 §10.3, reviewed later): `blocked.yaml` from Secret Manager (no block list on GCP
+today), source credentials as Secret Manager secrets with accessor for the jobs service account, Cloud Scheduler for
+ingest, the user-secret reconcile job, OTLP export to Cloud Trace.
+
+An earlier staging attempt in `cloud-migration-agent` / `asia-south1` (2026-09) is abandoned: ignore its state bucket,
+registry and images. The `staging.*` files stay for a later staging environment.
 
 ## 2. Decisions
 
 | Topic | Decision | Why |
 |---|---|---|
-| Scope | 7a deploy first, 7b operations after testing | Something testable early |
-| Project / region | Existing `cloud-migration-agent`, `asia-south1` (Mumbai) | Billing and Vertex already set up; closest region. Vertex model calls use location `global` |
-| Environment | `staging` (`SDLC_ENV=staging`, `config/env/staging/`) | First higher environment |
-| Endpoints | Cloud Run's own `*.run.app` URLs | No DNS or load balancer cost for the first test. A temporary exception to the rule "higher environments use a CNAME + managed certificate"; custom hostnames return in 7b |
-| Entra | Staging callback added to the existing `sdlc-client` | Simplest; a per-environment client app is the enterprise path (plan gaps E4/E5) |
+| Project / region | `sdlc-demo-env01`, `asia-southeast1` (Singapore) | Dedicated demo project (2026-10-28). Vertex model calls use location `global`; Agent Engine sessions are regional |
+| Environment | `dev` (`SDLC_ENV=dev`, `config/env/dev/`) | GCP dev next to local + tunnel dev; staging and prod later |
+| Endpoints | Cloud Run's own `*.run.app` URLs | No DNS or load balancer cost. A temporary exception to the rule "higher environments use a CNAME + managed certificate" |
+| Entra | Dev callback added to the existing `sdlc-client` | Simplest; a per-environment client app is the enterprise path (plan gaps E4/E5) |
 | Database | Cloud SQL PostgreSQL 17 + pgvector, Enterprise edition, `db-g1-small`, zonal | Smallest tier that fits HNSW indexes; same engine as local |
+| Conversations | Vertex AI Agent Engine sessions (version-01 M8) | Managed, scales out, agents keep no DB credentials; Gemini Enterprise uses the same store later |
 | Deploy tooling | Terraform + PowerShell script (Windows PowerShell 5.1 or `pwsh`) | Windows dev machine; the same script can run in Linux CI with `pwsh` |
 
-Organization policy findings (read-only check before designing):
+Organization policy (checked read-only in 2026-09 for the earlier project; re-check if `sdlc-demo-env01` sits in a
+different organization):
 
 | Constraint | Effective value | Consequence |
 |---|---|---|
@@ -59,53 +48,63 @@ Organization policy findings (read-only check before designing):
 | `run.managed.requireInvokerIam` | Not enforced | `invoker_iam_disabled` is allowed |
 | `sql.restrictAuthorizedNetworks` | Enforced | Fits the design: Cloud SQL is reached only through the connector |
 | `sql.restrictPublicIp` | Not enforced | Public IP (for the connector) is allowed; private IP is a later hardening |
-| `run.allowedIngress`, `gcp.resourceLocations` | Allow all | No constraint |
 
 ## 3. Architecture on GCP
 
 ```mermaid
 flowchart LR
-    U([User browser]) -- "HTTPS<br/>sdlc-app-staging-…run.app" --> APP
-    X([External MCP client<br/>e.g. Antigravity, Stage 8]) -- "HTTPS + Entra token" --> MCP
+    U([User browser]) -- "HTTPS<br/>sdlc-app-dev-…run.app" --> APP
+    X([External MCP client<br/>e.g. Antigravity]) -- "HTTPS + Entra token" --> MCP
     U -. "sign-in (OIDC, PKCE)" .-> ENTRA[(Entra ID)]
 
-    subgraph RUN["Cloud Run, asia-south1"]
-        subgraph APP["service sdlc-app-staging (1 instance)"]
-            OP["oauth2-proxy<br/>ingress :4180"] -- "127.0.0.1:8000<br/>+ user access token" --> AG["agent sidecar<br/>sdlc-agent-web (ADK)"]
+    subgraph RUN["Cloud Run, asia-southeast1"]
+        subgraph APP["service sdlc-app-dev"]
+            OP["oauth2-proxy<br/>ingress :4180"] -- "/ + user token" --> AG["agent :8000<br/>sdlc-agent-web (ADK, /agui)"]
+            OP -- "/chat/" --> UI["chat app :3000<br/>CopilotKit"]
+            UI -- "/agui, token header only" --> AG
         end
-        MCP["service sdlc-mcp-staging<br/>MCP server :8080<br/>(0-3 instances)"]
-        J1["job sdlc-db-setup-staging<br/>bootstrap + migrate"]
-        J2["job sdlc-ingest-staging<br/>sdlc-ingest run --all"]
+        MCP["service sdlc-mcp-dev<br/>MCP :8080 + /connections/<br/>(0-3 instances)"]
+        J1["job sdlc-db-setup-dev<br/>bootstrap + migrate"]
+        J2["job sdlc-ingest-dev<br/>sdlc-ingest run --all"]
     end
 
+    OP -- "/connections/" --> MCP
     AG -- "HTTPS /mcp<br/>Bearer = user token" --> MCP
     AG -- "Gemini (service identity)" --> VX[(Vertex AI<br/>location global)]
+    AG -- "conversations" --> AE[(Agent Engine sessions<br/>asia-southeast1)]
     MCP -- "query embeddings" --> VX
     J2 -- "embeddings + graph extraction" --> VX
     MCP -- "/cloudsql socket<br/>role sdlc_app, RLS" --> SQL[(Cloud SQL<br/>PostgreSQL 17 + pgvector)]
     J1 -- "/cloudsql socket<br/>postgres, sdlc_owner" --> SQL
     J2 -- "/cloudsql socket<br/>sdlc_ingest" --> SQL
+    MCP -- "user connection secrets" --> USM[(Secret Manager<br/>sdlc-dev-user-*)]
     MCP -. "JWKS" .-> ENTRA
     AG -. "JWKS" .-> ENTRA
     SM[(Secret Manager)] -. "env + groups.yaml file" .-> APP & MCP & J1 & J2
     AR[(Artifact Registry<br/>sdlc)] -. images .-> RUN
 ```
 
-- **`sdlc-app-<env>`**: two containers in one instance. oauth2-proxy is the ingress container:
-  it signs the user in with Entra and forwards requests with the user's access token to the
-  agent, which listens on `127.0.0.1:8000` and cannot be reached any other way. The agent
-  re-validates the token and binds the session to the user, as locally. **Max 1 instance**:
-  conversations are in memory on Cloud Run for now (locally they persist in SQLite); Agent Engine
-  sessions are the planned GCP store. The agent has no DB credentials.
-- **`sdlc-mcp-<env>`**: public and stateless, so it scales out (0–3 instances). Every request
-  must carry a valid Entra token for the sdlc-mcp API; policy, RLS context and audit work
-  exactly as locally.
-- **Jobs**: `sdlc-db-setup` creates roles, schema and RLS (`sdlc-db bootstrap` + `migrate`);
-  `sdlc-ingest` builds the knowledge store and graph from the sample corpus baked into the image.
-- **Public without `allUsers`**: both services set `invoker_iam_disabled` (see §2). Cloud Run
-  does not check Google IAM; authentication is Entra's job (oauth2-proxy, token validation).
+- **`sdlc-app-<env>`**: three containers in one service. oauth2-proxy is the ingress container (only port 4180 is
+  exposed): it signs the user in with Entra and forwards requests with the user's access token. Routes: `/chat/` →
+  CopilotKit chat app, `/connections/` → the MCP service, everything else → the agent. The agent and chat app bind
+  `0.0.0.0` (Cloud Run's startup probes do not connect over loopback) but cannot be reached from outside. The
+  agent re-validates the token and binds every session to the user's `oid`, as locally.
+  `OAUTH2_PROXY_PASS_HOST_HEADER=false` (Cloud Run routes by Host), so the agent gets its public origin in
+  `SDLC_ALLOWED_ORIGINS` for ADK's cross-origin guard.
+- **Conversations**: Agent Engine sessions (`sessions.tf`), deleted `session_retention_days` (7) after they start.
+  Locally: SQLite on an agent-only volume. `app_max_instances` stays 1 until a conversation is checked to survive
+  a new revision. The agent has no DB credentials.
+- **`sdlc-mcp-<env>`**: public and stateless, so it scales out (0–3 instances). Every request must carry a valid
+  Entra token for the sdlc-mcp API; policy, RLS context and audit work exactly as locally. It also serves the
+  Connections API and is the only workload that reads or writes users' connection secrets.
+- **Jobs**: `sdlc-db-setup` creates roles, schema and RLS (`sdlc-db bootstrap` + `migrate`); `sdlc-ingest` builds
+  the knowledge store and graph from the sources baked into the image (`config/`, `samples/`).
+- **Public without `allUsers`**: both services set `invoker_iam_disabled` (see §2). Cloud Run does not check Google
+  IAM; authentication is Entra's job (oauth2-proxy, token validation).
+- **Cloud Run reserves paths ending in `z`**: `/healthz` returns Google's 404 from outside; probes reach the
+  container directly. Check health with the startup probe or logs.
 
-### Sign-in and a request on staging
+### Sign-in and a request
 
 ```mermaid
 sequenceDiagram
@@ -116,10 +115,10 @@ sequenceDiagram
     participant A as Agent (sidecar)
     participant M as sdlc-mcp
     participant D as Cloud SQL (RLS)
-    B->>P: GET https://sdlc-app-staging-…run.app/
+    B->>P: GET https://sdlc-app-dev-…run.app/chat/
     P->>E: redirect: authorize (PKCE, scope access_as_user)
     E-->>P: callback /oauth2/callback (registered on sdlc-client)
-    P->>A: request + X-Forwarded-Access-Token (127.0.0.1:8000)
+    P->>A: request + X-Forwarded-Access-Token (via the chat app for /chat/)
     A->>A: validate token (JWKS, aud, tid, scp), bind session to oid
     A->>M: MCP call, Authorization: Bearer <user token>
     M->>M: validate token, resolve policy (config baked in image, groups.yaml from Secret Manager)
@@ -132,47 +131,53 @@ sequenceDiagram
 
 | File | Resources | Notes |
 |---|---|---|
-| `main.tf` | 6 `google_project_service`, Artifact Registry `sdlc` | Locals compute the deterministic URLs `https://<service>-<project number>.<region>.run.app` before the services exist, so each service is configured with its own public URL (`MCP_PUBLIC_URL`, OAuth redirect) |
+| `main.tf` | `google_project_service` (Run, Cloud SQL Admin, Secret Manager, Artifact Registry, Vertex AI, IAM, Resource Manager), Artifact Registry `sdlc` | Locals compute the deterministic URLs `https://<service>-<project number>.<region>.run.app` before the services exist, so each service is configured with its own public URL (`MCP_PUBLIC_URL`, OAuth redirect). Enable `cloudresourcemanager.googleapis.com` by hand before the first plan |
 | `sql.tf` | Instance `sdlc-<env>` (PG 17, Enterprise, `db-g1-small`, zonal, 10 GB autoresize, backups on, `ENCRYPTED_ONLY`), database `sdlc`, user `postgres` | Public IP for the connector only, no authorized networks |
 | `secrets.tf` | Generated passwords (`admin`, `owner`, `app`, `ingest`), cookie secret; 7–8 secrets + versions `sdlc-<env>-*` | Entra client secret, optional Graph secret and `groups.yaml` come from local git-ignored files |
-| `iam.tf` | Service accounts `sdlc-<env>-mcp`, `-app`, `-jobs`; project roles; per-secret accessor bindings | See §5 |
+| `iam.tf` | Service accounts `sdlc-<env>-mcp`, `-app`, `-jobs`; project roles; per-secret accessor bindings; custom role `sdlcUserSecrets_<env>` | See §5 |
 | `run.tf` | Services `sdlc-mcp-<env>`, `sdlc-app-<env>`; jobs `sdlc-db-setup-<env>`, `sdlc-ingest-<env>` | Secrets as env vars (`version = latest`); `groups.yaml` as a file at `/app/config/env/<env>/`; Cloud SQL socket at `/cloudsql` |
-| `outputs.tf` | `app_url`, `oauth_callback`, `mcp_url`, `registry`, `sql_connection_name`, `jobs` | |
+| `sessions.tf` | Agent Engine `sdlc-sessions-<env>` (`google_vertex_ai_reasoning_engine`, version-01 M8) | Session store only (no deployed code, no memory bank); the agent gets its full resource name in `SDLC_SESSION_SERVICE_URI` |
+| `outputs.tf` | `app_url`, `oauth_callback`, `mcp_url`, `session_engine`, `registry`, `sql_connection_name`, `jobs` | |
 | `<env>.tfvars`, `<env>.gcs.tfbackend` | Project, region, env, tier, deletion protection; state bucket + prefix | No tenant IDs in either |
 
-The plan for staging: **50 resources** in total (7 already created by `base`, 43 deferred).
+Variables worth knowing: `app_max_instances` (1), `session_retention_days` (7), `gcs_source_buckets` (buckets read
+by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on each), `entra_authority_host`.
 
 ## 5. Identity, access and secrets
 
 | Workload | Service account | Project roles | Secrets it can read |
 |---|---|---|---|
-| `sdlc-mcp` | `sdlc-<env>-mcp` | Cloud SQL Client, Vertex AI User | `pg-app-password`, `groups-yaml`, `entra-graph-secret` (if set) |
-| `sdlc-app` | `sdlc-<env>-app` | Vertex AI User | `oauth2-cookie`, `entra-client-secret` |
-| jobs | `sdlc-<env>-jobs` | Cloud SQL Client, Vertex AI User | `pg-admin-password`, `pg-owner-password`, `pg-app-password`, `pg-ingest-password`, `groups-yaml` |
+| `sdlc-mcp` | `sdlc-<env>-mcp` | Cloud SQL Client, Vertex AI User, `sdlcUserSecrets_<env>` (condition: names starting `sdlc-<env>-user-`) | `pg-app-password`, `groups-yaml`, `entra-graph-secret` (if set); users' connection secrets |
+| `sdlc-app` | `sdlc-<env>-app` | Vertex AI User (Gemini and Agent Engine sessions) | `oauth2-cookie`, `entra-client-secret` |
+| jobs | `sdlc-<env>-jobs` | Cloud SQL Client, Vertex AI User; Storage Object Viewer on `gcs_source_buckets` | `pg-admin-password`, `pg-owner-password`, `pg-app-password`, `pg-ingest-password`, `groups-yaml` |
 
-- **No key files**: Vertex AI and Cloud SQL use each workload's service identity. The local ADC
-  file mount does not exist on GCP.
+- **No key files**: Vertex AI, Agent Engine, Secret Manager and Cloud SQL use each workload's service identity.
+  The local ADC file mount does not exist on GCP.
 - **Database roles** are the same as locally: `sdlc_owner` (migrations), `sdlc_app` (MCP, read-only),
-  `sdlc_ingest` (writes); none can bypass RLS, and every data table uses FORCE ROW LEVEL SECURITY.
-  Cloud SQL's `postgres` is `cloudsqlsuperuser`, not a real superuser: `sdlc-db bootstrap` handles
-  that (it grants itself membership of `sdlc_owner` to create the schema, only re-sets passwords on
-  existing roles) and **fails if any role can bypass RLS**.
-- **Secrets** live in Secret Manager. Their values are also in the Terraform state (GCS bucket with
-  uniform access and no public access) and in a saved plan file (git-ignored, deleted by `apply`).
+  `sdlc_ingest` (writes); none can bypass RLS, and every data table uses FORCE ROW LEVEL SECURITY. Cloud SQL's
+  `postgres` is `cloudsqlsuperuser`, not a real superuser: `sdlc-db bootstrap` handles that (it grants itself
+  membership of `sdlc_owner` to create the schema, only re-sets passwords on existing roles) and **fails if any
+  role can bypass RLS**.
+- **User connection secrets** (version-01 M6): one secret per user, `sdlc-<env>-user-<hash of oid>`, written and
+  read only by the MCP server after the policy check. Whether the IAM condition also covers `secrets.create` is
+  unverified until the first Connections save on GCP.
+- **Secrets** live in Secret Manager. Their values are also in the Terraform state (GCS bucket with uniform access
+  and no public access) and in a saved plan file (git-ignored, deleted by `apply`).
 - **Tenant-specific values** (tenant ID, app IDs, client secret, group IDs) are read from `.env` and
   `config/env/<env>/groups.yaml` at deploy time and never committed.
-- **Entra**: the staging callback `https://sdlc-app-staging-<project number>.asia-south1.run.app/oauth2/callback`
-  is registered on `sdlc-client` next to the local and tunnel callbacks.
+- **Entra**: the dev callback `https://sdlc-app-dev-<project number>.asia-southeast1.run.app/oauth2/callback` is
+  registered on `sdlc-client` next to the local and tunnel callbacks. Sign in on that deterministic host: the OAuth
+  redirect and cookie domain use it, not the hashed `status.url`.
 
 ## 6. Configuration on GCP
 
-- **7a**: `config/` and `skills/` are baked into the images at build time (one config version per
-  release); `SDLC_ENV=staging`; file watching is off (`SDLC_CONFIG_WATCH=false`). The only
-  environment-specific file, `groups.yaml`, is stored in Secret Manager and mounted as a file.
-- **7b**: config bundles in `gs://sdlc-config-<env>/` with a `current` pointer, Pub/Sub reload,
-  last-known-good, rollback by pointer flip (see "Runtime Config Exposure" in the plan). The bundle
-  format, verification, `activate` and rollback are already built and tested locally
-  (`libs/sdlc_config/bundles.py`, `SDLC_CONFIG_BUNDLES`); 7b adds the GCS store behind the same layout.
+- `config/` and `skills/` are baked into the images at build time (one config version per release);
+  `SDLC_ENV=dev`; file watching is off (`SDLC_CONFIG_WATCH=false`). The only environment-specific file,
+  `groups.yaml`, is stored in Secret Manager and mounted as a file. **A config change (including sources) needs
+  `images` + `plan` + `apply`.**
+- Later (Stage 7b): config bundles in `gs://sdlc-config-<env>/` with a `current` pointer, Pub/Sub reload,
+  last-known-good, rollback by pointer flip. The bundle format, verification, `activate` and rollback are built
+  and tested locally (`libs/sdlc_config/bundles.py`, `SDLC_CONFIG_BUNDLES`).
 
 ## 7. Deployment
 
@@ -184,63 +189,68 @@ flowchart LR
 From the repo root, in PowerShell (Docker Desktop running, `gcloud` signed in, Terraform installed):
 
 ```powershell
-.\scripts\gcp_deploy.ps1 -EnvName staging -Step state    # state bucket (once per project)
-.\scripts\gcp_deploy.ps1 -EnvName staging -Step base     # APIs + Artifact Registry
-.\scripts\gcp_deploy.ps1 -EnvName staging -Step images   # build + push mcp/agent/ingest, mirror oauth2-proxy
-.\scripts\gcp_deploy.ps1 -EnvName staging -Step plan     # writes infra/gcp/staging.tfplan; review it
-.\scripts\gcp_deploy.ps1 -EnvName staging -Step apply    # ~10-15 min (Cloud SQL)
-.\scripts\gcp_deploy.ps1 -EnvName staging -Step db       # sdlc-db bootstrap + migrate on Cloud SQL
-.\scripts\gcp_deploy.ps1 -EnvName staging -Step ingest   # sample corpus: chunks, embeddings, graph
-.\scripts\gcp_deploy.ps1 -EnvName staging -Step urls     # app URL, MCP URL, OAuth callback
+.\scripts\gcp_deploy.ps1 -EnvName dev -Step state    # state bucket (once per project)
+.\scripts\gcp_deploy.ps1 -EnvName dev -Step base     # APIs + Artifact Registry
+.\scripts\gcp_deploy.ps1 -EnvName dev -Step images   # build + push mcp/agent/ingest/ui, mirror oauth2-proxy
+.\scripts\gcp_deploy.ps1 -EnvName dev -Step plan     # writes infra/gcp/dev.tfplan; review it
+.\scripts\gcp_deploy.ps1 -EnvName dev -Step apply    # first time ~10-15 min (Cloud SQL)
+.\scripts\gcp_deploy.ps1 -EnvName dev -Step db       # sdlc-db bootstrap + migrate on Cloud SQL
+.\scripts\gcp_deploy.ps1 -EnvName dev -Step ingest   # sources: chunks, embeddings, graph
+.\scripts\gcp_deploy.ps1 -EnvName dev -Step urls     # app URL, MCP URL, OAuth callback
 ```
 
-- **Image tag = commit SHA.** `images` and `plan` refuse to run with uncommitted changes. To re-plan
-  without rebuilding, pass the pushed tag: `-ImageTag 57f55cc3ef68`.
+- **Image tag = commit SHA.** `images` and `plan` refuse to run with uncommitted changes. To re-plan without
+  rebuilding, pass a pushed tag: `-ImageTag <sha>`.
 - **Confirmation**: `base` and `apply` ask before changing anything unless `-AutoApprove`.
-- **Why a mirror for oauth2-proxy**: Cloud Run pulls only from Artifact Registry or Docker Hub, and
-  oauth2-proxy is published on quay.io.
-- **Updates**: commit → `images` → `plan` → `apply`. Schema changes: add a migration, then `db`.
-  Content changes: `ingest` (unchanged files and cached graph extractions cost nothing).
-- **Resuming the deferred deployment**: the saved plan was discarded. Rebuild the images from the
-  current commit (`images`; the pushed `57f55cc3ef68` images are outdated, see §1), then `plan`,
-  `apply`, `db`, `ingest`.
+- **Apply deploys the saved plan file**: re-plan after every Terraform change.
+- **Why a mirror for oauth2-proxy**: Cloud Run pulls only from Artifact Registry or Docker Hub, and oauth2-proxy is
+  published on quay.io.
+- **Updates**: commit → `images` → `plan` → `apply`. Schema changes: add a migration, then `db`. Content changes:
+  `ingest` (unchanged files and cached graph extractions cost nothing).
 
-## 8. Verification (7a gate)
+## 8. Verification
 
-On staging, repeat the Stage 1–6 gates with the same test users:
+On dev, with the test users (payments developer, platform developer, payments lead, admin, and an account with no
+sdlc groups):
 
-1. Sign in at the `app_url`: paul, ana, the payments-lead account and ben land in the agent UI.
+1. Sign in at the `app_url`: `/chat/` (CopilotKit) and `/dev-ui/` (ADK) load.
 2. `whoami` shows each user's own teams and roles; tool lists differ per persona.
 3. Skills and team context per user (`list_skills`, `get_agent_context`).
-4. `search_knowledge` and `graph_query` return only each user's sources; the payments lead also
-   sees the confidential incidents.
-5. Audit records in Cloud Logging (`jsonPayload.event` for `tool_call`, `tools_list`, `auth_failure`):
-   `gcloud logging read 'resource.labels.service_name="sdlc-mcp-staging"' --limit 50`.
+4. After ingest: `search_knowledge` and `graph_query` return only each user's sources; the payments lead also sees
+   the confidential incidents.
+5. Conversations (after the M8 apply): start a chat, deploy a new revision, and check the conversation is still
+   listed in `/dev-ui/` for the same user and not for another.
+6. Connections: connect a GitHub token on `/chat/connections` (first save on GCP also checks the IAM condition on
+   `secrets.create`), then read a file through the chat.
+7. Audit records in Cloud Logging (`jsonPayload.event` for `tool_call`, `tools_list`, `auth_failure`,
+   `connection_change`): `gcloud logging read 'resource.labels.service_name="sdlc-mcp-dev"' --limit 50`.
 
-## 9. Cost (asia-south1, rough, per month)
+## 9. Cost (rough, per month)
 
 | Item | Estimate |
 |---|---|
 | Cloud SQL `db-g1-small`, 10 GB SSD, backups | ~US$25–35 (runs continuously) |
 | Cloud Run services and jobs | ~US$0–5 (scale to zero; requests only) |
+| Agent Engine sessions | Expected to be small at dev volume; check the current Agent Engine pricing page before raising usage |
 | Secret Manager, Artifact Registry storage, state bucket | < US$1 |
 | Vertex AI (embeddings, flash calls for the sample corpus and tests) | cents |
 
-Teardown removes everything created by `apply` (deletion protection is off for staging only):
+Teardown removes everything created by `apply` (`deletion_protection = false` in `dev.tfvars`):
 
 ```powershell
-cd infra/gcp; terraform destroy -var-file=staging.tfvars   # needs the same TF_VAR_* as plan
+cd infra/gcp; terraform destroy -var-file=dev.tfvars   # needs the same TF_VAR_* as plan
 ```
 
-## 10. Next (7b and hardening)
+## 10. Next
 
-- Custom hostnames `app-sdlc-staging` / `mcp-sdlc-staging.shaheenks.co.in`: CNAME + Google-managed
-  certificate (load balancer or domain mapping), then drop the `*.run.app` exception.
-- Persistent conversation store (Agent Engine sessions; options in ARCHITECTURE.md "Conversation storage")
-  and an oauth2-proxy session store, so `sdlc-app` can scale out.
-- GCS config bundles + Pub/Sub reload (compile/activate exist), CI deploy stages (validate, diff and tests
-  already run on GitHub Actions; add build → plan → apply).
-- `blocked.yaml` as a Secret Manager file; OTLP export to Cloud Trace; a shared rate-limit store when
-  `sdlc-mcp` runs more than one instance (limits are per instance today).
-- Per-environment Entra client app, certificates or federated credentials instead of client secrets
-  (plan gaps E4, E5, E8); Cloud SQL private IP.
+- Pending items of version-01 §10.3: dev sources + ingest, block list on GCP, source secrets, reconcile job,
+  Cloud Scheduler, Cloud Trace.
+- Scale `sdlc-app` out: check conversations survive a new revision and that cookie sessions in oauth2-proxy are
+  enough, then raise `app_max_instances`.
+- Custom hostnames (`<service>-sdlc-<env>.shaheenks.co.in`): CNAME + Google-managed certificate (load balancer or
+  domain mapping), then drop the `*.run.app` exception.
+- GCS config bundles + Pub/Sub reload, CI deploy stages (validate, diff and tests already run on GitHub Actions;
+  add build → plan → apply).
+- A shared rate-limit store when `sdlc-mcp` runs more than one instance (limits are per instance today).
+- Per-environment Entra client app, certificates or federated credentials instead of client secrets (plan gaps E4,
+  E5, E8); Cloud SQL private IP.

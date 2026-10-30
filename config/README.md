@@ -1,7 +1,7 @@
 # config
 
 Declarative access and customization, keyed on Entra ID group membership.
-Syntax and resolution rules: docs/IMPLEMENTATION_PLAN.md → "Configuration Model".
+Syntax and resolution rules: docs/plans/version-00.md → "Configuration Model".
 
 | File | kind | Purpose |
 |---|---|---|

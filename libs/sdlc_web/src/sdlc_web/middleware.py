@@ -13,6 +13,10 @@ For every request except public health checks:
      user-bound routes, and the trace of the caller's OWN session). Builder save, deploy,
      evals, tests and event traces are refused (403); the UI's load-time listings get empty
      results. `dev_tools=True` (SDLC_DEV_TOOLS) re-enables everything for local development.
+  5. AG-UI (version-01 M5): the caller's `oid` is also put in a request-scoped ContextVar
+     (`current_oid`), which the AG-UI agent uses as its user id. AG-UI request bodies (the run
+     endpoint and /agents/state) are sanitised: client state never carries tokens or `temp:`,
+     `app:` or `user:` keys, and any client-sent `userId` is replaced by the oid.
 WebSocket: only /run_live, bound the same way: the token from the upgrade request is validated,
 every `user_id` query parameter is replaced by the token's `oid`, and the token stays in context
 for the connection (its MCP calls carry the user). Anything else is closed with 1008.
@@ -22,6 +26,7 @@ Authorization stays in the MCP server; this layer only authenticates and binds i
 import json
 import re
 from collections.abc import Awaitable, Callable, MutableMapping
+from contextvars import ContextVar
 from typing import Any
 from urllib.parse import parse_qsl, urlencode
 
@@ -44,6 +49,22 @@ _DEV_EMPTY_LISTINGS = re.compile(
     r"^/dev/apps/[^/]+/(eval_sets|eval-sets|eval_results|eval-results|tests|builder)$"
 )
 _RUN_PATHS = {"/run", "/run_sse"}
+AGUI_STATE_PATH = "/agents/state"  # registered by ag_ui_adk next to the run endpoint
+# State keys a client may never set: per-invocation (temp:, where a token could live) and
+# shared scopes (app:, user:), plus the user-token key itself.
+_UNTRUSTED_STATE_PREFIXES = ("temp:", "app:", "user:")
+
+_request_oid: ContextVar[str | None] = ContextVar("sdlc_request_oid", default=None)
+
+
+def current_oid() -> str:
+    """The validated caller's Entra oid for this request. Fails closed outside a request."""
+    oid = _request_oid.get()
+    if not oid:
+        raise PermissionError("no signed-in user in this request")
+    return oid
+
+
 _WEBSOCKET_PATHS = {"/run_live"}
 _MAX_RUN_BODY = 10 * 1024 * 1024
 
@@ -57,12 +78,14 @@ class EntraUserBindingMiddleware:
         token_header: str = "x-forwarded-access-token",  # noqa: S107 (header name)
         public_paths: frozenset[str] = frozenset({"/healthz"}),
         dev_tools: bool = False,
+        agui_path: str | None = None,
     ):
         self.app = app
         self.verifier = verifier
         self.token_header = token_header.lower().encode()
         self.public_paths = public_paths
         self.dev_tools = dev_tools
+        self.agui_paths = {agui_path, AGUI_STATE_PATH} if agui_path else set()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "lifespan":
@@ -107,11 +130,22 @@ class EntraUserBindingMiddleware:
                 (k, v) for k, v in scope["headers"] if k.lower() != b"content-length"
             ] + [(b"content-length", str(len(body)).encode())]
             receive = _replay(body, receive)
+        elif scope["method"] == "POST" and scope["path"] in self.agui_paths:
+            body = await _read_body(receive, _MAX_RUN_BODY)
+            if body is None:
+                return await _respond(send, 413, {"detail": "request body too large"})
+            body = _sanitise_agui_body(body, oid)
+            scope["headers"] = [
+                (k, v) for k, v in scope["headers"] if k.lower() != b"content-length"
+            ] + [(b"content-length", str(len(body)).encode())]
+            receive = _replay(body, receive)
 
         reset = set_request_token(token)
+        reset_oid = _request_oid.set(oid)
         try:
             await self.app(scope, receive, send)
         finally:
+            _request_oid.reset(reset_oid)
             reset_request_token(reset)
 
     async def _websocket(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -216,6 +250,27 @@ def _bind_run_body(body: bytes, oid: str) -> bytes:
             state_delta.pop(
                 USER_TOKEN_STATE_KEY, None
             )  # tokens only come from the validated header
+    return json.dumps(payload).encode()
+
+
+def _sanitise_agui_body(body: bytes, oid: str) -> bytes:
+    """AG-UI RunAgentInput / AgentStateRequest: client state is untrusted, the user is the oid."""
+    try:
+        payload = json.loads(body or b"{}")
+    except ValueError:
+        return body  # let the endpoint reject malformed JSON
+    if not isinstance(payload, dict):
+        return body
+    state = payload.get("state")
+    if isinstance(state, dict):
+        payload["state"] = {
+            k: v
+            for k, v in state.items()
+            if k != USER_TOKEN_STATE_KEY and not k.startswith(_UNTRUSTED_STATE_PREFIXES)
+        }
+    for key in ("userId", "user_id"):
+        if key in payload:
+            payload[key] = oid
     return json.dumps(payload).encode()
 
 

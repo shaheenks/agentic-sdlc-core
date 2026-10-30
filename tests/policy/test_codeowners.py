@@ -12,12 +12,17 @@ CRITICAL = [
     "/config/roles.yaml",
     "/config/tools.yaml",
     "/config/skills.yaml",
+    "/config/connections.yaml",
     "/config/schemas/",
     "/config/env/",
     "/libs/sdlc_auth/",
     "/libs/sdlc_policy/",
     "/libs/sdlc_config/",
     "/libs/sdlc_db/",
+    "/libs/sdlc_secrets/",
+    "/libs/sdlc_connectors/",  # user tokens, provider calls (version-01 M6)
+    "/ingest/loaders/",  # SSRF guard + source credentials (version-01 M0)
+    "/ui/copilotkit/",  # token forwarding to /agui (version-01 M5)
     "/db/",
     "/infra/",
     "/.github/",

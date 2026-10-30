@@ -24,10 +24,13 @@ members = [
     "libs/sdlc_agent",
     "libs/sdlc_auth",
     "libs/sdlc_config",
+    "libs/sdlc_connectors",
     "libs/sdlc_db",
     "libs/sdlc_policy",
+    "libs/sdlc_secrets",
     "libs/sdlc_web",
     "ingest/bootstrap",
+    "ingest/loaders",
     "mcp_servers/bootstrap",
     "agents/bootstrap",
 ]
@@ -36,10 +39,13 @@ members = [
 sdlc-agent = { workspace = true }
 sdlc-auth = { workspace = true }
 sdlc-config = { workspace = true }
+sdlc-connectors = { workspace = true }
 sdlc-db = { workspace = true }
 sdlc-policy = { workspace = true }
+sdlc-secrets = { workspace = true }
 sdlc-web = { workspace = true }
 sdlc-ingest = { workspace = true }
+sdlc-loaders = { workspace = true }
 sdlc-mcp-bootstrap = { workspace = true }
 sdlc-agent-bootstrap = { workspace = true }
 
@@ -56,7 +62,7 @@ select = ["E", "F", "I", "B", "UP", "S", "ASYNC"]
 ignore = ["S101"]  # assert is fine in tests
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S603", "S607"]  # tests drive git/subprocess with fixed arguments
+"tests/**" = ["S603", "S607", "S105", "S106", "S107"]  # fixed git/subprocess args; fake credentials
 "tests/conftest.py" = ["S603", "S607", "E402"]  # env is cleared before imports (OTLP)
 
 [tool.pytest.ini_options]

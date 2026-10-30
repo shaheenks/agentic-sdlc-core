@@ -71,6 +71,11 @@
             }
           }
         },
+        "allowed_hosts": {
+          "description": "hosts that remote sources may point at (SSRF guard): exact names or one leading wildcard label (*.atlassian.net)",
+          "type": "array", "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^([*][.])?[a-z0-9]([a-z0-9-]*[a-z0-9])?([.][a-z0-9]([a-z0-9-]*[a-z0-9])?)+$" }
+        },
         "ocr": {
           "description": "reading PDF pages that have no text layer (H10), for sources with pdf.ocr: gemini",
           "type": "object",

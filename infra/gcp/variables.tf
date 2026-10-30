@@ -82,7 +82,19 @@ variable "deletion_protection" {
 }
 
 variable "app_max_instances" {
-  description = "sdlc-app instances. Keep 1 while ADK sessions are in memory (7b adds a session store)."
+  description = "sdlc-app instances. Conversations live in Agent Engine sessions (sessions.tf), so more than 1 is possible; raise it after checking a conversation survives a new revision."
   type        = number
   default     = 1
+}
+
+variable "session_retention_days" {
+  description = "Agent conversations (Agent Engine sessions) are deleted this many days after they start."
+  type        = number
+  default     = 7
+}
+
+variable "gcs_source_buckets" {
+  description = "Buckets read by `gcs` sources (config/sources). The ingest job gets objectViewer on these buckets only (version-01 M2)."
+  type        = list(string)
+  default     = []
 }

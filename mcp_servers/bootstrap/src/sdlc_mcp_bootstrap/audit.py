@@ -218,6 +218,9 @@ class PolicyMiddleware(Middleware):
             "roles": [],
             "config_version": self._store.current().version,
         }
+        from sdlc_mcp_bootstrap.connected_tools import connection_audit
+
+        audit_reset = connection_audit.set(None)
         try:
             identity = await self._identity(request_id)
             if identity is None:
@@ -271,5 +274,9 @@ class PolicyMiddleware(Middleware):
             self._record_unexpected(record, tool, request_id, e)
             raise
         finally:
+            extra = connection_audit.get()  # set by tools that use the user's own connection
+            if extra:
+                record.update({k: v for k, v in extra.items() if v is not None})
+            connection_audit.reset(audit_reset)
             record["duration_ms"] = round((time.perf_counter() - started) * 1000, 1)
             emit(record)

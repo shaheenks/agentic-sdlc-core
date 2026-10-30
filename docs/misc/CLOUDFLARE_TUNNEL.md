@@ -1,9 +1,10 @@
 # Public endpoints: Cloudflare Tunnel
 
 > **Scope: development environment only.** Dev is reachable both on `localhost` and through
-> this tunnel, and development is the current phase (GCP is deferred). Higher environments
-> (staging, prod) are hosted directly, without a tunnel (see [ARCHITECTURE.md](ARCHITECTURE.md) §7
-> and [GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md)).
+> this tunnel, and development is the current phase. GCP dev (version-01 M7) uses Cloud Run URLs,
+> not this tunnel. Higher environments
+> (staging, prod) are hosted directly, without a tunnel (see [ARCHITECTURE.md](../ARCHITECTURE.md) §7
+> and [GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md)).
 
 The local stack is exposed to users of the Entra tenant through a Cloudflare Tunnel. The
 connector dials out to Cloudflare, so no inbound ports are opened on this machine. TLS ends at
@@ -86,6 +87,6 @@ Guest (B2B) users are out of scope for now.
   long runs keep the connection alive.
 - MCP clients outside Docker use `https://mcp-sdlc-dev.shaheenks.co.in/mcp`. The server's 401
   challenge advertises it (`MCP_PUBLIC_URL`).
-- GCP (Stage 7, deferred) does not use this tunnel: staging is designed on Cloud Run `*.run.app`
-  URLs first, then its own `*-sdlc-staging` hostnames with a CNAME and managed certificate.
-  The dev tunnel stays for development.
+- GCP does not use this tunnel: GCP dev runs on Cloud Run `*.run.app` URLs, later environments on
+  their own `*-sdlc-<env>` hostnames with a CNAME and managed certificate. The tunnel stays for
+  local development.

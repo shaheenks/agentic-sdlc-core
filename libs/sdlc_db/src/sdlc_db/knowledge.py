@@ -1,8 +1,9 @@
 """Knowledge queries (MCP server, RLS-scoped) and ingest writes (sdlc_ingest role)."""
 
-from collections.abc import Sequence
+import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from psycopg import AsyncConnection
 from sdlc_config import EffectivePolicy, Snapshot
@@ -32,6 +33,8 @@ class SearchHit:
     score: float  # cosine similarity, 1 = identical (graph_search: plus graph/glossary bonus)
     via: str = "vector"  # "vector" | "graph" (reached through the knowledge graph)
     media_type: str = "text/plain"  # application/pdf: start_line/end_line are page numbers
+    title: str | None = None  # item title in its source system (version-01 M0)
+    url: str | None = None  # deep link to the item (version-01 M0)
 
     @property
     def is_pdf(self) -> bool:
@@ -51,7 +54,7 @@ async def search(
         cur = await conn.execute(
             """
             SELECT c.source_id, d.path, c.start_line, c.end_line, c.heading, c.content,
-                   1 - (c.embedding <=> %s::vector) AS score, d.media_type
+                   1 - (c.embedding <=> %s::vector) AS score, d.media_type, d.title, d.url
             FROM chunks c JOIN documents d ON d.id = c.document_id
             ORDER BY c.embedding <=> %s::vector
             LIMIT %s
@@ -59,7 +62,10 @@ async def search(
             (vec, vec, k),
         )
         rows = await cur.fetchall()
-    return [SearchHit(*row[:6], score=float(row[6]), media_type=row[7]) for row in rows]
+    return [
+        SearchHit(*row[:6], score=float(row[6]), media_type=row[7], title=row[8], url=row[9])
+        for row in rows
+    ]
 
 
 # --- ingest (sdlc_ingest role; its policy sees every row) ------------------------------------
@@ -105,6 +111,53 @@ async def document_hashes(conn: AsyncConnection, source_id: str) -> dict[str, st
 
 
 @dataclass(frozen=True)
+class StoredDocument:
+    content_hash: str
+    title: str | None
+    url: str | None
+
+
+async def stored_documents(conn: AsyncConnection, source_id: str) -> dict[str, StoredDocument]:
+    """path -> what is stored, to skip unchanged items and refresh changed metadata only."""
+    cur = await conn.execute(
+        "SELECT path, content_hash, title, url FROM documents WHERE source_id = %s", (source_id,)
+    )
+    return {path: StoredDocument(h, t, u) for path, h, t, u in await cur.fetchall()}
+
+
+async def update_document_metadata(
+    conn: AsyncConnection, source_id: str, path: str, title: str | None, url: str | None
+) -> None:
+    """Title/URL changed but the content did not (e.g. a renamed page): no re-embedding."""
+    await conn.execute(
+        "UPDATE documents SET title = %s, url = %s WHERE source_id = %s AND path = %s",
+        (title, url, source_id, path),
+    )
+
+
+async def get_sync_cursor(conn: AsyncConnection, source_id: str) -> dict[str, Any] | None:
+    cur = await conn.execute("SELECT cursor FROM sync_state WHERE source_id = %s", (source_id,))
+    row = await cur.fetchone()
+    return row[0] if row else None
+
+
+async def set_sync_cursor(
+    conn: AsyncConnection, source_id: str, cursor: Mapping[str, Any] | None
+) -> None:
+    """Store (or, with None, clear) the cursor an incremental loader resumes from."""
+    if cursor is None:
+        await conn.execute("DELETE FROM sync_state WHERE source_id = %s", (source_id,))
+        return
+    await conn.execute(
+        """
+        INSERT INTO sync_state (source_id, cursor, last_synced_at) VALUES (%s, %s::jsonb, now())
+        ON CONFLICT (source_id) DO UPDATE SET cursor = EXCLUDED.cursor, last_synced_at = now()
+        """,
+        (source_id, json.dumps(dict(cursor), sort_keys=True)),
+    )
+
+
+@dataclass(frozen=True)
 class ChunkRow:
     ordinal: int
     start_line: int
@@ -124,6 +177,8 @@ async def replace_document(
     embedding_model: str,
     graph: "Sequence[Extraction] | None" = None,
     media_type: str = "text/plain",
+    title: str | None = None,
+    url: str | None = None,
 ) -> "GraphCounts | None":
     """Replace one document, its chunks and (when `graph` is given, one Extraction per chunk)
     its graph mentions/edges atomically. Returns the graph counts, or None without a graph."""
@@ -136,10 +191,11 @@ async def replace_document(
         )
         cur = await conn.execute(
             """
-            INSERT INTO documents (source_id, path, content_hash, classification_rank, media_type)
-            VALUES (%s, %s, %s, %s, %s) RETURNING id
+            INSERT INTO documents (source_id, path, content_hash, classification_rank, media_type,
+                                   title, url)
+            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
             """,
-            (source_id, path, content_hash, classification_rank, media_type),
+            (source_id, path, content_hash, classification_rank, media_type, title, url),
         )
         (document_id,) = await cur.fetchone()
         for chunk in chunks:

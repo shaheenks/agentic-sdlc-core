@@ -31,16 +31,23 @@ class Knowledge:
 
 
 def _location(hit) -> dict:
-    """Where a snippet is: page range for PDFs, line range for text files."""
+    """Where a snippet is: page range for PDFs, line range for text files, plus the item's title
+    and deep link when its source system has them (version-01 M0)."""
     span = [hit.start_line, hit.end_line]
-    return {"pages": span} if hit.is_pdf else {"lines": span}
+    where = {"pages": span} if hit.is_pdf else {"lines": span}
+    if hit.title:
+        where["title"] = hit.title
+    if hit.url:
+        where["url"] = hit.url
+    return where
 
 
 def make_knowledge_tools(knowledge: Knowledge) -> list:
     async def search_knowledge(query: str, k: int = 5) -> dict:
         """Search the team knowledge you may read (docs, code, runbooks, PDFs). Returns the most
         relevant snippets with source, path and line range (`pages` for PDFs: cite them as
-        "file.pdf, p. N"). k: number of results (max 20)."""
+        "file.pdf, p. N"), and `title`/`url` when the item has them (cite the URL).
+        k: number of results (max 20)."""
         ident = await request_identity()
         policy = ident.policy
         result = {

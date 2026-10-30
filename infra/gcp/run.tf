@@ -12,6 +12,9 @@ locals {
     PGHOST            = local.cloudsql_socket
     PGDATABASE        = google_sql_database.sdlc.name
     PGUSER            = "sdlc_app"
+    # user connections (version-01 M6): users' own PATs, one Secret Manager secret per user
+    SDLC_USER_SECRETS_BACKEND = "gcp"
+    SDLC_SECRETS_PROJECT      = var.project_id
   })
   mcp_secret_env = merge(
     { PGPASSWORD = "pg-app-password" },
@@ -20,13 +23,17 @@ locals {
 
   # Same settings as the local oauth2-proxy (docker-compose.yml x-oauth2-proxy-env).
   oauth2_proxy_env = {
-    OAUTH2_PROXY_PROVIDER                             = "oidc"
-    OAUTH2_PROXY_PROVIDER_DISPLAY_NAME                = "Entra ID"
-    OAUTH2_PROXY_OIDC_ISSUER_URL                      = "${var.entra_authority_host}/${var.entra_tenant_id}/v2.0"
-    OAUTH2_PROXY_CLIENT_ID                            = var.entra_client_id
-    OAUTH2_PROXY_SCOPE                                = "openid profile email offline_access api://${var.entra_api_client_id}/access_as_user"
-    OAUTH2_PROXY_CODE_CHALLENGE_METHOD                = "S256"
-    OAUTH2_PROXY_UPSTREAMS                            = "http://127.0.0.1:8000"
+    OAUTH2_PROXY_PROVIDER              = "oidc"
+    OAUTH2_PROXY_PROVIDER_DISPLAY_NAME = "Entra ID"
+    OAUTH2_PROXY_OIDC_ISSUER_URL       = "${var.entra_authority_host}/${var.entra_tenant_id}/v2.0"
+    OAUTH2_PROXY_CLIENT_ID             = var.entra_client_id
+    OAUTH2_PROXY_SCOPE                 = "openid profile email offline_access api://${var.entra_api_client_id}/access_as_user"
+    OAUTH2_PROXY_CODE_CHALLENGE_METHOD = "S256"
+    # /chat/ -> CopilotKit app (sidecar), /connections/ -> MCP service (users' own connections),
+    # everything else -> the agent (adk web, /agui). As in docker-compose.yml.
+    OAUTH2_PROXY_UPSTREAMS = "http://127.0.0.1:8000/,http://127.0.0.1:3000/chat/,https://${local.mcp_host}/connections/"
+    # Cloud Run routes by Host: the MCP upstream must get its own host, not the app's.
+    OAUTH2_PROXY_PASS_HOST_HEADER                     = "false"
     OAUTH2_PROXY_HTTP_ADDRESS                         = "0.0.0.0:4180"
     OAUTH2_PROXY_PASS_ACCESS_TOKEN                    = "true"
     OAUTH2_PROXY_SKIP_PROVIDER_BUTTON                 = "true"
@@ -36,7 +43,7 @@ locals {
     OAUTH2_PROXY_EMAIL_DOMAINS                        = "*"
     OAUTH2_PROXY_COOKIE_REFRESH                       = "30m"
     OAUTH2_PROXY_COOKIE_EXPIRE                        = "8h"
-    OAUTH2_PROXY_API_ROUTES                           = "^/(run|run_sse|apps/|list-apps)"
+    OAUTH2_PROXY_API_ROUTES                           = "^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/)"
     OAUTH2_PROXY_REDIRECT_URL                         = "https://${local.app_host}/oauth2/callback"
     OAUTH2_PROXY_COOKIE_SECURE                        = "true"
     OAUTH2_PROXY_REVERSE_PROXY                        = "true" # Cloud Run's front end sets X-Forwarded-*
@@ -46,8 +53,27 @@ locals {
   agent_env = merge(local.vertex_env, local.agent_entra_env, {
     SDLC_MCP_URL     = "https://${local.mcp_host}/mcp"
     SDLC_AGENT_MODEL = var.agent_model
-    HOST             = "127.0.0.1" # reachable only through oauth2-proxy in the same instance
+    # 0.0.0.0, not 127.0.0.1: Cloud Run's startup probes do not connect over loopback. Still private:
+    # only the ingress container's port (oauth2-proxy, 4180) is exposed by a multi-container service.
+    HOST            = "0.0.0.0"
+    SDLC_AGUI_AGENT = "bootstrap" # AG-UI endpoint /agui for the CopilotKit app (version-01 M5)
+    # oauth2-proxy does not pass the browser's Host (PASS_HOST_HEADER=false), so ADK's cross-origin
+    # guard needs the public origin explicitly, or the dev UI's scripts get 403.
+    SDLC_ALLOWED_ORIGINS = "https://${local.app_host}"
+    # Conversations in Agent Engine sessions (sessions.tf), deleted this many days after they start.
+    SDLC_SESSION_SERVICE_URI    = "agentengine://${google_vertex_ai_reasoning_engine.sessions.id}"
+    SDLC_SESSION_RETENTION_DAYS = tostring(var.session_retention_days)
   })
+
+  # CopilotKit chat app sidecar (version-01 M5): forwards only the proxy's token header to /agui.
+  ui_env = {
+    SDLC_AGUI_URL                 = "http://127.0.0.1:8000/agui"
+    HOSTNAME                      = "0.0.0.0" # probes need it; only port 4180 is exposed (see agent_env)
+    PORT                          = "3000"
+    NEXT_TELEMETRY_DISABLED       = "1"
+    COPILOTKIT_TELEMETRY_DISABLED = "true"
+    DO_NOT_TRACK                  = "1"
+  }
 
   jobs_db_env = {
     PGHOST     = local.cloudsql_socket
@@ -157,7 +183,7 @@ resource "google_cloud_run_v2_service" "app" {
     containers {
       name       = "oauth2-proxy"
       image      = local.images.oauth2_proxy
-      depends_on = ["agent"]
+      depends_on = ["agent", "ui"]
       ports {
         container_port = 4180
       }
@@ -208,6 +234,29 @@ resource "google_cloud_run_v2_service" "app" {
         http_get {
           path = "/healthz"
           port = 8000
+        }
+        period_seconds    = 5
+        failure_threshold = 24
+      }
+    }
+
+    containers {
+      name  = "ui"
+      image = local.images.ui
+      resources {
+        limits = { cpu = "1", memory = "512Mi" }
+      }
+      dynamic "env" {
+        for_each = local.ui_env
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+      startup_probe {
+        http_get {
+          path = "/chat/api/healthz"
+          port = 3000
         }
         period_seconds    = 5
         failure_threshold = 24
@@ -292,7 +341,13 @@ resource "google_cloud_run_v2_job" "ingest" {
           limits = { cpu = "1", memory = "1Gi" }
         }
         dynamic "env" {
-          for_each = merge(local.vertex_env, local.entra_env, local.jobs_db_env, { SDLC_ENV = var.env })
+          # Source credentials (spec.credentials {secret: x}) come from Secret Manager at run time
+          # (version-01 M0); the jobs service account needs accessor on each connector secret.
+          for_each = merge(local.vertex_env, local.entra_env, local.jobs_db_env, {
+            SDLC_ENV             = var.env
+            SDLC_SECRETS_BACKEND = "gcp"
+            SDLC_SECRETS_PROJECT = var.project_id
+          })
           content {
             name  = env.key
             value = env.value

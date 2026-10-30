@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from sdlc_ingest.files import GitSourceError, _matches, git_repository, walk_git
+from sdlc_loaders.files import GitSourceError, _matches, git_repository, walk_git
 
 GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"]
 

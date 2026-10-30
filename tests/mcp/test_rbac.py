@@ -28,7 +28,9 @@ PERSONAS = {
 }
 BASICS = {"ping", "whoami"}
 VIEWER = BASICS | {"list_skills", "load_skill", "get_agent_context"}  # registered viewer tools
-DEVELOPER = VIEWER | {"review_code", "generate_tests"}
+# version-01 M6: read with the user's own connection (registered even when connections are off)
+CONNECTED = {"jira_get_issue", "confluence_get_page", "github_get_file", "bitbucket_get_file"}
+DEVELOPER = VIEWER | {"review_code", "generate_tests"} | CONNECTED
 
 
 def client(base_url: str, token: str) -> Client:

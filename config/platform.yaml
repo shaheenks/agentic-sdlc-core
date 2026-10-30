@@ -30,6 +30,10 @@ knowledge:
     thinking_level: low        # optional; "low" is ~4x faster than the default with equal quality here
     relation_types: [depends_on, calls, uses, runs_on, stores_data_in, owns, part_of,
                      implements, documents, alerts, caused_by, mitigated_by, affects]
+  # Hosts that remote sources (https git, Confluence, Jira, ...) may point at: SSRF guard checked by config
+  # validation and on every ingest request and redirect. Exact names or one wildcard label. Empty = none.
+  # User connections (connections.yaml) call these hosts too.
+  allowed_hosts: [api.github.com, api.bitbucket.org, "*.atlassian.net"]
   # PDF pages without a text layer (scans), for sources with spec.ingest.pdf.ocr: gemini (H10).
   # One call per text-less page, cached by page content.
   ocr:

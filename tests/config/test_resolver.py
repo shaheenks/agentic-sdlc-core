@@ -15,6 +15,8 @@ VIEWER_TOOLS = {
     "search_knowledge",
 }
 DEV_TOOLS = VIEWER_TOOLS | {"graph_query", "generate_tests", "review_code"}
+# version-01 M6: read with the user's own connected account
+DEV_TOOLS |= {"jira_get_issue", "confluence_get_page", "github_get_file", "bitbucket_get_file"}
 PAYMENTS_REPOS = {"payments-api", "payments-ui"}
 PLATFORM_REPOS = {"platform-infra", "platform-ci"}
 

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sdlc/v1/ConnectionCatalog",
+  "title": "ConnectionCatalog",
+  "description": "Systems users connect their own accounts to (version-01 M6). Users store a personal access token per connection; MCP tools that declare credentials: {user: <id>} call the system as that user.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "connections"],
+  "properties": {
+    "apiVersion": { "const": "sdlc/v1" },
+    "kind": { "const": "ConnectionCatalog" },
+    "connections": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["provider", "edition", "base_url"],
+        "properties": {
+          "description": { "type": "string" },
+          "provider": {
+            "enum": ["github", "bitbucket", "jira", "confluence", "atlassian"],
+            "description": "atlassian = one Atlassian Cloud site's Jira and Confluence with one API token"
+          },
+          "edition": { "enum": ["cloud", "datacenter"], "description": "github: datacenter = GitHub Enterprise Server" },
+          "base_url": {
+            "type": "string", "pattern": "^https://[^/?#]+(/[^?#]*)?$",
+            "description": "API base: https://api.github.com, https://<ghe>/api/v3, https://api.bitbucket.org, https://<site>.atlassian.net, or the Data Center base URL"
+          },
+          "max_token_days": { "type": "integer", "minimum": 1, "maximum": 400, "description": "longest token lifetime accepted (default 90)" },
+          "token_help": { "type": "string", "description": "shown on the Connections page: token type and minimum scopes" }
+        }
+      }
+    }
+  }
+}

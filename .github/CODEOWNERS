@@ -13,12 +13,17 @@
 /config/roles.yaml                  @shaheenks
 /config/tools.yaml                  @shaheenks
 /config/skills.yaml                 @shaheenks
+/config/connections.yaml            @shaheenks
 /config/schemas/                    @shaheenks
 /config/env/                        @shaheenks
 /libs/sdlc_auth/                    @shaheenks
 /libs/sdlc_policy/                  @shaheenks
 /libs/sdlc_config/                  @shaheenks
 /libs/sdlc_db/                      @shaheenks
+/libs/sdlc_secrets/                 @shaheenks
+/libs/sdlc_connectors/              @shaheenks
+/ingest/loaders/                    @shaheenks
+/ui/copilotkit/                     @shaheenks
 /libs/sdlc_web/                     @shaheenks
 /db/                                @shaheenks
 /infra/                             @shaheenks

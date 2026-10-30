@@ -16,12 +16,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
+from urllib.parse import urlsplit
 
 import yaml
 from jsonschema import Draft202012Validator
 
 from sdlc_config.errors import ConfigError
+from sdlc_config.hosts import host_allowed, url_host
 from sdlc_config.model import (
+    ConnectionDef,
     GroupMap,
     IdentityRef,
     PlatformConfig,
@@ -39,6 +42,18 @@ API_VERSION = "sdlc/v1"
 _VAR = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
 # Used by `validate --dummy-env` so CI can check structure without real tenant values.
 DUMMY_ENV_VALUE = "00000000-0000-0000-0000-000000000000"
+
+# Source types whose loaders use `spec.credentials` (version-01: GCS and Atlassian add themselves
+# as their loaders land). Others must not name a secret they would never read.
+CREDENTIAL_SOURCE_TYPES: frozenset[str] = frozenset({"git", "confluence", "jira"})  # not gcs
+# spec keys only some source types use (everything else in spec is common to all types)
+TYPE_OPTIONS: dict[str, frozenset[str]] = {
+    "confluence": frozenset({"edition", "space", "cql", "attachments"}),
+    "jira": frozenset({"edition", "jql", "fields"}),
+}
+_ALL_OPTIONS = frozenset().union(*TYPE_OPTIONS.values())
+# gs://bucket[/prefix]: bucket names per Cloud Storage naming rules (lowercase, digits, - _ .)
+_GCS_LOCATION = re.compile(r"gs://[a-z0-9][a-z0-9._-]{1,220}[a-z0-9](/[^\s]*)?")
 
 
 @dataclass(frozen=True)
@@ -58,6 +73,7 @@ _KINDS: dict[str, _Kind] = {
     "SkillCatalog": _Kind("skillcatalog.schema.json", "skills.yaml"),
     "Source": _Kind("source.schema.json", "sources/*.yaml", many=True),
     "BlockList": _Kind("blocklist.schema.json", "env/{env}/blocked.yaml", optional=True),
+    "ConnectionCatalog": _Kind("connectioncatalog.schema.json", "connections.yaml", optional=True),
 }
 
 
@@ -121,6 +137,13 @@ def load_snapshot(
         docs["SkillCatalog"][0][1], addon_skills, roles, teams, repo_root, raw_files, problems
     )
     sources = _build_sources(docs["Source"], platform, teams, roles, aliases, problems)
+    connections = _build_connections(docs["ConnectionCatalog"], platform, problems)
+    for tool in tools.values():
+        if tool.user_connection and tool.user_connection not in connections:
+            problems.append(
+                f"tools.yaml: tools/{tool.name}/credentials/user: unknown connection "
+                f"'{tool.user_connection}' (not in connections.yaml)"
+            )
     if problems:
         raise ConfigError(problems)
 
@@ -136,6 +159,7 @@ def load_snapshot(
         teams=MappingProxyType(teams),
         skills=MappingProxyType(skills),
         sources=MappingProxyType(sources),
+        connections=MappingProxyType(connections),
         blocked=MappingProxyType(
             {
                 entry["oid"].lower(): entry["reason"]
@@ -230,6 +254,7 @@ def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
         graph_thinking_level=doc["knowledge"].get("graph", {}).get("thinking_level", ""),
         ocr_model=doc["knowledge"].get("ocr", {}).get("model", ""),
         ocr_thinking_level=doc["knowledge"].get("ocr", {}).get("thinking_level", ""),
+        allowed_hosts=tuple(doc["knowledge"].get("allowed_hosts", [])),
     )
 
 
@@ -261,8 +286,36 @@ def _build_tools(doc: dict, problems: list[str]) -> dict[str, ToolDef]:
             risk=entry["risk"],
             data_scoped=entry.get("data_scoped", False),
             args=frozenset(entry.get("args", {})),
+            user_connection=entry.get("credentials", {}).get("user"),
         )
     return tools
+
+
+def _build_connections(conn_docs, platform, problems) -> dict[str, ConnectionDef]:
+    """connections.yaml (optional): systems users connect their own accounts to (version-01 M6)."""
+    if not conn_docs:
+        return {}
+    rel, doc = conn_docs[0]
+    out = {}
+    for cid, entry in doc["connections"].items():
+        host = url_host(entry["base_url"])
+        if host is None or not host_allowed(host, platform.allowed_hosts):
+            problems.append(
+                f"{rel}: connections/{cid}/base_url: host '{host}' is not in platform.yaml "
+                "knowledge.allowed_hosts"
+            )
+        if entry["provider"] == "atlassian" and entry["edition"] != "cloud":
+            problems.append(f"{rel}: connections/{cid}: provider atlassian is Cloud only")
+        out[cid] = ConnectionDef(
+            id=cid,
+            provider=entry["provider"],
+            edition=entry["edition"],
+            base_url=entry["base_url"].rstrip("/"),
+            description=entry.get("description", ""),
+            max_token_days=int(entry.get("max_token_days", 90)),
+            token_help=entry.get("token_help", ""),
+        )
+    return out
 
 
 EVERYONE = IdentityRef("everyone", "*")
@@ -540,8 +593,55 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             problems.append(f"{rel}: spec/ref: required for git sources (pin a commit)")
         if spec["type"] != "git" and spec.get("ref"):
             problems.append(f"{rel}: spec/ref: only git sources have a ref")
-        if spec["location"].startswith(("http://", "git@", "ssh://")):
+        location = spec["location"]
+        if spec["type"] == "gcs":
+            if not _GCS_LOCATION.fullmatch(location):
+                problems.append(f"{rel}: spec/location: expected gs://<bucket>/<prefix>/")
+        elif location.startswith("gs://"):
+            problems.append(f"{rel}: spec/location: gs:// locations are for gcs sources")
+        elif location.startswith(("http://", "git@", "ssh://")):
             problems.append(f"{rel}: spec/location: only local paths and https URLs are supported")
+        elif location.startswith("https://"):
+            host = url_host(location)
+            if host is None:
+                problems.append(f"{rel}: spec/location: invalid https URL (no credentials in URLs)")
+            elif not host_allowed(host, platform.allowed_hosts):
+                problems.append(
+                    f"{rel}: spec/location: host '{host}' is not in platform.yaml "
+                    "knowledge.allowed_hosts"
+                )
+        provider = spec.get("provider")
+        remote = location.startswith("https://")
+        if provider and (spec["type"] != "git" or not remote):
+            problems.append(f"{rel}: spec/provider: only for git sources with an https location")
+        elif spec["type"] == "git" and remote and not provider:
+            problems.append(
+                f"{rel}: spec/provider: required for https git sources "
+                "(github | bitbucket-cloud | bitbucket-dc)"
+            )
+        elif provider and url_host(location):
+            problems.extend(
+                f"{rel}: spec/location: {p}" for p in _git_url_problems(provider, location)
+            )
+        if spec["type"] == "git" and "credentials" in spec and not remote:
+            problems.append(f"{rel}: spec/credentials: only https git sources use credentials")
+        options = {k: spec[k] for k in sorted(_ALL_OPTIONS) if k in spec}
+        for key in sorted(set(options) - TYPE_OPTIONS.get(spec["type"], frozenset())):
+            problems.append(f"{rel}: spec/{key}: not used by {spec['type']} sources")
+        if spec["type"] == "confluence":
+            problems.extend(f"{rel}: {p}" for p in _atlassian_problems(spec, ("edition", "space")))
+        if spec["type"] == "jira":
+            problems.extend(f"{rel}: {p}" for p in _atlassian_problems(spec, ("edition", "jql")))
+            if re.search(r"\border\s+by\b", spec.get("jql", ""), re.IGNORECASE):
+                problems.append(f"{rel}: spec/jql: no ORDER BY (the loader pages through results)")
+        credentials = None
+        if "credentials" in spec:
+            ((cred_kind, cred_name),) = spec["credentials"].items()
+            credentials = (cred_kind, cred_name)
+            if spec["type"] not in CREDENTIAL_SOURCE_TYPES:
+                problems.append(
+                    f"{rel}: spec/credentials: {spec['type']} sources take no credentials"
+                )
         graph = spec.get("ingest", {}).get("graph", {})
         relation_types = tuple(graph.get("relation_types", platform.graph_relation_types))
         if graph.get("enabled"):
@@ -564,6 +664,9 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             type=spec["type"],
             location=spec["location"],
             ref=spec.get("ref"),
+            credentials=credentials,
+            provider=provider,
+            options=MappingProxyType(options),
             pdf_ocr=pdf.get("ocr", "none"),
             pdf_max_mb=float(pdf.get("max_mb", 50)),
             pdf_max_pages=int(pdf.get("max_pages", 500)),
@@ -581,6 +684,44 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             description=meta.get("description", ""),
         )
     return sources
+
+
+def _atlassian_problems(spec: dict, required: tuple[str, ...]) -> list[str]:
+    """Confluence/Jira sources (version-01 M3-M4): https site, edition, credentials, no globs."""
+    out = [
+        f"spec/{key}: required for {spec['type']} sources" for key in required if key not in spec
+    ]
+    if "credentials" not in spec:
+        out.append(f"spec/credentials: required for {spec['type']} sources")
+    for key in ("include", "exclude"):
+        if key in spec:
+            out.append(f"spec/{key}: not used by {spec['type']} sources (narrow with the query)")
+    parts = urlsplit(spec["location"])
+    if parts.scheme != "https":
+        out.append("spec/location: must be the https base URL of the site")
+    elif spec.get("edition") == "cloud" and spec["type"] == "confluence":
+        if (
+            not (parts.hostname or "").endswith(".atlassian.net")
+            or parts.path.rstrip("/") != "/wiki"
+        ):
+            out.append("spec/location: Confluence Cloud is https://<site>.atlassian.net/wiki")
+    elif spec.get("edition") == "cloud" and spec["type"] == "jira":
+        if not (parts.hostname or "").endswith(".atlassian.net") or parts.path.rstrip("/"):
+            out.append("spec/location: Jira Cloud is https://<site>.atlassian.net")
+    return out
+
+
+def _git_url_problems(provider: str, location: str) -> list[str]:
+    """Remote git URL shapes the deep links rely on (version-01 M1)."""
+    parts = urlsplit(location)
+    segments = [s for s in parts.path.split("/") if s]
+    if provider == "bitbucket-cloud" and parts.hostname != "bitbucket.org":
+        return ["bitbucket-cloud repositories are on bitbucket.org"]
+    if provider in ("github", "bitbucket-cloud") and len(segments) != 2:
+        return [f"expected https://{parts.hostname}/<owner>/<repo>.git"]
+    if provider == "bitbucket-dc" and (len(segments) < 3 or segments[-3] != "scm"):
+        return ["expected https://<host>[/<context>]/scm/<project>/<repo>.git"]
+    return []
 
 
 def _version(raw_files: dict[str, bytes], environ: Mapping[str, str]) -> str:

@@ -13,6 +13,8 @@ Definitions live in:
   - `002_graph.sql` (Stage 6): `entities`, `mentions`, `edges`, `extraction_cache`.
   - `003_media_type.sql` (H10, PDF ingestion): `documents.media_type`; for PDFs the chunks' line columns
     hold page numbers.
+  - `004_item_metadata.sql` (version-01 M0): `documents.title`, `documents.url` (citations), `sync_state`
+    (incremental loader cursors, ingest only).
 
 Related: [ARCHITECTURE.md](ARCHITECTURE.md) "Data access" and "Knowledge graph".
 
@@ -25,7 +27,7 @@ can create objects there). Every role has `search_path = sdlc, public`.
 |---|---|---|---|
 | `sdlc_owner` | `sdlc-db migrate` | Owns schema `sdlc` and every table; runs migrations | No: tables use `FORCE ROW LEVEL SECURITY`, so even the owner sees no rows without context |
 | `sdlc_app` (`PGUSER`) | MCP server | `SELECT` only, on the six knowledge tables | No: reads only rows matching the caller's RLS context |
-| `sdlc_ingest` | `sdlc-ingest` | Read and write knowledge tables and `extraction_cache` | No: its policies allow every row, but it is still subject to RLS |
+| `sdlc_ingest` | `sdlc-ingest` | Read and write knowledge tables, `extraction_cache` and `sync_state` | No: its policies allow every row, but it is still subject to RLS |
 | `postgres` (admin) | `sdlc-db bootstrap`, local inspection | Creates the extension, roles and schema | Locally yes (superuser). On Cloud SQL it is `cloudsqlsuperuser`, not a real superuser |
 
 None of the three application roles is a superuser or has `BYPASSRLS`; `sdlc-db bootstrap` **fails** if any
@@ -59,6 +61,8 @@ erDiagram
         text path "unique per source"
         text content_hash "sha256: skip unchanged files"
         text media_type "text/plain or application/pdf"
+        text title "nullable: item title (004)"
+        text url "nullable: deep link (004)"
         int classification_rank
         timestamptz ingested_at
     }
@@ -101,8 +105,8 @@ erDiagram
     }
 ```
 
-Two standalone tables have no relationships: `extraction_cache` (ingest only) and `schema_migrations`
-(migration bookkeeping).
+Standalone tables: `extraction_cache` and `sync_state` (ingest only; `sync_state` rows cascade with their
+source) and `schema_migrations` (migration bookkeeping).
 
 ## 3. Tables
 
@@ -133,6 +137,8 @@ One row per ingested file.
 | `path` | `text` | Path relative to the source root; `UNIQUE (source_id, path)` |
 | `content_hash` | `text` | SHA-256 of the file: unchanged files are skipped on re-ingest |
 | `media_type` | `text` | `text/plain` (default) or `application/pdf` (003). Decides how `chunks.start_line`/`end_line` are read |
+| `title` | `text` (nullable) | Item title in its source system (004): Confluence page, Jira issue. Returned by search as `title` |
+| `url` | `text` (nullable) | https deep link to the item (004). Returned by search as `url`. A changed title/URL with unchanged content is updated without re-embedding |
 | `classification_rank` | `integer` | Stamped from the source |
 | `ingested_at` | `timestamptz` | |
 
@@ -201,6 +207,18 @@ Cached graph-extraction results, so re-ingesting unchanged text makes no model c
 
 Ingest only: `sdlc_app` has no grant on it at all. It caches two kinds of model output: graph extractions and
 the text the model read from scanned PDF pages (`ocr:` keys, `{text, model}`).
+
+### `sync_state` (004)
+Where an incremental loader resumes (version-01 M0).
+
+| Column | Type | Notes |
+|---|---|---|
+| `source_id` | `text` PK, FK → `sources.id` | Cascade on delete |
+| `cursor` | `jsonb` | Loader-defined: e.g. `{"commit": "<sha>"}` (git), an "updated since" timestamp, object generations |
+| `last_synced_at` | `timestamptz` | Last successful run |
+
+Ingest only: RLS enabled and forced, a policy for `sdlc_ingest` only, no grant to `sdlc_app`. The cursor is
+saved only after a run without errors, so failed items are retried; `--force` ignores it.
 
 ### `schema_migrations` (created by `sdlc-db migrate`)
 | Column | Type | Notes |
