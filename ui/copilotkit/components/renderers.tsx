@@ -96,6 +96,11 @@ function ConnectedResult({ result, label }: { result: unknown; label: string }) 
         <span>with your {String(payload.connection ?? "")} account</span>
         {payload.truncated === true && <span>truncated</span>}
       </div>
+      {typeof payload.connection_warning === "string" && (
+        <div className="conn-state warn">
+          {payload.connection_warning} <a href="/chat/connections">Connections</a>
+        </div>
+      )}
     </div>
   );
 }

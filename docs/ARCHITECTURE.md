@@ -278,6 +278,16 @@ middleware keeps every user to their own sessions whatever the store.
 agent container mounts (`sqlite:////data/sessions.db`, volume `agent-sessions`), conversations idle
 for more than `SDLC_SESSION_RETENTION_DAYS` (7) are deleted with their events at startup and daily.
 
+**GCP (version-01 M8, 2026-10-30): Vertex AI Agent Engine sessions.** One reasoning engine per
+environment, used only as a session store (`infra/gcp/sessions.tf`, no deployed code, no memory
+bank), in the deployment region. The agent gets
+`SDLC_SESSION_SERVICE_URI=agentengine://projects/<p>/locations/<region>/reasoningEngines/<id>`
+(full resource name only: the model location is `global`, the engine is regional) and
+`sdlc_web.sessions` sets a TTL of `SDLC_SESSION_RETENTION_DAYS` on every new session, so retention
+counts from the start of a conversation. Agents still hold no DB credentials; the app service
+account reaches the engine with `roles/aiplatform.user`. Conversations survive restarts and
+redeploys, which also removes the single-instance limit of the in-memory store.
+
 The options stay open; they were weighed as follows:
 
 | Option | How | Pros | Cons / conditions | Fits |
@@ -286,7 +296,7 @@ The options stay open; they were weighed as follows:
 | **SQLite on an agent-only volume** (current) | `sqlite:////data/sessions.db` + retention job | No DB credentials for agents; no new service; survives restarts | One instance only (file lock); volume backup is manual | local dev; single-instance staging |
 | Separate Postgres database | `postgresql+asyncpg://…` to a dedicated `sdlc_sessions` DB and role that can reach nothing else | Scales out; standard ADK `DatabaseSessionService`; backups with the DB | Agents would hold DB credentials: an explicit, narrow exception to the "agents get no DB credentials" rule (needs a decision + CLAUDE.md change); asyncpg driver; retention via SQL job | self-hosted multi-instance |
 | Session API via the MCP server | Custom ADK `BaseSessionService` calling MCP tools; the MCP server stores sessions per `oid` | Agents stay credential-free and scale out; server-side audit of history access | Custom code in the agent path; extra latency per turn; not a standard ADK store | multi-instance without agent credentials |
-| Vertex AI Agent Engine sessions | `agentengine://<engine id>` (or `GOOGLE_CLOUD_AGENT_ENGINE_ID`) | Managed, scales, IAM via the service identity; the store Gemini Enterprise uses | GCP only (deferred with Stage 7); TTL/retention configured in Agent Engine; data residency by region | GCP staging/prod, Gemini Enterprise |
+| **Vertex AI Agent Engine sessions** (GCP) | `agentengine://projects/…/reasoningEngines/<id>` (full resource name) | Managed, scales, IAM via the service identity; the store Gemini Enterprise uses | GCP only (deferred with Stage 7); TTL/retention configured in Agent Engine; data residency by region | GCP staging/prod, Gemini Enterprise |
 
 Switching is configuration plus infrastructure (URI, volume or database, retention), not agent
 code, except for the MCP session API. Whatever the store: retention must be set, content capture in
@@ -319,9 +329,10 @@ promotion arrive with GCP (Stage 7b).
 
 | Environment | Where it runs | How users reach it | TLS / DNS |
 |---|---|---|---|
-| **Development** (`dev`; config env `local`) — **the current phase** | Docker Compose on a developer machine | **Both**: `localhost` (4180 UI, 8080 MCP) for the developer, and a **Cloudflare Tunnel** for testers: `app-sdlc-dev.shaheenks.co.in`, `mcp-sdlc-dev.shaheenks.co.in` | Localhost: plain HTTP (Entra allows `http://localhost` callbacks). Tunnel: TLS ends at Cloudflare's edge (Universal SSL); outbound-only connector, no inbound ports |
+| **Development, local** (config env `local`) — **the current phase** | Docker Compose on a developer machine | **Both**: `localhost` (4180 UI, 8080 MCP) for the developer, and a **Cloudflare Tunnel** for testers: `app-sdlc-dev.shaheenks.co.in`, `mcp-sdlc-dev.shaheenks.co.in` | Localhost: plain HTTP (Entra allows `http://localhost` callbacks). Tunnel: TLS ends at Cloudflare's edge (Universal SSL); outbound-only connector, no inbound ports |
 | **Higher environments** (staging, prod) | GCP (Stage 7): Cloud Run / load balancer | **Hosted directly** on their own public hostnames. **No tunnel and no localhost access** | DNS **CNAME** to the platform endpoint (Cloud Run domain mapping or load balancer) and a **managed certificate** (Google-managed or Cloudflare edge + origin certificate) |
-| **Staging** (`staging`, Stage 7a; **designed, deployment deferred**) | GCP `cloud-migration-agent` / `asia-south1`, Cloud Run | Cloud Run's own `https://sdlc-app-staging-<project number>.asia-south1.run.app` and `sdlc-mcp-staging-…` URLs (temporary exception: custom hostnames later) | Google-managed TLS on `*.run.app`; no DNS records yet |
+| **Development on GCP** (config env `dev`; version-01 M7, deployed 2026-10-28) | GCP `sdlc-demo-env01` / `asia-southeast1`, Cloud Run | Cloud Run's own `https://sdlc-app-dev-<project number>.asia-southeast1.run.app` and `sdlc-mcp-dev-…` URLs (temporary exception: custom hostnames later) | Google-managed TLS on `*.run.app`; no DNS records |
+| **Staging, prod** | Designed (Stage 7), not deployed | — | — |
 
 Rules that follow from this:
 - **Dev needs both paths.** Two oauth2-proxy instances share one Entra client: `oauth2-proxy`
@@ -343,14 +354,14 @@ Details for dev exposure: [CLOUDFLARE_TUNNEL.md](misc/CLOUDFLARE_TUNNEL.md). GCP
 
 ## 8. Deployment views
 
-| Aspect | Development: local + Cloudflare Tunnel (current phase) | Higher environments on GCP (Stage 7+, deferred) |
+| Aspect | Development: local + Cloudflare Tunnel (current phase) | GCP (dev since version-01 M7; staging/prod later) |
 |---|---|---|
-| Agent | `agent-bootstrap` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` or publicly via Cloudflare Tunnel (host connector) → `oauth2-proxy-public` (localhost:4181) at `https://app-sdlc-dev.shaheenks.co.in` | Cloud Run service `sdlc-app-<env>`: oauth2-proxy ingress container + agent sidecar on `127.0.0.1:8000` (1 instance); later Vertex AI Agent Engine (Gemini Enterprise) |
+| Agent | `agent-bootstrap` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` or publicly via Cloudflare Tunnel (host connector) → `oauth2-proxy-public` (localhost:4181) at `https://app-sdlc-dev.shaheenks.co.in` | Cloud Run service `sdlc-app-<env>`: oauth2-proxy ingress container + agent sidecar (`:8000`, `/agui`) + CopilotKit chat app sidecar (`:3000`, `/chat/`), 1 instance; later Agent Runtime (Gemini Enterprise) |
 | MCP server | `mcp-bootstrap` container (`localhost:8080`; public `https://mcp-sdlc-dev.shaheenks.co.in/mcp` via Cloudflare Tunnel) | Cloud Run service `sdlc-mcp-<env>` (public, stateless, scales out; Entra token is the gate) |
 | Database | `postgres` container (pgvector, `127.0.0.1:5432`) | Cloud SQL for PostgreSQL 17 + pgvector via the Cloud SQL connector only (no authorized networks; private IP later); roles/RLS by the `sdlc-db-setup` job |
 | Ingest | CLI in container (on demand, profile `ingest`; `.git` mounted read-only for git sources) | Cloud Run Job `sdlc-ingest-<env>` |
 | Config | bind-mounted `config/`, file-watch reload (local bundles optional) | 7a: baked into the image per release, tenant `groups.yaml` from Secret Manager; 7b: GCS bundle + `current` pointer, Pub/Sub reload |
-| Conversations | SQLite on the agent-only `agent-sessions` volume, 7-day retention | 7a: in memory (1 instance); later Agent Engine sessions (see "Conversation storage") |
+| Conversations | SQLite on the agent-only `agent-sessions` volume, 7-day retention | Vertex AI Agent Engine sessions (version-01 M8), retention from conversation start (see "Conversation storage") |
 | Tracing | Jaeger (profile `observability`, UI on `localhost:16686`) | Cloud Trace via OTLP (planned) |
 | Secrets | `.env` | Secret Manager |
 | Model | Gemini API key or ADC | Vertex AI via each workload's service account (no key files) |

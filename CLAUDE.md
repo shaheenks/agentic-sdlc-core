@@ -115,8 +115,8 @@ See "Runtime Config Exposure" in docs/plans/version-00.md.
 
 ## Environments and endpoints
 See ARCHITECTURE.md §7.
-- **Current phase: development only.** Everything runs on localhost + the Cloudflare Tunnel. GCP (Stage 7) is designed and
-  required later, but deferred: do not create or change GCP resources unless the user asks.
+- **Current phase: development.** Local dev runs on localhost + the Cloudflare Tunnel; GCP dev (below) runs on Cloud Run.
+  Do not create or change GCP resources unless the user asks.
 - **Development** must work on **both** `localhost` (UI :4180, MCP :8080) **and** the Cloudflare Tunnel
   (`app-sdlc-dev` / `mcp-sdlc-dev.shaheenks.co.in`). Keep both oauth2-proxy instances and both Entra callbacks working;
   test changes to sign-in, cookies or URLs on both paths.
@@ -189,7 +189,7 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
   `sdlc-db bootstrap` + `migrate`, terraform fmt/validate). No secrets or cloud calls in CI; tests must pass without `.env`
   (placeholder Entra IDs, example GroupMap, HashEmbedder, FakeEntra).
 - `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values)
-- `.\scripts\gcp_deploy.ps1 -EnvName staging -Step state|base|images|plan|apply|db|ingest|urls`   GCP deployment (see
+- `.\scripts\gcp_deploy.ps1 -EnvName dev -Step state|base|images|plan|apply|db|ingest|urls`   GCP deployment, run by the user (see
   docs/GCP_DEPLOYMENT.md). PowerShell, not bash (Windows). Commit first: images and plan use the commit SHA as tag.
   `base`/`apply` create billable resources: only with the user's go-ahead. The saved plan contains secrets (git-ignored,
   deleted by `apply`).
@@ -217,7 +217,7 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
 - Gemini runs on Vertex AI via gcloud ADC (project `cloud-migration-agent`, location `global`, model `gemini-3.8-flash`). ADC has no quota project, so `.env` sets `GOOGLE_CLOUD_QUOTA_PROJECT`. The agent container gets only the ADC file, mounted at `/secrets/adc.json`.
 - Python 3.12 (`.python-version`); ruff formats code only, not markdown snippets.
 - Agent conversations: `SDLC_SESSION_SERVICE_URI` (compose: SQLite on the agent-only `agent-sessions` volume, 7-day
-  retention). Options and trade-offs (Postgres, MCP session API, Agent Engine): ARCHITECTURE.md "Conversation storage".
+  idle retention; GCP: Agent Engine sessions, `agentengine://` + full resource name, TTL from conversation start, `sdlc_web.sessions`). Options and trade-offs (Postgres, MCP session API, Agent Engine): ARCHITECTURE.md "Conversation storage".
 - Only MCP servers and ingest get DB credentials. Agent containers get an explicit env allow-list, never the whole `.env`.
 - Tests: `--import-mode=importlib` + `pythonpath=["."]`; shared helpers live in `tests/support/` (e.g. `FakeEntra` mints
   Entra-shaped RS256 tokens), fixtures in `tests/conftest.py`. MCP server tests run a real uvicorn server in a thread.

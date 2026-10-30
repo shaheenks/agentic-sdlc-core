@@ -183,6 +183,23 @@ async def test_tools_use_the_callers_connection(env, entra, caplog):
     assert PAT not in caplog.text
 
 
+async def test_a_token_close_to_expiry_adds_a_warning(env, entra):
+    url, _, _ = env
+    first = (await call(url, entra, OID_A, "jira_get_issue", {"key": "PAY-7"})).structured_content
+    assert "connection_warning" not in first  # not connected: the answer says so instead
+    connect(url, headers(entra, OID_A))  # 30 days left: no warning
+    ok = (await call(url, entra, OID_A, "jira_get_issue", {"key": "PAY-7"})).structured_content
+    assert "connection_warning" not in ok
+    soon = (datetime.now(UTC).date() + timedelta(days=3)).isoformat()
+    connect(url, headers(entra, OID_A), expires=soon)
+    result = (await call(url, entra, OID_A, "jira_get_issue", {"key": "PAY-7"})).structured_content
+    assert result["summary"] == "Ledger outage"
+    assert "in 3 days" in result["connection_warning"]
+    assert (
+        soon in result["connection_warning"] and "/chat/connections" in result["connection_warning"]
+    )
+
+
 async def test_denied_callers_never_read_the_user_secret(env, entra):
     url, _, reads = env
     connect(url, headers(entra, OID_A))

@@ -6,8 +6,9 @@ the user's secret. There is never a fallback to a service credential: without a 
 connection the tool answers "not connected" with where to connect.
 
 Provider content is untrusted (it can contain prompt-injection text): it is returned as data with
-a note saying so. The audit record (tool_call) gets `credential: user`, the connection id and the
-outcome (ok | not_connected | rejected | provider_error), never token values.
+a note saying so. A token that expires within 14 days adds `connection_warning` to the answer (the
+Connections page shows the same). The audit record (tool_call) gets `credential: user`, the
+connection id and the outcome (ok | not_connected | rejected | provider_error), never token values.
 """
 
 import asyncio
@@ -115,7 +116,16 @@ def make_connected_tools(connected: Connected) -> list[Callable]:
                 ) from None
             raise ToolError(f"{conn.provider} did not answer the request ({e.status})") from None
         audit["connection_outcome"] = "ok"
-        return {"connection": cid, "note": UNTRUSTED_NOTE, **data}
+        result = {"connection": cid, "note": UNTRUSTED_NOTE, **data}
+        days = credential.days_left()
+        if days is not None:
+            when = "today" if days == 0 else f"in {days} day{'s' if days != 1 else ''}"
+            result["connection_warning"] = (
+                f"Your {conn.description or cid} token expires {when} "
+                f"({credential.expires_at.isoformat()}). Create a new token and connect it on the "
+                f"Connections page ({connected.page_url})."
+            )
+        return result
 
     async def jira_get_issue(key: str) -> dict:
         """Read one Jira issue (e.g. PAY-123) with YOUR Jira account: summary, status, type,

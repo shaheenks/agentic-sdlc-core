@@ -7,7 +7,7 @@ PDFs and a knowledge graph) lives in Postgres + pgvector behind row-level securi
 
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Database: [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md)
 - Plans: [current: version-01](docs/plans/version-01.md) (new sources, AG-UI web app, per-user connections; Gemini Enterprise deferred) · [history: version-00](docs/plans/version-00.md)
-- Setup runbooks: [Entra ID](docs/misc/ENTRA_SETUP.md) · [Cloudflare Tunnel](docs/misc/CLOUDFLARE_TUNNEL.md) · [GCP (deferred)](docs/GCP_DEPLOYMENT.md)
+- Setup runbooks: [Entra ID](docs/misc/ENTRA_SETUP.md) · [Cloudflare Tunnel](docs/misc/CLOUDFLARE_TUNNEL.md) · [GCP (dev)](docs/GCP_DEPLOYMENT.md)
 - Working rules for contributors and coding agents: [CLAUDE.md](CLAUDE.md)
 
 ## Prerequisites
@@ -123,7 +123,7 @@ application roles see only what row-level security allows (see [docs/DATABASE_SC
 | `.\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> -DryRun` | Preview Entra provisioning (apps, groups, assignments, redirect URIs); drop `-DryRun` to apply (admin rights) |
 | `uv run python scripts/mcp_whoami.py --token <entra token>` | Call `whoami` on the MCP server with a user token |
 | `uv run python scripts/make_sample_pdfs.py` | Regenerate the sample PDFs (deterministic) |
-| `.\scripts\gcp_deploy.ps1 -EnvName staging -Step <step>` | GCP deployment (deferred; creates billable resources) |
+| `.\scripts\gcp_deploy.ps1 -EnvName dev -Step <step>` | GCP deployment (dev; creates billable resources; run by the owner) |
 
 ## Troubleshooting
 

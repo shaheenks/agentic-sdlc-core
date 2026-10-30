@@ -48,9 +48,21 @@ class Credential:
     connection: ConnectionDef
     token: str
     username: str | None
+    expires_at: date | None = None
 
     def __repr__(self) -> str:
         return f"Credential(connection={self.connection.id!r}, token=***)"
+
+    def days_left(self, today: date | None = None) -> int | None:
+        """Days until the token expires when that is within the warning window, else None."""
+        today = today or _now().date()
+        if expiring_soon(self.expires_at, today):
+            return (self.expires_at - today).days
+        return None
+
+
+def expiring_soon(expires: date | None, today: date) -> bool:
+    return bool(expires and today <= expires <= today + timedelta(days=EXPIRY_WARNING_DAYS))
 
 
 def process_locks() -> Callable[[str], AbstractAsyncContextManager[None]]:
@@ -132,9 +144,7 @@ class ConnectionService:
                 item.update(entry.public())
                 expires = date.fromisoformat(entry.expires_at) if entry.expires_at else None
                 item["expired"] = bool(expires and expires < today)
-                item["expiring_soon"] = bool(
-                    expires and today <= expires <= today + timedelta(days=EXPIRY_WARNING_DAYS)
-                )
+                item["expiring_soon"] = expiring_soon(expires, today)
             out.append(item)
         return out
 
@@ -213,9 +223,10 @@ class ConnectionService:
             raise NotConnected(conn.id, "not connected")
         if entry.status != "ok":
             raise NotConnected(conn.id, "the provider rejected the saved token; connect again")
-        if entry.expires_at and date.fromisoformat(entry.expires_at) < _now().date():
+        expires = date.fromisoformat(entry.expires_at) if entry.expires_at else None
+        if expires and expires < _now().date():
             raise NotConnected(conn.id, "the saved token has expired; connect again")
-        return Credential(conn, entry.token, entry.username)
+        return Credential(conn, entry.token, entry.username, expires)
 
     async def mark_invalid(self, oid: str, connection_id: str) -> None:
         """The provider answered 401/403 for the saved token (revoked, rotated, scopes)."""

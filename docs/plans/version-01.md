@@ -29,12 +29,13 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | M5 — AG-UI web app (CopilotKit) | ✅ Done (2026-10-28); browser check passed on localhost and the tunnel | `/agui` in `sdlc_web` (spike, §3.3) + `ui/copilotkit` (Next.js 16, CopilotKit 1.79.0) at `/chat/` behind oauth2-proxy; header allowlist, no thread storage in Node, citation cards, CSP; CI job |
 | M6 — User connections (on behalf of the user) | ✅ Done (2026-10-28); GitHub + Bitbucket Cloud verified live; Jira/Confluence and all DC editions not tested (no instance) | `libs/sdlc_connectors` (providers, per-user secret store: file/Secret Manager, service), `connections.yaml`, `/connections/` API on the MCP server, Connections page `/chat/connections`, tools `jira_get_issue`, `confluence_get_page`, `github_get_file`, `bitbucket_get_file`; Terraform custom role on the user-secret prefix |
 | M7 — GCP dev (was: staging) | ✅ Deployed and checked (2026-10-28); ingest deferred | Project `sdlc-demo-env01`, `asia-southeast1`, env `dev` (§5.1). Services ready, sign-in, `/chat/` and `/dev-ui/` checked in the browser; `sdlc-db-setup-dev` succeeded (schema + RLS); **ingest not run: sources config to be updated first**; Entra dev callback registered |
-| M8 — Hardening, evals, docs | ⏳ | Version-01 exit gate |
+| M8 — Hardening, evals, docs | 🔄 In progress (2026-10-30) | Scope in §10: Agent Engine conversation store on GCP, connection-tool gaps, docs as-built, exit-gate checklist. Sources, live checks, block list and secret management moved to the pending list (§10.3) |
 | Deferred — Gemini Enterprise | ⏸ Later version | WIF sign-in, Agent Runtime, Gemini Enterprise authorization (§6) |
 
-**Next:** update `config/sources/` for the dev environment, then run the `sdlc-ingest-dev` job (`gcp_deploy.ps1 -EnvName dev -Step ingest`; config is baked into the image, so rebuild images + plan + apply after changing sources). Then M8 (hardening, evals, docs). Open from M6: live checks of Jira/Confluence Cloud
-and every Data Center edition (§4.9), the reconcile job (§4.7). Commits: M0 `91218d2`, M1 `9f8b324`, M2 `b7e72b7`, M3 `28ebf3b`,
-M4 `50ef071`, M5 spike `6c94829`, M5 app `6c0d85b` + fix `ccdc8f5`, M6 part 1 `6dad7e6` (branch `version-01`). Connectors are tested against local repositories and fake APIs (recorded
+**Next:** M8 (§10). The dev sources update and the `sdlc-ingest-dev` run are pending (§10.3), as are live checks of Jira/Confluence
+Cloud and every Data Center edition (§4.9) and the reconcile job (§4.7). Commits (branch `version-01`): M0 `91218d2`, M1 `9f8b324`,
+M2 `b7e72b7`, M3 `28ebf3b`, M4 `50ef071`, M5 spike `6c94829`, M5 app `6c0d85b` + fix `ccdc8f5`, M6 part 1 `6dad7e6` + part 2
+`5df7946`, M7 retarget `0b6f0a9` + fixes `bffe7d8`, `0b795a5`. Connectors are tested against local repositories and fake APIs (recorded
 response shapes) only; the live checks are listed in §7.
 
 ## Decisions (2026-10-17)
@@ -43,7 +44,7 @@ response shapes) only; the live checks are listed in §7.
 |---|---|
 | Atlassian editions | **Both** Cloud and Data Center/Server: one connector per product with an `edition: cloud \| datacenter` switch |
 | Access model | **Config access only**, as today: each space, project, repository or bucket prefix is a `Source` with `access` + `classification`. Native ACLs are **not** mirrored; items with native restrictions are **excluded at ingest** (§2.6) |
-| GCP | **Resume in version-01**: Stage 7a staging (M7) after the AG-UI app (M5) and user connections (M6) work locally. Connectors are built and tested locally first (M0–M4) |
+| GCP | **Resume in version-01**: Stage 7a (M7; retargeted to the **dev** environment on 2026-10-28, §5.1) after the AG-UI app (M5) and user connections (M6) work locally. Connectors are built and tested locally first (M0–M4) |
 | User front end (2026-10-28) | **AG-UI + CopilotKit** in version-01, served by `sdlc_web` behind oauth2-proxy (Entra). adk web stays the developer UI (`/dev-ui/`). **Gemini Enterprise deferred** to a later version (§6): it needs an org admin, a workforce pool and licences, while AG-UI needs nothing beyond today's Entra setup |
 | Global secrets (2026-10-28) | Config **names** a secret (`env:` or `secret:`), `libs/sdlc_secrets` resolves it at runtime (`.env` locally, Secret Manager API on GCP) with a short cache, so rotation needs no redeploy. Secrets needed at startup (DB passwords, Entra values, `groups.yaml`, `blocked.yaml`) stay Cloud Run env/file mounts (§4.2) |
 | User secrets (2026-10-28) | **One Secret Manager secret per user holding a JSON directory** of that user's connections (50–100 users, ≤ 5 connections each). Read and written **only by the MCP server**, after the policy check; writes serialised per user (§4.3) |
@@ -451,8 +452,9 @@ open for M7: whether the IAM condition on the name prefix covers `secrets.create
   invalid. The `tool_call` audit record adds `credential: user`, `connection`, `connection_outcome`.
 - **UI:** Connections page `/chat/connections` (token, account email where needed, expiry date; GitHub's expiry comes
   from the provider); the chat renders "account not connected" with a link, and results with their link.
-- **Not built yet:** the reconcile job of §4.7 (blocked users, expired tokens, users not seen for 90 days); the
-  14-day expiry warning shows on the Connections page only (`expiring_soon`), not in tool answers.
+- **Not built yet:** the reconcile job of §4.7 (blocked users, expired tokens, users not seen for 90 days). The
+  14-day expiry warning shows on the Connections page (`expiring_soon`) and, since M8, in tool answers
+  (`connection_warning`).
 - **Data Center connections — supported in code, not configured (gaps, 2026-10-28):**
   - Code: `providers.py` handles `edition: datacenter` for Bitbucket (HTTP access token, Bearer), Jira (PAT, Bearer,
     REST v2, wiki markup) and Confluence (PAT, Bearer, no `/wiki` prefix); DC tokens report no expiry, so the user
@@ -466,8 +468,9 @@ open for M7: whether the IAM condition on the name prefix covers `secrets.create
     change: several connections per tool, chosen by a `connection` argument or by the item's site.
   - **No combined DC connection:** `provider: atlassian` (one token for Jira + Confluence) is Cloud-only; on DC users
     enter one PAT per product.
-  - **Tests:** Jira DC and Bitbucket DC verification run against fakes; **Confluence DC has no test yet** (only Cloud);
-    no DC read tool (`jira_issue` v2, `confluence_page`, `bitbucket_file` raw) is tested against a DC-shaped fake.
+  - **Tests:** verification for all three DC products and the three DC read tools (`jira_issue` v2 + wiki markup,
+    `confluence_page` without `/wiki`, `bitbucket_file` raw at a ref) run against DC-shaped fakes with context paths
+    (added in M8).
   - **Unverified:** the Bitbucket DC "who am I" endpoint (`/plugins/servlet/applinks/whoami`) is not in Atlassian's
     REST docs: check first against a live instance; fallback = an authenticated REST call that returns the user.
   - Live checks for all three need a DC test instance with PATs enabled (§8, M6 row).
@@ -478,9 +481,9 @@ work**. Found on the way: Bitbucket Cloud refuses unscoped Atlassian API tokens 
 and the page help now name the needed token type, scopes and username. **Not tested (no instance available):** Jira
 and Confluence Cloud (`atlassian` connection), and every Data Center edition (§4.9).
 
-## 5. GCP staging (M7, resumes Stage 7a)
+## 5. GCP (M7, resumes Stage 7a; dev environment since 2026-10-28, §5.1)
 
-As designed in [../GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md), with what changed since:
+Originally planned as staging. As designed in [../GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md), with what changed since:
 - Rebuild images (the pushed `57f55cc3ef68` images predate H1–H10); run `db` for migrations 003–004.
 - Terraform already done in M0–M2: the ingest job reads `{secret: ...}` source credentials from Secret Manager
   (`SDLC_SECRETS_BACKEND=gcp`, `SDLC_SECRETS_PROJECT`); `gcs_source_buckets` → `roles/storage.objectViewer` per bucket
@@ -610,7 +613,7 @@ pre-authorization outside dev). Group overage: configure the Graph fallback or a
   `X-SDLC-Agent-Session` (FakeEntra + a stub MCP server, as in the existing `sdlc_web` tests).
 - **AG-UI gate (version-01 exit):**
   1. A pilot user signs in to the CopilotKit app with their Entra account on **both** `localhost:4180` and the tunnel
-     (`app-sdlc-dev`), and on the staging URL after M7.
+     (`app-sdlc-dev`), and on the GCP dev URL (§5.1).
   2. The same user gets an **identical `whoami(explain)`** and tool list in the AG-UI app, adk web and Antigravity
      (compared in the MCP audit log).
   3. Answers cite Confluence/Jira/GitHub sources by URL, rendered as citation cards; a user without access to a source
@@ -637,7 +640,7 @@ pre-authorization outside dev). Group overage: configure the Graph fallback or a
 | Needed | For | Who |
 |---|---|---|
 | Read-only tokens: GitHub fine-grained PAT, Bitbucket Cloud repository access token, Bitbucket DC HTTP access token | M1 live check (deferred) | Repo owners |
-| A GCS bucket with sample documents (creating one in `cloud-migration-agent` needs your go-ahead) | M2 live check (deferred) | GCP project owner |
+| A GCS bucket with sample documents (creating one in `sdlc-demo-env01` needs your go-ahead) | M2 live check (deferred) | GCP project owner |
 | Atlassian Cloud test site + a Confluence/Jira Data Center test instance, service accounts with tokens | M3–M4 live check (deferred) | Atlassian admin |
 | Nothing new for AG-UI: it reuses the `sdlc-client` app and both existing callbacks | M5 | — |
 | Test users able to create PATs on each test instance (GitHub, Bitbucket, Atlassian Cloud and DC); PATs enabled on the DC instances | M6 | Repo owners / Atlassian admin |
@@ -685,3 +688,63 @@ pre-authorization outside dev). Group overage: configure the Graph fallback or a
   tools need policy, UI confirmation and their own review.
 - **Deferred Gemini Enterprise:** identity mismatch (WIF subject = `oid`) and org-level prerequisites (workforce pool,
   licences) move with it to the later version.
+
+## 10. M8 — Hardening, evals, docs (started 2026-10-30)
+
+Scope agreed on 2026-10-30: everything that does not need the dev sources or live third-party instances. Those, the
+block list and secret management are reviewed later (§10.3).
+
+### 10.1 Work items
+| # | Item | Status |
+|---|---|---|
+| 1 | **Conversation store on GCP: Vertex AI Agent Engine sessions** (decision 2026-10-30; §10.2) | ✅ Built (2026-10-30): `sdlc_web.sessions`, `infra/gcp/sessions.tf`, tests `tests/web/test_sessions.py`. **To apply (user):** `images` + `plan` + `apply`, then check a conversation survives a new revision |
+| 2 | Connection tools: the 14-day expiry warning in tool answers (today only on the Connections page, §4.9) | ✅ Built (2026-10-30): `Credential.expires_at` / `days_left()`, `connection_warning` in connected tool answers, shown under the result in the chat |
+| 3 | Data Center test gaps (§4.9): Confluence DC connect check; DC-shaped fakes for `jira_get_issue` (REST v2, wiki markup), `confluence_get_page` (no `/wiki`), `bitbucket_get_file` (DC raw) | ✅ Done (2026-10-30): 6 tests in `tests/connectors/test_user_connections.py`, every base URL with a context path; no code change needed. The Bitbucket DC "who am I" endpoint stays unverified until a live instance |
+| 4 | Docs as-built for version-01: ARCHITECTURE (§5 conversation storage, §7 environments: dev on GCP), GCP_DEPLOYMENT runbook, READMEs, CLAUDE.md | ✅ Done (2026-10-30): GCP_DEPLOYMENT rewritten for dev (status, architecture with chat app + Agent Engine + user secrets, IAM, runbook, verification); ARCHITECTURE §5/§7/§8, README, infra/README, CLOUDFLARE_TUNNEL, CLAUDE.md |
+| 5 | Exit-gate checklist (§7 AG-UI gate) on localhost, the tunnel and the GCP dev URL: items 1, 2, 4 and the GitHub part of 5 (run by the user in the browser; §10.4) | ⏳ Waiting for the M8 apply on GCP |
+
+### 10.2 Agent Engine sessions (GCP)
+- **Why:** on GCP the agent keeps conversations in memory (`app_max_instances = 1`, history lost on every restart or
+  redeploy). Agent Engine sessions are managed, scale out and keep agents free of DB credentials; it is also the store
+  Gemini Enterprise uses later (§6). Chosen over a sessions database on Cloud SQL (would need agent DB credentials).
+- **Infra (Terraform, the user applies):** one `google_vertex_ai_reasoning_engine` per environment used only for sessions
+  (no deployed code, no memory bank), in the deployment region (`asia-southeast1` supports Sessions). The agent gets
+  `SDLC_SESSION_SERVICE_URI=agentengine://projects/<p>/locations/<region>/reasoningEngines/<id>`; the app service account
+  already holds `roles/aiplatform.user`.
+- **Code (`sdlc_web`):** registers its own `agentengine` session factory with ADK's service registry, so adk web and
+  `/agui` share one store. It accepts only the full resource name (the model's `GOOGLE_CLOUD_LOCATION` is `global`, the
+  engine is regional) and sets a TTL of `SDLC_SESSION_RETENTION_DAYS` on every new session. Retention is therefore
+  counted from the start of a conversation, not from its last turn (SQLite locally: idle time).
+- **Ownership:** unchanged. The user id is the token's `oid`; Agent Engine filters sessions by user id, and the
+  middleware still checks every session route. AG-UI threads map to Agent Engine's numeric session ids through
+  `ag_ui_adk`'s thread-id-in-state lookup.
+- Locally nothing changes (SQLite on the agent-only volume).
+
+### 10.3 Pending (outside M8 for now)
+- **Sources (dev):** update `config/sources/` for GCP dev (`sdlc-platform` reads a local `.git`: https location or drop it),
+  `images` + `plan` + `apply`, then the `sdlc-ingest-dev` job. With it: source credentials as Secret Manager secrets
+  (`{secret: name}` is looked up as the secret id `name` itself, no `sdlc-<env>-` prefix) + accessor for the jobs service
+  account; GCS buckets in `gcs_source_buckets`; Cloud Scheduler per source `schedule`.
+- **Live checks** (§7, §8): GitHub/Bitbucket/GCS/Confluence/Jira sources; Jira/Confluence Cloud user connections (replace
+  the `acme.atlassian.net` placeholder in `config/connections.yaml`); every Data Center edition; then the retrieval eval
+  per new source type and AG-UI gate items 3 and 5 (Jira part).
+- **Block list and secret management review:** `blocked.yaml` on GCP (today none is mounted on the MCP service), the
+  reconcile job (§4.7), `sdlc-config validate --check-secrets`, IAM condition on `secrets.create` (§5.1).
+- **Cloud Trace export** (OTLP from agent and MCP on GCP).
+
+### 10.4 Exit-gate checklist (run by the user)
+After `images` + `plan` + `apply` on GCP dev (M8 adds the Agent Engine) and `docker compose up -d --build --wait` locally.
+Paths: `http://localhost:4180`, `https://app-sdlc-dev.shaheenks.co.in` (tunnel profile), the GCP `app_url`.
+
+| # | Check | Where |
+|---|---|---|
+| G1 | A test user signs in and `/chat/` + `/dev-ui/` load (AG-UI gate 1) | all three paths |
+| G2 | "who am I?" in `/chat/` and in `/dev-ui/` show the same teams, roles and tools; compare the `tools_list` audit records (gate 2) | localhost, GCP |
+| G3 | A second test user in a private window sees their own view and none of the first user's conversations | GCP |
+| G4 | A conversation started on GCP is still there after a new revision (the M8 Agent Engine store) and expires after `session_retention_days` | GCP |
+| G5 | Session state has no access token: `/dev-ui/` > session > State shows no token key (gate 4, first half) | localhost, GCP |
+| G6 | Connect a GitHub fine-grained PAT on `/chat/connections`, read a file through the chat, disconnect, then the tool answers "not connected" (gate 5, GitHub part). On GCP this also checks `secrets.create` under the IAM condition | localhost, GCP |
+| G7 | A token that expires within 14 days shows the warning under the tool result (M8 item 2) | localhost |
+
+Deferred with §10.3: gate 3 (citations from Confluence/Jira/GitHub sources), gate 4's block-list half on GCP, the Jira part
+of gate 5, Antigravity in gate 2.

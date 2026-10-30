@@ -6,6 +6,7 @@ requires-python = ">=3.12,<3.14"
 dependencies = [
     "ag-ui-adk>=0.11.0",
     "google-adk[mcp]>=2.10",
+    "google-cloud-aiplatform>=1.148.1,<2",  # Agent Engine sessions on GCP; same range as google-adk[gcp]
     "opentelemetry-exporter-otlp-proto-http>=1.42.1",
     "sdlc-auth[server]",
     "uvicorn>=0.30",

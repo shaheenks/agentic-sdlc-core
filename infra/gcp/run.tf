@@ -60,6 +60,9 @@ locals {
     # oauth2-proxy does not pass the browser's Host (PASS_HOST_HEADER=false), so ADK's cross-origin
     # guard needs the public origin explicitly, or the dev UI's scripts get 403.
     SDLC_ALLOWED_ORIGINS = "https://${local.app_host}"
+    # Conversations in Agent Engine sessions (sessions.tf), deleted this many days after they start.
+    SDLC_SESSION_SERVICE_URI    = "agentengine://${google_vertex_ai_reasoning_engine.sessions.id}"
+    SDLC_SESSION_RETENTION_DAYS = tostring(var.session_retention_days)
   })
 
   # CopilotKit chat app sidecar (version-01 M5): forwards only the proxy's token header to /agui.

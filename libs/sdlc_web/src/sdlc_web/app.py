@@ -16,6 +16,8 @@ from sdlc_auth.entra import DEFAULT_AUTHORITY_HOST, EntraTokenVerifier
 
 from sdlc_web.middleware import EntraUserBindingMiddleware
 from sdlc_web.retention import sqlite_path, start_retention
+from sdlc_web.sessions import SCHEME as AGENT_ENGINE
+from sdlc_web.sessions import parse_agent_engine_uri, register_agent_engine_sessions
 
 log = logging.getLogger("sdlc.web")
 
@@ -32,7 +34,8 @@ def create_app(
 ):
     # Explicit session store: memory:// by default; docker compose persists conversations in
     # sqlite:////data/sessions.db on a volume only this container mounts (agents get no DB
-    # credentials). GCP: Agent Engine sessions (agentengine://).
+    # credentials). GCP: Agent Engine sessions (agentengine://, sdlc_web.sessions; main() registers
+    # the factory that sets the retention TTL).
     adk_app = get_fast_api_app(
         agents_dir=str(agents_dir),
         web=True,
@@ -87,11 +90,15 @@ def main() -> None:
     port = int(os.environ.get("PORT", "8000"))
     agents_dir = Path(os.environ.get("SDLC_AGENTS_DIR", "agents")).resolve()
     session_uri = os.environ.get("SDLC_SESSION_SERVICE_URI", "memory://")
+    days = float(os.environ.get("SDLC_SESSION_RETENTION_DAYS", "7"))
     db_path = sqlite_path(session_uri)
     if db_path is not None:
-        days = float(os.environ.get("SDLC_SESSION_RETENTION_DAYS", "7"))
         start_retention(db_path, days)
         log.info("conversations persisted in %s (retention %s days)", db_path, days)
+    elif session_uri.startswith(f"{AGENT_ENGINE}://"):
+        parse_agent_engine_uri(session_uri)  # a short or malformed id stops startup
+        register_agent_engine_sessions(days)
+        log.info("conversations in Agent Engine sessions (retention %s days from start)", days)
     app = create_app(
         agents_dir,
         verifier_from_env(),

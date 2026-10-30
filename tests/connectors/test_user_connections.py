@@ -277,6 +277,140 @@ def test_tool_calls():
         providers.github_file(None, GITHUB, "acme/pay", "../../etc/passwd", "")
 
 
+# --- Data Center editions (M8): context paths, Bearer PATs, REST v2 / raw endpoints ---------------
+
+JIRA_DC_CTX = ConnectionDef("jira-dc", "jira", "datacenter", "https://jira.example.com/jira")
+CONF_DC_CTX = ConnectionDef(
+    "confluence-dc", "confluence", "datacenter", "https://wiki.example.com/confluence"
+)
+BB_DC_CTX = ConnectionDef(
+    "bitbucket-dc", "bitbucket", "datacenter", "https://bb.example.com/bitbucket"
+)
+
+
+def test_confluence_dc_verify_uses_no_wiki_prefix_and_refuses_anonymous():
+    t, seen = transport(
+        {
+            ("GET", "/confluence/rest/api/user/current"): httpx.Response(
+                200, json={"type": "known", "username": "dev", "displayName": "Dev User"}
+            )
+        }
+    )
+    account = providers.verify(CONF_DC_CTX, "pat", None, t)
+    assert (account.account, account.display) == ("dev", "Dev User")
+    assert seen[0].headers["Authorization"] == "Bearer pat"
+    anonymous = httpx.Response(200, json={"type": "anonymous"})
+    t, _ = transport({("GET", "/confluence/rest/api/user/current"): anonymous})
+    with pytest.raises(providers.TokenRejected, match="anonymous"):
+        providers.verify(CONF_DC_CTX, "pat", None, t)
+
+
+def test_jira_dc_issue_reads_rest_v2_and_wiki_markup():
+    t, seen = transport(
+        {
+            ("GET", "/jira/rest/api/2/issue/PAY-1"): httpx.Response(
+                200,
+                json={
+                    "key": "PAY-1",
+                    "fields": {
+                        "summary": "Outage",
+                        "issuetype": {"name": "Incident"},
+                        "status": {"name": "Open"},
+                        "components": [{"name": "ledger"}],
+                        "description": "h2. Impact\n*Payments* failed for {{EU}} merchants",
+                    },
+                },
+            ),
+            ("GET", "/jira/rest/api/2/issue/PAY-2"): httpx.Response(
+                200, json={"key": "PAY-2", "fields": {"summary": "No text", "description": None}}
+            ),
+        }
+    )
+    with providers.client_for(JIRA_DC_CTX, "pat", None, t) as client:
+        issue = providers.jira_issue(client, JIRA_DC_CTX, "PAY-1")
+        empty = providers.jira_issue(client, JIRA_DC_CTX, "PAY-2")
+    assert seen[0].headers["Authorization"] == "Bearer pat"
+    assert "summary" in seen[0].url.params["fields"]
+    assert issue["url"] == "https://jira.example.com/jira/browse/PAY-1"
+    assert (issue["type"], issue["status"], issue["components"]) == ("Incident", "Open", ["ledger"])
+    assert "## Impact" in issue["description"] and "**Payments**" in issue["description"]
+    assert "`EU`" in issue["description"]
+    assert empty["description"] == "" and not empty["truncated"]
+
+
+def test_confluence_dc_page_has_no_wiki_prefix():
+    storage = "<h1>Runbook</h1><p>Restart <strong>ledger</strong></p>"
+    t, seen = transport(
+        {
+            ("GET", "/confluence/rest/api/content/123"): httpx.Response(
+                200,
+                json={
+                    "id": "123",
+                    "title": "Ledger runbook",
+                    "space": {"key": "PAY"},
+                    "version": {"number": 4},
+                    "body": {"storage": {"value": storage}},
+                    "_links": {
+                        "base": "https://wiki.example.com/confluence",
+                        "webui": "/pages/viewpage.action?pageId=123",
+                    },
+                },
+            ),
+            ("GET", "/confluence/rest/api/content/124"): httpx.Response(
+                200, json={"id": "124", "title": "No links", "_links": {"webui": "/x/124"}}
+            ),
+        }
+    )
+    with providers.client_for(CONF_DC_CTX, "pat", None, t) as client:
+        page = providers.confluence_page(client, CONF_DC_CTX, "123")
+        bare = providers.confluence_page(client, CONF_DC_CTX, "124")
+    assert seen[0].url.params["expand"] == "body.storage,space,version"
+    assert (page["space"], page["version"]) == ("PAY", 4)
+    assert "# Runbook" in page["content"] and "**ledger**" in page["content"]
+    assert page["url"] == "https://wiki.example.com/confluence/pages/viewpage.action?pageId=123"
+    assert bare["url"] == "https://wiki.example.com/confluence/x/124"  # no /wiki on DC
+    with pytest.raises(ValueError):
+        providers.confluence_page(None, CONF_DC_CTX, "12; drop")
+
+
+def test_bitbucket_dc_file_reads_raw_at_ref():
+    path = "/bitbucket/rest/api/latest/projects/PAY/repos/api/raw/docs/a b.md"
+    t, seen = transport({("GET", path): httpx.Response(200, text="# Hello")})
+    with providers.client_for(BB_DC_CTX, "pat", None, t) as client:
+        read = providers.bitbucket_file
+        at_ref = read(client, BB_DC_CTX, "PAY/api", "docs/a b.md", "refs/heads/main")
+        default = read(client, BB_DC_CTX, "PAY/api", "docs/a b.md", "")
+    assert seen[0].headers["Authorization"] == "Bearer pat"
+    assert seen[0].url.params["at"] == "refs/heads/main" and "at" not in seen[1].url.params
+    assert at_ref["content"] == "# Hello" and default["ref"] == "default branch"
+    assert at_ref["url"] == (
+        "https://bb.example.com/bitbucket/projects/PAY/repos/api/browse/docs/a%20b.md"
+        "?at=refs%2Fheads%2Fmain"
+    )
+    assert default["url"].endswith("/browse/docs/a%20b.md")
+
+
+def test_dc_read_tools_turn_401_into_token_rejected():
+    t, _ = transport(
+        {
+            ("GET", "/bitbucket/rest/api/latest/projects/PAY/repos/api/raw/a.md"): (
+                httpx.Response(401)
+            ),
+            ("GET", "/jira/rest/api/2/issue/PAY-1"): httpx.Response(403),
+        }
+    )
+    with (
+        providers.client_for(BB_DC_CTX, "pat", None, t) as client,
+        pytest.raises(providers.TokenRejected),
+    ):
+        providers.bitbucket_file(client, BB_DC_CTX, "PAY/api", "a.md", "")
+    with (
+        providers.client_for(JIRA_DC_CTX, "pat", None, t) as client,
+        pytest.raises(providers.TokenRejected),
+    ):
+        providers.jira_issue(client, JIRA_DC_CTX, "PAY-1")
+
+
 def test_clients_only_reach_the_connection_host():
     t, seen = transport({})
     with providers.client_for(GITHUB, PAT, None, t) as client, pytest.raises(HostNotAllowed):
@@ -355,6 +489,16 @@ async def test_expired_and_invalid_tokens_are_not_connected():
     await svc.mark_invalid(OID, "jira-dc")
     with pytest.raises(NotConnected, match="rejected"):
         await svc.credential(OID, "jira-dc")
+
+
+async def test_credential_reports_days_left_only_inside_the_warning_window():
+    svc = service()
+    await svc.connect(OID, "jira-dc", "tok", None, TODAY + timedelta(days=14))
+    cred = await svc.credential(OID, "jira-dc")
+    assert cred.expires_at == TODAY + timedelta(days=14)
+    assert cred.days_left(TODAY) == 14
+    assert cred.days_left(TODAY - timedelta(days=1)) is None  # 15 days out
+    assert cred.days_left(TODAY + timedelta(days=14)) == 0  # last day
 
 
 async def test_concurrent_connects_for_one_user_both_survive():
