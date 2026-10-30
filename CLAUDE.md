@@ -159,7 +159,7 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
   through the host's `Cloudflared` Windows service (tunnel + hostnames managed in the Cloudflare dashboard). Run exactly one
   connector per tunnel. See docs/misc/CLOUDFLARE_TUNNEL.md.
   Public names are one level deep (`*-sdlc-dev.shaheenks.co.in`) so free Universal SSL covers them.
-- Open **http://localhost:4180** and sign in with Entra to use the agents (dev UI at /dev-ui/, CopilotKit chat at /chat/). The agent
+- Open **http://localhost:4180** and sign in with Entra to use the agents (`/` opens the CopilotKit chat at /chat/; dev UI at /dev-ui/; the navbar reads `GET /me` and `GET /connections/`). The agent
   and chat app ports are not published. AG-UI rules: the chat app forwards ONLY `X-Forwarded-Access-Token` to `/agui`
   (`forwardHeaders.allow`), stores no conversations (`PassThroughAgentRunner`, never `InMemoryAgentRunner`), has no frontend
   tools that read data; `/agui` binds the user id to the token `oid` and strips client `temp:`/`app:`/`user:` state.

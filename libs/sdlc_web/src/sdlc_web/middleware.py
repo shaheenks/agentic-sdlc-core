@@ -17,6 +17,10 @@ For every request except public health checks:
      (`current_oid`), which the AG-UI agent uses as its user id. AG-UI request bodies (the run
      endpoint and /agents/state) are sanitised: client state never carries tokens or `temp:`,
      `app:` or `user:` keys, and any client-sent `userId` is replaced by the oid.
+  6. Chat UX (version-02): `GET /me` answers with the caller's display name and sign-in name from
+     the validated token (nothing else; no token, oid or groups), for the chat app's navbar.
+     `GET /` redirects to `home_path` (the chat app, `/chat/`) when one is set; adk web stays
+     at /dev-ui/.
 WebSocket: only /run_live, bound the same way: the token from the upgrade request is validated,
 every `user_id` query parameter is replaced by the token's `oid`, and the token stays in context
 for the connection (its MCP calls carry the user). Anything else is closed with 1008.
@@ -50,6 +54,7 @@ _DEV_EMPTY_LISTINGS = re.compile(
 )
 _RUN_PATHS = {"/run", "/run_sse"}
 AGUI_STATE_PATH = "/agents/state"  # registered by ag_ui_adk next to the run endpoint
+ME_PATH = "/me"  # the caller's display name + sign-in name (chat app navbar)
 # State keys a client may never set: per-invocation (temp:, where a token could live) and
 # shared scopes (app:, user:), plus the user-token key itself.
 _UNTRUSTED_STATE_PREFIXES = ("temp:", "app:", "user:")
@@ -79,6 +84,7 @@ class EntraUserBindingMiddleware:
         public_paths: frozenset[str] = frozenset({"/healthz"}),
         dev_tools: bool = False,
         agui_path: str | None = None,
+        home_path: str | None = None,
     ):
         self.app = app
         self.verifier = verifier
@@ -86,6 +92,7 @@ class EntraUserBindingMiddleware:
         self.public_paths = public_paths
         self.dev_tools = dev_tools
         self.agui_paths = {agui_path, AGUI_STATE_PATH} if agui_path else set()
+        self.home_path = home_path
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "lifespan":
@@ -107,9 +114,18 @@ class EntraUserBindingMiddleware:
                 [(b"www-authenticate", b'Bearer realm="sdlc"')],
             )
         try:
-            oid = principal_from_claims(access.claims).oid
+            principal = principal_from_claims(access.claims)
         except ValueError:
             return await _respond(send, 401, {"detail": "not a user token"})
+        oid = principal.oid
+
+        if scope["method"] == "GET" and scope["path"] == ME_PATH:
+            me = {"name": principal.name or principal.upn or "", "upn": principal.upn or ""}
+            return await _respond(send, 200, me, [(b"cache-control", b"no-store")])
+        if scope["method"] == "GET" and scope["path"] == "/" and self.home_path:
+            return await _respond(
+                send, 307, {"detail": "moved"}, [(b"location", self.home_path.encode())]
+            )
 
         scope = dict(scope)
         if scope["path"].startswith("/dev/") and not self.dev_tools:

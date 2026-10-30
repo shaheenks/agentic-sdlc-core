@@ -31,6 +31,8 @@ are a proposal to confirm milestone by milestone.
 | N4 — Observability on GCP | ⏳ | Cloud Trace export (§4) |
 | N5 — GCP operations (Stage 7b) | ⏳ | Scale-out, bundles + reload, CI deploy, hostnames, staging (§5) |
 | N6 — Product backlog | ⏳ | Pick items per priority (§6) |
+| N7 — Agent-generated UI (A2UI) + A2A path for Gemini Enterprise | ⏳ | Approved 2026-10-30; spike first, keep CopilotKit (§10) |
+| N8 — Chat UX | ✅ Built (2026-10-30); answer rendering confirmed by the user | Answer formatting, `/` opens the chat, navbar user + PAT status (§11). Open: navbar and `/` check in the browser, GCP `images` + `plan` + `apply` |
 | Deferred — Gemini Enterprise | ⏸ | Design in version-01 §6; needs an org admin, a workforce pool and licences |
 
 **Next:** N0 (quick, local), then N1 once the dev sources are decided.
@@ -44,6 +46,7 @@ are a proposal to confirm milestone by milestone.
 | D3 | Block list and secret management: scope of the review (§3); one user secret per user stays, or move to one per connection / a separate credential service? | N3 |
 | D4 | A staging environment in version-02, or dev only? (project, region, hostnames) | N5 |
 | D5 | Write tools on behalf of the user (create issue, comment, PR): in version-02 or later? | N6 |
+| D6 | Replace CopilotKit with an own chat client (`@ag-ui/client` + `@a2ui/react`)? **Not pursued** (2026-10-30): no Gemini Enterprise benefit (GE has its own UI); it would only remove the Node runtime and its workarounds at the cost of owning a chat UI. Revisit if the CopilotKit runtime becomes a burden | — |
 
 ## 1. Dev sources on GCP + ingest (N1)
 
@@ -150,9 +153,17 @@ From GCP_DEPLOYMENT §10 and version-00 Stage 7:
 
 ## 7. Deferred: Gemini Enterprise
 
-Unchanged from version-01 §6: WIF with Entra as OIDC provider, the agent on Agent Runtime, Gemini Enterprise OAuth
-authorization for the MCP scope, configurable session-state key in `sdlc_auth.adk`. Agent Engine sessions (version-01
-M8) are already the store it would use. Picked up when an org admin, a workforce pool and licences are available.
+**Preferred path (2026-10-30, §10):** register the agent as an **A2A agent** (Cloud Run) with an **OAuth authorization
+against Entra** (`serverSideOauth2`: `clientId`, `clientSecret`, `authorizationUri`, `tokenUri`; scope
+`api://<sdlc-mcp>/access_as_user offline_access` in the authorize URI). GE then sends the user's token in
+`Authorization: Bearer`, which `sdlc_web`'s middleware already validates, and renders the agent's A2UI natively. No
+token in session state, no configurable state key. Sign-in to GE itself still needs WIF with Entra as OIDC provider.
+
+**Alternative:** the version-01 §6 design (agent on Agent Runtime, token in session state under the authorization id).
+Agent Engine sessions (version-01 M8) are the store either way.
+
+Still deferred: needs a GE app and licences, an org admin for the workforce pool, and GE's A2A agent registration is
+**Preview** (Pre-GA terms). N7 makes the agent ready in the meantime.
 
 ## 8. Prerequisites to arrange
 
@@ -165,6 +176,7 @@ M8) are already the store it would use. Picked up when an org admin, a workforce
 | Approval for new billable GCP resources (Cloud Scheduler, a staging environment) | N1, N5 | You |
 | Entra admin changes (per-environment client, certificates, app roles) | N5 | Entra admin (confirmed per change) |
 | GCP organization admin, workforce pool, Gemini Enterprise licences | Deferred | Org admin |
+| A GE app + a new Entra client registration with GE's OAuth redirect URI (for the A2A agent authorization) | Deferred (§7) | Entra admin (confirmed per change) |
 
 ## 9. Carried over
 
@@ -186,3 +198,89 @@ M8) are already the store it would use. Picked up when an org admin, a workforce
 | version-00 Stage 9 | SharePoint source, Office documents, chunking by definition, `inherit_from_source`, OBO, ADK evals in CI, retrieval ranking, OPA/Cedar, admin UI | N6 |
 | version-00 Stage 3 | `sdlc-config explain` by UPN | N6 |
 | version-00 E9 | Multi-tenant sign-in | Out of scope (unchanged) |
+| version-01 §6 | Gemini Enterprise design, now with the A2A + A2UI path | N7 (agent side), §7 (deferred GE setup) |
+
+## 10. Agent-generated UI (A2UI) and the A2A path for Gemini Enterprise (N7)
+
+Explored and approved 2026-10-30. **Keep CopilotKit; make the agent GE-ready.**
+
+### Findings
+- **A2UI** ([a2ui.org](https://a2ui.org/); Google, Apache-2.0, CopilotKit contributes; spec v0.9.1 current, v1.0
+  candidate; [`@a2ui/react`](https://github.com/a2ui-project/a2ui) 0.14.0): a declarative JSON format for
+  agent-generated UI, limited to a **catalog** of approved components that client and agent both know. The client
+  renders it with its own components and validates it; no executable code. **It is not a chat app**: renderers draw
+  surfaces only. Its own ADK + AG-UI guide uses `ag_ui_adk` (what we run) with CopilotKit on the client
+  (`@copilotkit/a2ui-renderer`) ([guide](https://a2ui.org/guides/a2ui-with-any-agent-framework/),
+  [renderers](https://a2ui.org/reference/renderers/), [transports](https://a2ui.org/concepts/transports/),
+  [catalogs](https://a2ui.org/concepts/catalogs/)).
+- **Gemini Enterprise has its own UI with a built-in A2UI renderer** (standard components, A2UI v0.8 / v0.9, GE
+  styling). Custom agents are registered as **A2A agents** (Cloud Run or Agent Runtime); A2UI travels as A2A
+  `DataPart` (`application/json+a2ui`); GE sends its catalog per request; widget actions come back as the next turn
+  ([register A2UI agents](https://docs.cloud.google.com/gemini/enterprise/docs/a2ui-agents/register-and-manage-an-a2ui-agent),
+  [host on Cloud Run](https://docs.cloud.google.com/gemini/enterprise/docs/a2ui-agents/tutorial-host-agent-cloud-run),
+  [Google Cloud blog](https://cloud.google.com/blog/topics/developers-practitioners/guide-to-gemini-enterprise-and-a2ui-integration)).
+  Whether GE accepts components outside its own catalog is unclear.
+- **GE auth fits our token path:** an A2A agent can carry an OAuth authorization; GE then sends the user's token in
+  `Authorization: Bearer` ([register A2A agents](https://docs.cloud.google.com/gemini/enterprise/docs/register-and-manage-an-a2a-agent),
+  Preview). For `.run.app` URLs GE also sends a Google OIDC token in `X-Serverless-Authorization` (consumed by Cloud
+  Run; our services use `invoker_iam_disabled`, Entra stays the gate).
+- **For GE the web front end is irrelevant:** neither CopilotKit nor an own chat client runs inside GE. What carries
+  over is an **A2A endpoint** on the agent and the agent emitting **A2UI from the standard catalog**; the same A2UI
+  renders in GE (A2A) and in `/chat/` (AG-UI + an A2UI renderer). Replacing CopilotKit: D6, not pursued.
+
+### Work
+1. **Spike first** (no product code until it passes):
+   - how an ADK agent emits A2UI over AG-UI (`ag_ui_adk`) and over A2A from one code path;
+   - whether the standard catalog can show our citation cards (title, link, source, lines/pages), the identity panel
+     and connected-tool results;
+   - an A2UI version accepted by both GE (v0.8 / v0.9) and `@copilotkit/a2ui-renderer`;
+   - ADK's A2A server support with our ADK version, and how it fits behind `sdlc_web`'s middleware.
+2. **A2UI output (after the spike):** produced **deterministically from MCP tool results** (citations, whoami,
+   connected-tool results), never invented by the model for security-relevant data; standard catalog only; links
+   `http(s)` only; A2UI user actions are input to the agent, **never authorization** (version-01 §3.2 item 5). The chat
+   app renders A2UI with `@copilotkit/a2ui-renderer` (exact pin), replacing the hand-written renderers
+   (`ui/copilotkit/components/renderers.tsx`) where the result is equivalent.
+3. **A2A endpoint** on the agent service behind the same Entra middleware: user id = token `oid`, token only in the
+   request context (never in session state), client state sanitised, one conversation = one session in the existing
+   store (SQLite locally, Agent Engine on GCP). Reachable through oauth2-proxy locally; on GCP, how GE reaches it
+   (direct to the agent with a Bearer token vs through oauth2-proxy) is decided in the spike.
+4. **Tests and gate:** the same `search_knowledge` answer renders as citation cards in `/chat/` (AG-UI) and through a
+   local A2A client (A2UI DataPart); the version-01 M5 security tests hold for the A2A endpoint (no token -> 401,
+   another user's session refused, client state sanitised, no token in persisted events); CI runs the UI checks.
+
+GE registration itself (OAuth authorization, GE app, Entra client) stays deferred (§7).
+
+## 11. Chat UX (N8) — built 2026-10-30
+
+**Status:** answer rendering is better (checked by the user, 2026-10-30). Still to check: `/` lands in `/chat/`,
+the navbar user status, and the same on the tunnel and on GCP after `images` + `plan` + `apply`.
+
+Requested 2026-10-30: chat answers looked unformatted (an extra blank line after every line), the app should open
+on the chat after sign-in, and the navbar should show the signed-in user with the state of their PAT connections.
+
+- **Answer formatting** (`ui/copilotkit`, `agents/bootstrap`):
+  - CopilotKit renders answers as Markdown with Tailwind typography: 1.25em paragraph gaps and a 65ch width cap.
+    When the model separates lines with blank lines, every line becomes a paragraph and looks double-spaced.
+    `globals.css` tightens paragraphs, lists and headings for assistant messages only and uses the full column.
+  - The agent instruction gained answer rules: short answer first, single blank lines between paragraphs only,
+    lists / code fences / tables where they help, headings only for long answers, sources by title, no raw JSON.
+  - Dark mode: CopilotKit's dark theme follows a `dark` class, our page follows the OS setting; a fixed inline
+    script in `app/layout.tsx` sets the class from `prefers-color-scheme` (and follows changes).
+- **`/` opens the chat:** `sdlc_web`'s middleware redirects `GET /` to `/chat/` when the chat app is on
+  (`SDLC_AGUI_AGENT` set), after the token check. oauth2-proxy returns users to the page they asked for, so signing
+  in at the bare URL lands in the chat. adk web stays at `/dev-ui/`.
+- **Navbar user status** (`components/UserStatus.tsx`, `lib/status.ts`) on the chat and Connections pages:
+  initials + name, one dot per connection (green connected, amber expiring within 14 days / expired / rejected by
+  the provider, grey not connected), a panel with each connection's account and expiry, links to Connections and
+  Sign out. Refreshes on focus and after a connect/disconnect.
+  - `GET /me` (agent middleware): `{name, upn}` from the validated token only (no oid, groups or token),
+    `Cache-Control: no-store`.
+  - PAT status from the existing `GET /connections/` (MCP server; never returns tokens). Connections off (503) or a
+    lapsed session (401): that part is hidden.
+  - oauth2-proxy API routes gained `me\b` (compose and Terraform), so a lapsed session gets 401, not a login page.
+- **Tests:** `tests/web/test_app.py` (`/me` fields and 401; `/` redirect only with the chat app on, still behind
+  sign-in), `ui/copilotkit/tests/status.test.ts` (parsing, states, no token passthrough); typecheck and build.
+- **To check (user):** local `docker compose up -d --build --wait`, then in the browser on localhost and the tunnel:
+  `/` lands in `/chat/`, answers read normally (light and dark OS theme), the navbar shows your name and connection
+  dots, connecting/disconnecting updates them. GCP: `images` + `plan` + `apply` (the API route change is in
+  `run.tf`).

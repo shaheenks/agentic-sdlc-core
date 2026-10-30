@@ -7,6 +7,8 @@
 
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 
+import { CONNECTIONS_CHANGED, UserStatus } from "@/components/UserStatus";
+
 type Connection = {
   id: string;
   provider: string;
@@ -154,6 +156,7 @@ export default function ConnectionsPage() {
     }
     setError(null);
     setItems((await response.json()).connections);
+    window.dispatchEvent(new Event(CONNECTIONS_CHANGED)); // navbar status follows connect/disconnect
   }, []);
 
   useEffect(() => {
@@ -166,7 +169,7 @@ export default function ConnectionsPage() {
         <span className="brand">Connections</span>
         <nav>
           <a href="/chat/">Chat</a>
-          <a href="/oauth2/sign_out">Sign out</a>
+          <UserStatus />
         </nav>
       </header>
       <div className="page">

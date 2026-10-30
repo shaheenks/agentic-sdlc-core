@@ -135,3 +135,31 @@ async def test_public_origin_is_allowed_when_the_proxy_rewrites_host(entra):
             transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1:8000"
         ) as client:
             assert (await client.get("/list-apps", headers=headers)).status_code == status
+
+
+async def test_me_returns_only_name_and_sign_in_name(web, entra):
+    token = entra.token(oid=OID_A, upn="ana@example.com", name="Ana Dev", groups=["g1"])
+    resp = await web.get("/me", headers={"X-Forwarded-Access-Token": token})
+    assert resp.status_code == 200 and resp.headers["cache-control"] == "no-store"
+    assert resp.json() == {"name": "Ana Dev", "upn": "ana@example.com"}  # no oid, groups or token
+    assert (await web.get("/me")).status_code == 401
+
+
+async def test_root_redirects_to_the_chat_app_when_it_is_on(entra):
+    from sdlc_web.middleware import EntraUserBindingMiddleware
+
+    async def adk(scope, receive, send):  # stands in for ADK, whose "/" goes to /dev-ui/
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"adk"})
+
+    for home, status in (("/chat/", 307), (None, 200)):
+        app = EntraUserBindingMiddleware(adk, entra.verifier(), home_path=home)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://agent"
+        ) as client:
+            resp = await client.get("/", headers=as_user(entra, OID_A))
+            assert resp.status_code == status
+            if home:
+                assert resp.headers["location"] == "/chat/"
+                assert (await client.get("/")).status_code == 401  # still behind sign-in
+            assert (await client.get("/dev-ui/", headers=as_user(entra, OID_A))).status_code == 200

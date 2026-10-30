@@ -39,7 +39,7 @@ docker compose run --rm migrate              # database schema + row-level secur
 docker compose run --rm ingest run --all     # build the knowledge store (embeddings, graph, PDFs)
 ```
 
-Open **http://localhost:4180** and sign in with an Entra test user: chat app at **`/chat/`** (CopilotKit, version-01), developer UI at `/dev-ui/`.
+Open **http://localhost:4180** and sign in with an Entra test user: you land in the chat app at **`/chat/`** (CopilotKit), with your name and connection status in the navbar; developer UI at `/dev-ui/`.
 
 | Endpoint | URL |
 |---|---|

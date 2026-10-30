@@ -20,6 +20,7 @@ from sdlc_web.sessions import SCHEME as AGENT_ENGINE
 from sdlc_web.sessions import parse_agent_engine_uri, register_agent_engine_sessions
 
 log = logging.getLogger("sdlc.web")
+CHAT_HOME = "/chat/"  # CopilotKit app behind the same oauth2-proxy (ui/copilotkit)
 
 
 def create_app(
@@ -67,7 +68,14 @@ def create_app(
 
         mount_agui(adk_app, agents_dir, agui_agent, session_service_uri)
         agui_path = AGUI_PATH
-    return EntraUserBindingMiddleware(adk_app, verifier, dev_tools=dev_tools, agui_path=agui_path)
+    return EntraUserBindingMiddleware(
+        adk_app,
+        verifier,
+        dev_tools=dev_tools,
+        agui_path=agui_path,
+        # with the chat app on, "/" (and so the landing page after sign-in) is the chat app
+        home_path=CHAT_HOME if agui_agent else None,
+    )
 
 
 def verifier_from_env() -> EntraTokenVerifier:

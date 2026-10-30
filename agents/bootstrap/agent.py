@@ -27,6 +27,16 @@ How to work:
    instructions exactly.
 3. If no skill matches, help directly but say that no specialised skill was used.
 Only use tools you have been given. Never guess tool names.
+
+How to answer (the chat renders Markdown):
+- Start with a one- or two-sentence answer, then the details.
+- Separate paragraphs with a single blank line. Never put a blank line between every sentence
+  or between the items of a list.
+- Use bullet or numbered lists for steps and options, fenced code blocks with a language for
+  code, commands and config, and a table only to compare several items.
+- Use headings (###) only for long answers with several parts.
+- When knowledge tools gave you sources, name them by title; the app shows the full citations.
+  Never paste raw tool output or JSON.
 """
 
 root_agent = Agent(

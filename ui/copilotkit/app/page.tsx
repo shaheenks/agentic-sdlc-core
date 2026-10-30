@@ -5,6 +5,7 @@ import "@copilotkit/react-core/v2/styles.css";
 import { CopilotChat, CopilotKit } from "@copilotkit/react-core/v2";
 
 import { toolRenderers } from "@/components/renderers";
+import { UserStatus } from "@/components/UserStatus";
 
 // The runtime is same-origin (behind the same oauth2-proxy), so the browser sends only its
 // proxy session cookie; the proxy adds the user's token server side.
@@ -23,7 +24,7 @@ export default function ChatPage() {
           <nav>
             <a href="/chat/connections">Connections</a>
             <a href="/dev-ui/">Developer UI</a>
-            <a href="/oauth2/sign_out">Sign out</a>
+            <UserStatus />
           </nav>
         </header>
         <div className="chat">

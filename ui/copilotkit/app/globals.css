@@ -37,7 +37,57 @@ body {
 .topbar nav { display: flex; gap: 16px; font-size: 14px; }
 .topbar a { color: var(--muted); text-decoration: none; }
 .topbar a:hover { color: var(--accent); }
+.topbar nav { align-items: center; }
 .chat { flex: 1; min-height: 0; max-width: 960px; width: 100%; margin: 0 auto; }
+
+/* Assistant answers (CopilotKit renders Markdown with Tailwind typography). Its paragraph gaps
+   (1.25em) make every line of a chat answer look double-spaced and its 65ch cap leaves the
+   column half empty: tighter rhythm, full column width. Unlayered, so these win over the
+   library's layered rules. */
+.copilotKitAssistantMessage .cpk\:prose { max-width: none; line-height: 1.6; }
+.copilotKitAssistantMessage .cpk\:prose :where(p) { margin: 0.45em 0; }
+.copilotKitAssistantMessage .cpk\:prose :where(ul, ol) { margin: 0.4em 0; padding-left: 1.2em; }
+.copilotKitAssistantMessage .cpk\:prose :where(li) { margin: 0.1em 0; padding-block: 0; }
+.copilotKitAssistantMessage .cpk\:prose :where(li > p) { margin: 0; }
+.copilotKitAssistantMessage .cpk\:prose :where(h1, h2, h3, h4) { margin: 0.9em 0 0.35em; line-height: 1.3; }
+.copilotKitAssistantMessage .cpk\:prose :where(h1) { font-size: 1.3em; }
+.copilotKitAssistantMessage .cpk\:prose :where(h2) { font-size: 1.15em; }
+.copilotKitAssistantMessage .cpk\:prose :where(h3, h4) { font-size: 1em; }
+.copilotKitAssistantMessage .cpk\:prose :where(pre, table) { margin: 0.6em 0; }
+.copilotKitAssistantMessage .cpk\:prose > * > :first-child { margin-top: 0; }
+.copilotKitAssistantMessage .cpk\:prose > * > :last-child { margin-bottom: 0; }
+
+/* Navbar user status */
+.user { position: relative; }
+.user-button {
+  display: flex; align-items: center; gap: 8px; font: inherit; font-size: 14px;
+  color: var(--text); background: none; border: 0; padding: 2px 4px; border-radius: 999px; cursor: pointer;
+}
+.user-button:hover { background: var(--chip); }
+.avatar {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #fff;
+  font-size: 12px; font-weight: 600;
+}
+.avatar-dot { position: absolute; right: -2px; bottom: -2px; border: 2px solid var(--panel); }
+.user-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.dot-ok { background: #16a34a; }
+.dot-warn { background: #d97706; }
+.dot-off { background: #9ca3af; }
+.user-panel {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: 320px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); padding: 12px; font-size: 13px;
+}
+.user-panel-name { font-weight: 600; }
+.user-panel-upn { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.conn-list { list-style: none; margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid var(--line); display: grid; gap: 6px; }
+.conn-list li { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; }
+.conn-label { font-weight: 500; }
+.conn-detail { grid-column: 2; color: var(--muted); font-size: 12px; }
+.user-panel-links { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.topbar .user-panel a { color: var(--accent); }
 
 .tool {
   border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
