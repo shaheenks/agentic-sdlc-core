@@ -29,13 +29,14 @@ database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DE
 | M5 — AG-UI web app (CopilotKit) | ✅ Done (2026-10-28); browser check passed on localhost and the tunnel | `/agui` in `sdlc_web` (spike, §3.3) + `ui/copilotkit` (Next.js 16, CopilotKit 1.79.0) at `/chat/` behind oauth2-proxy; header allowlist, no thread storage in Node, citation cards, CSP; CI job |
 | M6 — User connections (on behalf of the user) | ✅ Done (2026-10-28); GitHub + Bitbucket Cloud verified live; Jira/Confluence and all DC editions not tested (no instance) | `libs/sdlc_connectors` (providers, per-user secret store: file/Secret Manager, service), `connections.yaml`, `/connections/` API on the MCP server, Connections page `/chat/connections`, tools `jira_get_issue`, `confluence_get_page`, `github_get_file`, `bitbucket_get_file`; Terraform custom role on the user-secret prefix |
 | M7 — GCP dev (was: staging) | ✅ Deployed and checked (2026-10-28); ingest deferred | Project `sdlc-demo-env01`, `asia-southeast1`, env `dev` (§5.1). Services ready, sign-in, `/chat/` and `/dev-ui/` checked in the browser; `sdlc-db-setup-dev` succeeded (schema + RLS); **ingest not run: sources config to be updated first**; Entra dev callback registered |
-| M8 — Hardening, evals, docs | 🔄 In progress (2026-10-30) | Scope in §10: Agent Engine conversation store on GCP, connection-tool gaps, docs as-built, exit-gate checklist. Sources, live checks, block list and secret management moved to the pending list (§10.3) |
+| M8 — Hardening, evals, docs | ✅ Done (2026-10-30); applied and checked on GCP dev | Agent Engine conversation store on GCP, connection expiry warning in tool answers, Data Center tests, docs as-built (§10). Commit `8982da8`. The rest of the version-01 exit gate waits on the pending items (§10.3) |
 | Deferred — Gemini Enterprise | ⏸ Later version | WIF sign-in, Agent Runtime, Gemini Enterprise authorization (§6) |
 
-**Next:** M8 (§10). The dev sources update and the `sdlc-ingest-dev` run are pending (§10.3), as are live checks of Jira/Confluence
-Cloud and every Data Center edition (§4.9) and the reconcile job (§4.7). Commits (branch `version-01`): M0 `91218d2`, M1 `9f8b324`,
+**Next:** the pending items of §10.3, which close the version-01 exit gate: dev sources + the `sdlc-ingest-dev` run, live checks
+of Jira/Confluence Cloud and every Data Center edition (§4.9), then the block list / secret management review (incl. the
+reconcile job, §4.7) and Cloud Trace. Commits (branch `version-01`): M0 `91218d2`, M1 `9f8b324`,
 M2 `b7e72b7`, M3 `28ebf3b`, M4 `50ef071`, M5 spike `6c94829`, M5 app `6c0d85b` + fix `ccdc8f5`, M6 part 1 `6dad7e6` + part 2
-`5df7946`, M7 retarget `0b6f0a9` + fixes `bffe7d8`, `0b795a5`. Connectors are tested against local repositories and fake APIs (recorded
+`5df7946`, M7 retarget `0b6f0a9` + fixes `bffe7d8`, `0b795a5`, M8 `8982da8`. Connectors are tested against local repositories and fake APIs (recorded
 response shapes) only; the live checks are listed in §7.
 
 ## Decisions (2026-10-17)
@@ -689,7 +690,7 @@ pre-authorization outside dev). Group overage: configure the Graph fallback or a
 - **Deferred Gemini Enterprise:** identity mismatch (WIF subject = `oid`) and org-level prerequisites (workforce pool,
   licences) move with it to the later version.
 
-## 10. M8 — Hardening, evals, docs (started 2026-10-30)
+## 10. M8 — Hardening, evals, docs (done 2026-10-30)
 
 Scope agreed on 2026-10-30: everything that does not need the dev sources or live third-party instances. Those, the
 block list and secret management are reviewed later (§10.3).
@@ -697,11 +698,11 @@ block list and secret management are reviewed later (§10.3).
 ### 10.1 Work items
 | # | Item | Status |
 |---|---|---|
-| 1 | **Conversation store on GCP: Vertex AI Agent Engine sessions** (decision 2026-10-30; §10.2) | ✅ Built (2026-10-30): `sdlc_web.sessions`, `infra/gcp/sessions.tf`, tests `tests/web/test_sessions.py`. **To apply (user):** `images` + `plan` + `apply`, then check a conversation survives a new revision |
+| 1 | **Conversation store on GCP: Vertex AI Agent Engine sessions** (decision 2026-10-30; §10.2) | ✅ Done (2026-10-30): `sdlc_web.sessions`, `infra/gcp/sessions.tf`, tests `tests/web/test_sessions.py`; applied on GCP dev (images `8982da8`) and checked by the user |
 | 2 | Connection tools: the 14-day expiry warning in tool answers (today only on the Connections page, §4.9) | ✅ Built (2026-10-30): `Credential.expires_at` / `days_left()`, `connection_warning` in connected tool answers, shown under the result in the chat |
 | 3 | Data Center test gaps (§4.9): Confluence DC connect check; DC-shaped fakes for `jira_get_issue` (REST v2, wiki markup), `confluence_get_page` (no `/wiki`), `bitbucket_get_file` (DC raw) | ✅ Done (2026-10-30): 6 tests in `tests/connectors/test_user_connections.py`, every base URL with a context path; no code change needed. The Bitbucket DC "who am I" endpoint stays unverified until a live instance |
 | 4 | Docs as-built for version-01: ARCHITECTURE (§5 conversation storage, §7 environments: dev on GCP), GCP_DEPLOYMENT runbook, READMEs, CLAUDE.md | ✅ Done (2026-10-30): GCP_DEPLOYMENT rewritten for dev (status, architecture with chat app + Agent Engine + user secrets, IAM, runbook, verification); ARCHITECTURE §5/§7/§8, README, infra/README, CLOUDFLARE_TUNNEL, CLAUDE.md |
-| 5 | Exit-gate checklist (§7 AG-UI gate) on localhost, the tunnel and the GCP dev URL: items 1, 2, 4 and the GitHub part of 5 (run by the user in the browser; §10.4) | ⏳ Waiting for the M8 apply on GCP |
+| 5 | Exit-gate checklist (§7 AG-UI gate) on localhost, the tunnel and the GCP dev URL: items 1, 2, 4 and the GitHub part of 5 (run by the user in the browser; §10.4) | ✅ GCP dev checked by the user (2026-10-30: "everything looks good") |
 
 ### 10.2 Agent Engine sessions (GCP)
 - **Why:** on GCP the agent keeps conversations in memory (`app_max_instances = 1`, history lost on every restart or

@@ -18,7 +18,7 @@ Stage 7 (original decisions).
 | Job `sdlc-db-setup-dev` (schema + RLS) | Ran successfully |
 | Job `sdlc-ingest-dev` | **Not run**: the dev sources are updated first (version-01 §10.3) |
 | Entra dev callback on `sdlc-client` | Registered |
-| Agent Engine sessions (`sessions.tf`, version-01 M8) | **In Terraform, not applied yet**: `images` + `plan` + `apply` |
+| Agent Engine sessions (`sessions.tf`, version-01 M8) | Applied 2026-10-30 (images `8982da8`); conversations checked in the browser |
 
 **Not yet in Terraform** (version-01 §10.3, reviewed later): `blocked.yaml` from Secret Manager (no block list on GCP
 today), source credentials as Secret Manager secrets with accessor for the jobs service account, Cloud Scheduler for
