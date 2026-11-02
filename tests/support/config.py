@@ -17,6 +17,24 @@ groups:
   infra-readers:   { id: "00000000-0000-0000-0000-000000000006" }
 """
 
+# Direct members (users.yaml), matched by oid. "pending" has no oid yet: it must grant nothing.
+TEST_USERS_YAML = """apiVersion: sdlc/v1
+kind: UserMap
+users:
+  direct-dev:
+    email: direct.dev@example.com
+    oid: "aaaaaaaa-0000-0000-0000-000000000001"
+    teams: { payments: [developer] }
+  direct-viewer:
+    email: direct.viewer@example.com
+    oid: "aaaaaaaa-0000-0000-0000-000000000002"
+    roles: [viewer]
+  pending:
+    email: pending@example.com
+    teams: { platform: [developer] }
+"""
+DIRECT_DEV_OID = "aaaaaaaa-0000-0000-0000-000000000001"
+
 
 def make_config_dir(tmp_path: Path) -> Path:
     """Private, mutable copies of config/ and skills/ (skill paths resolve next to config/);
@@ -26,4 +44,5 @@ def make_config_dir(tmp_path: Path) -> Path:
     shutil.copytree(REPO_ROOT / "skills", tmp_path / "skills")
     shutil.copytree(REPO_ROOT / "samples", tmp_path / "samples")  # Source locations
     (dst / "env" / "local" / "groups.yaml").write_text(TEST_GROUPS_YAML, encoding="utf-8")
+    (dst / "env" / "local" / "users.yaml").write_text(TEST_USERS_YAML, encoding="utf-8")
     return dst

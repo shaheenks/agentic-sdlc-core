@@ -1,6 +1,6 @@
 """Resolve a principal's identities into an EffectivePolicy (plan: resolution steps 1-5).
 
-identities (group aliases + Entra app roles)
+identities (group aliases + Entra app roles + the user alias from users.yaml, matched by oid)
   -> teams (membership) + global bindings -> roles, expanded through `inherits`
   -> allowed tools (role allows, "*" = whole catalog) minus denies (role + team); deny wins
   -> argument limits: unioned across the member teams that constrain a tool;
@@ -64,6 +64,7 @@ class EffectivePolicy:
     max_classification_rank: int = 0
     # Current classification rank of each granted source (from this config version).
     source_classification: Mapping[str, int] = field(default_factory=dict)
+    user: str | None = None  # users.yaml alias (direct member), matched by the token oid
     # Per-user calls per minute: scope ("*" = all tools, or a tool) -> (limit, rule it came from).
     # Most generous of the user's teams; "*" falls back to platform defaults/rate_limit.
     rate_limits: Mapping[str, tuple[int, str]] = field(default_factory=dict)
@@ -93,6 +94,7 @@ class EffectivePolicy:
             "config_version": self.config_version,
             "group_aliases": list(self.group_aliases),
             "app_roles": list(self.app_roles),
+            "user": self.user,
             "teams": {t: list(r) for t, r in sorted(self.teams.items())},
             "roles": {r: list(why) for r, why in sorted(self.roles.items())},
             "tools": {
@@ -131,13 +133,19 @@ class EffectivePolicy:
 
 
 def resolve(
-    snapshot: Snapshot, group_aliases: Iterable[str], app_roles: Iterable[str] = ()
+    snapshot: Snapshot,
+    group_aliases: Iterable[str],
+    app_roles: Iterable[str] = (),
+    user: str | None = None,
 ) -> EffectivePolicy:
+    """`user` is the caller's users.yaml alias (Snapshot.users.alias_for(oid)), if any."""
     aliases, roles_claim = tuple(sorted(set(group_aliases))), tuple(sorted(set(app_roles)))
     # Every resolved principal is a signed-in user, so `everyone` bindings always apply.
     ids = {IdentityRef("everyone", "*")}
     ids |= {IdentityRef("group", a) for a in aliases}
     ids |= {IdentityRef("app_role", r) for r in roles_claim}
+    if user:
+        ids.add(IdentityRef("user", user))
 
     # 1-3: teams and directly granted roles
     team_rules: dict[str, list[str]] = {}
@@ -232,6 +240,7 @@ def resolve(
         config_version=snapshot.version,
         group_aliases=aliases,
         app_roles=roles_claim,
+        user=user,
         teams=MappingProxyType({t: tuple(r) for t, r in team_rules.items()}),
         roles=MappingProxyType({r: tuple(why) for r, why in role_reasons.items()}),
         tools=MappingProxyType(tools),
@@ -375,10 +384,11 @@ def skill_decision(snapshot: Snapshot, policy: EffectivePolicy, name: str) -> Sk
 
 
 class PolicyCache:
-    """EffectivePolicy per (config version, group aliases, app roles).
+    """EffectivePolicy per (config version, group aliases, app roles, users.yaml alias).
 
-    Policies depend only on identities and config, not on the user, so users with the same
-    groups share an entry. A new config version never sees an older version's entries.
+    Policies depend only on identities and config, so users with the same groups and no
+    users.yaml entry share an entry; a direct member gets their own. A new config version
+    never sees an older version's entries.
     """
 
     def __init__(self, max_entries: int = 1024):
@@ -387,14 +397,18 @@ class PolicyCache:
         self._lock = threading.Lock()
 
     def get(
-        self, snapshot: Snapshot, group_aliases: Iterable[str], app_roles: Iterable[str] = ()
+        self,
+        snapshot: Snapshot,
+        group_aliases: Iterable[str],
+        app_roles: Iterable[str] = (),
+        user: str | None = None,
     ) -> EffectivePolicy:
-        key = (snapshot.version, frozenset(group_aliases), frozenset(app_roles))
+        key = (snapshot.version, frozenset(group_aliases), frozenset(app_roles), user)
         with self._lock:
             hit = self._entries.get(key)
         if hit is not None:
             return hit
-        policy = resolve(snapshot, key[1], key[2])
+        policy = resolve(snapshot, key[1], key[2], key[3])
         with self._lock:
             if len(self._entries) >= self._max or any(
                 k[0] != snapshot.version for k in self._entries

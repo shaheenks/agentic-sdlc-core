@@ -89,6 +89,7 @@ def _who(identity: Identity) -> dict:
         **current_correlation(),
         "oid": identity.principal.oid,
         "upn": identity.principal.upn,
+        "user_alias": identity.user_alias,
         "teams": sorted(identity.policy.teams),
         "roles": sorted(identity.policy.roles),
         "config_version": identity.snapshot.version,

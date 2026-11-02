@@ -5,17 +5,23 @@
 locals {
   secret = { for k, v in google_secret_manager_secret.s : k => v.secret_id }
 
-  mcp_env = merge(local.vertex_env, local.entra_env, {
-    SDLC_ENV          = var.env
-    SDLC_CONFIG_WATCH = "false" # config is baked into the image per release (bundles: 7b)
-    MCP_PUBLIC_URL    = "https://${local.mcp_host}"
-    PGHOST            = local.cloudsql_socket
-    PGDATABASE        = google_sql_database.sdlc.name
-    PGUSER            = "sdlc_app"
-    # user connections (version-01 M6): users' own PATs, one Secret Manager secret per user
-    SDLC_USER_SECRETS_BACKEND = "gcp"
-    SDLC_SECRETS_PROJECT      = var.project_id
-  })
+  mcp_env = merge(
+    local.vertex_env,
+    local.entra_env,
+    {
+      SDLC_ENV          = var.env
+      SDLC_CONFIG_WATCH = "false" # config is baked into the image per release (bundles: 7b)
+      MCP_PUBLIC_URL    = "https://${local.mcp_host}"
+      PGHOST            = local.cloudsql_socket
+      PGDATABASE        = google_sql_database.sdlc.name
+      PGUSER            = "sdlc_app"
+      # user connections (version-01 M6): users' own PATs, one Secret Manager secret per user
+      SDLC_USER_SECRETS_BACKEND = "gcp"
+      SDLC_SECRETS_PROJECT      = var.project_id
+    },
+    # direct members (version-02 N10): read from the secret mount instead of config/env/<env>/
+    var.users_yaml_path == "" ? {} : { SDLC_USERS_FILE = "${local.users_dir}/users.yaml" },
+  )
   mcp_secret_env = merge(
     { PGPASSWORD = "pg-app-password" },
     contains(keys(local.secret), "entra-graph-secret") ? { ENTRA_GRAPH_CLIENT_SECRET = "entra-graph-secret" } : {},
@@ -132,6 +138,13 @@ resource "google_cloud_run_v2_service" "mcp" {
         name       = "groups"
         mount_path = local.config_env_dir
       }
+      dynamic "volume_mounts" {
+        for_each = var.users_yaml_path == "" ? [] : [1]
+        content {
+          name       = "users"
+          mount_path = local.users_dir
+        }
+      }
       startup_probe {
         http_get {
           path = "/healthz"
@@ -153,6 +166,19 @@ resource "google_cloud_run_v2_service" "mcp" {
         items {
           version = "latest"
           path    = "groups.yaml"
+        }
+      }
+    }
+    dynamic "volumes" {
+      for_each = var.users_yaml_path == "" ? [] : [1]
+      content {
+        name = "users"
+        secret {
+          secret = local.secret["users-yaml"]
+          items {
+            version = "latest"
+            path    = "users.yaml"
+          }
         }
       }
     }

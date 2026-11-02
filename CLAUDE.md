@@ -43,6 +43,11 @@ growing bootstrap indefinitely. Shared code goes in `libs/`, never copied betwee
   persona-matrix rows (`tests/policy/matrix.yaml`; a test fails if a catalog tool has no rows).
 - Identities in bindings/membership: `group:` (alias), `app_role:` (Entra app role) or `everyone: true` (roles.yaml only;
   every signed-in user gets the minimal `signed-in` role: ping, whoami).
+- Direct members (version-02 N10): `config/env/<env>/users.yaml` (kind `UserMap`, optional, git-ignored like groups.yaml)
+  lists users by email with their `teams: {<team>: [roles]}` and global `roles`, for tenants without a group per team.
+  Matched on `oid` ONLY (never on an email/UPN claim); an entry without `oid` grants nothing. Fill oids with
+  `uv run sdlc-config users sync --env <env> [--write] [--check]` (read-only `az ad user show`, as whoever az is signed in as).
+  Rules read `env/<env>/users.yaml#users/<alias>/teams/<team>`; personas may set `user: <alias>`; `explain --user <alias>`.
 - Argument limits: unioned across the teams that constrain a tool; a team that does not constrain it never widens
   access; roles with `tools.unconstrained: true` (admin) skip limits. Deny wins over any allow.
 - Rate limits: `platform.yaml` `defaults.rate_limit` (baseline) + `teams/<team>.yaml` `policy.limits` (overall and per tool);
@@ -196,7 +201,7 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
   deleted by `apply`).
 - `uv run --env-file .env sdlc-db bootstrap`   extension, roles, schema, grants (idempotent; no true superuser needed, as on
   Cloud SQL); fails if any role can bypass RLS. The test database is built with it.
-- `uv run sdlc-config explain --persona payments-dev` | `--groups eng-all,payments-devs [--app-roles X] [--json]` (`--dummy-env` works)
+- `uv run sdlc-config explain --persona payments-dev` | `--groups eng-all,payments-devs [--app-roles X]` | `--user <alias>` `[--json]` (`--dummy-env` works)
 - `uv run sdlc-config diff [--from HEAD] [--to WORKTREE] [--exit-code]`   per-persona permission changes (review on every config PR)
 - MCP tools: `whoami(explain=true)` (own view with source rules); `list_skills` / `load_skill` (per-user; hidden skills answer
   "unknown skill"); `get_agent_context` (team instructions + context); `search_knowledge` (viewer+, vector) and

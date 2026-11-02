@@ -1,5 +1,5 @@
 # Secret Manager: generated DB passwords + cookie secret, and tenant values from .env / the
-# git-ignored groups.yaml. Values are also in the Terraform state (GCS bucket, restricted).
+# git-ignored groups.yaml and (optional) users.yaml. Values are also in the Terraform state (GCS bucket, restricted).
 
 resource "random_password" "db" {
   for_each = toset(["admin", "owner", "app", "ingest"])
@@ -25,6 +25,9 @@ locals {
     },
     var.entra_graph_client_secret == "" ? {} : {
       "entra-graph-secret" = var.entra_graph_client_secret
+    },
+    var.users_yaml_path == "" ? {} : {
+      "users-yaml" = file(var.users_yaml_path)
     },
   )
 }

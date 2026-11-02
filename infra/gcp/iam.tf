@@ -2,7 +2,7 @@
 
 locals {
   workloads = {
-    mcp  = { roles = ["roles/cloudsql.client", "roles/aiplatform.user"], secrets = ["pg-app-password", "groups-yaml", "entra-graph-secret"] }
+    mcp  = { roles = ["roles/cloudsql.client", "roles/aiplatform.user"], secrets = ["pg-app-password", "groups-yaml", "entra-graph-secret", "users-yaml"] }
     app  = { roles = ["roles/aiplatform.user"], secrets = ["oauth2-cookie", "entra-client-secret"] }
     jobs = { roles = ["roles/cloudsql.client", "roles/aiplatform.user"], secrets = ["pg-admin-password", "pg-owner-password", "pg-app-password", "pg-ingest-password", "groups-yaml"] }
   }

@@ -34,6 +34,7 @@ are a proposal to confirm milestone by milestone.
 | N7 — Agent-generated UI (A2UI) + A2A path for Gemini Enterprise | ⏳ | Approved 2026-10-30; spike first, keep CopilotKit (§10) |
 | N8 — Chat UX | ✅ Built (2026-10-30); answer rendering confirmed by the user | Answer formatting, `/` opens the chat, navbar user + PAT status (§11). Open: navbar and `/` check in the browser, GCP `images` + `plan` + `apply` |
 | N9 — Per-source Entra groups | ✅ Built (2026-11-02) | Sources grant by their own Entra group or `everyone: true`; `graph_query` moved to viewer (§12). Open: real `infra-readers` group in the tenant |
+| N10 — Direct members by email (users.yaml) | ✅ Built (2026-11-02) | Users added to teams/roles in git-ignored `users.yaml`, matched by oid; `sdlc-config users sync`; GCP secret mount (§13). Open: GCP `plan` + `apply`, live check |
 | Deferred — Gemini Enterprise | ⏸ | Design in version-01 §6; needs an org admin, a workforce pool and licences |
 
 **Next:** N0 (quick, local), then N1 once the dev sources are decided.
@@ -310,3 +311,37 @@ source should be readable by its own Entra group, or by everyone, and `graph_que
   `groups.yaml` files, add a test user, then check `whoami(explain=true)` and `graph_query` on localhost and the tunnel.
 - Many per-source groups raise the chance of group-claim overage: the Graph fallback (`identity.groups.overage_fallback`)
   covers it; for enterprise tenants, emit only "groups assigned to the application" to keep tokens small.
+
+## 13. Direct members by email (N10) — built 2026-11-02
+
+**Why:** the tenant has no strict Entra group per team or role, so group-based membership can't say who is in a team.
+Admins need to add users directly, by their Entra email, to teams (with team roles) and to global roles.
+
+**As built:**
+- `config/env/<env>/users.yaml` (kind `UserMap`, `usermap.schema.json`, optional, git-ignored; `users.yaml.example`
+  committed): `<alias>: { email, oid, teams: {<team>: [roles]}, roles: [...] }`. Who is in a team is tenant data (per
+  env, like Entra group membership); what a team or role can do stays in committed config.
+- Matching is on `oid` only (`UserMap.alias_for`); emails are never compared with token claims (they can change or be
+  reused). An entry without an `oid` is "pending": validated, reported by `sdlc-config validate`, grants nothing.
+- The loader turns entries into ordinary team membership entries and role bindings for `user:<alias>` (rules
+  `env/<env>/users.yaml#users/<alias>/teams/<team>` and `.../roles`), so the resolver keeps one path; unknown teams or
+  roles, duplicate emails or oids fail validation. `resolve(..., user=)`, `PolicyCache` keyed by the alias too.
+  Team `membership` may now be empty (members only from users.yaml).
+- MCP: `whoami` returns `user`; audit records carry `user_alias`; admin `config_explain(user=)` and `config_info`
+  counts users/pending.
+- CLI: `sdlc-config users sync --env <env> [--write] [--check]` (read-only `az ad user show`, prints the az account;
+  `--write` saves oids, keeping the header comment only; `--check` reports renamed/deleted accounts);
+  `explain --user <alias>`; personas take `user:`; `diff` copies the worktree users.yaml into revisions that know the kind.
+- GCP: optional `users_yaml_path` (set by `gcp_deploy.ps1` when `config/env/<env>/users.yaml` exists) → secret
+  `sdlc-<env>-users-yaml`, mounted into the MCP service only at `/app/config-users/` (Cloud Run: one secret per
+  folder; `config/env/<env>/` already holds groups.yaml) with `SDLC_USERS_FILE` (loader path override; the file
+  keeps its usual name in rules and bundles; `compile` ignores the override). `.dockerignore` keeps users.yaml out
+  of images.
+- Tests: `tests/config/test_users_config.py` (load, validation, resolution, pending, sync with a stubbed az),
+  personas `direct-payments-dev`, `direct-viewer`, `pending-user` in the matrix, MCP tests (`whoami` by oid; the email
+  claim alone grants nothing).
+
+**Open:**
+- GCP dev: run `gcp_deploy.ps1 -EnvName dev -Step plan` then `apply` with `config/env/dev/users.yaml` in place.
+- Live check on localhost and the tunnel: a test user with no sdlc groups listed in `users.yaml` sees their team in
+  `whoami(explain=true)`.

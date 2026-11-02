@@ -173,6 +173,9 @@ flowchart LR
     T[Entra token<br/>oid · groups · roles] --> GA[Group aliases<br/>env/&lt;env&gt;/groups.yaml]
     T --> AR[App roles<br/>roles claim]
     T --> EV[Every signed-in user]
+    T --> UA[User alias by oid<br/>env/&lt;env&gt;/users.yaml]
+    UA --> TM
+    UA --> GB
     GA --> TM[Teams<br/>teams/*.yaml membership]
     AR --> TM
     GA --> GB[Global bindings<br/>roles.yaml]
@@ -193,6 +196,10 @@ flowchart LR
 - **Identity** is the Entra `oid` plus group membership and, for enterprise tenants, Entra **app roles**
   (`roles` claim). Entra is the only trusted issuer. Every signed-in user also matches `everyone: true`
   bindings, which grant only the `signed-in` basics (`ping`, `whoami`).
+- **Direct members** (version-02 N10): where the tenant has no group per team, `config/env/<env>/users.yaml`
+  (git-ignored) adds users to teams (with team roles) and global roles. Admins list emails; `sdlc-config users sync`
+  looks up each `oid` (read-only); the server matches tokens on `oid` only, never on an email claim, and an entry
+  without an `oid` grants nothing. A user's policy is the union of their groups, app roles and users.yaml entry.
 - **Teams** define who belongs, which roles each group gets, and team add-ons (extra skills, extra agent instructions, tool argument limits).
 - **Roles** are reusable permission bundles. A role can inherit from another.
 - **Data access** is granted only by each source's own `access` block. The sensitivity ceiling comes from roles.

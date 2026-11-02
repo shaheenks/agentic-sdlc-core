@@ -94,6 +94,7 @@ def build_server(
             "name": p.name,
             "tenant_id": p.tid,
             "groups": list(ident.group_aliases),
+            "user": ident.user_alias,
             "app_roles": sorted(p.app_roles),
             "unmapped_group_count": ident.unmapped_group_count,
             "non_guid_group_claims": p.non_guid_group_claims,

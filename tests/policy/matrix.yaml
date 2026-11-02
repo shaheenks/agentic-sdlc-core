@@ -55,6 +55,16 @@ rows:
   - { persona: viewer,        tool: bitbucket_get_file,  args: { repo: ws/pay },   expect: deny }
   - { persona: platform-dev,  tool: bitbucket_get_file,  args: { repo: ws/infra }, expect: allow }
 
+  # version-02 N10: direct members from users.yaml (no Entra groups)
+  - { persona: direct-payments-dev, tool: review_code,  args: { repo: payments-api },   expect: allow }
+  - { persona: direct-payments-dev, tool: review_code,  args: { repo: platform-infra }, expect: deny }
+  - { persona: direct-payments-dev, tool: graph_query,  expect: allow }
+  - { persona: direct-payments-dev, tool: approve_design, args: { repo: payments-api }, expect: deny }
+  - { persona: direct-viewer,       tool: search_knowledge, expect: allow }
+  - { persona: direct-viewer,       tool: review_code,  args: { repo: payments-api },   expect: deny }
+  - { persona: pending-user,        tool: graph_query,  expect: deny }
+  - { persona: pending-user,        tool: review_code,  args: { repo: platform-infra }, expect: deny }
+
 # Skill visibility (Stage 4). expect: visible | hidden. Every skill needs rows.
 skill_rows:
   - { persona: nobody,         skill: write-user-story,     expect: hidden }
@@ -73,6 +83,9 @@ skill_rows:
   - { persona: multi-team-dev, skill: infra-change-review,  expect: visible }
   - { persona: admin,          skill: ledger-design-review, expect: visible }  # "*" covers add-ons
   - { persona: admin,          skill: infra-change-review,  expect: visible }
+  - { persona: direct-payments-dev, skill: pci-checklist,        expect: visible }
+  - { persona: direct-payments-dev, skill: ledger-design-review, expect: hidden }
+  - { persona: pending-user,        skill: infra-change-review,  expect: hidden }
 
 # Data access (Stage 5). readable = source granted by Source.access AND its classification is at
 # or below the persona's ceiling (both are enforced by Postgres RLS). Every source needs rows.
@@ -98,3 +111,10 @@ data_rows:
   - { persona: infra-reader,  source: payments-code,      expect: unreadable }
   - { persona: infra-reader,  source: sdlc-platform,      expect: unreadable }
   - { persona: infra-reader,  source: payments-incidents, expect: unreadable }
+  # users.yaml direct members (version-02 N10)
+  - { persona: direct-payments-dev, source: payments-code,      expect: readable }
+  - { persona: direct-payments-dev, source: payments-incidents, expect: unreadable }  # confidential
+  - { persona: direct-payments-dev, source: platform-infra,     expect: unreadable }
+  - { persona: direct-viewer,       source: eng-standards,      expect: readable }
+  - { persona: direct-viewer,       source: payments-code,      expect: unreadable }
+  - { persona: pending-user,        source: platform-infra,     expect: unreadable }

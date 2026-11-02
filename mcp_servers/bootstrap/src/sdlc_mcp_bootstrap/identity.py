@@ -24,6 +24,7 @@ class Identity:
     snapshot: Snapshot
     policy: EffectivePolicy
     request_id: str = ""  # correlates all audit records (and server logs) of one request
+    user_alias: str | None = None  # users.yaml entry matched by the token oid (direct member)
 
 
 def current_principal() -> Principal | None:
@@ -41,8 +42,9 @@ async def resolve_identity(
 ) -> Identity:
     group_ids, source = await effective_group_ids(principal, group_resolver)
     aliases, unmapped = snapshot.groups.aliases_for(group_ids)
-    policy = cache.get(snapshot, aliases, principal.app_roles)
-    return Identity(principal, aliases, unmapped, source, snapshot, policy, request_id)
+    user = snapshot.users.alias_for(principal.oid)  # oid only, never the email claim
+    policy = cache.get(snapshot, aliases, principal.app_roles, user)
+    return Identity(principal, aliases, unmapped, source, snapshot, policy, request_id, user)
 
 
 async def remember_identity(identity: Identity) -> None:

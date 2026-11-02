@@ -133,7 +133,7 @@ sequenceDiagram
 |---|---|---|
 | `main.tf` | `google_project_service` (Run, Cloud SQL Admin, Secret Manager, Artifact Registry, Vertex AI, IAM, Resource Manager), Artifact Registry `sdlc` | Locals compute the deterministic URLs `https://<service>-<project number>.<region>.run.app` before the services exist, so each service is configured with its own public URL (`MCP_PUBLIC_URL`, OAuth redirect). Enable `cloudresourcemanager.googleapis.com` by hand before the first plan |
 | `sql.tf` | Instance `sdlc-<env>` (PG 17, Enterprise, `db-g1-small`, zonal, 10 GB autoresize, backups on, `ENCRYPTED_ONLY`), database `sdlc`, user `postgres` | Public IP for the connector only, no authorized networks |
-| `secrets.tf` | Generated passwords (`admin`, `owner`, `app`, `ingest`), cookie secret; 7–8 secrets + versions `sdlc-<env>-*` | Entra client secret, optional Graph secret and `groups.yaml` come from local git-ignored files |
+| `secrets.tf` | Generated passwords (`admin`, `owner`, `app`, `ingest`), cookie secret; 7–8 secrets + versions `sdlc-<env>-*` | Entra client secret, optional Graph secret, `groups.yaml` and optional `users.yaml` come from local git-ignored files |
 | `iam.tf` | Service accounts `sdlc-<env>-mcp`, `-app`, `-jobs`; project roles; per-secret accessor bindings; custom role `sdlcUserSecrets_<env>` | See §5 |
 | `run.tf` | Services `sdlc-mcp-<env>`, `sdlc-app-<env>`; jobs `sdlc-db-setup-<env>`, `sdlc-ingest-<env>` | Secrets as env vars (`version = latest`); `groups.yaml` as a file at `/app/config/env/<env>/`; Cloud SQL socket at `/cloudsql` |
 | `sessions.tf` | Agent Engine `sdlc-sessions-<env>` (`google_vertex_ai_reasoning_engine`, version-01 M8) | Session store only (no deployed code, no memory bank); the agent gets its full resource name in `SDLC_SESSION_SERVICE_URI` |
@@ -147,7 +147,7 @@ by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on 
 
 | Workload | Service account | Project roles | Secrets it can read |
 |---|---|---|---|
-| `sdlc-mcp` | `sdlc-<env>-mcp` | Cloud SQL Client, Vertex AI User, `sdlcUserSecrets_<env>` (condition: names starting `sdlc-<env>-user-`) | `pg-app-password`, `groups-yaml`, `entra-graph-secret` (if set); users' connection secrets |
+| `sdlc-mcp` | `sdlc-<env>-mcp` | Cloud SQL Client, Vertex AI User, `sdlcUserSecrets_<env>` (condition: names starting `sdlc-<env>-user-`) | `pg-app-password`, `groups-yaml`, `entra-graph-secret` and `users-yaml` (if set); users' connection secrets |
 | `sdlc-app` | `sdlc-<env>-app` | Vertex AI User (Gemini and Agent Engine sessions) | `oauth2-cookie`, `entra-client-secret` |
 | jobs | `sdlc-<env>-jobs` | Cloud SQL Client, Vertex AI User; Storage Object Viewer on `gcs_source_buckets` | `pg-admin-password`, `pg-owner-password`, `pg-app-password`, `pg-ingest-password`, `groups-yaml` |
 
@@ -175,6 +175,12 @@ by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on 
   `SDLC_ENV=dev`; file watching is off (`SDLC_CONFIG_WATCH=false`). The only environment-specific file,
   `groups.yaml`, is stored in Secret Manager and mounted as a file. **A config change (including sources) needs
   `images` + `plan` + `apply`.**
+- Direct members (version-02 N10, optional): if `config/env/<env>/users.yaml` exists, `gcp_deploy.ps1` sets
+  `TF_VAR_users_yaml_path`; Terraform stores it as secret `sdlc-<env>-users-yaml` and mounts it into the MCP service
+  only, at `/app/config-users/users.yaml` (its own folder: Cloud Run mounts one secret per folder), with
+  `SDLC_USERS_FILE` pointing there. Run `sdlc-config users sync --env <env> --write` first (entries without an
+  object ID grant nothing). A change to users.yaml needs `plan` + `apply` (no new images: it is never baked in,
+  `.dockerignore`), then a new MCP revision picks it up. Removing the file removes the secret and the mount.
 - Later (Stage 7b): config bundles in `gs://sdlc-config-<env>/` with a `current` pointer, Pub/Sub reload,
   last-known-good, rollback by pointer flip. The bundle format, verification, `activate` and rollback are built
   and tested locally (`libs/sdlc_config/bundles.py`, `SDLC_CONFIG_BUNDLES`).

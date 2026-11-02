@@ -60,6 +60,12 @@ variable "groups_yaml_path" {
   type        = string
 }
 
+variable "users_yaml_path" {
+  description = "Optional git-ignored UserMap for this env (direct members: emails + object IDs), stored in Secret Manager and mounted into the MCP service. Empty = none. gcp_deploy.ps1 sets it when config/env/<env>/users.yaml exists."
+  type        = string
+  default     = ""
+}
+
 variable "agent_model" {
   type    = string
   default = "gemini-3.8-flash"

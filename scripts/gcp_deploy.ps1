@@ -91,6 +91,10 @@ function Set-TerraformEnv {
     $env:TF_VAR_entra_client_id = Get-DotEnv 'ENTRA_CLIENT_ID'
     $env:TF_VAR_entra_client_secret = Get-DotEnv 'ENTRA_CLIENT_SECRET'
     $env:TF_VAR_entra_graph_client_secret = Get-DotEnv 'ENTRA_GRAPH_CLIENT_SECRET'
+    # Optional direct members (version-02 N10): stored as a secret and mounted into the MCP service.
+    $usersYaml = Join-Path $Root "config/env/$EnvName/users.yaml"
+    $env:TF_VAR_users_yaml_path = if (Test-Path $usersYaml) { "../../config/env/$EnvName/users.yaml" } else { '' }
+    if ($env:TF_VAR_users_yaml_path) { Write-Host "users.yaml: config/env/$EnvName/users.yaml" }
     foreach ($v in 'entra_tenant_id', 'entra_api_client_id', 'entra_client_id', 'entra_client_secret') {
         if (-not (Get-Item "env:TF_VAR_$v").Value) { throw "TF_VAR_$v is empty (check .env)" }
     }
