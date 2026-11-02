@@ -13,8 +13,9 @@ VIEWER_TOOLS = {
     "load_skill",
     "get_agent_context",
     "search_knowledge",
+    "graph_query",  # version-02 N9: results limited to the caller's sources
 }
-DEV_TOOLS = VIEWER_TOOLS | {"graph_query", "generate_tests", "review_code"}
+DEV_TOOLS = VIEWER_TOOLS | {"generate_tests", "review_code"}
 # version-01 M6: read with the user's own connected account
 DEV_TOOLS |= {"jira_get_issue", "confluence_get_page", "github_get_file", "bitbucket_get_file"}
 PAYMENTS_REPOS = {"payments-api", "payments-ui"}

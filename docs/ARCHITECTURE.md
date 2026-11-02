@@ -220,8 +220,8 @@ flowchart LR
     MCP -- "SET LOCAL app.allowed_sources,<br/>app.max_classification_rank" --> PG
 ```
 
-- **Two checks, one source of truth.** The resolver turns `Source.access` (teams, roles, groups) into the
-  user's granted sources, takes the highest `max_classification` across the user's roles, and keeps the
+- **Two checks, one source of truth.** The resolver turns `Source.access` (teams, roles, groups, `everyone`) into the
+  user's granted sources (a source can have its own Entra group, so readers need no team), takes the highest `max_classification` across the user's roles, and keeps the
   granted sources whose **current** classification is at or below that ceiling (`readable_sources`). The
   MCP server searches only those, and Postgres RLS filters every row on the same values (set per
   transaction by `sdlc_db.scoped()`) plus each row's own classification stamp. A bug in tool code cannot
@@ -262,8 +262,8 @@ flowchart LR
 - **Extraction** runs at ingest (Gemini structured output, temperature 0, types from the Source config). Model output
   is untrusted: only allowed types and relations between extracted entities are stored. Results are cached by chunk
   content, so re-ingesting costs model calls only for changed text.
-- **`graph_query`** (developers) returns documents plus the entities and relations it walked; `search_knowledge`
-  (everyone with data access) stays vector-only. Both run entirely under the caller's RLS context.
+- **`graph_query`** (viewers and up) returns documents plus the entities and relations it walked; `search_knowledge`
+  (viewers and up) stays vector-only. Both run entirely under the caller's RLS context.
 - **Measured value:** on the sample corpus and on this repository (`tests/evals`), `graph_query` beats
   `search_knowledge` only through returning one result per document; its graph re-ranking adds nothing measurable
   yet. Its value today is the structured entities/relations in the answer.

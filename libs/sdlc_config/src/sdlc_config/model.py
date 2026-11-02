@@ -184,6 +184,7 @@ class SourceDef:
     access_teams: frozenset[str] = frozenset()
     access_roles: frozenset[str] = frozenset()
     access_groups: frozenset[str] = frozenset()
+    access_everyone: bool = False  # access.everyone: every signed-in user
     description: str = ""
 
 

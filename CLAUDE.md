@@ -37,7 +37,8 @@ growing bootstrap indefinitely. Shared code goes in `libs/`, never copied betwee
 - `config/env/*/groups.yaml` is git-ignored (tenant-specific). Commit only `groups.yaml.example`
   with placeholder GUIDs; never commit tenant IDs, app IDs, group IDs or test-user UPNs.
 - Resolution: groups → teams (membership) + global bindings → roles (inherits) → tools/skills/sources.
-  Deny wins. Arg constraints are unioned across teams. Data access is granted only by `Source.access`.
+  Deny wins. Arg constraints are unioned across teams. Data access is granted only by `Source.access`
+  (`teams`, `roles`, `groups` = a source's own Entra group alias, or `everyone: true`); the role ceiling still applies.
 - A new tool requires: `tools.yaml` entry (with `args` for any argument a team may limit) + role/team grants +
   persona-matrix rows (`tests/policy/matrix.yaml`; a test fails if a catalog tool has no rows).
 - Identities in bindings/membership: `group:` (alias), `app_role:` (Entra app role) or `everyone: true` (roles.yaml only;
@@ -199,7 +200,7 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
 - `uv run sdlc-config diff [--from HEAD] [--to WORKTREE] [--exit-code]`   per-persona permission changes (review on every config PR)
 - MCP tools: `whoami(explain=true)` (own view with source rules); `list_skills` / `load_skill` (per-user; hidden skills answer
   "unknown skill"); `get_agent_context` (team instructions + context); `search_knowledge` (viewer+, vector) and
-  `graph_query` (developer+, vector + knowledge graph), both under RLS; admin only: `config_info()`, `config_explain(groups, app_roles)`
+  `graph_query` (viewer+, vector + knowledge graph), both under RLS; admin only: `config_info()`, `config_explain(groups, app_roles)`
 - Skills: a `"*"` skill grant (admin) covers every team's add-ons; team instructions are guidance, never authorization.
   `sdlc-config diff` cannot compare across the Stage 4 boundary (older revisions lack skills.yaml) or the Stage 6 boundary
   (older revisions enable a source graph without `platform.yaml` `knowledge.graph`); later revisions diff normally.

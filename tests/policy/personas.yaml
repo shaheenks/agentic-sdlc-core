@@ -8,3 +8,4 @@ personas:
   platform-dev:  { groups: [eng-all, platform-devs] }
   multi-team-dev: { groups: [eng-all, payments-devs, platform-devs] }
   admin:         { groups: [eng-all, platform-admins] }
+  infra-reader:  { groups: [eng-all, infra-readers] }    # a source's own group, no team

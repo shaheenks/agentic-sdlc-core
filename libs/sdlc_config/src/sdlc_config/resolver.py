@@ -10,7 +10,8 @@ identities (group aliases + Entra app roles)
      their `access` roles). A "*" skill grant (admin) also covers every team's add-ons.
   -> agent context (step 8): member teams' instructions (AGENT_ADDENDUM) and context.
   -> data (step 7): allowed sources = sources whose `access` matches the caller's teams, roles
-     or group aliases (the ONLY grant for data); max classification = highest level across the
+     or group aliases, or that set `everyone: true` (the ONLY grant for data; a source can have
+     its own Entra group, independent of teams); max classification = highest level across the
      caller's roles (platform default otherwise). Postgres RLS enforces both on every query.
 Every role, grant, deny and limit records the config rule it came from.
 """
@@ -282,6 +283,7 @@ def _resolve_sources(snapshot, aliases, role_reasons, team_rules) -> dict[str, t
                 f"group:{g} <- {source.source}#access/groups"
                 for g in sorted(groups & source.access_groups)
             ]
+            + ([f"everyone <- {source.source}#access/everyone"] if source.access_everyone else [])
         )
         if reasons:
             grants[source.id] = tuple(reasons)

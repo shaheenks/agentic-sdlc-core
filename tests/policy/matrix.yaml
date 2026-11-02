@@ -37,11 +37,13 @@ rows:
   - { persona: viewer,        tool: get_agent_context, expect: allow }
   - { persona: nobody,        tool: get_agent_context, expect: deny }
   - { persona: viewer,        tool: search_knowledge,  expect: allow }
-  - { persona: viewer,        tool: graph_query,       expect: deny }
+  - { persona: viewer,        tool: graph_query,       expect: allow }   # data limited to granted sources
   - { persona: payments-dev,  tool: graph_query,       expect: allow }
   - { persona: platform-dev,  tool: graph_query,       expect: allow }
   - { persona: nobody,        tool: graph_query,       expect: deny }
   - { persona: admin,         tool: graph_query,       expect: allow }
+  - { persona: infra-reader,  tool: graph_query,       expect: allow }
+  - { persona: infra-reader,  tool: generate_tests,    args: { repo: platform-infra }, expect: deny }  # source group grants data, not developer tools
   # version-01 M6: tools that use the user's own connection (developers and above)
   - { persona: viewer,        tool: jira_get_issue,      expect: deny }
   - { persona: payments-dev,  tool: jira_get_issue,      expect: allow }
@@ -75,7 +77,7 @@ skill_rows:
 # Data access (Stage 5). readable = source granted by Source.access AND its classification is at
 # or below the persona's ceiling (both are enforced by Postgres RLS). Every source needs rows.
 data_rows:
-  - { persona: nobody,        source: eng-standards,      expect: unreadable }
+  - { persona: nobody,        source: eng-standards,      expect: readable }    # everyone + public (no search tool though)
   - { persona: viewer,        source: eng-standards,      expect: readable }
   - { persona: viewer,        source: payments-code,      expect: unreadable }
   - { persona: payments-dev,  source: payments-code,      expect: readable }
@@ -90,3 +92,9 @@ data_rows:
   - { persona: payments-dev,  source: sdlc-platform,      expect: unreadable }
   - { persona: viewer,        source: sdlc-platform,      expect: unreadable }
   - { persona: admin,         source: sdlc-platform,      expect: readable }
+  # source-level Entra group without team membership (version-02 N9)
+  - { persona: infra-reader,  source: platform-infra,     expect: readable }
+  - { persona: infra-reader,  source: eng-standards,      expect: readable }
+  - { persona: infra-reader,  source: payments-code,      expect: unreadable }
+  - { persona: infra-reader,  source: sdlc-platform,      expect: unreadable }
+  - { persona: infra-reader,  source: payments-incidents, expect: unreadable }

@@ -15,5 +15,5 @@ spec:
       enabled: true
       entity_types: [standard, process, service, team, metric]
 access:
-  groups: [eng-all]
+  everyone: true                 # every signed-in user
   roles: [admin]

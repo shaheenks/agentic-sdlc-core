@@ -31,7 +31,8 @@ def test_sources_load(config_dir):
     incidents = snap.sources["payments-incidents"]
     assert incidents.classification == "confidential" and incidents.classification_rank == 2
     assert incidents.access_teams == {"payments"} and incidents.access_roles == {"admin"}
-    assert snap.sources["eng-standards"].access_groups == {"eng-all"}
+    assert snap.sources["eng-standards"].access_everyone
+    assert snap.sources["platform-infra"].access_groups == {"infra-readers"}
     assert snap.platform.embedding_model == "gemini-embedding-2"
     assert snap.platform.embedding_dimensions == 768
 
@@ -56,8 +57,13 @@ def test_sources_load(config_dir):
         ),
         (
             "sources/eng-standards.yaml",
-            lambda d: d["access"].update(groups=["everyone"]),
-            "unknown group alias 'everyone'",
+            lambda d: d["access"].update(groups=["ghosts"]),
+            "unknown group alias 'ghosts'",
+        ),
+        (
+            "sources/eng-standards.yaml",
+            lambda d: d["access"].update(everyone=False),
+            "access/everyone",
         ),
         (
             "sources/payments-code.yaml",
@@ -88,7 +94,8 @@ def test_bad_source_config_fails(config_dir, file, mutate, message):
 @pytest.mark.parametrize(
     ("groups", "sources", "ceiling"),
     [
-        ([], set(), "public"),
+        ([], {"eng-standards"}, "public"),  # everyone: true
+        (["eng-all", "infra-readers"], {"eng-standards", "platform-infra"}, "internal"),
         (["eng-all"], {"eng-standards"}, "internal"),
         (
             ["eng-all", "payments-devs"],
@@ -141,9 +148,27 @@ def test_data_grants_name_their_rule(config_dir):
         "team:payments <- sources/payments-code.yaml#access/teams",
     )
     assert policy.data_sources["eng-standards"] == (
-        "group:eng-all <- sources/eng-standards.yaml#access/groups",
+        "everyone <- sources/eng-standards.yaml#access/everyone",
     )
     assert policy.explain()["data"]["max_classification"] == "internal"
+
+
+def test_source_group_grants_data_without_team(config_dir):
+    """A source's own Entra group grants that source only; no team, no developer tools."""
+    policy = resolve(load(config_dir), ["eng-all", "infra-readers"])
+    assert policy.teams == {}
+    assert policy.data_sources["platform-infra"] == (
+        "group:infra-readers <- sources/platform-infra.yaml#access/groups",
+    )
+    assert set(policy.readable_sources) == {"eng-standards", "platform-infra"}
+    assert policy.allows("graph_query") and not policy.allows("review_code")
+
+
+def test_source_group_alone_has_no_knowledge_tool(config_dir):
+    """Without eng-all (viewer) the user has the data grant but no tool to read it."""
+    policy = resolve(load(config_dir), ["infra-readers"])
+    assert "platform-infra" in policy.data_sources
+    assert not policy.allows("graph_query") and not policy.allows("search_knowledge")
 
 
 @pytest.mark.parametrize(

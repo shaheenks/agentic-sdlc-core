@@ -107,7 +107,8 @@
       "properties": {
         "teams": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/name" } },
         "roles": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/name" } },
-        "groups": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/name" } }
+        "groups": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/name" }, "description": "group aliases, e.g. one Entra group per source" },
+        "everyone": { "const": true, "description": "every signed-in user (still capped by the role classification ceiling)" }
       }
     }
   },

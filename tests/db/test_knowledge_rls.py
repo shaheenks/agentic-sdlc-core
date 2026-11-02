@@ -99,7 +99,8 @@ def test_forged_context_values_are_rejected(corpus):
 @pytest.mark.parametrize(
     ("groups", "expected"),
     [
-        ([], set()),
+        ([], {"eng-standards"}),  # everyone: true, public
+        (["eng-all", "infra-readers"], {"eng-standards", "platform-infra"}),  # source group
         (["eng-all"], {"eng-standards"}),
         (["eng-all", "payments-devs"], {"eng-standards", "payments-code"}),  # not confidential
         (["eng-all", "payments-leads"], {"eng-standards", "payments-code", "payments-incidents"}),

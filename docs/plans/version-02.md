@@ -33,6 +33,7 @@ are a proposal to confirm milestone by milestone.
 | N6 — Product backlog | ⏳ | Pick items per priority (§6) |
 | N7 — Agent-generated UI (A2UI) + A2A path for Gemini Enterprise | ⏳ | Approved 2026-10-30; spike first, keep CopilotKit (§10) |
 | N8 — Chat UX | ✅ Built (2026-10-30); answer rendering confirmed by the user | Answer formatting, `/` opens the chat, navbar user + PAT status (§11). Open: navbar and `/` check in the browser, GCP `images` + `plan` + `apply` |
+| N9 — Per-source Entra groups | ✅ Built (2026-11-02) | Sources grant by their own Entra group or `everyone: true`; `graph_query` moved to viewer (§12). Open: real `infra-readers` group in the tenant |
 | Deferred — Gemini Enterprise | ⏸ | Design in version-01 §6; needs an org admin, a workforce pool and licences |
 
 **Next:** N0 (quick, local), then N1 once the dev sources are decided.
@@ -284,3 +285,28 @@ on the chat after sign-in, and the navbar should show the signed-in user with th
   `/` lands in `/chat/`, answers read normally (light and dark OS theme), the navbar shows your name and connection
   dots, connecting/disconnecting updates them. GCP: `images` + `plan` + `apply` (the API route change is in
   `run.tf`).
+
+## 12. Per-source Entra groups (N9) — built 2026-11-02
+
+**Why:** team membership comes from one Entra group per team, but readers of a source are often not a team. Each
+source should be readable by its own Entra group, or by everyone, and `graph_query` should only walk those sources.
+
+**As built:**
+- `Source.access` takes `teams`, `roles`, `groups` (group aliases, e.g. one Entra group per source) and, new,
+  `everyone: true` (schema, `SourceDef.access_everyone`, resolver reason `everyone <- sources/<id>.yaml#access/everyone`).
+  Group grants already existed; they need no team.
+- `graph_query` moved from `developer` to `viewer` (`eng-all`), so a source-group member without a team can call it.
+  Not `eng-all → developer`: that would hand out `review_code`/`generate_tests` without the teams' repo limits.
+- Classification is unchanged: the role ceiling still applies (a source group grants the source, not clearance).
+- RLS was already per source (`documents`, `chunks`, `entities`, `mentions`, `edges`); graph joins by key happen at
+  query time over RLS-visible rows only. No migration.
+- Examples: `eng-standards` → `everyone: true`; `platform-infra` adds `groups: [infra-readers]`. Persona
+  `infra-reader` (eng-all + infra-readers, no team) in the matrix; DB test `test_graph_query_for_a_source_group_member`.
+- The git-ignored `config/env/{local,dev,staging}/groups.yaml` got an `infra-readers` placeholder ID that matches no
+  group (fail closed), so config still validates.
+
+**Open:**
+- Create the `infra-readers` Entra group (admin action, needs confirmation), put its object ID in the git-ignored
+  `groups.yaml` files, add a test user, then check `whoami(explain=true)` and `graph_query` on localhost and the tunnel.
+- Many per-source groups raise the chance of group-claim overage: the Graph fallback (`identity.groups.overage_fallback`)
+  covers it; for enterprise tenants, emit only "groups assigned to the application" to keep tokens small.

@@ -681,6 +681,7 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             access_teams=frozenset(access.get("teams", [])),
             access_roles=frozenset(access.get("roles", [])),
             access_groups=frozenset(access.get("groups", [])),
+            access_everyone=bool(access.get("everyone")),
             description=meta.get("description", ""),
         )
     return sources
