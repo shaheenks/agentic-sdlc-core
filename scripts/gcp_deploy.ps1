@@ -190,7 +190,9 @@ switch ($Step) {
                 throw "missing config/env/$EnvName/groups.yaml"
             }
             $local = Join-Path $Root ".bundles/$EnvName"   # git-ignored: bundles hold tenant files
-            $out = & uv run --env-file (Join-Path $Root '.env') sdlc-config compile --env $EnvName `
+            # uv reads --env-file shell-style (backslashes are escapes): pass forward slashes.
+            $envFile = (Join-Path $Root '.env') -replace '\\', '/'
+            $out = & uv run --env-file $envFile sdlc-config compile --env $EnvName `
                 --config-dir (Join-Path $Root 'config') --out $local
             if ($LASTEXITCODE -ne 0) { throw 'sdlc-config compile failed (see above)' }
             $out | ForEach-Object { Write-Host $_ }
