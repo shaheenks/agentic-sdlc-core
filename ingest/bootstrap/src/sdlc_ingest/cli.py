@@ -2,10 +2,14 @@
 
   sdlc-ingest run --source <id> [--source <id> ...] | --all  [--dry-run] [--force]
 
-Config: SDLC_CONFIG_DIR (default: repo config/), SDLC_ENV (default: local). Source locations
-resolve relative to the parent of the config dir (the repo root). Database: the sdlc_ingest role
-(PG* env + SDLC_INGEST_PASSWORD). Embeddings: platform.yaml knowledge.embedding via Vertex AI /
-Gemini API (google-genai env: GOOGLE_GENAI_USE_VERTEXAI, GOOGLE_CLOUD_PROJECT, ...). Graph
+Config: SDLC_CONFIG_BUNDLES (a bundle root, e.g. the config store bucket mounted on GCP; the
+active bundle is loaded and verified) or SDLC_CONFIG_DIR (default: repo config/); SDLC_ENV
+(default: local). Relative source locations (local_folder, local git) resolve against
+SDLC_SOURCES_ROOT, default: the parent of the config dir, or the repo root of this installation
+when config comes from a bundle (the image's /app, which holds samples/). Database: the
+sdlc_ingest role (PG* env + SDLC_INGEST_PASSWORD). Embeddings: platform.yaml
+knowledge.embedding via Vertex AI / Gemini API (google-genai env: GOOGLE_GENAI_USE_VERTEXAI,
+GOOGLE_CLOUD_PROJECT, ...). Graph
 extraction: platform.yaml knowledge.graph.model, for sources with spec.ingest.graph.enabled.
 After changing a source's graph settings, re-run with --force (model output is cached, so only
 chunks whose extraction inputs changed call the model again).
@@ -23,6 +27,7 @@ from pathlib import Path
 
 import psycopg
 from sdlc_config import ConfigError, load_snapshot
+from sdlc_config.bundles import load_bundle
 from sdlc_config.store import DEFAULT_CONFIG_DIR
 from sdlc_db.connect import conninfo
 from sdlc_db.embedding import GeminiEmbedder
@@ -47,9 +52,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(message)s")
-    config_dir = Path(os.environ.get("SDLC_CONFIG_DIR", DEFAULT_CONFIG_DIR))
     try:
-        snapshot = load_snapshot(config_dir, os.environ.get("SDLC_ENV", "local"))
+        snapshot, sources_root = load_config(os.environ)
     except ConfigError as e:
         print(e, file=sys.stderr)
         return 1
@@ -71,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
         _run(
             snapshot,
             embedder,
-            config_dir.parent,
+            sources_root,
             None if args.all else args.source,
             args.dry_run,
             args.force,
@@ -111,6 +115,19 @@ def _ocr_reader(snapshot, wanted, dry_run):
         return None
     platform = snapshot.platform
     return GeminiOcr(platform.ocr_model, platform.ocr_thinking_level)
+
+
+def load_config(environ) -> tuple:
+    """(snapshot, root for relative source locations), from a bundle or a config folder."""
+    env = environ.get("SDLC_ENV", "local")
+    if environ.get("SDLC_CONFIG_BUNDLES"):
+        snapshot = load_bundle(Path(environ["SDLC_CONFIG_BUNDLES"]), env, environ=environ)
+        default_root = DEFAULT_CONFIG_DIR.parent  # the bundle tree has no samples/
+    else:
+        config_dir = Path(environ.get("SDLC_CONFIG_DIR", DEFAULT_CONFIG_DIR))
+        snapshot = load_snapshot(config_dir, env, environ)
+        default_root = config_dir.parent
+    return snapshot, Path(environ.get("SDLC_SOURCES_ROOT") or default_root)
 
 
 def run_async(coro):

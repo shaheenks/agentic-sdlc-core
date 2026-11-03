@@ -26,9 +26,9 @@ locals {
     var.entra_graph_client_secret == "" ? {} : {
       "entra-graph-secret" = var.entra_graph_client_secret
     },
-    var.users_yaml_path == "" ? {} : {
+    local.users_secret ? { # with config bundles, users.yaml travels in the bundle instead
       "users-yaml" = file(var.users_yaml_path)
-    },
+    } : {},
   )
 }
 

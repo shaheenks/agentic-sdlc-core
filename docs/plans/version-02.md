@@ -37,6 +37,7 @@ are a proposal to confirm milestone by milestone.
 | N10 — Direct members by email (users.yaml) | ✅ Built (2026-11-02) | Users added to teams/roles in git-ignored `users.yaml`, matched by oid; `sdlc-config users sync`; GCP secret mount (§13). Open: GCP `plan` + `apply`, live check |
 | N11 — Rename: `user_agent`, `core_mcp` | ✅ Done (2026-11-03); local stack checked | Starter agent and MCP server renamed for the agent-runtime work (§14). Existing chats no longer show (stored per app name). Open: GCP `images` + `plan` + `apply` |
 | N12 — Team `sdlc-platform` + GitHub source | ✅ Built (2026-11-03) | `platform` → `sdlc-platform`, members from users.yaml only, source = GitHub `agentic-sdlc-core` tracking `main`; git loader partial-clone fix (§15). Open: re-ingest + remove dropped-source data once all sources are fixed ([pending-task.md](pending-task.md) task 2) |
+| N13 — Config from the config store bucket | ✅ Built (2026-11-03); local bundle checked | MCP + ingest read config bundles from `gs://sdlc-config-store-a7484d8b/bundles/<env>/`, pointer polled every 60 s, `-Step config` publishes (§16). Part of N5 (bundles + reload). Open: `base`, `config`, `images`, `plan`, `apply` on GCP |
 | Pending — Agent runtimes (user / CI / ops) | 📝 Design only | Workload identity, read + report back; trigger sources not decided (D7, [pending-task.md](pending-task.md)) |
 | Deferred — Gemini Enterprise | ⏸ | Design in version-01 §6; needs an org admin, a workforce pool and licences |
 
@@ -404,3 +405,35 @@ in the public GitHub repository https://github.com/shaheenks/agentic-sdlc-core. 
 - Add the team's members to `config/env/<env>/users.yaml` and run `sdlc-config users sync --env <env> --write`.
 - Re-ingest and cleanup are deferred until all sources are fixed: [pending-task.md](pending-task.md) task 2 (the DB
   still holds the old local `sdlc-platform` copy and unreadable `platform-infra` rows).
+
+## 16. Config from the config store bucket (N13) — built 2026-11-03
+
+**Why:** on GCP, config was baked into the images, so every config change needed new images and an apply. Cloud Run
+now reads config from the `sdlc-config-store-a7484d8b` bucket. This is the bundle half of N5 (Stage 7b).
+
+**As built (decisions 2026-11-03: bundles, MCP + ingest, poll the pointer):**
+- Format: the existing config bundles (`sdlc-config compile`: immutable, hash-verified, config + skills + tenant
+  `groups.yaml` / `users.yaml`) under `gs://<bucket>/bundles/<env>/<version>/` with a `current` pointer.
+- Terraform (`run.tf`, when `config_store_bucket` is set): the MCP service and the ingest job mount
+  `bundles/<env>/` read-only (Cloud Storage volume, `only-dir`, GEN2 execution environment) at
+  `/app/config-bundles`, `SDLC_CONFIG_BUNDLES` set; the `groups.yaml` / `users.yaml` secret mounts and
+  `SDLC_USERS_FILE` are dropped in that mode (the users.yaml secret is no longer created); MCP service account gets
+  `objectViewer` on the bucket (`storage.tf`).
+- Reload: `ConfigStore.start_polling` reads `current` every `SDLC_CONFIG_POLL_SECONDS` (60) and reloads on change
+  (verified; broken pointer or bundle = keep the last good version, `last_error` set); `start_updates()` chooses
+  polling for bundles, file watching for a folder. `load_bundle` ignores `SDLC_USERS_FILE`.
+- Ingest: `load_config` reads a bundle or a folder; relative source locations resolve against `SDLC_SOURCES_ROOT`
+  (`/app` on GCP, where the image keeps `samples/`), so the sample sources keep working from a bundle.
+- Deploy: `gcp_deploy.ps1 -Step config` compiles (refuses uncommitted changes), uploads the bundle, then moves
+  `current`; `-ConfigVersion <v>` rolls back. `base` also creates the bucket; `plan` refuses to run without an
+  active bundle. Checked locally: a `dev` bundle loads for the MCP and ingest views, and a dry-run ingest of
+  `eng-standards` reads its samples from outside the bundle.
+- Tests (`tests/config/test_bundles.py`): polling follows the pointer and keeps a broken one out, startup mode
+  selection, the users-file override ignored, ingest from a bundle.
+
+**Open:**
+- GCP: `base` (bucket), `config`, `images` (new code), `plan`, `apply`; then check `config_info` (version) and a
+  config change via `-Step config` only. The Terraform has not been planned yet: check `mount_options` /
+  `execution_environment` in the plan output.
+- Pick-up time is up to ~2 minutes (poll + the Cloud Storage mount's metadata cache); Pub/Sub notification and
+  publishing from CI stay in N5.

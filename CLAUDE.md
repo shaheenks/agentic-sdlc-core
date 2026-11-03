@@ -90,6 +90,11 @@ See "Runtime Config Exposure" in docs/plans/version-00.md.
   makes services load bundles instead of the folder. Bundles never contain secrets (`${VAR}` stays unresolved until
   load) but do contain the tenant `groups.yaml`: keep bundle roots out of git (`.bundles/`). Dev uses the watched folder.
 - Startup fails closed without a valid bundle; reload keeps the last-known-good. Rollback = move the `current` pointer.
+- GCP (version-02 N13): with `config_store_bucket` set, the MCP service and ingest job read bundles from
+  `gs://<bucket>/bundles/<env>/` (mounted read-only); the MCP server polls `current` (`SDLC_CONFIG_POLL_SECONDS`, 60).
+  Publish: `gcp_deploy.ps1 -Step config` (compile, upload, move `current` last); rollback: `-ConfigVersion <v>`.
+  `ConfigStore.start_updates()` picks polling (bundles) or file watching (folder). Bundles ignore `SDLC_USERS_FILE`.
+  Ingest resolves relative source locations against `SDLC_SOURCES_ROOT` (default: config dir parent; bundles: repo root).
 - Viewing another user's policy (`config_explain`) is an admin-only tool; `whoami(explain)` shows only the caller's own view.
 
 ## Security rules
@@ -199,7 +204,7 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
   `sdlc-db bootstrap` + `migrate`, terraform fmt/validate). No secrets or cloud calls in CI; tests must pass without `.env`
   (placeholder Entra IDs, example GroupMap, HashEmbedder, FakeEntra).
 - `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values)
-- `.\scripts\gcp_deploy.ps1 -EnvName dev -Step state|base|images|plan|apply|db|ingest|urls`   GCP deployment, run by the user (see
+- `.\scripts\gcp_deploy.ps1 -EnvName dev -Step state|base|config|images|plan|apply|db|ingest|urls`   GCP deployment, run by the user (see
   docs/GCP_DEPLOYMENT.md). PowerShell, not bash (Windows). Commit first: images and plan use the commit SHA as tag.
   `base`/`apply` create billable resources: only with the user's go-ahead. The saved plan contains secrets (git-ignored,
   deleted by `apply`).

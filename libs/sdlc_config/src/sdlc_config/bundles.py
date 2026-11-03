@@ -171,6 +171,7 @@ def load_bundle(
         raise ConfigError([f"bundle {version} is for env '{manifest['env']}', not '{env}'"])
     environ = dict(os.environ if environ is None else environ)
     environ["SDLC_CONFIG_GIT_SHA"] = manifest["git_sha"]
+    environ.pop("SDLC_USERS_FILE", None)  # a bundle is self-contained: its own users.yaml only
     snapshot = load_snapshot(root / version / TREE / "config", env, environ)
     if snapshot.version != version:
         raise ConfigError([f"bundle {version}: content loads as version {snapshot.version}"])

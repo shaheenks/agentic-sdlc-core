@@ -1,6 +1,6 @@
 # Two private buckets (version-02), each created only when its variable is set:
-# - config store: source content read by ingest through `gcs` sources (config/sources,
-#   spec.type: gcs), starting with the former samples/ corpus; later also config bundles (7b).
+# - config store: config bundles (bundles/<env>/, read by the MCP service and the ingest job,
+#   run.tf) and source content for `gcs` sources (the former samples/ corpus).
 # - artifact store: temporary files and agent artefacts, written by the agent, deleted after
 #   artifact_retention_days.
 
@@ -35,8 +35,16 @@ resource "google_storage_bucket" "config_store" {
   depends_on = [google_project_service.apis]
 }
 
-# The ingest job reads it (no keys: the job's service account). Uploads are done by people with
-# their own access (gcloud storage cp), not by any service.
+# The MCP service and the ingest job read it (config bundles under bundles/<env>/, source content);
+# no keys, their own service accounts. Uploads are done by people with their own access
+# (gcp_deploy.ps1 -Step config, gcloud storage cp), never by a service.
+resource "google_storage_bucket_iam_member" "config_store_mcp" {
+  count  = var.config_store_bucket == "" ? 0 : 1
+  bucket = google_storage_bucket.config_store[0].name
+  role   = "roles/storage.objectViewer"
+  member = google_service_account.w["mcp"].member
+}
+
 resource "google_storage_bucket_iam_member" "config_store_ingest" {
   count  = var.config_store_bucket == "" ? 0 : 1
   bucket = google_storage_bucket.config_store[0].name

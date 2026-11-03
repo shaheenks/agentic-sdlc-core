@@ -164,3 +164,85 @@ def test_cli_compile_activate_and_list(config_dir, tmp_path, monkeypatch, capsys
     assert f"* {second}" in listing and f"  {first}" in listing
     manifest = json.loads((root / second / "manifest.json").read_text())
     assert manifest["version"] == second
+
+
+# --- GCP: bundles in the mounted config store bucket (version-02 N13) ---------------------------
+
+
+def wait_for(condition, timeout=5.0):
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if condition():
+            return True
+        time.sleep(0.02)
+    return False
+
+
+def test_polling_follows_the_pointer_and_keeps_a_broken_one_out(config_dir, tmp_path, monkeypatch):
+    for key, value in ENV.items():
+        monkeypatch.setenv(key, value)
+    root = tmp_path / "bundles"
+    first = compile_(config_dir, root)
+    activate(root, first)
+    store = ConfigStore.from_bundles(root, "local")
+    store.start_polling(0.05)
+    try:
+        change_tool_risk(config_dir)
+        second = compile_(config_dir, root)
+        activate(root, second)
+        assert wait_for(lambda: store.current().version == second)
+        (root / "current").write_text("../escape")  # broken pointer: keep serving
+        assert wait_for(lambda: store.last_error and "invalid bundle version" in store.last_error)
+        assert store.current().version == second
+    finally:
+        store.stop_watching()
+
+
+def test_start_updates_polls_bundles_and_watches_folders(config_dir, tmp_path, monkeypatch):
+    for key, value in ENV.items():
+        monkeypatch.setenv(key, value)
+    root = tmp_path / "bundles"
+    activate(root, compile_(config_dir, root))
+    bundles = ConfigStore.from_bundles(root, "local")
+    thread = bundles.start_updates({"SDLC_CONFIG_POLL_SECONDS": "30"})
+    assert thread is not None and thread.name == "config-poll"
+    bundles.stop_watching()
+    assert (
+        ConfigStore.from_bundles(root, "local").start_updates({"SDLC_CONFIG_POLL_SECONDS": "0"})
+        is None
+    )
+    folder = ConfigStore(lambda: load_snapshot(config_dir, "local", TEST_ENV), (config_dir,))
+    assert folder.start_updates({"SDLC_CONFIG_WATCH": "false"}) is None
+    with pytest.raises(ValueError):
+        folder.start_polling(1)
+
+
+def test_bundle_ignores_a_users_file_override(config_dir, tmp_path, monkeypatch):
+    """A bundle carries its own users.yaml; SDLC_USERS_FILE (a mount) must not change it."""
+    for key, value in ENV.items():
+        monkeypatch.setenv(key, value)
+    root = tmp_path / "bundles"
+    version = compile_(config_dir, root)
+    activate(root, version)
+    other = tmp_path / "other-users.yaml"
+    other.write_text("apiVersion: sdlc/v1\nkind: UserMap\nusers: {}\n")
+    monkeypatch.setenv("SDLC_USERS_FILE", str(other))
+    snapshot = ConfigStore.from_bundles(root, "local").current()
+    assert snapshot.version == version and "direct-dev" in snapshot.users.email_by_alias
+
+
+def test_ingest_reads_a_bundle_and_resolves_sources_elsewhere(config_dir, tmp_path, monkeypatch):
+    from sdlc_ingest.cli import load_config
+
+    root = tmp_path / "bundles"
+    version = compile_(config_dir, root)
+    activate(root, version)
+    environ = {**ENV, "SDLC_CONFIG_BUNDLES": str(root), "SDLC_ENV": "local"}
+    snapshot, sources_root = load_config({**environ, "SDLC_SOURCES_ROOT": "/app"})
+    assert snapshot.version == version and sources_root == Path("/app")
+    _, default_root = load_config(environ)
+    assert default_root != root / version / "tree"  # the bundle has no samples/
+    snapshot, folder_root = load_config({**TEST_ENV, "SDLC_CONFIG_DIR": str(config_dir)})
+    assert folder_root == config_dir.parent and snapshot.sources

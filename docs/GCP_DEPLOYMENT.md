@@ -173,19 +173,31 @@ by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on 
 
 ## 6. Configuration on GCP
 
-- `config/` and `skills/` are baked into the images at build time (one config version per release);
-  `SDLC_ENV=dev`; file watching is off (`SDLC_CONFIG_WATCH=false`). The only environment-specific file,
-  `groups.yaml`, is stored in Secret Manager and mounted as a file. **A config change (including sources) needs
-  `images` + `plan` + `apply`.**
-- Direct members (version-02 N10, optional): if `config/env/<env>/users.yaml` exists, `gcp_deploy.ps1` sets
+- **Config bundles from the config store bucket (version-02 N13)**, when `config_store_bucket` is set (dev:
+  `sdlc-config-store-a7484d8b`). The MCP service and the ingest job mount `gs://<bucket>/bundles/<env>/`
+  read-only (Cloud Storage volume, second generation execution environment) at `/app/config-bundles` with
+  `SDLC_CONFIG_BUNDLES`, and load the bundle `current` names. A bundle is immutable and hash-verified and carries
+  config, skills and the tenant `groups.yaml` / `users.yaml`, so their secret mounts are not used. The MCP server
+  checks `current` every 60 s (`SDLC_CONFIG_POLL_SECONDS`) and reloads; a broken pointer or bundle is refused and
+  the last good version kept. Ingest resolves relative source locations (`samples/`) against the image
+  (`SDLC_SOURCES_ROOT=/app`).
+  - **Publish:** commit, then `.\scripts\gcp_deploy.ps1 -EnvName dev -Step config`: `sdlc-config compile` (into the
+    git-ignored `.bundles/`), upload the bundle, then move `current` (last). Live within ~2 minutes (poll + the
+    Cloud Storage mount's metadata cache); no new images, no apply.
+  - **Rollback:** `-Step config -ConfigVersion <older version>` (versions: `gcloud storage ls gs://<bucket>/bundles/dev/`).
+  - **First deployment:** `base` (also creates the bucket), `config`, then `images`, `plan`, `apply`. `plan`
+    refuses to run until a bundle is active (a new MCP revision without one fails closed).
+  - Who reads it: the MCP and jobs service accounts (`objectViewer`). Who writes: people, with their own access.
+- Without `config_store_bucket`: `config/` and `skills/` are baked into the images at build time (one config
+  version per release); file watching is off (`SDLC_CONFIG_WATCH=false`); `groups.yaml` comes from Secret Manager
+  as a mounted file. A config change needs `images` + `plan` + `apply`.
+- Direct members (version-02 N10, optional, **only without bundles**): if `config/env/<env>/users.yaml` exists, `gcp_deploy.ps1` sets
   `TF_VAR_users_yaml_path`; Terraform stores it as secret `sdlc-<env>-users-yaml` and mounts it into the MCP service
   only, at `/app/config-users/users.yaml` (its own folder: Cloud Run mounts one secret per folder), with
   `SDLC_USERS_FILE` pointing there. Run `sdlc-config users sync --env <env> --write` first (entries without an
   object ID grant nothing). A change to users.yaml needs `plan` + `apply` (no new images: it is never baked in,
   `.dockerignore`), then a new MCP revision picks it up. Removing the file removes the secret and the mount.
-- Later (Stage 7b): config bundles in `gs://sdlc-config-<env>/` with a `current` pointer, Pub/Sub reload,
-  last-known-good, rollback by pointer flip. The bundle format, verification, `activate` and rollback are built
-  and tested locally (`libs/sdlc_config/bundles.py`, `SDLC_CONFIG_BUNDLES`).
+- Later (Stage 7b): Pub/Sub notification instead of polling, publishing from CI.
 
 ## 7. Deployment
 

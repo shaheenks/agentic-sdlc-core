@@ -287,8 +287,7 @@ def main() -> None:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(message)s")
     setup_tracing()  # no-op unless OTEL_EXPORTER_OTLP_(TRACES_)ENDPOINT is set
     store = ConfigStore.from_env()  # raises ConfigError on invalid config: fail closed
-    if os.environ.get("SDLC_CONFIG_WATCH", "true").lower() == "true":
-        store.start_watching()
+    store.start_updates()  # folder: watch files; bundles (GCP): poll the `current` pointer
     snapshot = store.current()
     host = os.environ.get("MCP_HOST", "127.0.0.1")
     port = int(os.environ.get("MCP_PORT", "8080"))
