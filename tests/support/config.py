@@ -4,7 +4,8 @@ Fixture-only additions (see make_config_dir): the sdlc-platform team gets a grou
 (`platform-devs` -> developer) and a local `platform-infra` source, so tests have a second
 group-based team with its own local data. The real sdlc-platform team has members only from
 users.yaml and reads its code from GitHub (tests/config/test_repo_teams.py pins that).
-The repo's gcs sources read their samples/ copies instead (use_sample_folders)."""
+The repo's gcs sources read their copies in tests/fixtures/sample_sources instead
+(use_sample_folders); make_config_dir copies that folder to <tmp>/sample_sources."""
 
 import re
 import shutil
@@ -12,6 +13,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REPO_CONFIG = REPO_ROOT / "config"
+SAMPLES_DIR = REPO_ROOT / "tests" / "fixtures" / "sample_sources"  # synthetic test corpus
 
 TEST_GROUPS_YAML = """apiVersion: sdlc/v1
 kind: GroupMap
@@ -52,7 +54,7 @@ metadata:
   description: test-only sample of platform infrastructure, CI docs and runbooks
 spec:
   type: local_folder
-  location: samples/sources/platform-infra
+  location: sample_sources/platform-infra
   include: ["**/*.md", "**/*.tf", "**/*.pdf"]
   classification: internal
   ingest:
@@ -69,11 +71,11 @@ access:
 DIRECT_DEV_OID = "aaaaaaaa-0000-0000-0000-000000000001"
 
 # The repo sources read gs://<config store>/source_docs/<id>/ (version-02 N14); tests have no
-# GCS, so they read the same documents from the samples/ copy kept in the repo.
+# GCS, so they read the same documents from SAMPLES_DIR (folder names below).
 SAMPLE_FOLDERS = {
-    "eng-standards": "samples/sources/eng-standards",
-    "payments-code": "samples/sources/payments-api",
-    "payments-incidents": "samples/sources/payments-incidents",
+    "eng-standards": "eng-standards",
+    "payments-code": "payments-api",
+    "payments-incidents": "payments-incidents",
 }
 _GCS_SPEC = re.compile(r"  type: gcs\r?\n  location: gs://\S+")
 
@@ -81,9 +83,8 @@ _GCS_SPEC = re.compile(r"  type: gcs\r?\n  location: gs://\S+")
 def use_sample_folders(config_dir: Path) -> None:
     for source_id, folder in SAMPLE_FOLDERS.items():
         path = config_dir / "sources" / f"{source_id}.yaml"
-        text, n = _GCS_SPEC.subn(
-            f"  type: local_folder\n  location: {folder}", path.read_text(encoding="utf-8")
-        )
+        local = f"  type: local_folder\n  location: sample_sources/{folder}"
+        text, n = _GCS_SPEC.subn(local, path.read_text(encoding="utf-8"))
         assert n == 1, f"{path.name}: expected one gcs location"
         path.write_text(text, encoding="utf-8")
 
@@ -94,7 +95,7 @@ def make_config_dir(tmp_path: Path) -> Path:
     dst = tmp_path / "config"
     shutil.copytree(REPO_CONFIG, dst)
     shutil.copytree(REPO_ROOT / "skills", tmp_path / "skills")
-    shutil.copytree(REPO_ROOT / "samples", tmp_path / "samples")  # Source locations
+    shutil.copytree(SAMPLES_DIR, tmp_path / "sample_sources")  # local source locations
     (dst / "env" / "local" / "groups.yaml").write_text(TEST_GROUPS_YAML, encoding="utf-8")
     (dst / "env" / "local" / "users.yaml").write_text(TEST_USERS_YAML, encoding="utf-8")
     team = dst / "teams" / "sdlc-platform.yaml"

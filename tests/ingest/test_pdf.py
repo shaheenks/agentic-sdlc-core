@@ -17,8 +17,8 @@ from tests.config.test_sources_config import edit_yaml
 from tests.support.entra import TEST_ENV
 
 REPO = Path(__file__).resolve().parents[2]
-POLICY = REPO / "samples/sources/eng-standards/incident-policy.pdf"
-SCAN = REPO / "samples/sources/platform-infra/docs/change-freeze-notice.pdf"
+POLICY = REPO / "tests/fixtures/sample_sources/eng-standards/incident-policy.pdf"
+SCAN = REPO / "tests/fixtures/sample_sources/platform-infra/docs/change-freeze-notice.pdf"
 
 
 def run(coro):

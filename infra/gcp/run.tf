@@ -409,7 +409,7 @@ resource "google_cloud_run_v2_job" "ingest" {
         dynamic "env" {
           # Source credentials (spec.credentials {secret: x}) come from Secret Manager at run time
           # (version-01 M0); the jobs service account needs accessor on each connector secret.
-          # With bundles, relative source locations (samples/) resolve against the image (/app).
+          # With bundles, relative local_folder locations resolve against the image (/app).
           for_each = merge(local.vertex_env, local.entra_env, local.jobs_db_env, local.bundles_env, {
             SDLC_ENV             = var.env
             SDLC_SECRETS_BACKEND = "gcp"

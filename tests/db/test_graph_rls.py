@@ -91,7 +91,7 @@ def test_extractions_are_cached(corpus):
 
 def test_failed_extraction_skips_the_file_and_retries(corpus):
     config_dir, snapshot, _, _ = corpus
-    folder = config_dir.parent / "samples/sources/platform-infra/docs"
+    folder = config_dir.parent / "sample_sources/platform-infra/docs"
     (folder / "new-service.md").write_text("# queue-service\n\nqueue-service runs on job-runner.\n")
     failing = VocabularyExtractor(fail_on="new-service.md")
     [report] = run(
@@ -116,7 +116,7 @@ def test_failed_extraction_skips_the_file_and_retries(corpus):
 
 def test_deleted_files_drop_their_entities(corpus):
     config_dir, snapshot, _, _ = corpus
-    incidents = config_dir.parent / "samples/sources/payments-incidents"
+    incidents = config_dir.parent / "sample_sources/payments-incidents"
     moved = incidents / "INC-2044-ledger-posting-lag.md"
     text = moved.read_text(encoding="utf-8")
     moved.unlink()

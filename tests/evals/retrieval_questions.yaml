@@ -1,4 +1,4 @@
-# Retrieval eval (Stage 6 gate): questions over samples/sources with the files that answer them.
+# Retrieval eval (Stage 6 gate): questions over the sample sources (tests/fixtures/sample_sources; ingested from the config store bucket) with the files that answer them.
 # `expect` entries are <source id>:<path>. `hops: multi` marks questions whose answer needs facts
 # from several files that the question does not all name (the case the knowledge graph is for).
 # Run: SDLC_EVAL=1 uv run --env-file .env pytest tests/evals -s   (needs the ingested dev DB + Vertex)

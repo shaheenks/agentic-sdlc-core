@@ -1,17 +1,17 @@
-# samples
+# sample_sources
 
-Synthetic content for local development and tests. **No real data.**
+Synthetic test corpus (formerly `samples/sources/`). **No real data.**
 
-`sources/` holds the sample corpus (Stage 5). Since version-02 N14 the sources read their copy in
-the config store bucket, `gs://sdlc-config-store-a7484d8b/source_docs/<source id>/` (a one-time
-upload of these folders); this folder stays as the **test corpus** (tests point the sources back
-here, `tests/support/config.py`). After changing a file here, upload it again, e.g.
-`gcloud storage rsync --recursive samples/sources/payments-api gs://sdlc-config-store-a7484d8b/source_docs/payments-code`.
+The running system does not read this folder. Since version-02 N14 the sample sources read their
+copy in the config store bucket, `gs://sdlc-config-store-a7484d8b/source_docs/<source id>/` (a
+one-time upload of these folders). Tests have no GCS, so `tests/support/config.py`
+(`use_sample_folders`) points the sources back here. After changing a file, upload it again, e.g.
+`gcloud storage rsync --recursive tests/fixtures/sample_sources/payments-api gs://sdlc-config-store-a7484d8b/source_docs/payments-code`.
 
 | Folder | Source id | Classification | Access |
 |---|---|---|---|
 | `payments-api/` | `payments-code` | internal | payments team, admin |
-| `platform-infra/` | `platform-infra` (test-only, `tests/support/config.py`) | internal | sdlc-platform team, admin |
+| `platform-infra/` | `platform-infra` (test-only, not in the bucket) | internal | sdlc-platform team, admin |
 | `eng-standards/` | `eng-standards` | public | every signed-in user (`everyone: true`) |
 | `payments-incidents/` | `payments-incidents` | confidential | payments team (leads and above by classification), admin |
 

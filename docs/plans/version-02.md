@@ -38,7 +38,7 @@ are a proposal to confirm milestone by milestone.
 | N11 — Rename: `user_agent`, `core_mcp` | ✅ Done (2026-11-03); local stack checked | Starter agent and MCP server renamed for the agent-runtime work (§14). Existing chats no longer show (stored per app name). Open: GCP `images` + `plan` + `apply` |
 | N12 — Team `sdlc-platform` + GitHub source | ✅ Built (2026-11-03) | `platform` → `sdlc-platform`, members from users.yaml only, source = GitHub `agentic-sdlc-core` tracking `main`; git loader partial-clone fix (§15). Open: re-ingest + remove dropped-source data once all sources are fixed ([pending-task.md](pending-task.md) task 2) |
 | N13 — Config from the config store bucket | ✅ Built (2026-11-03); local bundle checked | MCP + ingest read config bundles from `gs://sdlc-config-store-a7484d8b/bundles/<env>/`, pointer polled every 60 s, `-Step config` publishes (§16). Part of N5 (bundles + reload). Open: `base`, `config`, `images`, `plan`, `apply` on GCP |
-| N14 — Sample sources from the config store bucket | ✅ Built (2026-11-03); live dry-run checked | One-time upload of `samples/sources/*` to `gs://sdlc-config-store-a7484d8b/source_docs/<source id>/`; `eng-standards`, `payments-code`, `payments-incidents` are `gcs` sources (§17). Open: ingest on GCP and locally (part of [pending-task.md](pending-task.md) task 2) |
+| N14 — Sample sources from the config store bucket | ✅ Built (2026-11-03); live dry-run checked | One-time upload of `samples/sources/*` to `gs://sdlc-config-store-a7484d8b/source_docs/<source id>/`; `eng-standards`, `payments-code`, `payments-incidents` are `gcs` sources (§17); repo copy moved to `tests/fixtures/sample_sources/`. Local DB re-ingested. Open: ingest on GCP ([pending-task.md](pending-task.md) task 2) |
 | Pending — Agent runtimes (user / CI / ops) | 📝 Design only | Workload identity, read + report back; trigger sources not decided (D7, [pending-task.md](pending-task.md)) |
 | Deferred — Gemini Enterprise | ⏸ | Design in version-01 §6; needs an org admin, a workforce pool and licences |
 
@@ -454,14 +454,14 @@ store was not used: it deletes objects after 7 days, keeps no versions and is wr
   are relative to the prefix, so document paths are the same as before.
 - Read access: the ingest job's service account already has `objectViewer` on the bucket (storage.tf); locally the
   ingest reads with gcloud ADC (compose mounts it). No `allowed_hosts` change (the gcs loader has a fixed endpoint).
-- The ingest image no longer copies `samples/`, and compose no longer mounts it. `samples/` stays in the repo as the
-  test corpus: `tests/support/config.py` (`use_sample_folders`) points the three sources back to their folders, so
-  CI needs no GCS. `tests/config/test_repo_teams.py` pins the bucket locations.
+- The ingest image no longer copies `samples/`, and compose no longer mounts it. The repo copy moved to
+  `tests/fixtures/sample_sources/` (test corpus; `samples/` is gone): `tests/support/config.py` (`use_sample_folders`)
+  points the three sources back to it, so CI needs no GCS. `tests/config/test_repo_teams.py` pins the bucket locations.
 - Checked: a live dry run read all three sources from the bucket (6 / 9 / 2 files, 11 / 18 / 6 chunks, the same as
   from the folders); unit and DB tests pass.
 
 **Open:**
-- Run ingest (locally `docker compose run --rm ingest run --all`; GCP `-Step ingest` after the next `images` +
-  `apply`); this also belongs to the re-ingest in [pending-task.md](pending-task.md) task 2.
-- Changing a sample document: edit it in `samples/` (tests) and upload it again (`samples/README.md`).
+- GCP `-Step ingest` after the next `images` + `apply` (local DB re-ingested 2026-11-03, [pending-task.md](pending-task.md)
+  task 2).
+- Changing a sample document: edit it in `tests/fixtures/sample_sources/` and upload it again (its README).
 - The bucket name is in the source config (sources are not per environment): local and GCP dev read the same objects.

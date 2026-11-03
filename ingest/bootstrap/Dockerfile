@@ -38,7 +38,7 @@ RUN uv sync --frozen --no-dev --package sdlc-ingest
 # Migrations are baked in (versioned with the code). docker compose bind-mounts ./config and
 # ./skills (config validation checks skill files); baked-in copies are for standalone runs.
 # Source documents are not in the image: the sample corpus is read from the config store bucket
-# (gcs sources, version-02 N14); samples/ stays in the repo as the test corpus.
+# (gcs sources, version-02 N14); the repo copy is the test corpus (tests/fixtures/sample_sources).
 COPY db/migrations db/migrations
 COPY config config
 COPY skills skills

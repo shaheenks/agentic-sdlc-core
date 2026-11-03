@@ -57,7 +57,7 @@ Add new components as siblings instead of growing a starter indefinitely. Shared
   `main` (version-02 N12), so the retrieval eval's repo questions follow main (re-check them after merges).
   Remote git (`https`) needs `provider` (github | bitbucket-cloud | bitbucket-dc); DB tests ingest only `local_folder` sources.
   Sample sources (version-02 N14) are `gcs` under `gs://sdlc-config-store-a7484d8b/source_docs/<id>/` (one-time upload of
-  `samples/sources/`); tests point them back to `samples/` (`tests/support/config.py`), which stays as the test corpus.
+  the former `samples/sources/`); tests point them back to the repo copy, `tests/fixtures/sample_sources/` (`tests/support/config.py`).
 - Source loaders (version-01): a new source type = a factory in `sdlc_loaders.LOADERS` + its `spec` in the schema. Remote
   hosts must be in `platform.yaml` `knowledge.allowed_hosts`; remote HTTP goes through `sdlc_connectors.http.HttpClient`
   (allowlist on every request and redirect). Credentials are references only (`spec.credentials`), resolved via

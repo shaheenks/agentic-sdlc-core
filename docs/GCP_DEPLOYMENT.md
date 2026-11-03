@@ -98,7 +98,8 @@ flowchart LR
   Entra token for the sdlc-mcp API; policy, RLS context and audit work exactly as locally. It also serves the
   Connections API and is the only workload that reads or writes users' connection secrets.
 - **Jobs**: `sdlc-db-setup` creates roles, schema and RLS (`sdlc-db bootstrap` + `migrate`); `sdlc-ingest` builds
-  the knowledge store and graph from the sources baked into the image (`config/`, `samples/`).
+  the knowledge store and graph from the configured sources (sample docs: the config store bucket, `source_docs/`;
+  `sdlc-platform`: GitHub).
 - **Public without `allUsers`**: both services set `invoker_iam_disabled` (see §2). Cloud Run does not check Google
   IAM; authentication is Entra's job (oauth2-proxy, token validation).
 - **Cloud Run reserves paths ending in `z`**: `/healthz` returns Google's 404 from outside; probes reach the
@@ -179,8 +180,8 @@ by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on 
   `SDLC_CONFIG_BUNDLES`, and load the bundle `current` names. A bundle is immutable and hash-verified and carries
   config, skills and the tenant `groups.yaml` / `users.yaml`, so their secret mounts are not used. The MCP server
   checks `current` every 60 s (`SDLC_CONFIG_POLL_SECONDS`) and reloads; a broken pointer or bundle is refused and
-  the last good version kept. Ingest resolves relative source locations (`samples/`) against the image
-  (`SDLC_SOURCES_ROOT=/app`).
+  the last good version kept. Ingest resolves relative `local_folder` locations (none today) against the
+  image (`SDLC_SOURCES_ROOT=/app`).
   - **Publish:** commit, then `.\scripts\gcp_deploy.ps1 -EnvName dev -Step config`: `sdlc-config compile` (into the
     git-ignored `.bundles/`), upload the bundle, then move `current` (last). Live within ~2 minutes (poll + the
     Cloud Storage mount's metadata cache); no new images, no apply.

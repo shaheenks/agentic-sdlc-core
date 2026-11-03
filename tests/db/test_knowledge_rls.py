@@ -141,7 +141,7 @@ def test_reingest_skips_changes_and_deletes(corpus):
     unchanged = run(_ingest(snapshot, config_dir.parent, ["eng-standards"]))[0]
     assert (unchanged.files_changed, unchanged.files_unchanged) == (0, 6)  # 5 .md + 1 .pdf
 
-    folder = config_dir.parent / "samples/sources/eng-standards"
+    folder = config_dir.parent / "sample_sources/eng-standards"
     (folder / "api-design.md").write_text("# API design\n\nUse plural nouns.\n")
     (folder / "security-baseline.md").unlink()
     report = run(_ingest(snapshot, config_dir.parent, ["eng-standards"]))[0]

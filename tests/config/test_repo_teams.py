@@ -43,11 +43,11 @@ def test_sdlc_platform_sources():
 
 def test_sample_sources_read_the_config_store_bucket():
     """version-02 N14: one-time move of samples/ to gs://<config store>/source_docs/<id>/;
-    tests read the samples/ copy instead (tests/support/config.py SAMPLE_FOLDERS)."""
-    from tests.support.config import REPO_ROOT, SAMPLE_FOLDERS
+    tests read the repo copy instead (tests/fixtures/sample_sources, SAMPLE_FOLDERS)."""
+    from tests.support.config import SAMPLE_FOLDERS, SAMPLES_DIR
 
     for source_id, folder in SAMPLE_FOLDERS.items():
         spec = doc(f"sources/{source_id}.yaml")["spec"]
         assert spec["type"] == "gcs"
         assert spec["location"] == f"gs://sdlc-config-store-a7484d8b/source_docs/{source_id}/"
-        assert (REPO_ROOT / folder).is_dir()
+        assert (SAMPLES_DIR / folder).is_dir()

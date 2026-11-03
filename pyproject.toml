@@ -51,7 +51,7 @@ sdlc-user-agent = { workspace = true }
 
 [tool.ruff]
 line-length = 100
-extend-exclude = ["samples"]  # synthetic corpus, not project code
+extend-exclude = ["tests/fixtures/sample_sources"]  # synthetic corpus, not project code
 target-version = "py312"
 
 [tool.ruff.format]

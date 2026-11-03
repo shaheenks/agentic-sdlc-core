@@ -6,7 +6,7 @@ current plan ([version-02.md](version-02.md)) or a new numbered plan.
 | # | Task | Waits for | Recorded |
 |---|---|---|---|
 | 1 | [Agent runtimes: user, CI and ops agents](#task-1--agent-runtimes-user-ci-and-ops-agents) | Trigger sources decided | 2026-11-03 |
-| 2 | [Re-ingest and remove data of dropped sources](#task-2--re-ingest-and-remove-data-of-dropped-sources) | All sources fixed in config | 2026-11-03 |
+| 2 | [Re-ingest and remove data of dropped sources](#task-2--re-ingest-and-remove-data-of-dropped-sources) | Local done; GCP dev ingest after deploy | 2026-11-03 |
 
 ## Task 1 — Agent runtimes: user, CI and ops agents
 
@@ -165,8 +165,13 @@ caller ──► POST /triggers/<adapter> ──► verify caller ──► Trig
 
 ## Task 2 — Re-ingest and remove data of dropped sources
 
-**Status:** pending (recorded 2026-11-03). Do it **once all sources are fixed in config** (the reorganisation that
-started with version-02 N12), so the database is rebuilt once.
+**Status:** local dev DB done (2026-11-03, after N14); **GCP dev open** (step 5). Recorded 2026-11-03.
+
+**Local run (2026-11-03):** `docker compose --profile ingest build ingest` (the compose image predated the gcs
+loader: `no loader for source type 'gcs'`), then `docker compose run --rm ingest run --all --force`:
+`platform-infra` removed by the registry sync; eng-standards 6 files / 11 chunks, payments-code 9 / 18,
+payments-incidents 2 / 6 (all three from the config store bucket), sdlc-platform 181 files / 1012 chunks from GitHub
+`main` `a9608c0` (4 stale files deleted); 653 extraction calls, no errors.
 
 **Why:** config changes never touch the database, and ingest only runs for sources that are in config. After N12 the
 local dev DB (checked 2026-11-03) still holds:
@@ -179,11 +184,9 @@ local dev DB (checked 2026-11-03) still holds:
 
 **Steps:**
 1. Finish the source changes in `config/sources/` and run `uv run --env-file .env sdlc-config validate --env local`.
-2. Remove data of sources no longer in config (`platform-infra` today). Nothing does this yet; choose one:
-   - a one-off delete of that source's rows (documents, chunks, entities, mentions, edges, the `sdlc.sources` row) as
-     `sdlc_ingest` / owner inside the Postgres container; or
-   - (preferred) a `sdlc-ingest prune` command: lists sources in the DB that are not in config, deletes them on `--yes`,
-     audited, with tests in `tests/db` — handles every future source removal too.
+2. Data of sources no longer in config: already handled. Every non-dry-run ingest syncs the source registry
+   (`sdlc_db.knowledge.sync_sources`) and deletes sources missing from config, cascading to their documents, chunks
+   and graph rows (log: `source registry synced: N sources, removed [...]`). No prune command is needed.
 3. Re-ingest everything: `uv run --env-file .env sdlc-ingest run --all`. `sdlc-platform` does a full read from GitHub
    (location changed: 181 files at `main`), replaces the old copy and gets GitHub deep links; graph extraction costs
    about one Gemini call per changed chunk. Use `--force` for sources whose graph settings changed.

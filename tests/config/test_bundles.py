@@ -243,6 +243,6 @@ def test_ingest_reads_a_bundle_and_resolves_sources_elsewhere(config_dir, tmp_pa
     snapshot, sources_root = load_config({**environ, "SDLC_SOURCES_ROOT": "/app"})
     assert snapshot.version == version and sources_root == Path("/app")
     _, default_root = load_config(environ)
-    assert default_root != root / version / "tree"  # the bundle has no samples/
+    assert default_root != root / version / "tree"  # not inside the bundle tree
     snapshot, folder_root = load_config({**TEST_ENV, "SDLC_CONFIG_DIR": str(config_dir)})
     assert folder_root == config_dir.parent and snapshot.sources

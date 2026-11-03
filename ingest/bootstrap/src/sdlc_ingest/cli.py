@@ -6,7 +6,7 @@ Config: SDLC_CONFIG_BUNDLES (a bundle root, e.g. the config store bucket mounted
 active bundle is loaded and verified) or SDLC_CONFIG_DIR (default: repo config/); SDLC_ENV
 (default: local). Relative source locations (local_folder, local git) resolve against
 SDLC_SOURCES_ROOT, default: the parent of the config dir, or the repo root of this installation
-when config comes from a bundle (the image's /app, which holds samples/). Database: the
+when config comes from a bundle (the image's /app). Database: the
 sdlc_ingest role (PG* env + SDLC_INGEST_PASSWORD). Embeddings: platform.yaml
 knowledge.embedding via Vertex AI / Gemini API (google-genai env: GOOGLE_GENAI_USE_VERTEXAI,
 GOOGLE_CLOUD_PROJECT, ...). Graph
@@ -122,7 +122,7 @@ def load_config(environ) -> tuple:
     env = environ.get("SDLC_ENV", "local")
     if environ.get("SDLC_CONFIG_BUNDLES"):
         snapshot = load_bundle(Path(environ["SDLC_CONFIG_BUNDLES"]), env, environ=environ)
-        default_root = DEFAULT_CONFIG_DIR.parent  # the bundle tree has no samples/
+        default_root = DEFAULT_CONFIG_DIR.parent  # not inside the bundle tree
     else:
         config_dir = Path(environ.get("SDLC_CONFIG_DIR", DEFAULT_CONFIG_DIR))
         snapshot = load_snapshot(config_dir, env, environ)
