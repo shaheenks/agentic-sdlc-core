@@ -204,14 +204,15 @@ by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on 
 
 ```mermaid
 flowchart LR
-    C[commit<br/>tag = git SHA] --> S1[state<br/>bucket, once] --> S2[base<br/>APIs + registry] --> S3[images<br/>build + push] --> S4[plan<br/>review] --> S5[apply] --> S6[db<br/>bootstrap + migrate] --> S7[ingest] --> S8[urls<br/>+ Entra callback]
+    C[commit<br/>tag = git SHA] --> S1[state<br/>bucket, once] --> S2[base<br/>APIs + registry<br/>+ config bucket] --> S2b[config<br/>bundle] --> S3[images<br/>build + push] --> S4[plan<br/>review] --> S5[apply] --> S6[db<br/>bootstrap + migrate] --> S7[ingest] --> S8[urls<br/>+ Entra callback]
 ```
 
 From the repo root, in PowerShell (Docker Desktop running, `gcloud` signed in, Terraform installed):
 
 ```powershell
 .\scripts\gcp_deploy.ps1 -EnvName dev -Step state    # state bucket (once per project)
-.\scripts\gcp_deploy.ps1 -EnvName dev -Step base     # APIs + Artifact Registry
+.\scripts\gcp_deploy.ps1 -EnvName dev -Step base     # APIs + Artifact Registry + config store bucket
+.\scripts\gcp_deploy.ps1 -EnvName dev -Step config   # publish the config bundle (§6); plan needs one
 .\scripts\gcp_deploy.ps1 -EnvName dev -Step images   # build + push mcp/agent/ingest/ui, mirror oauth2-proxy
 .\scripts\gcp_deploy.ps1 -EnvName dev -Step plan     # writes infra/gcp/dev.tfplan; review it
 .\scripts\gcp_deploy.ps1 -EnvName dev -Step apply    # first time ~10-15 min (Cloud SQL)
@@ -226,8 +227,9 @@ From the repo root, in PowerShell (Docker Desktop running, `gcloud` signed in, T
 - **Apply deploys the saved plan file**: re-plan after every Terraform change.
 - **Why a mirror for oauth2-proxy**: Cloud Run pulls only from Artifact Registry or Docker Hub, and oauth2-proxy is
   published on quay.io.
-- **Updates**: commit → `images` → `plan` → `apply`. Schema changes: add a migration, then `db`. Content changes:
-  `ingest` (unchanged files and cached graph extractions cost nothing).
+- **Updates**: commit → `images` → `plan` → `apply`. Config-only changes: commit → `config`. Schema changes: add a
+  migration, then `db`. Content changes: copy the docs to the bucket (infra/README.md), then `ingest` (unchanged
+  files and cached graph extractions cost nothing).
 
 ## 8. Verification
 
