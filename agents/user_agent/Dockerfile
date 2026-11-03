@@ -18,21 +18,21 @@ COPY libs/sdlc_secrets/pyproject.toml libs/sdlc_secrets/
 COPY libs/sdlc_web/pyproject.toml libs/sdlc_web/
 COPY ingest/bootstrap/pyproject.toml ingest/bootstrap/
 COPY ingest/loaders/pyproject.toml ingest/loaders/
-COPY mcp_servers/bootstrap/pyproject.toml mcp_servers/bootstrap/
-COPY agents/bootstrap/pyproject.toml agents/bootstrap/
-RUN uv sync --frozen --no-dev --package sdlc-web --package sdlc-agent-bootstrap --no-install-workspace
+COPY mcp_servers/core_mcp/pyproject.toml mcp_servers/core_mcp/
+COPY agents/user_agent/pyproject.toml agents/user_agent/
+RUN uv sync --frozen --no-dev --package sdlc-web --package sdlc-user-agent --no-install-workspace
 
 COPY libs/sdlc_agent libs/sdlc_agent
 COPY libs/sdlc_auth libs/sdlc_auth
 COPY libs/sdlc_web libs/sdlc_web
-RUN uv sync --frozen --no-dev --package sdlc-web --package sdlc-agent-bootstrap
+RUN uv sync --frozen --no-dev --package sdlc-web --package sdlc-user-agent
 
-# The web app serves every agent package under /app/agents; this image ships only bootstrap.
-COPY agents/bootstrap agents/bootstrap
+# The web app serves every agent package under /app/agents; this image ships only user_agent.
+COPY agents/user_agent agents/user_agent
 
 ENV PATH=/app/.venv/bin:$PATH \
     SDLC_AGENTS_DIR=/app/agents \
-    SDLC_MCP_URL=http://mcp-bootstrap:8080/mcp \
+    SDLC_MCP_URL=http://core-mcp:8080/mcp \
     HOST=0.0.0.0 \
     PORT=8000 \
     HOME=/tmp

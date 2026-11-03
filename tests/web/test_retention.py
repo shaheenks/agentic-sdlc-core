@@ -19,11 +19,11 @@ def make_store(path: Path, sessions: dict[str, float]) -> None:
         )
         for sid, updated in sessions.items():
             conn.execute(
-                "INSERT INTO sessions VALUES ('bootstrap', 'u1', ?, '{}', ?, ?)",
+                "INSERT INTO sessions VALUES ('user_agent', 'u1', ?, '{}', ?, ?)",
                 (sid, updated, updated),
             )
             conn.execute(
-                "INSERT INTO events VALUES (?, 'bootstrap', 'u1', ?, 'i', ?, '{}')",
+                "INSERT INTO events VALUES (?, 'user_agent', 'u1', ?, 'i', ?, '{}')",
                 (f"e-{sid}", sid, updated),
             )
 

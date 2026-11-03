@@ -12,9 +12,9 @@ from fastmcp.server.auth import RemoteAuthProvider
 from psycopg_pool import AsyncConnectionPool
 from sdlc_auth.entra import entra_issuer
 from sdlc_config import load_snapshot, resolve
+from sdlc_core_mcp.knowledge_tools import Knowledge
+from sdlc_core_mcp.server import build_http_app, build_server
 from sdlc_db import HashEmbedder, graph_search
-from sdlc_mcp_bootstrap.knowledge_tools import Knowledge
-from sdlc_mcp_bootstrap.server import build_http_app, build_server
 
 from tests.support import db
 from tests.support.config import make_config_dir

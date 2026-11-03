@@ -31,7 +31,7 @@ def enabled() -> bool:
     )
 
 
-def setup_tracing(service_name: str = "sdlc-mcp-bootstrap") -> bool:
+def setup_tracing(service_name: str = "sdlc-core-mcp") -> bool:
     """Install a tracer provider with an OTLP/HTTP exporter and psycopg instrumentation.
     Returns False (and changes nothing) when no endpoint is configured."""
     global _configured

@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 
 from sdlc_config import ConfigStore
 
-from sdlc_mcp_bootstrap.correlation import correlation_ids
+from sdlc_core_mcp.correlation import correlation_ids
 
 audit_log = logging.getLogger("sdlc.audit")
 

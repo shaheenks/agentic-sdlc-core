@@ -6,7 +6,7 @@ import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
 from sdlc_config import ConfigStore, load_snapshot
-from sdlc_mcp_bootstrap.server import build_server
+from sdlc_core_mcp.server import build_server
 
 from tests.support.config import DIRECT_DEV_OID
 from tests.support.entra import (

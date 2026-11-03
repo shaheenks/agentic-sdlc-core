@@ -12,7 +12,7 @@ from sdlc_auth.adk import (
 
 
 def toolset(base_url: str) -> McpToolset:
-    # Same construction as agents/bootstrap/agent.py
+    # Same construction as agents/user_agent/agent.py
     return McpToolset(
         connection_params=StreamableHTTPConnectionParams(url=f"{base_url}/mcp"),
         header_provider=bearer_header_provider,

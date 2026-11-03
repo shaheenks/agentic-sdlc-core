@@ -22,7 +22,7 @@ from sdlc_connectors import providers
 from sdlc_connectors.http import HttpError
 from sdlc_connectors.service import ConnectionService, NotConnected
 
-from sdlc_mcp_bootstrap.identity import request_identity
+from sdlc_core_mcp.identity import request_identity
 
 # tool -> providers its code can talk to (tools.yaml credentials.user must name a matching one)
 TOOL_PROVIDERS: dict[str, frozenset[str]] = {

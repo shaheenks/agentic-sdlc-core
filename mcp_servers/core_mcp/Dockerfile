@@ -17,9 +17,9 @@ COPY libs/sdlc_secrets/pyproject.toml libs/sdlc_secrets/
 COPY libs/sdlc_web/pyproject.toml libs/sdlc_web/
 COPY ingest/bootstrap/pyproject.toml ingest/bootstrap/
 COPY ingest/loaders/pyproject.toml ingest/loaders/
-COPY mcp_servers/bootstrap/pyproject.toml mcp_servers/bootstrap/
-COPY agents/bootstrap/pyproject.toml agents/bootstrap/
-RUN uv sync --frozen --no-dev --package sdlc-mcp-bootstrap --no-install-workspace
+COPY mcp_servers/core_mcp/pyproject.toml mcp_servers/core_mcp/
+COPY agents/user_agent/pyproject.toml agents/user_agent/
+RUN uv sync --frozen --no-dev --package sdlc-core-mcp --no-install-workspace
 
 COPY libs/sdlc_auth libs/sdlc_auth
 COPY libs/sdlc_config libs/sdlc_config
@@ -27,15 +27,14 @@ COPY libs/sdlc_connectors libs/sdlc_connectors
 COPY libs/sdlc_db libs/sdlc_db
 COPY libs/sdlc_policy libs/sdlc_policy
 COPY libs/sdlc_secrets libs/sdlc_secrets
-COPY mcp_servers/bootstrap mcp_servers/bootstrap
-RUN uv sync --frozen --no-dev --package sdlc-mcp-bootstrap
+COPY mcp_servers/core_mcp mcp_servers/core_mcp
+RUN uv sync --frozen --no-dev --package sdlc-core-mcp
 
 # Baked-in copies for standalone runs; docker compose bind-mounts ./skills and ./config over them.
 COPY skills skills
 COPY config config
 
 ENV PATH=/app/.venv/bin:$PATH \
-    SDLC_SKILLS_DIR=/app/skills/bootstrap \
     SDLC_CONFIG_DIR=/app/config \
     SDLC_ENV=local \
     MCP_HOST=0.0.0.0 \
@@ -47,4 +46,4 @@ USER nobody
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz')"
-CMD ["sdlc-mcp-bootstrap"]
+CMD ["sdlc-core-mcp"]

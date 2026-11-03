@@ -9,7 +9,7 @@ from fastmcp import Client
 from fastmcp.server.auth import RemoteAuthProvider
 from sdlc_auth.entra import entra_issuer
 from sdlc_config import ConfigError, load_snapshot
-from sdlc_mcp_bootstrap.server import build_http_app, build_server
+from sdlc_core_mcp.server import build_http_app, build_server
 
 from tests.support.entra import G_ENG_ALL, TENANT, TEST_ENV
 from tests.support.servers import serve

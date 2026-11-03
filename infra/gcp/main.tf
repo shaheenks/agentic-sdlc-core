@@ -24,8 +24,8 @@ locals {
 
   registry = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.sdlc.repository_id}"
   images = {
-    mcp          = "${local.registry}/mcp-bootstrap:${var.image_tag}"
-    agent        = "${local.registry}/agent-bootstrap:${var.image_tag}"
+    mcp          = "${local.registry}/core-mcp:${var.image_tag}"
+    agent        = "${local.registry}/user-agent:${var.image_tag}"
     ingest       = "${local.registry}/ingest:${var.image_tag}"
     ui           = "${local.registry}/ui-copilotkit:${var.image_tag}" # CopilotKit chat app (version-01 M5)
     oauth2_proxy = "${local.registry}/oauth2-proxy:${var.oauth2_proxy_tag}"

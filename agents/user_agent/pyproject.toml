@@ -1,9 +1,9 @@
-# Virtual project: agents/bootstrap is loaded by `adk web agents/` as the "bootstrap" app,
+# Virtual project: agents/user_agent is loaded by `adk web agents/` as the "user_agent" app,
 # so it is not built as a wheel; this file only declares its dependencies.
 [project]
-name = "sdlc-agent-bootstrap"
+name = "sdlc-user-agent"
 version = "0.1.0"
-description = "Starter ADK root agent"
+description = "Interactive ADK root agent (chat app)"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "google-adk[mcp]>=2.10",  # MCP toolset is an optional extra in ADK 2

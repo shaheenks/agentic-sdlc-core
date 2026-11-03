@@ -10,16 +10,16 @@ resolution-markers = [
 members = [
     "agentic-sdlc",
     "sdlc-agent",
-    "sdlc-agent-bootstrap",
     "sdlc-auth",
     "sdlc-config",
     "sdlc-connectors",
+    "sdlc-core-mcp",
     "sdlc-db",
     "sdlc-ingest",
     "sdlc-loaders",
-    "sdlc-mcp-bootstrap",
     "sdlc-policy",
     "sdlc-secrets",
+    "sdlc-user-agent",
     "sdlc-web",
 ]
 
@@ -2277,23 +2277,6 @@ requires-dist = [
 ]
 
 [[package]]
-name = "sdlc-agent-bootstrap"
-version = "0.1.0"
-source = { virtual = "agents/bootstrap" }
-dependencies = [
-    { name = "google-adk", extra = ["mcp"] },
-    { name = "sdlc-agent" },
-    { name = "sdlc-auth" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "google-adk", extras = ["mcp"], specifier = ">=2.10" },
-    { name = "sdlc-agent", editable = "libs/sdlc_agent" },
-    { name = "sdlc-auth", editable = "libs/sdlc_auth" },
-]
-
-[[package]]
 name = "sdlc-auth"
 version = "0.1.0"
 source = { editable = "libs/sdlc_auth" }
@@ -2347,6 +2330,35 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28" },
     { name = "sdlc-config", editable = "libs/sdlc_config" },
     { name = "sdlc-secrets", editable = "libs/sdlc_secrets" },
+]
+
+[[package]]
+name = "sdlc-core-mcp"
+version = "0.1.0"
+source = { editable = "mcp_servers/core_mcp" }
+dependencies = [
+    { name = "fastmcp" },
+    { name = "opentelemetry-exporter-otlp-proto-http" },
+    { name = "opentelemetry-instrumentation-psycopg" },
+    { name = "pyyaml" },
+    { name = "sdlc-auth", extra = ["server"] },
+    { name = "sdlc-config" },
+    { name = "sdlc-connectors" },
+    { name = "sdlc-db" },
+    { name = "sdlc-policy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastmcp", specifier = ">=4.0" },
+    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.42.1" },
+    { name = "opentelemetry-instrumentation-psycopg", specifier = ">=0.63b1" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "sdlc-auth", extras = ["server"], editable = "libs/sdlc_auth" },
+    { name = "sdlc-config", editable = "libs/sdlc_config" },
+    { name = "sdlc-connectors", editable = "libs/sdlc_connectors" },
+    { name = "sdlc-db", editable = "libs/sdlc_db" },
+    { name = "sdlc-policy", editable = "libs/sdlc_policy" },
 ]
 
 [[package]]
@@ -2411,35 +2423,6 @@ requires-dist = [
 ]
 
 [[package]]
-name = "sdlc-mcp-bootstrap"
-version = "0.1.0"
-source = { editable = "mcp_servers/bootstrap" }
-dependencies = [
-    { name = "fastmcp" },
-    { name = "opentelemetry-exporter-otlp-proto-http" },
-    { name = "opentelemetry-instrumentation-psycopg" },
-    { name = "pyyaml" },
-    { name = "sdlc-auth", extra = ["server"] },
-    { name = "sdlc-config" },
-    { name = "sdlc-connectors" },
-    { name = "sdlc-db" },
-    { name = "sdlc-policy" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastmcp", specifier = ">=4.0" },
-    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.42.1" },
-    { name = "opentelemetry-instrumentation-psycopg", specifier = ">=0.63b1" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "sdlc-auth", extras = ["server"], editable = "libs/sdlc_auth" },
-    { name = "sdlc-config", editable = "libs/sdlc_config" },
-    { name = "sdlc-connectors", editable = "libs/sdlc_connectors" },
-    { name = "sdlc-db", editable = "libs/sdlc_db" },
-    { name = "sdlc-policy", editable = "libs/sdlc_policy" },
-]
-
-[[package]]
 name = "sdlc-policy"
 version = "0.1.0"
 source = { editable = "libs/sdlc_policy" }
@@ -2465,6 +2448,23 @@ requires-dist = [
     { name = "google-auth", specifier = ">=2.0" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "requests", specifier = ">=2.0" },
+]
+
+[[package]]
+name = "sdlc-user-agent"
+version = "0.1.0"
+source = { virtual = "agents/user_agent" }
+dependencies = [
+    { name = "google-adk", extra = ["mcp"] },
+    { name = "sdlc-agent" },
+    { name = "sdlc-auth" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "google-adk", extras = ["mcp"], specifier = ">=2.10" },
+    { name = "sdlc-agent", editable = "libs/sdlc_agent" },
+    { name = "sdlc-auth", editable = "libs/sdlc_auth" },
 ]
 
 [[package]]

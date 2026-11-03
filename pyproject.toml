@@ -19,7 +19,7 @@ dev = [
 package = false
 
 [tool.uv.workspace]
-# Explicit list: add each new component here as it lands (see CLAUDE.md, "bootstrap/" convention).
+# Explicit list: add each new component here as it lands (see CLAUDE.md, starter components).
 members = [
     "libs/sdlc_agent",
     "libs/sdlc_auth",
@@ -31,8 +31,8 @@ members = [
     "libs/sdlc_web",
     "ingest/bootstrap",
     "ingest/loaders",
-    "mcp_servers/bootstrap",
-    "agents/bootstrap",
+    "mcp_servers/core_mcp",
+    "agents/user_agent",
 ]
 
 [tool.uv.sources]
@@ -46,8 +46,8 @@ sdlc-secrets = { workspace = true }
 sdlc-web = { workspace = true }
 sdlc-ingest = { workspace = true }
 sdlc-loaders = { workspace = true }
-sdlc-mcp-bootstrap = { workspace = true }
-sdlc-agent-bootstrap = { workspace = true }
+sdlc-core-mcp = { workspace = true }
+sdlc-user-agent = { workspace = true }
 
 [tool.ruff]
 line-length = 100

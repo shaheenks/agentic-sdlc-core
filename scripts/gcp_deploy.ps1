@@ -141,8 +141,8 @@ switch ($Step) {
         $tag = Get-ImageTag
         Invoke-Native 'gcloud' @('auth', 'configure-docker', "$Region-docker.pkg.dev", '--quiet')
         $images = [ordered]@{
-            'mcp-bootstrap'   = 'mcp_servers/bootstrap/Dockerfile'
-            'agent-bootstrap' = 'agents/bootstrap/Dockerfile'
+            'core-mcp'   = 'mcp_servers/core_mcp/Dockerfile'
+            'user-agent' = 'agents/user_agent/Dockerfile'
             'ingest'          = 'ingest/bootstrap/Dockerfile'
             'ui-copilotkit'   = 'ui/copilotkit/Dockerfile'   # CopilotKit chat app (version-01 M5)
         }

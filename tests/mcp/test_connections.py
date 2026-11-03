@@ -10,8 +10,8 @@ from fastmcp import Client
 from sdlc_connectors import providers
 from sdlc_connectors.service import ConnectionService
 from sdlc_connectors.user_store import MemoryUserStore
-from sdlc_mcp_bootstrap.connected_tools import Connected
-from sdlc_mcp_bootstrap.server import build_http_app
+from sdlc_core_mcp.connected_tools import Connected
+from sdlc_core_mcp.server import build_http_app
 
 from tests.support.entra import G_ENG_ALL, G_PAYMENTS_DEVS
 from tests.support.servers import build_test_mcp_server, free_port, serve

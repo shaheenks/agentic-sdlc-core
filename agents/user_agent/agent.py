@@ -1,6 +1,6 @@
-"""Bootstrap ADK root agent.
+"""user_agent: the interactive ADK root agent (serves people in the chat app).
 
-Stage 1: connects to the bootstrap MCP server and works through skills.
+Stage 1: connects to the core MCP server (core_mcp) and works through skills.
 Stage 2: every MCP call carries the signed-in user's Entra token (bearer_header_provider);
 with no user token the MCP server answers 401. The agent never uses a service token.
 Stage 4: the instruction is extended per session with the user's team instructions and context
@@ -40,9 +40,9 @@ How to answer (the chat renders Markdown):
 """
 
 root_agent = Agent(
-    name="sdlc_bootstrap",
+    name="user_agent",
     model=MODEL,
-    description="Starter SDLC assistant that works through centrally served skills.",
+    description="Interactive SDLC assistant that works through centrally served skills.",
     instruction=with_team_context(INSTRUCTION, MCP_URL),
     tools=[
         McpToolset(

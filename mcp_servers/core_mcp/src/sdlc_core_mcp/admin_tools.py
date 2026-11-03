@@ -4,7 +4,7 @@ role's "*" grant); they read only the request's config snapshot, never secrets.
 
 from sdlc_config import ConfigStore, PolicyCache
 
-from sdlc_mcp_bootstrap.identity import request_identity
+from sdlc_core_mcp.identity import request_identity
 
 
 def make_admin_tools(store: ConfigStore, cache: PolicyCache) -> list:

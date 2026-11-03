@@ -32,14 +32,14 @@ from sdlc_auth import GroupResolver
 from sdlc_config import ConfigStore, PolicyCache, SkillDecision
 from sdlc_policy import RateLimiter, authorize
 
-from sdlc_mcp_bootstrap.correlation import current_correlation
-from sdlc_mcp_bootstrap.identity import (
+from sdlc_core_mcp.correlation import current_correlation
+from sdlc_core_mcp.identity import (
     Identity,
     current_principal,
     remember_identity,
     resolve_identity,
 )
-from sdlc_mcp_bootstrap.telemetry import annotate, current_trace_id
+from sdlc_core_mcp.telemetry import annotate, current_trace_id
 
 audit_log = logging.getLogger("sdlc.audit")
 server_log = logging.getLogger("sdlc.mcp")
@@ -219,7 +219,7 @@ class PolicyMiddleware(Middleware):
             "roles": [],
             "config_version": self._store.current().version,
         }
-        from sdlc_mcp_bootstrap.connected_tools import connection_audit
+        from sdlc_core_mcp.connected_tools import connection_audit
 
         audit_reset = connection_audit.set(None)
         try:

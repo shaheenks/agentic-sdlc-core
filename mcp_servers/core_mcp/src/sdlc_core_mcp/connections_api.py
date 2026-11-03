@@ -27,8 +27,8 @@ from sdlc_connectors.user_store import UserStoreError
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from sdlc_mcp_bootstrap.audit import emit, new_request_id
-from sdlc_mcp_bootstrap.connected_tools import Connected
+from sdlc_core_mcp.audit import emit, new_request_id
+from sdlc_core_mcp.connected_tools import Connected
 
 log = logging.getLogger("sdlc.mcp")
 MAX_BODY = 8 * 1024

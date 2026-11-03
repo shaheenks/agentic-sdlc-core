@@ -8,8 +8,8 @@ Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Current pla
 current before adding features, and don't build ahead of the current stage's exit gate.
 
 ## Repo structure
-- `agents/<name>/`          ADK agents (`agents/bootstrap` = starter root agent)
-- `mcp_servers/<name>/`     FastMCP servers, streamable HTTP (`mcp_servers/bootstrap` = starter)
+- `agents/<name>/`          ADK agents (`agents/user_agent` = starter root agent)
+- `mcp_servers/<name>/`     FastMCP servers, streamable HTTP (`mcp_servers/core_mcp` = starter)
 - `ingest/<component>/`     RAG + KG pipeline (`ingest/bootstrap` = pipeline + CLI; `ingest/loaders` = `sdlc_loaders`, one loader per source type)
 - `libs/sdlc_auth`          Entra JWT validation, group overage fallback, `get_user_token(context)`
 - `libs/sdlc_config`        Config loader + JSON Schemas + resolver → `EffectivePolicy`; CLI validate/explain/diff
@@ -27,8 +27,8 @@ current before adding features, and don't build ahead of the current stage's exi
 - `tests/`                  persona-matrix, resolver, RLS, e2e, retrieval evals
 - `docs/`                   Implementation plan and design docs
 
-`bootstrap/` is the starter component in each area. Add new components as siblings instead of
-growing bootstrap indefinitely. Shared code goes in `libs/`, never copied between components.
+Each area has a starter component (`agents/user_agent`, `mcp_servers/core_mcp`, `ingest/bootstrap`, `db/bootstrap`).
+Add new components as siblings instead of growing a starter indefinitely. Shared code goes in `libs/`, never copied between components.
 
 ## Configuration rules
 - All access is declared in `config/`. Never hardcode roles, groups, tool lists or data scopes in code.
@@ -159,7 +159,7 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
 
 ## Commands
 - `uv sync --all-packages`   install every workspace member (plain `uv sync` installs only the root)
-- `docker compose up -d --build --wait`   postgres (:5432), mcp-bootstrap (:8080), agent-bootstrap (internal :8000), oauth2-proxy (:4180)
+- `docker compose up -d --build --wait`   postgres (:5432), core-mcp (:8080), user-agent (internal :8000), oauth2-proxy (:4180)
 - `docker compose --profile tunnel up -d --wait`   also starts `oauth2-proxy-public` on 127.0.0.1:4181. Public endpoints
   `https://app-sdlc-dev.shaheenks.co.in` (UI -> localhost:4181) and `https://mcp-sdlc-dev.shaheenks.co.in/mcp` (-> localhost:8080) go
   through the host's `Cloudflared` Windows service (tunnel + hostnames managed in the Cloudflare dashboard). Run exactly one

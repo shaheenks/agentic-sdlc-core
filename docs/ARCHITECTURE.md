@@ -32,7 +32,7 @@ flowchart TB
     Entra[(Microsoft Entra ID<br/>single IdP<br/>groups claim)]
 
     subgraph AgentTier["Agent tier"]
-        A1[ADK root agent<br/>agents/bootstrap]
+        A1[ADK root agent<br/>agents/user_agent]
         A2[Future SDLC agents<br/>agents/&lt;name&gt;]
         LLM[[Gemini<br/>Vertex AI]]
     end
@@ -164,7 +164,7 @@ The security checkpoints in this flow are:
     client carries the trace context in the request's `_meta`, not in an HTTP header, so the one-session-per-
     conversation rule is untouched. Direct MCP clients (Antigravity) send no conversation id and start their own
     server-side traces.
-  `docker compose logs mcp-bootstrap | grep <agent_session_id>` shows everything one conversation did.
+  `docker compose logs core-mcp | grep <agent_session_id>` shows everything one conversation did.
 
 ## 5. Identity and authorization model
 
@@ -363,8 +363,8 @@ Details for dev exposure: [CLOUDFLARE_TUNNEL.md](misc/CLOUDFLARE_TUNNEL.md). GCP
 
 | Aspect | Development: local + Cloudflare Tunnel (current phase) | GCP (dev since version-01 M7; staging/prod later) |
 |---|---|---|
-| Agent | `agent-bootstrap` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` or publicly via Cloudflare Tunnel (host connector) → `oauth2-proxy-public` (localhost:4181) at `https://app-sdlc-dev.shaheenks.co.in` | Cloud Run service `sdlc-app-<env>`: oauth2-proxy ingress container + agent sidecar (`:8000`, `/agui`) + CopilotKit chat app sidecar (`:3000`, `/chat/`), 1 instance; later Agent Runtime (Gemini Enterprise) |
-| MCP server | `mcp-bootstrap` container (`localhost:8080`; public `https://mcp-sdlc-dev.shaheenks.co.in/mcp` via Cloudflare Tunnel) | Cloud Run service `sdlc-mcp-<env>` (public, stateless, scales out; Entra token is the gate) |
+| Agent | `user-agent` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` or publicly via Cloudflare Tunnel (host connector) → `oauth2-proxy-public` (localhost:4181) at `https://app-sdlc-dev.shaheenks.co.in` | Cloud Run service `sdlc-app-<env>`: oauth2-proxy ingress container + agent sidecar (`:8000`, `/agui`) + CopilotKit chat app sidecar (`:3000`, `/chat/`), 1 instance; later Agent Runtime (Gemini Enterprise) |
+| MCP server | `core-mcp` container (`localhost:8080`; public `https://mcp-sdlc-dev.shaheenks.co.in/mcp` via Cloudflare Tunnel) | Cloud Run service `sdlc-mcp-<env>` (public, stateless, scales out; Entra token is the gate) |
 | Database | `postgres` container (pgvector, `127.0.0.1:5432`) | Cloud SQL for PostgreSQL 17 + pgvector via the Cloud SQL connector only (no authorized networks; private IP later); roles/RLS by the `sdlc-db-setup` job |
 | Ingest | CLI in container (on demand, profile `ingest`; `.git` mounted read-only for git sources) | Cloud Run Job `sdlc-ingest-<env>` |
 | Config | bind-mounted `config/`, file-watch reload (local bundles optional) | 7a: baked into the image per release, tenant `groups.yaml` from Secret Manager; 7b: GCS bundle + `current` pointer, Pub/Sub reload |
@@ -378,7 +378,7 @@ Details for dev exposure: [CLOUDFLARE_TUNNEL.md](misc/CLOUDFLARE_TUNNEL.md). GCP
 ## 9. Growth path
 
 The platform starts as one agent, one MCP server, one ingest CLI and one database; that is
-the `bootstrap/` component in each area. It grows by adding **sibling components**: more
+a starter component in each area (`agents/user_agent`, `mcp_servers/core_mcp`, `ingest/bootstrap`). It grows by adding **sibling components**: more
 SDLC agents, specialised MCP servers (e.g. a knowledge server), and ingest loaders for Jira
 and wikis (local folders and git repositories exist today). All of them share `libs/` and the same `config/` policy, so identity and
 selective disclosure stay consistent as the system expands.

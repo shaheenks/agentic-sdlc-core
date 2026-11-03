@@ -1,4 +1,4 @@
-"""Bootstrap MCP server over real HTTP with Entra-shaped test tokens (no real Entra needed)."""
+"""Core MCP server over real HTTP with Entra-shaped test tokens (no real Entra needed)."""
 
 import json
 

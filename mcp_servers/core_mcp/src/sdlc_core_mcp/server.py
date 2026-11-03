@@ -1,4 +1,4 @@
-"""Bootstrap MCP server.
+"""Core MCP server (core_mcp).
 
 Stage 1: ping, list_skills, load_skill over streamable HTTP.
 Stage 2: every MCP request needs a valid Entra ID user token (401 otherwise); whoami;
@@ -26,20 +26,20 @@ from starlette.middleware import Middleware as ASGIMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from sdlc_mcp_bootstrap.admin_tools import make_admin_tools
-from sdlc_mcp_bootstrap.audit import (
+from sdlc_core_mcp.admin_tools import make_admin_tools
+from sdlc_core_mcp.audit import (
     HiddenSkillError,
     PolicyMiddleware,
     audit_skill_access,
     audit_skills_list,
 )
-from sdlc_mcp_bootstrap.auth_audit import AuthFailureAuditMiddleware
-from sdlc_mcp_bootstrap.connected_tools import Connected, connection_problems, make_connected_tools
-from sdlc_mcp_bootstrap.connections_api import add_connection_routes
-from sdlc_mcp_bootstrap.identity import request_identity
-from sdlc_mcp_bootstrap.knowledge_tools import Knowledge, make_knowledge_tools
-from sdlc_mcp_bootstrap.sdlc_tools import SDLC_TOOLS
-from sdlc_mcp_bootstrap.telemetry import setup_tracing
+from sdlc_core_mcp.auth_audit import AuthFailureAuditMiddleware
+from sdlc_core_mcp.connected_tools import Connected, connection_problems, make_connected_tools
+from sdlc_core_mcp.connections_api import add_connection_routes
+from sdlc_core_mcp.identity import request_identity
+from sdlc_core_mcp.knowledge_tools import Knowledge, make_knowledge_tools
+from sdlc_core_mcp.sdlc_tools import SDLC_TOOLS
+from sdlc_core_mcp.telemetry import setup_tracing
 
 log = logging.getLogger("sdlc.mcp")
 
@@ -68,7 +68,7 @@ def build_server(
 ) -> FastMCP:
     cache = PolicyCache()
     mcp = FastMCP(
-        name="sdlc-mcp-bootstrap",
+        name="sdlc-core-mcp",
         instructions="Central SDLC tool server. Use list_skills, then load_skill before a task.",
         auth=auth,
         middleware=[PolicyMiddleware(store, group_resolver, cache)],

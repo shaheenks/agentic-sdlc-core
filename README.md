@@ -34,7 +34,7 @@ IDs, group IDs, user names or secrets.
 ## Run the stack
 
 ```bash
-docker compose up -d --build --wait          # postgres, mcp-bootstrap, agent-bootstrap, ui-copilotkit, oauth2-proxy
+docker compose up -d --build --wait          # postgres, core-mcp, user-agent, ui-copilotkit, oauth2-proxy
 docker compose run --rm migrate              # database schema + row-level security (first time, and after new migrations)
 docker compose run --rm ingest run --all     # build the knowledge store (embeddings, graph, PDFs)
 ```

@@ -35,6 +35,8 @@ are a proposal to confirm milestone by milestone.
 | N8 — Chat UX | ✅ Built (2026-10-30); answer rendering confirmed by the user | Answer formatting, `/` opens the chat, navbar user + PAT status (§11). Open: navbar and `/` check in the browser, GCP `images` + `plan` + `apply` |
 | N9 — Per-source Entra groups | ✅ Built (2026-11-02) | Sources grant by their own Entra group or `everyone: true`; `graph_query` moved to viewer (§12). Open: real `infra-readers` group in the tenant |
 | N10 — Direct members by email (users.yaml) | ✅ Built (2026-11-02) | Users added to teams/roles in git-ignored `users.yaml`, matched by oid; `sdlc-config users sync`; GCP secret mount (§13). Open: GCP `plan` + `apply`, live check |
+| N11 — Rename: `user_agent`, `core_mcp` | ✅ Done (2026-11-03); local stack checked | Starter agent and MCP server renamed for the agent-runtime work (§14). Existing chats no longer show (stored per app name). Open: GCP `images` + `plan` + `apply` |
+| Pending — Agent runtimes (user / CI / ops) | 📝 Design only | Workload identity, read + report back; trigger sources not decided (D7, [pending-task.md](pending-task.md)) |
 | Deferred — Gemini Enterprise | ⏸ | Design in version-01 §6; needs an org admin, a workforce pool and licences |
 
 **Next:** N0 (quick, local), then N1 once the dev sources are decided.
@@ -49,6 +51,7 @@ are a proposal to confirm milestone by milestone.
 | D4 | A staging environment in version-02, or dev only? (project, region, hostnames) | N5 |
 | D5 | Write tools on behalf of the user (create issue, comment, PR): in version-02 or later? | N6 |
 | D6 | Replace CopilotKit with an own chat client (`@ag-ui/client` + `@a2ui/react`)? **Not pursued** (2026-10-30): no Gemini Enterprise benefit (GE has its own UI); it would only remove the Node runtime and its workarounds at the cost of owning a chat UI. Revisit if the CopilotKit runtime becomes a burden | — |
+| D7 | Agent runtimes: interactive `user_agent` plus autonomous `ci_agent` / `ops_agent` (own workload identity, read + report back). **Pending** (2026-11-03): trigger sources not decided; design in [pending-task.md](pending-task.md) | later (version-03) |
 
 ## 1. Dev sources on GCP + ingest (N1)
 
@@ -260,7 +263,7 @@ the navbar user status, and the same on the tunnel and on GCP after `images` + `
 Requested 2026-10-30: chat answers looked unformatted (an extra blank line after every line), the app should open
 on the chat after sign-in, and the navbar should show the signed-in user with the state of their PAT connections.
 
-- **Answer formatting** (`ui/copilotkit`, `agents/bootstrap`):
+- **Answer formatting** (`ui/copilotkit`, `agents/user_agent`):
   - CopilotKit renders answers as Markdown with Tailwind typography: 1.25em paragraph gaps and a 65ch width cap.
     When the model separates lines with blank lines, every line becomes a paragraph and looks double-spaced.
     `globals.css` tightens paragraphs, lists and headings for assistant messages only and uses the full column.
@@ -345,3 +348,24 @@ Admins need to add users directly, by their Entra email, to teams (with team rol
 - GCP dev: run `gcp_deploy.ps1 -EnvName dev -Step plan` then `apply` with `config/env/dev/users.yaml` in place.
 - Live check on localhost and the tunnel: a test user with no sdlc groups listed in `users.yaml` sees their team in
   `whoami(explain=true)`.
+
+## 14. Rename: `user_agent` and `core_mcp` — done 2026-11-03
+
+The starter agent and MCP server are renamed for the agent-runtime work ([pending-task.md](pending-task.md)):
+
+| Before | After |
+|---|---|
+| `agents/bootstrap` (ADK app `bootstrap`, agent `sdlc_bootstrap`, package `sdlc-agent-bootstrap`) | `agents/user_agent` (app and agent `user_agent`, package `sdlc-user-agent`) |
+| `mcp_servers/bootstrap` (package `sdlc_mcp_bootstrap`, command `sdlc-mcp-bootstrap`) | `mcp_servers/core_mcp` (`sdlc_core_mcp`, `sdlc-core-mcp`) |
+| compose services `mcp-bootstrap`, `agent-bootstrap` | `core-mcp`, `user-agent` |
+| images `mcp-bootstrap`, `agent-bootstrap` (Artifact Registry) | `core-mcp`, `user-agent` |
+| `tools.yaml` server `bootstrap` | `core-mcp` |
+| `SDLC_AGUI_AGENT=bootstrap` (compose, Terraform) | `user_agent` |
+
+Unchanged: `ingest/bootstrap`, `db/bootstrap`, `sdlc-db bootstrap`, Cloud Run service names (`sdlc-mcp-<env>`,
+`sdlc-app-<env>`), hostnames, OTel names of other services. `tests/evals/retrieval_questions.yaml` keeps the old paths:
+they cite the pinned `sdlc-platform` corpus commit. version-00/01 plans keep the old names (history).
+
+**Effects:** conversations are stored per ADK app name, so existing chats (local SQLite volume, Agent Engine on GCP)
+no longer show after the rename. GCP: the next deploy needs `images` (new image names) then `plan` + `apply`; the old
+images stay in Artifact Registry until deleted. Local: `docker compose up -d --build --wait --remove-orphans`.
