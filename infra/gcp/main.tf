@@ -12,6 +12,7 @@ locals {
     "artifactregistry.googleapis.com",
     "aiplatform.googleapis.com",
     "iam.googleapis.com",
+    "storage.googleapis.com",
     "cloudresourcemanager.googleapis.com", # data.google_project; enable once by hand before the first plan
   ]
 

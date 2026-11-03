@@ -31,3 +31,13 @@ output "jobs" {
     ingest   = google_cloud_run_v2_job.ingest.name
   }
 }
+
+output "config_store_bucket" {
+  description = "Content bucket for gcs sources (empty when not created)."
+  value       = var.config_store_bucket == "" ? "" : "gs://${google_storage_bucket.config_store[0].name}"
+}
+
+output "artifact_store_bucket" {
+  description = "Bucket for temporary files and agent artefacts (empty when not created)."
+  value       = var.artifact_store_bucket == "" ? "" : "gs://${google_storage_bucket.artifact_store[0].name}"
+}

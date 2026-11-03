@@ -104,3 +104,21 @@ variable "gcs_source_buckets" {
   type        = list(string)
   default     = []
 }
+
+variable "config_store_bucket" {
+  description = "Private bucket for source content read by ingest (gcs sources; the former samples/ corpus), created in var.region (storage.tf). Empty = no bucket."
+  type        = string
+  default     = ""
+}
+
+variable "artifact_store_bucket" {
+  description = "Private bucket for temporary files and agent artefacts, written by the agent (sdlc-app), created in var.region (storage.tf). Empty = no bucket."
+  type        = string
+  default     = ""
+}
+
+variable "artifact_retention_days" {
+  description = "Objects in the artifact store are deleted this many days after they are written."
+  type        = number
+  default     = 7
+}

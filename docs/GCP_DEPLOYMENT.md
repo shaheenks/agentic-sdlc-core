@@ -137,6 +137,8 @@ sequenceDiagram
 | `iam.tf` | Service accounts `sdlc-<env>-mcp`, `-app`, `-jobs`; project roles; per-secret accessor bindings; custom role `sdlcUserSecrets_<env>` | See §5 |
 | `run.tf` | Services `sdlc-mcp-<env>`, `sdlc-app-<env>`; jobs `sdlc-db-setup-<env>`, `sdlc-ingest-<env>` | Secrets as env vars (`version = latest`); `groups.yaml` as a file at `/app/config/env/<env>/`; Cloud SQL socket at `/cloudsql` |
 | `sessions.tf` | Agent Engine `sdlc-sessions-<env>` (`google_vertex_ai_reasoning_engine`, version-01 M8) | Session store only (no deployed code, no memory bank); the agent gets its full resource name in `SDLC_SESSION_SERVICE_URI` |
+| `storage.tf` | Bucket `config_store_bucket` (dev: `sdlc-config-store-a7484d8b`, region, uniform access, public access prevention enforced, versioning, last 5 old versions kept); `objectViewer` for `sdlc-<env>-jobs` | Content for `gcs` sources (former `samples/`); created only when the variable is set; uploads by people with `gcloud storage cp`; `force_destroy` follows `deletion_protection` |
+| `storage.tf` | Bucket `artifact_store_bucket` (dev: `sdlc-artifact-store-a7484d8b`): no versioning, no soft delete, objects deleted after `artifact_retention_days` (7); `objectUser` for `sdlc-<env>-app` | Temporary files and agent artefacts; not yet wired into the agent (`artifact_service_uri` is still `memory://`) |
 | `outputs.tf` | `app_url`, `oauth_callback`, `mcp_url`, `session_engine`, `registry`, `sql_connection_name`, `jobs` | |
 | `<env>.tfvars`, `<env>.gcs.tfbackend` | Project, region, env, tier, deletion protection; state bucket + prefix | No tenant IDs in either |
 
