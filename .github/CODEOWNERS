@@ -35,12 +35,11 @@
 # --- team files: owners = config/teams/<team>.yaml metadata.owners ------------------------------
 /config/teams/payments.yaml         @shaheenks
 /skills/teams/payments/             @shaheenks
-/config/teams/platform.yaml         @shaheenks
-/skills/teams/platform/             @shaheenks
+/config/teams/sdlc-platform.yaml    @shaheenks
+/skills/teams/sdlc-platform/        @shaheenks
 
 # --- sources: owners = the owner team's leads (Source metadata.owner_team) ----------------------
 /config/sources/payments-code.yaml       @shaheenks
 /config/sources/payments-incidents.yaml  @shaheenks
-/config/sources/platform-infra.yaml      @shaheenks
 /config/sources/eng-standards.yaml       @shaheenks
 /config/sources/sdlc-platform.yaml       @shaheenks

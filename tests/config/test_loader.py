@@ -136,4 +136,5 @@ def test_missing_groups_file_hints_at_example(config_dir):
 def test_committed_example_is_a_valid_groupmap(config_dir):
     example = config_dir / "env/local/groups.yaml.example"
     (config_dir / "env/local/groups.yaml").write_text(example.read_text())
-    assert len(load_snapshot(config_dir, "local", ENV).groups.alias_by_id) == 6
+    (config_dir / "sources/platform-infra.yaml").unlink()  # test-only source (test group alias)
+    assert len(load_snapshot(config_dir, "local", ENV).groups.alias_by_id) == 5

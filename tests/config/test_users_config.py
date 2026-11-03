@@ -105,8 +105,8 @@ def test_direct_member_gets_team_roles_limits_skills_and_sources(config_dir):
 
 def test_direct_membership_unions_with_groups(config_dir):
     policy = resolve(load(config_dir), ["eng-all", "platform-devs"], (), "direct-dev")
-    assert set(policy.teams) == {"payments", "platform"}
-    assert policy.tools["review_code"].constraints["repo"] >= {"payments-api", "platform-infra"}
+    assert set(policy.teams) == {"payments", "sdlc-platform"}
+    assert policy.tools["review_code"].constraints["repo"] >= {"payments-api", "agentic-sdlc-core"}
 
 
 def test_global_role_binding(config_dir):

@@ -1,0 +1,26 @@
+apiVersion: sdlc/v1
+kind: Team
+metadata:
+  name: sdlc-platform
+  owners: [platform-admins]          # group aliases; also drive CODEOWNERS
+# No Entra group per role in this tenant: members are added directly in the git-ignored
+# config/env/<env>/users.yaml, e.g. `teams: { sdlc-platform: [developer] }` (viewer, developer,
+# lead or admin), matched by object ID (version-02 N10).
+membership: []
+policy:
+  tools:
+    deny: []
+    constraints:
+      review_code:
+        args:
+          repo: { in: [agentic-sdlc-core] }
+      generate_tests:
+        args:
+          repo: { in: [agentic-sdlc-core] }
+addons:                              # visible only to members of this team
+  skills:
+    infra-change-review: { path: skills/teams/sdlc-platform/infra-change-review }
+  instructions: skills/teams/sdlc-platform/AGENT_ADDENDUM.md
+  context:
+    default_project: sdlc-platform
+    repository: https://github.com/shaheenks/agentic-sdlc-core

@@ -73,7 +73,9 @@ async def test_payments_dev_calls_within_limits_only(base_url, entra):
 
 async def test_platform_dev_gets_platform_repos(base_url, entra):
     async with client(base_url, entra.token(groups=PERSONAS["platform_dev"])) as c:
-        assert (await c.call_tool("generate_tests", {"repo": "platform-ci", "target": "x"})).data
+        assert (
+            await c.call_tool("generate_tests", {"repo": "agentic-sdlc-core", "target": "x"})
+        ).data
         with pytest.raises(ToolError, match="not allowed"):
             await c.call_tool("generate_tests", {"repo": "payments-api", "target": "x"})
 

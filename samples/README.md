@@ -7,8 +7,8 @@ Synthetic content for local development and tests. **No real data.**
 | Folder | Source id | Classification | Access |
 |---|---|---|---|
 | `payments-api/` | `payments-code` | internal | payments team, admin |
-| `platform-infra/` | `platform-infra` | internal | platform team, admin |
-| `eng-standards/` | `eng-standards` | public | all engineers (`eng-all`) |
+| `platform-infra/` | `platform-infra` (test-only, `tests/support/config.py`) | internal | sdlc-platform team, admin |
+| `eng-standards/` | `eng-standards` | public | every signed-in user (`everyone: true`) |
 | `payments-incidents/` | `payments-incidents` | confidential | payments team (leads and above by classification), admin |
 
 The files are written with cross-references (services, workers, owners, alerts, runbooks,

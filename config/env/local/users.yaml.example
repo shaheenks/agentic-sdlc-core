@@ -9,10 +9,10 @@ users:
   paul:
     email: paul@example.com
     oid: "00000000-0000-0000-0000-000000000101"
-    teams: { payments: [developer] }         # team -> roles in that team
+    teams: { sdlc-platform: [developer] }    # team -> roles in that team
   ana:
     email: ana@example.com
-    teams: { platform: [developer], payments: [lead] }
+    teams: { sdlc-platform: [lead], payments: [developer] }
   ben:
     email: ben@example.com
     roles: [viewer]                          # global roles, like a roles.yaml binding

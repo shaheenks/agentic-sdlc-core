@@ -51,7 +51,7 @@ def test_skill_content_is_part_of_the_version(config_dir):
 
 def test_addendum_is_part_of_the_version(config_dir):
     before = load(config_dir).version
-    addendum = config_dir.parent / "skills/teams/platform/AGENT_ADDENDUM.md"
+    addendum = config_dir.parent / "skills/teams/sdlc-platform/AGENT_ADDENDUM.md"
     addendum.write_text(addendum.read_text() + "\n- Be brief.\n")
     assert load(config_dir).version != before
 
@@ -144,8 +144,8 @@ def rename_frontmatter(config_dir, rel, new_name):
         ),
         (
             lambda d: edit_yaml(
-                d / "teams/platform.yaml",
-                lambda t: t["addons"].update(instructions="skills/teams/platform/MISSING.md"),
+                d / "teams/sdlc-platform.yaml",
+                lambda t: t["addons"].update(instructions="skills/teams/sdlc-platform/MISSING.md"),
             ),
             "file not found",
         ),
@@ -191,7 +191,10 @@ def test_skills_folder_symlink_escape_is_refused(config_dir, tmp_path):
 
 
 def test_team_without_addons_is_fine(config_dir):
-    edit_yaml(config_dir / "teams/platform.yaml", lambda t: t.pop("addons"))
-    shutil.rmtree(config_dir.parent / "skills/teams/platform")
+    edit_yaml(config_dir / "teams/sdlc-platform.yaml", lambda t: t.pop("addons"))
+    shutil.rmtree(config_dir.parent / "skills/teams/sdlc-platform")
     snap = load(config_dir)
-    assert snap.teams["platform"].addon_skills == () and snap.teams["platform"].instructions is None
+    assert (
+        snap.teams["sdlc-platform"].addon_skills == ()
+        and snap.teams["sdlc-platform"].instructions is None
+    )

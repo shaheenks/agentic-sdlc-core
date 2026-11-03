@@ -8,5 +8,4 @@ groups:
   payments-devs:   { id: "00000000-0000-0000-0000-000000000002", description: "Payments developers" }
   payments-leads:  { id: "00000000-0000-0000-0000-000000000003", description: "Payments leads" }
   platform-devs:   { id: "00000000-0000-0000-0000-000000000004", description: "Platform developers" }
-  infra-readers:   { id: "00000000-0000-0000-0000-000000000006", description: "Readers of platform infra knowledge (source group)" }
   platform-admins: { id: "00000000-0000-0000-0000-000000000005", description: "SDLC platform admins" }

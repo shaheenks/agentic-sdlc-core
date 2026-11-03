@@ -2,7 +2,7 @@ apiVersion: sdlc/v1
 kind: Source
 metadata:
   id: eng-standards
-  owner_team: platform
+  owner_team: sdlc-platform
   description: engineering standards shared by all teams
 spec:
   type: local_folder

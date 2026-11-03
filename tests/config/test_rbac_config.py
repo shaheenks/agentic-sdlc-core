@@ -23,7 +23,7 @@ def test_repo_rbac_config_loads(config_dir):
     assert snap.roles["developer"].inherits == ("viewer",)
     assert snap.roles["admin"].unconstrained and "*" in snap.roles["admin"].tools_allow
     assert snap.tools["review_code"].args == {"repo"}
-    assert set(snap.teams) >= {"payments", "platform"}
+    assert set(snap.teams) >= {"payments", "sdlc-platform"}
     payments = snap.teams["payments"]
     assert payments.constraints["review_code"]["repo"] == {"payments-api", "payments-ui"}
     assert payments.membership[0].rule == "teams/payments.yaml#membership[0]"
@@ -155,7 +155,9 @@ def test_all_problems_reported_together(config_dir):
     edit_yaml(
         config_dir / "roles.yaml", lambda d: d["roles"]["viewer"]["tools"]["allow"].append("a")
     )
-    edit_yaml(config_dir / "teams/platform.yaml", lambda d: d["metadata"].update(owners=["zz"]))
+    edit_yaml(
+        config_dir / "teams/sdlc-platform.yaml", lambda d: d["metadata"].update(owners=["zz"])
+    )
     with pytest.raises(ConfigError) as exc:
         load(config_dir)
     assert len(exc.value.problems) >= 2

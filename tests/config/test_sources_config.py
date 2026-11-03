@@ -26,8 +26,10 @@ def test_sources_load(config_dir):
         "payments-incidents",
         "sdlc-platform",
     }
-    platform = snap.sources["sdlc-platform"]
-    assert platform.type == "git" and platform.ref and len(platform.ref) == 40  # pinned commit
+    platform = snap.sources["sdlc-platform"]  # GitHub, tracking main (public: no credentials)
+    assert (platform.type, platform.provider, platform.ref) == ("git", "github", "main")
+    assert platform.location == "https://github.com/shaheenks/agentic-sdlc-core.git"
+    assert platform.credentials is None and platform.access_teams == {"sdlc-platform"}
     incidents = snap.sources["payments-incidents"]
     assert incidents.classification == "confidential" and incidents.classification_rank == 2
     assert incidents.access_teams == {"payments"} and incidents.access_roles == {"admin"}

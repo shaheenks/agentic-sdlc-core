@@ -20,12 +20,13 @@ rows:
   - { persona: payments-lead, tool: approve_design,  args: { repo: payments-api },   expect: allow }
   - { persona: payments-lead, tool: approve_design,  args: { repo: platform-ci },    expect: deny }
   # platform developer: platform repos only
-  - { persona: platform-dev,  tool: review_code,     args: { repo: platform-infra }, expect: allow }
+  - { persona: platform-dev,  tool: review_code,     args: { repo: agentic-sdlc-core }, expect: allow }
   - { persona: platform-dev,  tool: review_code,     args: { repo: payments-api },   expect: deny }
-  - { persona: platform-dev,  tool: generate_tests,  args: { repo: platform-ci },    expect: allow }
+  - { persona: platform-dev,  tool: generate_tests,  args: { repo: agentic-sdlc-core }, expect: allow }
+  - { persona: platform-dev,  tool: generate_tests,  args: { repo: platform-ci },    expect: deny }   # old repo name
   # member of two teams: union of repos
   - { persona: multi-team-dev, tool: review_code,    args: { repo: payments-api },   expect: allow }
-  - { persona: multi-team-dev, tool: review_code,    args: { repo: platform-ci },    expect: allow }
+  - { persona: multi-team-dev, tool: review_code,    args: { repo: agentic-sdlc-core }, expect: allow }
   - { persona: multi-team-dev, tool: review_code,    args: { repo: secret-repo },    expect: deny }
   # admin: whole catalog, unconstrained
   - { persona: admin,         tool: config_info,     expect: allow }

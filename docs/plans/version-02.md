@@ -36,6 +36,7 @@ are a proposal to confirm milestone by milestone.
 | N9 — Per-source Entra groups | ✅ Built (2026-11-02) | Sources grant by their own Entra group or `everyone: true`; `graph_query` moved to viewer (§12). Open: real `infra-readers` group in the tenant |
 | N10 — Direct members by email (users.yaml) | ✅ Built (2026-11-02) | Users added to teams/roles in git-ignored `users.yaml`, matched by oid; `sdlc-config users sync`; GCP secret mount (§13). Open: GCP `plan` + `apply`, live check |
 | N11 — Rename: `user_agent`, `core_mcp` | ✅ Done (2026-11-03); local stack checked | Starter agent and MCP server renamed for the agent-runtime work (§14). Existing chats no longer show (stored per app name). Open: GCP `images` + `plan` + `apply` |
+| N12 — Team `sdlc-platform` + GitHub source | ✅ Built (2026-11-03) | `platform` → `sdlc-platform`, members from users.yaml only, source = GitHub `agentic-sdlc-core` tracking `main`; git loader partial-clone fix (§15). Open: re-ingest + remove dropped-source data once all sources are fixed ([pending-task.md](pending-task.md) task 2) |
 | Pending — Agent runtimes (user / CI / ops) | 📝 Design only | Workload identity, read + report back; trigger sources not decided (D7, [pending-task.md](pending-task.md)) |
 | Deferred — Gemini Enterprise | ⏸ | Design in version-01 §6; needs an org admin, a workforce pool and licences |
 
@@ -369,3 +370,37 @@ they cite the pinned `sdlc-platform` corpus commit. version-00/01 plans keep the
 **Effects:** conversations are stored per ADK app name, so existing chats (local SQLite volume, Agent Engine on GCP)
 no longer show after the rename. GCP: the next deploy needs `images` (new image names) then `plan` + `apply`; the old
 images stay in Artifact Registry until deleted. Local: `docker compose up -d --build --wait --remove-orphans`.
+
+## 15. Team `sdlc-platform` and its GitHub source (N12) — built 2026-11-03
+
+**Why:** reorganise around one real team first. The example `platform` team becomes `sdlc-platform`, whose code lives
+in the public GitHub repository https://github.com/shaheenks/agentic-sdlc-core. `payments` stays as the example team.
+
+**As built (decisions 2026-11-03):**
+- `config/teams/platform.yaml` → `teams/sdlc-platform.yaml`, `skills/teams/platform/` → `skills/teams/sdlc-platform/`
+  (add-on `infra-change-review` and team instructions kept; instructions now name the repository). Roles unchanged
+  (viewer, developer, lead, admin). **Members only from `users.yaml`** (`membership: []`), e.g.
+  `teams: { sdlc-platform: [lead] }`; `platform-admins` stays the global admin binding.
+- Tool limits: `review_code` / `generate_tests` `repo in [agentic-sdlc-core]` (was `platform-infra`, `platform-ci`).
+- Sources: `sdlc-platform` = `https://github.com/shaheenks/agentic-sdlc-core.git`, `provider: github`, **`ref: main`
+  (tracked)**, no credentials (public); `github.com` added to `knowledge.allowed_hosts`. `eng-standards` kept (owner
+  sdlc-platform). `platform-infra` removed from config (its sample folder stays for tests); the N9 `infra-readers`
+  alias and its placeholders are removed (the N9 open item about that group is obsolete).
+- **Git loader fix** (found by the first live GitHub run): remote clones used `--filter=blob:none`, and `ls-tree -l` /
+  `cat-file --batch` then fetched every file lazily, one request each (over 2 minutes, then GitHub hung up). Clones
+  and fetches now use `--filter=blob:limit=<MAX_FILE_BYTES>` (all ingestible text in one pack), sizes come from one
+  `cat-file --batch-check` (no lazy fetch on git >= 2.44), PDFs above the limit are fetched in one explicit call
+  (token only on network calls, `--no-write-fetch-head`), and caches cloned with another filter are re-cloned. A dry
+  run reads the repository (181 files, 1012 chunks) in about 6 s.
+- Tests: the fixture (`tests/support/config.py`) adds group members (`platform-devs` → developer) and a local
+  `platform-infra` source to its copy of sdlc-platform, so group-based tests keep a second team;
+  `tests/config/test_repo_teams.py` pins the real config; partial-clone tests in `tests/ingest/test_remote_git.py`.
+
+**Effects and open items:**
+- The retrieval eval's `sdlc-platform:` questions now follow `main` (non-deterministic by choice); GitHub `main` is
+  still at version-01, so the questions match it until version-02 is merged (then update the paths, e.g. `core_mcp`).
+- `sdlc-config diff` against commits before this change fails locally (they reference the removed `infra-readers`
+  alias); later revisions diff normally.
+- Add the team's members to `config/env/<env>/users.yaml` and run `sdlc-config users sync --env <env> --write`.
+- Re-ingest and cleanup are deferred until all sources are fixed: [pending-task.md](pending-task.md) task 2 (the DB
+  still holds the old local `sdlc-platform` copy and unreadable `platform-infra` rows).

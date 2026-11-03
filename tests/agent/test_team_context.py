@@ -81,6 +81,6 @@ async def test_real_fetch_as_the_user(base_url, entra):
         f"{base_url}/mcp", entra.token(groups=[G_ENG_ALL, G_PLATFORM_DEVS])
     )
     assert [i["team"] for i in payments["instructions"]] == ["payments"]
-    assert [i["team"] for i in platform["instructions"]] == ["platform"]
+    assert [i["team"] for i in platform["instructions"]] == ["sdlc-platform"]
     prompt = render_team_context(payments)
-    assert "pci-checklist" in prompt and "platform" not in prompt.lower()
+    assert "pci-checklist" in prompt and "sdlc-platform" not in prompt.lower()

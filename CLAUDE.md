@@ -53,7 +53,8 @@ Add new components as siblings instead of growing a starter indefinitely. Shared
 - Rate limits: `platform.yaml` `defaults.rate_limit` (baseline) + `teams/<team>.yaml` `policy.limits` (overall and per tool);
   most generous team wins; enforced per user after authorization; audited `outcome: rate_limited` with the rule.
 - A new source requires: `config/sources/<id>.yaml` with `access` + `classification`, persona-matrix `data_rows`, a CODEOWNERS rule.
-  `git` sources read a `ref` (full SHA = pinned, branch = tracked), never the working tree; eval corpora stay pinned.
+  `git` sources read a `ref` (full SHA = pinned, branch = tracked), never the working tree. `sdlc-platform` tracks GitHub
+  `main` (version-02 N12), so the retrieval eval's repo questions follow main (re-check them after merges).
   Remote git (`https`) needs `provider` (github | bitbucket-cloud | bitbucket-dc); DB tests ingest only `local_folder` sources.
 - Source loaders (version-01): a new source type = a factory in `sdlc_loaders.LOADERS` + its `spec` in the schema. Remote
   hosts must be in `platform.yaml` `knowledge.allowed_hosts`; remote HTTP goes through `sdlc_connectors.http.HttpClient`
@@ -63,6 +64,9 @@ Add new components as siblings instead of growing a starter indefinitely. Shared
   `knowledge.ocr`), cached as `ocr:` keys; chunks store PAGE ranges (`documents.media_type`), results return `pages`.
   PDFs are parsed only in ingest. Sample PDFs come from `scripts/make_sample_pdfs.py` (edit the script, not the PDFs).
 - A team add-on (skills, instructions, context) goes in `config/teams/<team>.yaml` + `skills/teams/<team>/`.
+- Teams (version-02 N12): `payments` (example, group members) and `sdlc-platform` (repo `agentic-sdlc-core` on GitHub;
+  members only from users.yaml, `membership: []`). Tests add fixture-only group members and a local `platform-infra`
+  source to sdlc-platform (`tests/support/config.py`); `tests/config/test_repo_teams.py` pins the real setup.
 - **Skill naming** (validated at load):
   - lowercase kebab-case `^[a-z][a-z0-9-]*$`, **globally unique** across `skills.yaml` and every team's add-ons
     (a duplicate fails validation);

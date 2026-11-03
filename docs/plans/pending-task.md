@@ -1,4 +1,14 @@
-# Pending task — Agent runtimes: user, CI and ops agents
+# Pending tasks
+
+Work that is agreed but not scheduled. Each task says what it waits for; when it is picked up, it moves into the
+current plan ([version-02.md](version-02.md)) or a new numbered plan.
+
+| # | Task | Waits for | Recorded |
+|---|---|---|---|
+| 1 | [Agent runtimes: user, CI and ops agents](#task-1--agent-runtimes-user-ci-and-ops-agents) | Trigger sources decided | 2026-11-03 |
+| 2 | [Re-ingest and remove data of dropped sources](#task-2--re-ingest-and-remove-data-of-dropped-sources) | All sources fixed in config | 2026-11-03 |
+
+## Task 1 — Agent runtimes: user, CI and ops agents
 
 **Status:** pending, not scheduled (recorded 2026-11-03). Nothing here is built. Revisit when the trigger sources are
 decided; then move it into a numbered plan (version-03) with milestones and exit gates.
@@ -6,7 +16,7 @@ decided; then move it into a numbered plan (version-03) with milestones and exit
 Related: [version-02.md](version-02.md) (current plan; write tools = decision D5), [../ARCHITECTURE.md](../ARCHITECTURE.md)
 §4–5 (request flow, identity model).
 
-## 1. Goal
+### 1. Goal
 
 Three agent runtimes instead of one:
 
@@ -24,7 +34,7 @@ Three agent runtimes instead of one:
 
 **Not decided:** which trigger sources come first (§5), report channels, and the other questions in §11.
 
-## 2. What exists today
+### 2. What exists today
 
 - One agent, [agents/user_agent/agent.py](../../agents/user_agent/agent.py) (renamed from `bootstrap`; the MCP server is now `mcp_servers/core_mcp`): ADK `Agent` + `McpToolset` with
   `agent_header_provider` (user token + conversation id), served by `libs/sdlc_web` (`create_app` →
@@ -35,7 +45,7 @@ Three agent runtimes instead of one:
   is already parsed, so the resolver needs no new identity kind for service principals.
 - `sdlc_agent.with_team_context` fetches team instructions as the user; autonomous agents need a per-agent version.
 
-## 3. Layout
+### 3. Layout
 
 ```
 agents/
@@ -50,7 +60,7 @@ libs/sdlc_runner/              autonomous runtime: trigger endpoints, queue, run
 - Shared helpers stay in `libs/sdlc_agent` (instruction building, result formatting); prompts live with each agent.
 - Open: one runtime service hosting both autonomous agents, or one service each (§11).
 
-## 4. Identity (workload identity)
+### 4. Identity (workload identity)
 
 **Entra (admin action, needs confirmation):** one app registration / service principal per autonomous agent
 (`sdlc-ci-agent`, `sdlc-ops-agent`), each assigned an app role on `sdlc-mcp` (`SDLC.Agent.CI`, `SDLC.Agent.Ops`).
@@ -78,7 +88,7 @@ the block list applies to service principal oids (kill switch). `Principal` gain
 
 **Audit:** records gain `principal_kind: service`, `app_id`, `trigger_id`, `run_id`; `agent_session_id` = run id.
 
-## 5. Triggers (pluggable adapters; sources not decided)
+### 5. Triggers (pluggable adapters; sources not decided)
 
 ```
 caller ──► POST /triggers/<adapter> ──► verify caller ──► TriggerEvent ──► queue ──► agent run ──► reporter
@@ -102,7 +112,7 @@ caller ──► POST /triggers/<adapter> ──► verify caller ──► Trig
 - Payloads are **untrusted input** (prompt injection): passed to the agent as data, size-capped, never used
   verbatim as tool arguments.
 
-## 6. Execution model
+### 6. Execution model
 
 - Asynchronous: the endpoint returns `202 + run id`; a queue (Cloud Tasks or Pub/Sub on GCP, in-process locally)
   starts one agent run per event.
@@ -111,7 +121,7 @@ caller ──► POST /triggers/<adapter> ──► verify caller ──► Trig
 - Sessions in the same store as the chat (SQLite locally, Agent Engine on GCP) with a short TTL; a run record
   (status, timings, outcome) for operators.
 
-## 7. Reporting back (the only write in v1)
+### 7. Reporting back (the only write in v1)
 
 - One reporter per adapter: PR comment or check-run summary (CI), alert annotation or chat/webhook message (ops).
 - Posting uses a **service credential scoped to reporting only** (e.g. a GitHub App with `pull_requests: write` /
@@ -119,7 +129,7 @@ caller ──► POST /triggers/<adapter> ──► verify caller ──► Trig
   `sdlc_connectors.http.HttpClient`.
 - Everything else stays read-only.
 
-## 8. Security and guardrails
+### 8. Security and guardrails
 
 - Deny by default for service principals: only app roles listed in config are accepted, only bound roles' tools.
 - No user connections (PATs) for autonomous agents; classification ceiling per agent role.
@@ -127,13 +137,13 @@ caller ──► POST /triggers/<adapter> ──► verify caller ──► Trig
 - Kill switch: block-list entry for the agent's service principal oid, or `Trigger.enabled: false`.
 - Evals: prompt-injection payloads (malicious PR descriptions, alert text) must not change what the agent does.
 
-## 9. Deployment
+### 9. Deployment
 
 - Local: compose services `agent-ci`, `agent-ops` (profile `autonomous`, not started by `up`).
 - GCP: Cloud Run service(s) with their own service accounts and federated Entra credentials; public ingress only
   for adapters that need it (GitHub/Bitbucket), Pub/Sub push otherwise. Terraform, run by the user.
 
-## 10. Milestones (proposal)
+### 10. Milestones (proposal)
 
 | # | Scope | Exit gate |
 |---|---|---|
@@ -143,7 +153,7 @@ caller ──► POST /triggers/<adapter> ──► verify caller ──► Trig
 | A4 | GCP: services, federated credentials, Terraform | Both flows work on GCP dev |
 | A5 | Guardrails and evals (injection, limits, dedupe) | Eval suite passes; limits enforced |
 
-## 11. Open questions
+### 11. Open questions
 
 1. Trigger sources for v1: GitHub Actions, Bitbucket Pipelines, GCP Cloud Monitoring (Pub/Sub), Alertmanager /
    PagerDuty webhooks?
@@ -152,3 +162,33 @@ caller ──► POST /triggers/<adapter> ──► verify caller ──► Trig
 4. One autonomous runtime service or one per agent?
 5. ~~Rename `bootstrap` to `user_agent`~~: done 2026-11-03 (with `mcp_servers/bootstrap` → `core_mcp`); see version-02 §14.
 6. Write actions (open issues, re-run pipelines, roll back): decision D5; would need approval gates.
+
+## Task 2 — Re-ingest and remove data of dropped sources
+
+**Status:** pending (recorded 2026-11-03). Do it **once all sources are fixed in config** (the reorganisation that
+started with version-02 N12), so the database is rebuilt once.
+
+**Why:** config changes never touch the database, and ingest only runs for sources that are in config. After N12 the
+local dev DB (checked 2026-11-03) still holds:
+
+| Source | In config | Stored | Readable by |
+|---|---|---|---|
+| `sdlc-platform` | yes, now GitHub `agentic-sdlc-core` `main` | 134 docs, 599 chunks, 813 entities from this repo's pinned commit `f2178f0` (local, 2026-10-06), `owner_team: platform` | sdlc-platform team, admin (stale content, no GitHub links) |
+| `platform-infra` | removed | 8 docs, 10 chunks, 29 entities | nobody (in no policy; RLS hides it) |
+| `eng-standards`, `payments-*` | unchanged | as ingested 2026-10-06 (`owner_team` of eng-standards still `platform`) | as configured |
+
+**Steps:**
+1. Finish the source changes in `config/sources/` and run `uv run --env-file .env sdlc-config validate --env local`.
+2. Remove data of sources no longer in config (`platform-infra` today). Nothing does this yet; choose one:
+   - a one-off delete of that source's rows (documents, chunks, entities, mentions, edges, the `sdlc.sources` row) as
+     `sdlc_ingest` / owner inside the Postgres container; or
+   - (preferred) a `sdlc-ingest prune` command: lists sources in the DB that are not in config, deletes them on `--yes`,
+     audited, with tests in `tests/db` — handles every future source removal too.
+3. Re-ingest everything: `uv run --env-file .env sdlc-ingest run --all`. `sdlc-platform` does a full read from GitHub
+   (location changed: 181 files at `main`), replaces the old copy and gets GitHub deep links; graph extraction costs
+   about one Gemini call per changed chunk. Use `--force` for sources whose graph settings changed.
+4. Check: per-source counts, `owner_team` updated, a `graph_query` as a sdlc-platform member (e.g. Paul, users.yaml)
+   returns GitHub links, and `platform-infra` is gone.
+5. GCP dev: same steps with `gcp_deploy.ps1 -Step ingest` (run by the user) after the config is deployed.
+6. Retrieval eval: `sdlc-platform` now tracks `main`; update `tests/evals/retrieval_questions.yaml` paths (e.g.
+   `core_mcp`, `user_agent`) once version-02 is merged to GitHub `main`, then re-run `SDLC_EVAL=1 ... pytest tests/evals`.

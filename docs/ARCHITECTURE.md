@@ -54,7 +54,7 @@ flowchart TB
 
     subgraph Ingest["Ingest pipeline"]
         I1[Loaders → Chunkers →<br/>Embedders → Graph extractors]
-        SRC[/Source artefacts<br/>local folders · git at a pinned commit<br/>later: Jira, wiki/]
+        SRC[/Source artefacts<br/>local folders · git (pinned commit or tracked branch)<br/>later: Jira, wiki/]
     end
 
     subgraph Config["Config (git → versioned bundle)"]
@@ -96,7 +96,7 @@ flowchart TB
 | **Shared libs** | `libs/` | `sdlc_auth` (identity), `sdlc_config` (config, resolver, bundles), `sdlc_policy` (authorization, rate limits), `sdlc_db` (RLS-scoped DB access, graph), `sdlc_web` (agent web app: user binding, conversation retention), `sdlc_agent` (per-session team context). |
 | **Skills** | `skills/` | SKILL.md instruction packages. They hold content only; access is declared in `config/`. Naming: lowercase kebab-case, globally unique (global `skills/core/<name>/`, team add-ons `skills/teams/<team>/<name>/`, team instructions `skills/teams/<team>/AGENT_ADDENDUM.md`); folder = frontmatter `name` = config key. |
 | **Config** | `config/` | YAML that declares groups, roles, teams, tools, skills, sources, rate limits and the block list. Served from the watched folder in dev, or from immutable, verified bundles (`sdlc-config compile`). |
-| **Ingest** | `ingest/` | Reads source artefacts declared in `config/sources/` (local folders, git repositories at a pinned commit), chunks and embeds them, extracts a knowledge graph, and tags every row with `source_id` + `classification`. |
+| **Ingest** | `ingest/` | Reads source artefacts declared in `config/sources/` (local folders, git repositories at a pinned commit or tracked branch), chunks and embeds them, extracts a knowledge graph, and tags every row with `source_id` + `classification`. |
 | **Postgres + pgvector** | `db/` | Vector search plus the knowledge graph (as edge tables). Row-level security is the last line of defense for data access. |
 | **Observability** | compose profile `observability` | OpenTelemetry traces (agent, MCP server, Postgres) to Jaeger when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; no prompts, responses, tokens or argument values in spans. |
 | **CI** | `.github/workflows/ci.yml` | Lint, config validation + PR permission diff, tests on a pgvector service, Terraform checks. No secrets or cloud access. |
@@ -246,7 +246,7 @@ flowchart LR
   RETRIEVAL_DOCUMENT for chunks and RETRIEVAL_QUERY for questions; HNSW cosine index with iterative scan so
   RLS filtering still returns k results.
 - Ingest runs on demand (`docker compose run --rm ingest run --all`) and skips unchanged files by content hash.
-  Sources are local folders or git repositories read at a pinned commit (never the working tree), e.g.
+  Sources are local folders or git repositories read at a pinned commit or a tracked branch (never the working tree), e.g.
   `sdlc-platform` = this repository.
 - **Document types:** UTF-8 text files (Markdown by headings, Python/Terraform by definitions, everything else by
   line windows) and **PDFs** (H10): the text layer is read locally; pages without text (scans) are read by Gemini

@@ -12,6 +12,12 @@ def load(config_dir):
     return load_snapshot(config_dir, "local", TEST_ENV)
 
 
+def with_hosts(d, *hosts):
+    """Add hosts to platform.yaml knowledge.allowed_hosts (kept unique: the schema requires it)."""
+    current = d["knowledge"].get("allowed_hosts", [])
+    d["knowledge"]["allowed_hosts"] = [*current, *(h for h in hosts if h not in current)]
+
+
 def edit_yaml(path, mutate):
     doc = yaml.safe_load(path.read_text())
     mutate(doc)
@@ -53,6 +59,12 @@ def test_url_host(url, host):
 
 
 def test_https_source_needs_an_allowed_host(config_dir):
+    edit_yaml(  # the repo allows github.com (sdlc-platform reads GitHub): start without it
+        config_dir / "platform.yaml",
+        lambda d: d["knowledge"].update(
+            allowed_hosts=[h for h in d["knowledge"]["allowed_hosts"] if h != "github.com"]
+        ),
+    )
     edit_yaml(
         config_dir / "sources/sdlc-platform.yaml",
         lambda d: d["spec"].update(location="https://github.com/acme/repo.git", provider="github"),
@@ -76,9 +88,7 @@ def test_https_source_needs_an_allowed_host(config_dir):
 def test_credentials_in_urls_are_refused(config_dir):
     edit_yaml(
         config_dir / "platform.yaml",
-        lambda d: d["knowledge"].update(
-            allowed_hosts=[*d["knowledge"].get("allowed_hosts", []), *["github.com"]]
-        ),
+        lambda d: with_hosts(d, "github.com"),
     )
     edit_yaml(
         config_dir / "sources/sdlc-platform.yaml",
@@ -113,9 +123,7 @@ def test_bad_credentials_fail(config_dir, credentials, message):
 def test_credentials_are_kept_as_references(config_dir):
     edit_yaml(
         config_dir / "platform.yaml",
-        lambda d: d["knowledge"].update(
-            allowed_hosts=[*d["knowledge"].get("allowed_hosts", []), *["github.com"]]
-        ),
+        lambda d: with_hosts(d, "github.com"),
     )
     edit_yaml(
         config_dir / "sources/sdlc-platform.yaml",
@@ -133,9 +141,7 @@ def test_credentials_are_kept_as_references(config_dir):
 def test_allowed_hosts_schema(config_dir):
     edit_yaml(
         config_dir / "platform.yaml",
-        lambda d: d["knowledge"].update(
-            allowed_hosts=[*d["knowledge"].get("allowed_hosts", []), *["https://github.com"]]
-        ),
+        lambda d: with_hosts(d, "https://github.com"),
     )
     with pytest.raises(ConfigError, match="allowed_hosts"):
         load(config_dir)
@@ -171,14 +177,14 @@ def test_allowed_hosts_schema(config_dir):
 def test_bad_remote_git_sources_fail(config_dir, spec, message):
     edit_yaml(
         config_dir / "platform.yaml",
-        lambda d: d["knowledge"].update(
-            allowed_hosts=[
-                *d["knowledge"].get("allowed_hosts", []),
-                *["github.com", "bb.example.com"],
-            ]
-        ),
+        lambda d: with_hosts(d, "github.com", "bb.example.com"),
     )
-    edit_yaml(config_dir / "sources/sdlc-platform.yaml", lambda d: d["spec"].update(spec))
+
+    def mutate(d):  # start from a local git source (this repo), then apply the bad spec
+        d["spec"].pop("provider", None)
+        d["spec"].update({"location": ".", **spec})
+
+    edit_yaml(config_dir / "sources/sdlc-platform.yaml", mutate)
     with pytest.raises(ConfigError) as exc:
         load(config_dir)
     assert message in str(exc.value), exc.value
@@ -196,14 +202,7 @@ def test_bad_remote_git_sources_fail(config_dir, spec, message):
 def test_remote_git_sources_load(config_dir, location, provider):
     edit_yaml(
         config_dir / "platform.yaml",
-        lambda d: d["knowledge"].update(
-            allowed_hosts=[
-                *d["knowledge"].get("allowed_hosts", []),
-                "github.com",
-                "bitbucket.org",
-                "bb.example.com",
-            ]
-        ),
+        lambda d: with_hosts(d, "github.com", "bitbucket.org", "bb.example.com"),
     )
     edit_yaml(
         config_dir / "sources/sdlc-platform.yaml",

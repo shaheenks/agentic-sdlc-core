@@ -16,6 +16,8 @@ is skipped.
 import hashlib
 import os
 import re
+import shutil
+import stat
 import subprocess
 from collections.abc import Iterator
 from functools import lru_cache
@@ -114,6 +116,11 @@ class GitSourceError(RuntimeError):
 
 
 FETCHED = "FETCH_HEAD"  # remote repositories are read at the commit the last fetch resolved
+# Remote clones are partial: every blob up to the text-file limit comes in the clone/fetch pack
+# (one request), larger ones stay on the server. A blob:none clone would fetch each file lazily,
+# one request per file, which large repositories (and GitHub) do not tolerate.
+CLONE_FILTER = f"blob:limit={MAX_FILE_BYTES}"
+NO_LAZY_FETCH = {"GIT_NO_LAZY_FETCH": "1"}  # git >= 2.44: report missing objects, don't fetch
 
 
 def _git(
@@ -159,19 +166,35 @@ def git_repository(
         return path
     env = remote_git_env(location, auth_header)
     cache = cache_root / hashlib.sha256(location.encode()).hexdigest()[:16]
+    if (cache / "HEAD").is_file() and _clone_filter(cache) != CLONE_FILTER:
+        shutil.rmtree(cache, onexc=_make_writable)  # cloned with another filter: clone again
     if not (cache / "HEAD").is_file():
         cache.parent.mkdir(parents=True, exist_ok=True)
         try:
+            clone = ["git", "clone", "--bare", f"--filter={CLONE_FILTER}", "--quiet"]
             subprocess.run(  # noqa: S603
-                ["git", "clone", "--bare", "--filter=blob:none", "--quiet", location, str(cache)],  # noqa: S607
+                [*clone, location, str(cache)],
                 capture_output=True,
                 check=True,
                 env=env,
             )
         except subprocess.CalledProcessError as e:
             raise GitSourceError(f"git clone failed: {e.stderr.decode()[:300]}") from e
-    _git(cache, "fetch", "--quiet", "--filter=blob:none", "origin", ref, env=env)
+    _git(cache, "fetch", "--quiet", f"--filter={CLONE_FILTER}", "origin", ref, env=env)
     return cache
+
+
+def _make_writable(func, path, _exc) -> None:
+    """rmtree helper: git pack files are read-only (Windows refuses to delete them)."""
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+
+def _clone_filter(repo: Path) -> str | None:
+    try:
+        return _git(repo, "config", "--get", "remote.origin.partialclonefilter").decode().strip()
+    except GitSourceError:
+        return None
 
 
 def resolve_commit(repo: Path, rev: str) -> str:
@@ -181,21 +204,49 @@ def resolve_commit(repo: Path, rev: str) -> str:
 def selected_paths(
     repo: Path, commit: str, include: tuple[str, ...], exclude: tuple[str, ...]
 ) -> list[str]:
-    """Paths of the commit that match the globs and are not too large (sorted). Trees only: no
-    file content is fetched for this listing."""
-    listing = _git(repo, "ls-tree", "-r", "-z", "-l", commit).split(b"\0")
-    wanted = []
-    for entry in listing:
+    """Paths of the commit that match the globs and are not too large (sorted). No file content
+    is fetched: sizes come from one batch-check of the objects present. In a partial clone an
+    absent blob is larger than CLONE_FILTER's limit (= MAX_FILE_BYTES): too large for text,
+    still wanted if it is a PDF (fetched when read)."""
+    candidates = []
+    for entry in _git(repo, "ls-tree", "-r", "-z", commit).split(b"\0"):
         if not entry:
             continue
         meta, _, name = entry.partition(b"\t")
-        _mode, kind, _sha, size = meta.split()
+        _mode, kind, sha = meta.split()
         rel = name.decode("utf-8", "replace")
-        if kind != b"blob" or size == b"-" or _too_large(rel, int(size)):
+        if kind == b"blob" and _selected(rel, include, exclude):
+            candidates.append((rel, sha.decode()))
+    sizes = _object_sizes(repo, [sha for _, sha in candidates])
+    wanted = []
+    for rel, sha in candidates:
+        size = sizes.get(sha)
+        if size is None and not rel.lower().endswith(".pdf"):
             continue
-        if _selected(rel, include, exclude):
-            wanted.append(rel)
+        if size is not None and _too_large(rel, size):
+            continue
+        wanted.append(rel)
     return sorted(wanted)
+
+
+def _object_sizes(repo: Path, shas: list[str]) -> dict[str, int]:
+    """Sizes of the objects present locally, in one git call; absent ones are left out."""
+    if not shas:
+        return {}
+    request = "".join(f"{sha}\n" for sha in dict.fromkeys(shas)).encode()
+    out = _git(
+        repo,
+        "cat-file",
+        "--batch-check=%(objectname) %(objectsize)",
+        stdin=request,
+        env={**os.environ, **NO_LAZY_FETCH},
+    )
+    sizes = {}
+    for line in out.decode().splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[1].isdigit():  # "<sha> missing" otherwise
+            sizes[parts[0]] = int(parts[1])
+    return sizes
 
 
 def changed_paths(repo: Path, old: str, new: str) -> set[str] | None:
@@ -218,6 +269,24 @@ def walk_git(
     """(resolved commit, files of that commit) for the selected paths."""
     commit = resolve_commit(repo, ref)
     return commit, read_blobs(repo, commit, selected_paths(repo, commit, include, exclude))
+
+
+def prefetch_blobs(repo: Path, commit: str, paths: list[str], env: dict[str, str]) -> int:
+    """Fetch the blobs of `paths` that a partial clone does not have yet (PDFs above the clone
+    limit) in ONE network call with the remote's environment, so reading them later is local and
+    never fetches lazily (one request per file, without the token). Returns how many."""
+    wanted = set(paths)
+    shas = []
+    for entry in _git(repo, "ls-tree", "-r", "-z", commit).split(b"\0"):
+        meta, _, name = entry.partition(b"\t")
+        if entry and name.decode("utf-8", "replace") in wanted:
+            shas.append(meta.split()[2].decode())
+    present = _object_sizes(repo, shas)
+    missing = [sha for sha in dict.fromkeys(shas) if sha not in present]
+    if missing:  # --no-write-fetch-head: the branch tip stays in FETCH_HEAD
+        fetch = ["fetch", "--quiet", "--no-tags", "--no-write-fetch-head", "--filter=blob:none"]
+        _git(repo, *fetch, "origin", *missing, env=env)
+    return len(missing)
 
 
 def read_blobs(repo: Path, commit: str, paths: list[str]) -> Iterator[SourceItem]:
