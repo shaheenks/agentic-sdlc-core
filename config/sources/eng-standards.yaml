@@ -5,8 +5,8 @@ metadata:
   owner_team: sdlc-platform
   description: engineering standards shared by all teams
 spec:
-  type: local_folder
-  location: samples/sources/eng-standards
+  type: gcs
+  location: gs://sdlc-config-store-a7484d8b/source_docs/eng-standards/   # config store bucket (one-time move from samples/, version-02 N14)
   include: ["**/*.md", "**/*.pdf"]
   classification: public
   ingest:

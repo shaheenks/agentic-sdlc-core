@@ -248,7 +248,7 @@ services:
     volumes:
       - ./config:/app/config:ro
       - ./skills:/app/skills:ro
-      - ./samples:/app/samples:ro
+      # gcs sources (config store bucket) are read with the ADC below
       # this repository's history for the `sdlc-platform` git source (read at a pinned commit)
       - ./.git:/app/.git:ro
       - *adc-mount

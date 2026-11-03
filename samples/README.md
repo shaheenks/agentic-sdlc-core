@@ -2,7 +2,11 @@
 
 Synthetic content for local development and tests. **No real data.**
 
-`sources/` holds the sample corpus that `config/sources/*.yaml` points at (Stage 5):
+`sources/` holds the sample corpus (Stage 5). Since version-02 N14 the sources read their copy in
+the config store bucket, `gs://sdlc-config-store-a7484d8b/source_docs/<source id>/` (a one-time
+upload of these folders); this folder stays as the **test corpus** (tests point the sources back
+here, `tests/support/config.py`). After changing a file here, upload it again, e.g.
+`gcloud storage rsync --recursive samples/sources/payments-api gs://sdlc-config-store-a7484d8b/source_docs/payments-code`.
 
 | Folder | Source id | Classification | Access |
 |---|---|---|---|

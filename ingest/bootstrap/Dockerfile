@@ -35,14 +35,13 @@ COPY ingest/loaders ingest/loaders
 COPY ingest/bootstrap ingest/bootstrap
 RUN uv sync --frozen --no-dev --package sdlc-ingest
 
-# Migrations are baked in (versioned with the code). docker compose bind-mounts ./config,
-# ./skills (config validation checks skill files) and ./samples; baked-in copies are for
-# standalone runs.
+# Migrations are baked in (versioned with the code). docker compose bind-mounts ./config and
+# ./skills (config validation checks skill files); baked-in copies are for standalone runs.
+# Source documents are not in the image: the sample corpus is read from the config store bucket
+# (gcs sources, version-02 N14); samples/ stays in the repo as the test corpus.
 COPY db/migrations db/migrations
 COPY config config
 COPY skills skills
-# Synthetic sample corpus (config/sources point here); real sources arrive with Stage 9 source types.
-COPY samples samples
 
 ENV PATH=/app/.venv/bin:$PATH \
     SDLC_CONFIG_DIR=/app/config \

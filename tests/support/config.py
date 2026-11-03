@@ -3,8 +3,10 @@
 Fixture-only additions (see make_config_dir): the sdlc-platform team gets a group membership
 (`platform-devs` -> developer) and a local `platform-infra` source, so tests have a second
 group-based team with its own local data. The real sdlc-platform team has members only from
-users.yaml and reads its code from GitHub (tests/config/test_repo_teams.py pins that)."""
+users.yaml and reads its code from GitHub (tests/config/test_repo_teams.py pins that).
+The repo's gcs sources read their samples/ copies instead (use_sample_folders)."""
 
+import re
 import shutil
 from pathlib import Path
 
@@ -66,6 +68,25 @@ access:
 """
 DIRECT_DEV_OID = "aaaaaaaa-0000-0000-0000-000000000001"
 
+# The repo sources read gs://<config store>/source_docs/<id>/ (version-02 N14); tests have no
+# GCS, so they read the same documents from the samples/ copy kept in the repo.
+SAMPLE_FOLDERS = {
+    "eng-standards": "samples/sources/eng-standards",
+    "payments-code": "samples/sources/payments-api",
+    "payments-incidents": "samples/sources/payments-incidents",
+}
+_GCS_SPEC = re.compile(r"  type: gcs\r?\n  location: gs://\S+")
+
+
+def use_sample_folders(config_dir: Path) -> None:
+    for source_id, folder in SAMPLE_FOLDERS.items():
+        path = config_dir / "sources" / f"{source_id}.yaml"
+        text, n = _GCS_SPEC.subn(
+            f"  type: local_folder\n  location: {folder}", path.read_text(encoding="utf-8")
+        )
+        assert n == 1, f"{path.name}: expected one gcs location"
+        path.write_text(text, encoding="utf-8")
+
 
 def make_config_dir(tmp_path: Path) -> Path:
     """Private, mutable copies of config/ and skills/ (skill paths resolve next to config/);
@@ -82,4 +103,5 @@ def make_config_dir(tmp_path: Path) -> Path:
         encoding="utf-8",
     )
     (dst / "sources" / "platform-infra.yaml").write_text(TEST_PLATFORM_INFRA, encoding="utf-8")
+    use_sample_folders(dst)
     return dst

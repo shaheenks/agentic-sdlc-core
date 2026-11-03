@@ -1,6 +1,7 @@
 # Two private buckets (version-02), each created only when its variable is set:
 # - config store: config bundles (bundles/<env>/, read by the MCP service and the ingest job,
-#   run.tf) and source content for `gcs` sources (the former samples/ corpus).
+#   run.tf) and source content for `gcs` sources under source_docs/<source id>/ (the former
+#   samples/ corpus, read by the ingest job).
 # - artifact store: temporary files and agent artefacts, written by the agent, deleted after
 #   artifact_retention_days.
 

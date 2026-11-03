@@ -39,3 +39,15 @@ def test_sdlc_platform_sources():
     assert source["spec"]["location"] == "https://github.com/shaheenks/agentic-sdlc-core.git"
     assert source["spec"]["ref"] == "main" and "credentials" not in source["spec"]
     assert "github.com" in doc("platform.yaml")["knowledge"]["allowed_hosts"]
+
+
+def test_sample_sources_read_the_config_store_bucket():
+    """version-02 N14: one-time move of samples/ to gs://<config store>/source_docs/<id>/;
+    tests read the samples/ copy instead (tests/support/config.py SAMPLE_FOLDERS)."""
+    from tests.support.config import REPO_ROOT, SAMPLE_FOLDERS
+
+    for source_id, folder in SAMPLE_FOLDERS.items():
+        spec = doc(f"sources/{source_id}.yaml")["spec"]
+        assert spec["type"] == "gcs"
+        assert spec["location"] == f"gs://sdlc-config-store-a7484d8b/source_docs/{source_id}/"
+        assert (REPO_ROOT / folder).is_dir()
