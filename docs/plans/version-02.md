@@ -32,14 +32,14 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 | N5 — GCP operations (Stage 7b) | ➡️ Moved to version-03 (2026-11-04) | Bundles + reload done by N13; its Stage 7b gate is checked in §19 R2. Scale-out, CI deploy, hostnames, private IP, staging, E1/E4–E6 → version-03 (§5) |
 | N6 — Product backlog | ➡️ Moved to version-03 (2026-11-04) | Chat history done by N15; the rest of §6 (incl. write tools) → version-03 |
 | N7 — Agent-generated UI (A2UI) + A2A path for Gemini Enterprise | ⏳ Spike only in version-02 | Approved 2026-10-30; spike first, keep CopilotKit (§10); building the result → version-03 unless the spike says otherwise |
-| N8 — Chat UX | ✅ Built (2026-10-30); answer rendering confirmed by the user | Answer formatting, `/` opens the chat, navbar user + PAT status (§11). Browser checks passed (2026-11-04, §19 R1). Open: GCP `images` + `plan` + `apply` |
+| N8 — Chat UX | ✅ Built (2026-10-30); answer rendering confirmed by the user | Answer formatting, `/` opens the chat, navbar user + PAT status (§11). Browser checks passed (2026-11-04, §19 R1); deployed and checked on GCP dev (2026-11-05, §19 R2) |
 | N9 — Per-source Entra groups | ✅ Built (2026-11-02) | Sources grant by their own Entra group or `everyone: true`; `graph_query` moved to viewer (§12). Open: real `infra-readers` group in the tenant |
-| N10 — Direct members by email (users.yaml) | ✅ Built (2026-11-02) | Users added to teams/roles in git-ignored `users.yaml`, matched by oid; `sdlc-config users sync`; GCP secret mount (§13). Local live check passed (2026-11-04, §19 R1). Open: GCP `plan` + `apply` |
-| N11 — Rename: `user_agent`, `core_mcp` | ✅ Done (2026-11-03); local stack checked | Starter agent and MCP server renamed for the agent-runtime work (§14). Existing chats no longer show (stored per app name). Open: GCP `images` + `plan` + `apply` |
+| N10 — Direct members by email (users.yaml) | ✅ Built (2026-11-02) | Users added to teams/roles in git-ignored `users.yaml`, matched by oid; `sdlc-config users sync`; GCP secret mount (§13). Local live check passed (2026-11-04); on GCP dev via the config bundle (2026-11-05, §19 R2) |
+| N11 — Rename: `user_agent`, `core_mcp` | ✅ Done (2026-11-03); local stack checked | Starter agent and MCP server renamed for the agent-runtime work (§14). Existing chats no longer show (stored per app name). Deployed on GCP dev (2026-11-05, §19 R2) |
 | N12 — Team `sdlc-platform` + GitHub source | ✅ Built (2026-11-03) | `platform` → `sdlc-platform`, members from users.yaml only, source = GitHub `agentic-sdlc-core` tracking `main`; git loader partial-clone fix (§15). Open: re-ingest + remove dropped-source data once all sources are fixed ([pending-task.md](pending-task.md) task 2) |
-| N13 — Config from the config store bucket | ✅ Built (2026-11-03); local bundle checked | MCP + ingest read config bundles from `gs://sdlc-config-store-a7484d8b/bundles/<env>/`, pointer polled every 60 s, `-Step config` publishes (§16). Part of N5 (bundles + reload). Open: `base`, `config`, `images`, `plan`, `apply` on GCP |
-| N14 — Sample sources from the config store bucket | ✅ Built (2026-11-03); live dry-run checked | One-time upload of `samples/sources/*` to `gs://sdlc-config-store-a7484d8b/source_docs/<source id>/`; `eng-standards`, `payments-code`, `payments-incidents` are `gcs` sources (§17); repo copy moved to `tests/fixtures/sample_sources/`. Local DB re-ingested. Open: ingest on GCP ([pending-task.md](pending-task.md) task 2) |
-| N15 — Chat history in the CopilotKit app | ✅ Built (2026-11-04); local stack checked | History sidebar: `GET /threads` (agent, per user) lists previous chats, opening one replays its messages from the agent's `/agents/state`; thread in the URL; delete per chat (`DELETE /threads/{id}`, owner only) (§18). Open: GCP `images` + `plan` + `apply` |
+| N13 — Config from the config store bucket | ✅ Built (2026-11-03); local bundle checked | MCP + ingest read config bundles from `gs://sdlc-config-store-a7484d8b/bundles/<env>/`, pointer polled every 60 s, `-Step config` publishes (§16). Part of N5 (bundles + reload). Deployed on GCP dev; config-only change + rollback checked (2026-11-05, §19 R2) |
+| N14 — Sample sources from the config store bucket | ✅ Built (2026-11-03); live dry-run checked | One-time upload of `samples/sources/*` to `gs://sdlc-config-store-a7484d8b/source_docs/<source id>/`; `eng-standards`, `payments-code`, `payments-incidents` are `gcs` sources (§17); repo copy moved to `tests/fixtures/sample_sources/`. Local DB re-ingested; GCP dev ingested (2026-11-05, §19 R2) |
+| N15 — Chat history in the CopilotKit app | ✅ Built (2026-11-04); local stack checked | History sidebar: `GET /threads` (agent, per user) lists previous chats, opening one replays its messages from the agent's `/agents/state`; thread in the URL; delete per chat (`DELETE /threads/{id}`, owner only) (§18). Deployed and checked on GCP dev (2026-11-05, §19 R2) |
 | Pending — Agent runtimes (user / CI / ops) | 📝 Design only | Workload identity, read + report back; trigger sources not decided (D7, [pending-task.md](pending-task.md)) |
 | Deferred — Gemini Enterprise | ⏸ | Design in version-01 §6; needs an org admin, a workforce pool and licences |
 
@@ -641,6 +641,13 @@ mount (`mount_options`) in the Terraform, which has not been planned yet (§16).
   `platform-infra`; chat history lists and reopens chats; navbar and `/` as in R1; a `users.yaml` member sees their
   team. The old `mcp-bootstrap` / `agent-bootstrap` images can be deleted afterwards.
 - Gate: all checks pass on GCP dev; N8, N10, N11, N13, N14, N15 marked fully done.
+
+**Result (2026-11-05): passed** (images `6b319ea`, config `7dfebddda4b6-2979036f3aa0`, then a `users.yaml`-only
+bundle and rollback), checked by the user. Finding: a no-groups user's `whoami(explain)` listed `eng-standards`
+(`everyone: true`, public) as readable although `signed-in` has no knowledge tool; the audit showed no data read
+(only `whoami`; `get_agent_context` denied). Fixed in the explain view: `data.readable` now needs a granted source
+within the ceiling AND a `data_scoped` tool; otherwise `data.note` says the grant cannot be used (policy unchanged).
+Needs the next `images` + `plan` + `apply` on GCP.
 
 ### R3 — Merge to `main`
 Merge `version-02` into GitHub `main`, then update the repo paths in `tests/evals/retrieval_questions.yaml`
