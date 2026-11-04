@@ -24,7 +24,7 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 
 | Milestone | Status | Notes |
 |---|---|---|
-| N0 — Carry-over checks | ⏳ | version-01 §10.4 checks not yet confirmed on localhost / the tunnel (G1, G2, G5, G7) |
+| N0 — Carry-over checks | ✅ Done (2026-11-04) | version-01 G1, G2, G5, G7 passed on localhost / the tunnel (§19 R1) |
 | N1 — Dev sources on GCP + ingest | ⏳ | Needs the list of sources (§1) |
 | N2 — Live connector checks + retrieval eval | ⏳ | Cloud editions only in version-02 (scope 2026-11-04); Data Center checks → version-03. Needs D2 and tokens (§2, §8) |
 | N3 — Block list and secret management review | ⏳ | Review first, then build (§3) |
@@ -32,9 +32,9 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 | N5 — GCP operations (Stage 7b) | ➡️ Moved to version-03 (2026-11-04) | Bundles + reload done by N13; its Stage 7b gate is checked in §19 R2. Scale-out, CI deploy, hostnames, private IP, staging, E1/E4–E6 → version-03 (§5) |
 | N6 — Product backlog | ➡️ Moved to version-03 (2026-11-04) | Chat history done by N15; the rest of §6 (incl. write tools) → version-03 |
 | N7 — Agent-generated UI (A2UI) + A2A path for Gemini Enterprise | ⏳ Spike only in version-02 | Approved 2026-10-30; spike first, keep CopilotKit (§10); building the result → version-03 unless the spike says otherwise |
-| N8 — Chat UX | ✅ Built (2026-10-30); answer rendering confirmed by the user | Answer formatting, `/` opens the chat, navbar user + PAT status (§11). Open: navbar and `/` check in the browser, GCP `images` + `plan` + `apply` |
+| N8 — Chat UX | ✅ Built (2026-10-30); answer rendering confirmed by the user | Answer formatting, `/` opens the chat, navbar user + PAT status (§11). Browser checks passed (2026-11-04, §19 R1). Open: GCP `images` + `plan` + `apply` |
 | N9 — Per-source Entra groups | ✅ Built (2026-11-02) | Sources grant by their own Entra group or `everyone: true`; `graph_query` moved to viewer (§12). Open: real `infra-readers` group in the tenant |
-| N10 — Direct members by email (users.yaml) | ✅ Built (2026-11-02) | Users added to teams/roles in git-ignored `users.yaml`, matched by oid; `sdlc-config users sync`; GCP secret mount (§13). Open: GCP `plan` + `apply`, live check |
+| N10 — Direct members by email (users.yaml) | ✅ Built (2026-11-02) | Users added to teams/roles in git-ignored `users.yaml`, matched by oid; `sdlc-config users sync`; GCP secret mount (§13). Local live check passed (2026-11-04, §19 R1). Open: GCP `plan` + `apply` |
 | N11 — Rename: `user_agent`, `core_mcp` | ✅ Done (2026-11-03); local stack checked | Starter agent and MCP server renamed for the agent-runtime work (§14). Existing chats no longer show (stored per app name). Open: GCP `images` + `plan` + `apply` |
 | N12 — Team `sdlc-platform` + GitHub source | ✅ Built (2026-11-03) | `platform` → `sdlc-platform`, members from users.yaml only, source = GitHub `agentic-sdlc-core` tracking `main`; git loader partial-clone fix (§15). Open: re-ingest + remove dropped-source data once all sources are fixed ([pending-task.md](pending-task.md) task 2) |
 | N13 — Config from the config store bucket | ✅ Built (2026-11-03); local bundle checked | MCP + ingest read config bundles from `gs://sdlc-config-store-a7484d8b/bundles/<env>/`, pointer polled every 60 s, `-Step config` publishes (§16). Part of N5 (bundles + reload). Open: `base`, `config`, `images`, `plan`, `apply` on GCP |
@@ -583,43 +583,53 @@ payments developer, the platform/`users.yaml` member, the admin and your own acc
 out of the repo. Use a private window per user.
 
 **Setup**
-- [ ] `docker compose up -d --build --wait` (and `docker compose --profile tunnel up -d --wait` for the tunnel).
-- [ ] `uv run --env-file .env sdlc-config validate --env local` passes.
-- [ ] Paths: **L** = `http://localhost:4180`, **T** = `https://app-sdlc-dev.shaheenks.co.in`.
+- [x] `docker compose up -d --build --wait` (and `docker compose --profile tunnel up -d --wait` for the tunnel).
+      Done 2026-11-04 at `2b3e8f8`: all services healthy; L and T redirect to Entra with their own callback; the MCP
+      endpoint answers 401 without a token on localhost and the tunnel.
+- [x] `uv run --env-file .env sdlc-config validate --env local` passes (2026-11-04).
+- [x] Paths: **L** = `http://localhost:4180`, **T** = `https://app-sdlc-dev.shaheenks.co.in`.
 
 **N0 — version-01 gates** (§10.4 of version-01)
-- [ ] G1 (L, T): the payments developer signs in; `/chat/` and `/dev-ui/` both load.
-- [ ] G2 (L): "who am I?" in `/chat/` and in `/dev-ui/` list the same teams, roles and tools. Compare the two
+- [x] G1 (L, T): the payments developer signs in; `/chat/` and `/dev-ui/` both load.
+- [x] G2 (L): "who am I?" in `/chat/` and in `/dev-ui/` list the same teams, roles and tools. Compare the two
       `tools_list` audit records: `docker compose logs core-mcp | Select-String '"event":"tools_list"'`.
-- [ ] G5 (L): `/dev-ui/` → the session → State shows no token key.
-- [ ] G7 (L): a connection whose token expires within 14 days shows the warning under the tool result and
+- [x] G5 (L): `/dev-ui/` → the session → State shows no token key.
+- [x] G7 (L): a connection whose token expires within 14 days shows the warning under the tool result and
       "Expires in Nd" on the Connections page. (Set a short expiry when creating the PAT, or skip if none is at hand.)
 
 **N8 — chat UX** (L and T)
-- [ ] `/` lands in `/chat/` after sign-in; signing out and in again returns to the page you asked for.
-- [ ] Answers read normally (lists, code blocks, no blank line after every sentence) in the light and dark OS theme.
-- [ ] Navbar shows your name and one dot per connection; connecting / disconnecting on the Connections page updates
+- [x] `/` lands in `/chat/` after sign-in; signing out and in again returns to the page you asked for.
+- [x] Answers read normally (lists, code blocks, no blank line after every sentence) in the light and dark OS theme.
+- [x] Navbar shows your name and one dot per connection; connecting / disconnecting on the Connections page updates
       them after a reload.
-- [ ] A `search_knowledge` answer shows one line with document chips; clicking expands the cards, chip links open in
+- [x] A `search_knowledge` answer shows one line with document chips; clicking expands the cards, chip links open in
       a new tab.
-- [ ] Below 1100 px the artifacts panel is hidden; "Artifacts" in the navbar toggles it (empty state only).
+- [x] Below 1100 px the artifacts panel is hidden; "Artifacts" in the navbar toggles it (empty state only).
 
 **N10 — direct members** (L)
-- [ ] The `users.yaml` member (sdlc-platform, lead) asks "who am I? explain": team `sdlc-platform` appears with the rule
+- [x] The `users.yaml` member (sdlc-platform, lead) asks "who am I? explain": team `sdlc-platform` appears with the rule
       `env/local/users.yaml#users/<alias>/teams/sdlc-platform`.
-- [ ] Your own account (no sdlc groups, not in `users.yaml`) sees only `signed-in` (ping, whoami).
-- [ ] Optional strict check: add your own account to `users.yaml` (`teams: {sdlc-platform: [viewer]}`), run
+- [x] An account with no sdlc groups and not in `users.yaml` sees only `signed-in` (ping, whoami): checked with a
+      no-groups test user (2 tools visible, 14 hidden; `get_agent_context` denied). Your own account is no longer such
+      an account: it is in the Entra group `sdlc-payments-leads` and resolves as payments lead (14 tools), as configured.
+- [ ] (skipped: covered by the users.yaml member above) Optional strict check: add your own account to `users.yaml` (`teams: {sdlc-platform: [viewer]}`), run
       `uv run sdlc-config users sync --env local --write`, wait for the reload, and check that you now see the team.
       Remove the entry afterwards.
 
 **N15 — chat history** (L, quick re-check after the delete feature)
-- [ ] The sidebar lists earlier chats; opening one replays it; reload keeps the open chat (`?thread=` in the URL).
-- [ ] Deleting a chat removes it from the list and it does not come back after a reload.
-- [ ] A second user (private window) does not see the first user's chats; opening the first user's `?thread=` URL
+- [x] The sidebar lists earlier chats; opening one replays it; reload keeps the open chat (`?thread=` in the URL).
+- [x] Deleting a chat removes it from the list and it does not come back after a reload.
+- [x] A second user (private window) does not see the first user's chats; opening the first user's `?thread=` URL
       gives an empty chat.
 
 **Gate:** every box ticked (or a skipped item written down with the reason); N0 → ✅, the "Open: …browser…" parts
 of N8 and N10 closed.
+
+**Result (2026-11-04): passed** at `2b3e8f8`, on localhost and the tunnel. Checked by the user in the browser; audit
+cross-check: the payments developer's `tools_list` records are identical across four sessions (`/chat/` and `/dev-ui/`,
+14 tools); every `tool_call` matched the caller's roles; the no-groups user got 2 tools and a denied
+`get_agent_context`. Finding: the owner's own account had gained `sdlc-payments-leads` in Entra since the test-user
+notes were written, so it no longer serves as the "no groups" persona (use a no-groups test user instead).
 
 ### R2 — GCP dev catch-up deploy
 One run covers every "Open: GCP ..." note of N8, N10, N11, N13, N14 and N15 (runbook: docs/GCP_DEPLOYMENT.md):
