@@ -39,11 +39,12 @@ are a proposal to confirm milestone by milestone.
 | N12 — Team `sdlc-platform` + GitHub source | ✅ Built (2026-11-03) | `platform` → `sdlc-platform`, members from users.yaml only, source = GitHub `agentic-sdlc-core` tracking `main`; git loader partial-clone fix (§15). Open: re-ingest + remove dropped-source data once all sources are fixed ([pending-task.md](pending-task.md) task 2) |
 | N13 — Config from the config store bucket | ✅ Built (2026-11-03); local bundle checked | MCP + ingest read config bundles from `gs://sdlc-config-store-a7484d8b/bundles/<env>/`, pointer polled every 60 s, `-Step config` publishes (§16). Part of N5 (bundles + reload). Open: `base`, `config`, `images`, `plan`, `apply` on GCP |
 | N14 — Sample sources from the config store bucket | ✅ Built (2026-11-03); live dry-run checked | One-time upload of `samples/sources/*` to `gs://sdlc-config-store-a7484d8b/source_docs/<source id>/`; `eng-standards`, `payments-code`, `payments-incidents` are `gcs` sources (§17); repo copy moved to `tests/fixtures/sample_sources/`. Local DB re-ingested. Open: ingest on GCP ([pending-task.md](pending-task.md) task 2) |
-| N15 — Chat history in the CopilotKit app | ✅ Built (2026-11-04); local stack checked | History sidebar: `GET /threads` (agent, per user) lists previous chats, opening one replays its messages from the agent's `/agents/state`; thread in the URL (§18). Open: GCP `images` + `plan` + `apply` |
+| N15 — Chat history in the CopilotKit app | ✅ Built (2026-11-04); local stack checked | History sidebar: `GET /threads` (agent, per user) lists previous chats, opening one replays its messages from the agent's `/agents/state`; thread in the URL; delete per chat (`DELETE /threads/{id}`, owner only) (§18). Open: GCP `images` + `plan` + `apply` |
 | Pending — Agent runtimes (user / CI / ops) | 📝 Design only | Workload identity, read + report back; trigger sources not decided (D7, [pending-task.md](pending-task.md)) |
 | Deferred — Gemini Enterprise | ⏸ | Design in version-01 §6; needs an org admin, a workforce pool and licences |
 
-**Next:** N0 (quick, local), then N1 once the dev sources are decided.
+**Next:** follow the order in §19 (remaining-work plan, 2026-11-04): R1 local checks, R2 GCP dev catch-up deploy,
+R3 merge to `main`, R4 decisions; R5 (security review), R6 (Cloud Trace) and R9 (A2UI spike) can start any time.
 
 ## Open decisions
 
@@ -197,7 +198,7 @@ Still deferred: needs a GE app and licences, an org admin for the workforce pool
 | version-01 §4.9 | Bitbucket DC "who am I" endpoint unverified; DC connections not configured | N2 |
 | version-01 §10.3, §4.7 | Block list on GCP, reconcile job, `--check-secrets`, user-secret review | N3 |
 | version-01 §10.3 | Cloud Trace export | N4 |
-| version-01 §3.1, §4.9, §4.5 | Chat history reload + thread list; Cloud + DC per tool; URL elicitation; write tools | N6 |
+| version-01 §3.1, §4.9, §4.5 | ~~Chat history reload + thread list~~ (done: N15, §18); Cloud + DC per tool; URL elicitation; write tools | N6 |
 | version-01 §6 | Gemini Enterprise (WIF, Agent Runtime, OAuth authorization) | Deferred |
 | version-00 H10 | PDF OCR live check | N2 |
 | version-00 E3 | Short token lifetimes, CAE claims challenges | N3 |
@@ -289,6 +290,28 @@ on the chat after sign-in, and the navbar should show the signed-in user with th
   - PAT status from the existing `GET /connections/` (MCP server; never returns tokens). Connections off (503) or a
     lapsed session (401): that part is hidden.
   - oauth2-proxy API routes gained `me\b` (compose and Terraform), so a lapsed session gets 401, not a login page.
+- **Compact search results** (2026-11-04, `components/renderers.tsx`, `lib/results.ts` `documentChips`):
+  `search_knowledge` / `graph_query` render one line: the query, the document count and one chip per cited document
+  (deduplicated by source + path; title, else file name, cut to 40 characters; `×N` for several hits; http(s) link
+  opens in a new tab; tooltip with source, path, lines/pages and "via graph"); at most 6 chips, then `+N`. Small
+  chips (11px); clicking the panel expands the full cards with snippets and the graph entities, clicking the line
+  collapses them (keyboard: Enter/Space; chip links never toggle). Display only; the agent still cites sources by
+  title in its answer. Test: `tests/results.test.ts` (grouping, labels, unsafe links). The `whoami` card uses the
+  same compact card (`CompactCard`): "Signed in as Paul · 2 teams · 4 roles · 2 groups", tags on click.
+- **Layout and readability** (2026-11-04, UI only): app name "SDLC Assistant"; the messages and the input use three
+  quarters of the chat panel between the history sidebar and the artifacts panel, centred (`--cpk-container-3xl: 75%`
+  on `.chat`, full width below 900px; CopilotKit capped it at 48rem); answers at 15.5px / 1.7 line height, inline code as a soft chip without the typography plugin's literal
+  backticks. Our colour tokens are now `--sdlc-*`: CopilotKit's stylesheet defines `--muted` and `--accent` (light
+  background colours), which made our muted text near-white inside the chat.
+- **Connections page, compact** (2026-11-04, `app/connections/page.tsx`): one row per connection (name, provider chip,
+  status chip: Connected / Expires in Nd / Expired / Token rejected / Not connected, from `lib/status.ts` `statusChip`;
+  account and expiry below), Connect/Replace opens the token form inline (fields side by side), the provider's token
+  instructions are a collapsible "How to create this token" inside it, Disconnect asks inline (with the reminder to
+  revoke at the provider). A short overview stays visible under the heading. The chat page's navbar no longer links to Connections;
+  the user menu's "Manage connections" does. Same API calls and headers as before.
+- **Artifacts panel (placeholder)** (`components/ArtifactsPanel.tsx`): a right-hand panel with an empty state for
+  files from the artifacts library; "Artifacts" in the navbar shows/hides it (remembered per browser), hidden below
+  1100px. No data source yet: the library is [pending-task.md](pending-task.md) task 3.
 - **Tests:** `tests/web/test_app.py` (`/me` fields and 401; `/` redirect only with the chat app on, still behind
   sign-in), `ui/copilotkit/tests/status.test.ts` (parsing, states, no token passthrough); typecheck and build.
 - **To check (user):** local `docker compose up -d --build --wait`, then in the browser on localhost and the tunnel:
@@ -495,11 +518,134 @@ backed by the agent's per-user session store (the one the dev UI reads). Nothing
   a login redirect.
 - Not changed: `use_thread_id_as_session_id` stays off (session ids are engine-wide on Agent Engine; the thread key
   in session state already maps threads); retention (7 days) still deletes old chats.
+- **Delete a chat** (2026-11-04): `DELETE /threads/{threadId}` (agent, `sdlc_web.threads`) hard-deletes one of the
+  caller's conversations (session + events) from the store. The thread is resolved with ag_ui_adk's own lookup
+  (`resolve_existing_session`, scoped to the caller's oid), so missing, another user's and another app's threads all
+  answer 404. Requires `X-SDLC-Request: 1` (403 without: a cross-site page cannot send it without a CORS preflight);
+  no token = 401. Clears ag_ui_adk's in-process thread -> session mapping and the title cache; logs `conversation
+  deleted` with oid and thread id (no content). Store errors answer 503. UI: a trash button per sidebar row (on
+  hover/focus; always visible on touch), an inline "Delete this chat?" with Delete/Cancel; the row goes at once and
+  the list reloads; a refusal shows an error; deleting the open chat starts a new one. No undo (Agent Engine has no
+  trash). Dev-UI sessions can be deleted too (and the dev UI's own delete still works on the same store).
 - Tests: `tests/web/test_agui.py` (sign-in required, only the caller's threads even with a forged `user_id`, newest
-  first, titles cut, a listed thread opens with its history); `ui/copilotkit/tests/threads.test.ts` (parsing, URL ids,
-  latest turn, history cleaning) and `runtime.test.ts` (replay as the same user only; another or no token gets nothing).
+  first, titles cut, a listed thread opens with its history; delete by the owner, 404 for another user and a missing
+  thread, 401/403 without token/header, the same thread id starts over, a dev-UI session deleted on a shared SQLite
+  store); `ui/copilotkit/tests/threads.test.ts` (parsing, URL ids, latest turn, history cleaning, delete request) and
+  `runtime.test.ts` (replay as the same user only; another or no token gets nothing).
 
 **Open:**
-- GCP: `images` (agent + chat app) and `plan` + `apply` (oauth2-proxy routes); check the list and reopening a chat on
-  Agent Engine sessions (one listing + one read per new session).
-- Later, if wanted: delete/rename chats, search across chats, paging beyond 30.
+- GCP: `images` (agent + chat app) and `plan` + `apply` (oauth2-proxy routes); check the list, reopening and
+  deleting a chat on Agent Engine sessions (one listing + one read per new session).
+- Later, if wanted: rename chats, "delete all my chats", search across chats, paging beyond 30.
+
+## 19. Plan for the remaining work (2026-11-04)
+
+Everything still open in version-02, in the order to do it. Built milestones (N8–N15) are complete in code; what is
+left for them is checks and the GCP deploy, gathered in R1 and R2. Who: **you** = the user (browser checks, Terraform
+and `gcp_deploy.ps1`, decisions, admin actions); **Claude** = code, config and docs.
+
+**Corrections to earlier sections:**
+- §1 "config is baked into the images": no longer true after N13. On GCP, a sources change is `-Step config` (bundle
+  + pointer), then `-Step ingest`; `images` only for code changes.
+- §3 "Block list on GCP": bundles load `config/env/<env>/blocked.yaml` like `users.yaml`, so a block can be published
+  with `-Step config` and applies within one poll (60 s). Left for N3: confirm this on GCP, and decide whether
+  `sdlc_web` refuses blocked users too.
+- §5 "Config bundles on GCS + Pub/Sub reload": done by N13 with polling instead of Pub/Sub; the Stage 7b gate is
+  checked in R2.
+- §6 "Chat app: history and thread list": done (N15).
+
+### Order
+
+| # | Step | Covers | Waits for | Who |
+|---|---|---|---|---|
+| R1 | Local checks of built work | N0, N8, N10 | nothing | you (Claude prepares the checklist) |
+| R2 | GCP dev catch-up deploy + checks | N8, N10, N11, N13, N14, N15; pending task 2 step 5 | R1 (commit first) | you |
+| R3 | Merge version-02 to `main`, fix eval paths | pending task 2 step 6 | R2 | you + Claude |
+| R4 | Decisions round | D1–D5, artifacts (pending task 3), `infra-readers` group | — | you |
+| R5 | N3 security review, then build | N3, E3 | D3 (the review can start now) | Claude, then you on GCP |
+| R6 | N4 observability on GCP | N4 | nothing | Claude, then you on GCP |
+| R7 | N1 dev sources on GCP | N1 | D1, tokens (§8) | Claude, then you on GCP |
+| R8 | N2 live connector checks + eval | N2, H10 | D2, R7, test instances (§8) | you + Claude |
+| R9 | N7 A2UI spike | N7 | nothing (spike only) | Claude |
+| R10 | N5 GCP operations | N5, E1, E4–E6 | D4; Entra admin per change | Claude, then you |
+| R11 | N6 backlog: pick items | N6, D5 | R4 | you pick, Claude builds |
+
+R5, R6 and R9 depend neither on each other nor on outside people, so they can run while R4's decisions and R7's
+prerequisites are being arranged.
+
+### R1 — Local checks of built work
+On localhost **and** the tunnel, after `docker compose up -d --build --wait`:
+- version-01 G1, G2, G5, G7 (version-01 §10.4) → closes N0.
+- N8: `/` lands in `/chat/`; answers read normally in light and dark theme; navbar name and connection dots; connect /
+  disconnect updates them.
+- N10: a test user with no sdlc groups, listed in `users.yaml`, sees their team in `whoami(explain=true)`.
+- Commit the open UI work (layout, artifacts panel placeholder) once its checks pass.
+- Gate: every item above ticked in §11, §13 and the Progress table.
+
+### R2 — GCP dev catch-up deploy
+One run covers every "Open: GCP ..." note of N8, N10, N11, N13, N14 and N15 (runbook: docs/GCP_DEPLOYMENT.md):
+`base` (config store bucket) → `config` → `images` (`core-mcp`, `user-agent`, chat app; new names after N11) → `plan`
+→ `apply` (with `config/env/dev/users.yaml` in place) → `db` → `ingest` → `urls`. Before `plan`: review the bucket
+mount (`mount_options`) in the Terraform, which has not been planned yet (§16).
+- Checks: `config_info` shows the published version; a config-only change via `-Step config` takes effect without a
+  redeploy and rolls back with `-ConfigVersion` (Stage 7b gate); `ingest` reads the three `gcs` sources and removes
+  `platform-infra`; chat history lists and reopens chats; navbar and `/` as in R1; a `users.yaml` member sees their
+  team. The old `mcp-bootstrap` / `agent-bootstrap` images can be deleted afterwards.
+- Gate: all checks pass on GCP dev; N8, N10, N11, N13, N14, N15 marked fully done.
+
+### R3 — Merge to `main`
+Merge `version-02` into GitHub `main`, then update the repo paths in `tests/evals/retrieval_questions.yaml`
+(`core_mcp`, `user_agent`), re-ingest `sdlc-platform` and run `SDLC_EVAL=1 ... pytest tests/evals`. Closes pending
+task 2.
+
+### R4 — Decisions round
+| Decision | Unblocks | Suggested default |
+|---|---|---|
+| D1 dev sources (repos, GCS bucket, Confluence space, Jira project, secret names) | R7 | The three sample sources + `sdlc-platform`, plus one Atlassian Cloud space and project |
+| D2 Atlassian site; Data Center instance? | R8 | Cloud first; DC checks only if an instance exists |
+| D3 security review scope; user-secret layout | R5 | Keep one secret per user; build the block list check, reconcile job and `--check-secrets` |
+| D4 staging in version-02? | R10 (staging part) | Dev only in version-02; staging opens version-03 |
+| D5 write tools now or later? | R11 | Later (version-03), together with the agent runtimes |
+| Artifacts ([pending-task.md](pending-task.md) task 3) in version-02? | new milestone | N16 in version-02 if the artifacts panel should get data soon; otherwise version-03 |
+| `infra-readers` Entra group (admin action) | N9 live check | Create when a real per-source group is needed |
+
+### R5 — N3 security review (§3)
+Write the review first (one page: threats, current controls, gaps, what to build), then build what it keeps:
+`sdlc-config validate --check-secrets`; the reconcile job (CLI with `--dry-run`, then a Cloud Run job + Scheduler);
+block list on GCP via bundles; global secret rotation tried once; a decision on token lifetime / CAE (E3).
+Gate: review accepted; each kept item has tests and a GCP check.
+
+### R6 — N4 observability (§4)
+OTLP export to Cloud Trace from agent and MCP (same span rules as with Jaeger); log-based views for `tool_call`,
+`auth_failure`, `connection_change`. Gate: one agent turn = one trace in Cloud Trace with no prompts, tokens or
+argument values; audit records link to it by `trace_id`.
+
+### R7 — N1 dev sources on GCP (§1)
+After D1: `config/sources/` for dev, `allowed_hosts`, one Secret Manager secret per `{secret:}` reference (values set
+outside Terraform; decide on an env prefix), `gcs_source_buckets`, Cloud Scheduler per source group (billable: needs
+your go-ahead), persona-matrix `data_rows` + CODEOWNERS rule per source. Gate as in §1.
+
+### R8 — N2 live connector checks (§2)
+Ingest and user-connection checks per provider and edition, Bitbucket DC "who am I", PDF OCR live (H10; needs a source
+with scanned PDFs now that `platform-infra` is gone), retrieval eval per source type, AG-UI gate items 2, 3 and 5.
+Gate: version-01 exit gate closed.
+
+### R9 — N7 A2UI spike (§10)
+Spike only, no product code until it passes: A2UI over AG-UI and A2A from one code path, citation cards from the
+standard catalog, a version both GE and `@copilotkit/a2ui-renderer` accept, ADK's A2A server behind `sdlc_web`.
+Output: a short findings note in §10 and a go/no-go for §10 Work items 2–4.
+
+### R10 — N5 GCP operations (§5, remaining)
+Scale out `sdlc-app`; shared rate-limit store (only if `sdlc-mcp` scales past one instance); CI deploy stages with
+your approval on apply; custom hostnames + managed certificates (then drop the `*.run.app` exception); Cloud SQL
+private IP; E1/E4/E5/E6 (app roles, federated credentials, Entra apps in Terraform, no Azure CLI pre-auth outside
+dev; each Entra change confirmed). Staging only if D4 says so.
+
+### R11 — N6 backlog (§6)
+Pick by priority after R4. Candidates: Cloud + DC connections side by side, URL elicitation, Antigravity OAuth sign-in
++ Stage 8 gate, `explain` by UPN, ADK evals in CI, retrieval ranking, new source types (SharePoint, Office documents).
+Write tools only if D5 = version-02.
+
+### Version-02 exit
+R1–R3 done; R5–R8 done or explicitly moved; R9 decided; R10/R11 items done or listed for version-03. Version-03 then
+starts with the pending tasks (agent runtimes; artifacts unless taken as N16) and whatever R10/R11 left.
