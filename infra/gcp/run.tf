@@ -485,3 +485,99 @@ resource "google_cloud_run_v2_job" "ingest" {
 
   depends_on = [google_secret_manager_secret_version.s, google_secret_manager_secret_iam_member.w]
 }
+
+# User-connection reconcile (version-02 N3): deletes stored PATs of blocked users, expired and
+# long-rejected tokens, and connections no longer configured (sdlc_connectors.reconcile). MCP image,
+# own service account (iam.tf: name-prefixed user secrets + list), DB only for the per-user lock.
+# Scheduled with reconcile_schedule (schedules.tf); by hand:
+#   gcloud run jobs execute sdlc-reconcile-<env> --region <region> --args=--dry-run   (report only)
+resource "google_cloud_run_v2_job" "reconcile" {
+  name                = "sdlc-reconcile-${var.env}"
+  location            = var.region
+  deletion_protection = var.deletion_protection
+
+  template {
+    template {
+      service_account       = google_service_account.w["reconcile"].email
+      max_retries           = 0
+      timeout               = "600s"
+      execution_environment = local.bundles ? "EXECUTION_ENVIRONMENT_GEN2" : null
+      containers {
+        image   = local.images.mcp
+        command = ["sdlc-reconcile-connections"]
+        args    = ["--apply"]
+        dynamic "env" {
+          for_each = merge(local.vertex_env, local.entra_env, local.jobs_db_env, local.bundles_env, {
+            SDLC_ENV                  = var.env
+            SDLC_CONFIG_WATCH         = "false"
+            SDLC_USER_SECRETS_BACKEND = "gcp"
+            SDLC_SECRETS_PROJECT      = var.project_id
+          })
+          content {
+            name  = env.key
+            value = env.value
+          }
+        }
+        env {
+          name = "PGPASSWORD"
+          value_source {
+            secret_key_ref {
+              secret  = local.secret["pg-app-password"]
+              version = "latest"
+            }
+          }
+        }
+        volume_mounts {
+          name       = "cloudsql"
+          mount_path = "/cloudsql"
+        }
+        dynamic "volume_mounts" {
+          for_each = local.bundles ? [] : [1]
+          content {
+            name       = "groups"
+            mount_path = local.config_env_dir
+          }
+        }
+        dynamic "volume_mounts" {
+          for_each = local.bundles ? [1] : []
+          content {
+            name       = "config-bundles"
+            mount_path = local.bundles_dir
+          }
+        }
+      }
+      volumes {
+        name = "cloudsql"
+        cloud_sql_instance {
+          instances = [google_sql_database_instance.sdlc.connection_name]
+        }
+      }
+      dynamic "volumes" {
+        for_each = local.bundles ? [] : [1]
+        content {
+          name = "groups"
+          secret {
+            secret = local.secret["groups-yaml"]
+            items {
+              version = "latest"
+              path    = "groups.yaml"
+            }
+          }
+        }
+      }
+      dynamic "volumes" {
+        for_each = local.bundles ? [1] : []
+        content {
+          name = "config-bundles"
+          gcs {
+            bucket        = google_storage_bucket.config_store[0].name
+            read_only     = true
+            mount_options = ["only-dir=bundles/${var.env}"]
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [google_secret_manager_secret_version.s, google_secret_manager_secret_iam_member.w]
+}

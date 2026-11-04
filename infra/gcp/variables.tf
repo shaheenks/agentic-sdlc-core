@@ -122,3 +122,21 @@ variable "artifact_retention_days" {
   type        = number
   default     = 7
 }
+
+variable "ingest_schedule" {
+  description = "Cron (schedule_time_zone) for the sdlc-ingest job via Cloud Scheduler, e.g. \"0 2 * * *\". Empty = no schedule (run with -Step ingest). version-02 N1."
+  type        = string
+  default     = ""
+}
+
+variable "reconcile_schedule" {
+  description = "Cron (schedule_time_zone) for the user-connection reconcile job, e.g. \"30 3 * * *\". Empty = no schedule (run the job by hand). version-02 N3."
+  type        = string
+  default     = ""
+}
+
+variable "schedule_time_zone" {
+  description = "Time zone for ingest_schedule / reconcile_schedule."
+  type        = string
+  default     = "Etc/UTC"
+}

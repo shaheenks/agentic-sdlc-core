@@ -20,9 +20,10 @@ Stage 7 (original decisions).
 | Entra dev callback on `sdlc-client` | Registered |
 | Agent Engine sessions (`sessions.tf`, version-01 M8) | Applied 2026-10-30 (images `8982da8`); conversations checked in the browser |
 
-**Not yet in Terraform** (version-01 §10.3, reviewed later): `blocked.yaml` from Secret Manager (no block list on GCP
-today), source credentials as Secret Manager secrets with accessor for the jobs service account, Cloud Scheduler for
-ingest, the user-secret reconcile job, OTLP export to Cloud Trace.
+**Added in version-02 N3 / N1 (not yet applied):** the block list travels in the config bundle (no Terraform
+needed); job `sdlc-reconcile-<env>` with its own service account; Cloud Scheduler for ingest and reconcile
+(`ingest_schedule`, `reconcile_schedule`; off by default). **Not yet in Terraform:** source credentials as Secret
+Manager secrets (no private source today, D1), OTLP export to Cloud Trace (N4).
 
 An earlier staging attempt in `cloud-migration-agent` / `asia-south1` (2026-09) is abandoned: ignore its state bucket,
 registry and images. The `staging.*` files stay for a later staging environment.
@@ -153,6 +154,8 @@ by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on 
 | `sdlc-mcp` | `sdlc-<env>-mcp` | Cloud SQL Client, Vertex AI User, `sdlcUserSecrets_<env>` (condition: names starting `sdlc-<env>-user-`) | `pg-app-password`, `groups-yaml`, `entra-graph-secret` and `users-yaml` (if set); users' connection secrets |
 | `sdlc-app` | `sdlc-<env>-app` | Vertex AI User (Gemini and Agent Engine sessions) | `oauth2-cookie`, `entra-client-secret` |
 | jobs | `sdlc-<env>-jobs` | Cloud SQL Client, Vertex AI User; Storage Object Viewer on `gcs_source_buckets` | `pg-admin-password`, `pg-owner-password`, `pg-app-password`, `pg-ingest-password`, `groups-yaml` |
+| reconcile job (N3) | `sdlc-<env>-reconcile` | Cloud SQL Client (advisory lock only), `sdlcUserSecrets_<env>` (same name condition as the MCP), `sdlcSecretsList_<env>` (secret names/labels, unconditioned: list is checked on the project); Object Viewer on the config store | `pg-app-password`, `groups-yaml` |
+| Cloud Scheduler (if a schedule is set) | `sdlc-<env>-scheduler` | Cloud Run Invoker on the scheduled jobs only | none |
 
 - **No key files**: Vertex AI, Agent Engine, Secret Manager and Cloud SQL use each workload's service identity.
   The local ADC file mount does not exist on GCP.
@@ -266,8 +269,8 @@ cd infra/gcp; terraform destroy -var-file=dev.tfvars   # needs the same TF_VAR_*
 
 ## 10. Next
 
-- Pending items of version-01 §10.3: dev sources + ingest, block list on GCP, source secrets, reconcile job,
-  Cloud Scheduler, Cloud Trace.
+- Pending items of version-01 §10.3: Cloud Trace (N4); source secrets once a private source exists. Block list,
+  reconcile job and Cloud Scheduler: built in version-02 N3/N1 (docs/SECRETS_REVIEW.md).
 - Scale `sdlc-app` out: check conversations survive a new revision and that cookie sessions in oauth2-proxy are
   enough, then raise `app_max_instances`.
 - Custom hostnames (`<service>-sdlc-<env>.shaheenks.co.in`): CNAME + Google-managed certificate (load balancer or

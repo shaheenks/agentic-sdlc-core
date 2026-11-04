@@ -246,3 +246,26 @@ def test_ingest_reads_a_bundle_and_resolves_sources_elsewhere(config_dir, tmp_pa
     assert default_root != root / version / "tree"  # not inside the bundle tree
     snapshot, folder_root = load_config({**TEST_ENV, "SDLC_CONFIG_DIR": str(config_dir)})
     assert folder_root == config_dir.parent and snapshot.sources
+
+
+def test_block_list_travels_in_the_bundle(config_dir, tmp_path, monkeypatch):
+    """version-02 N3: on GCP the block list is published with `-Step config` (no mount): a
+    bundle compiled with env/<env>/blocked.yaml blocks that oid; activating one without it
+    unblocks (rollback by pointer)."""
+    for key, value in ENV.items():
+        monkeypatch.setenv(key, value)
+    oid = "dddddddd-0000-0000-0000-00000000dead"
+    root = tmp_path / "bundles"
+    open_version = compile_(config_dir, root)
+    (config_dir / "env" / "local" / "blocked.yaml").write_text(
+        "apiVersion: sdlc/v1\nkind: BlockList\nblocked:\n"
+        f'  - {{ oid: "{oid}", reason: "offboarding SEC-1" }}\n'
+    )
+    blocked_version = compile_(config_dir, root)
+    assert blocked_version != open_version
+    assert (root / blocked_version / "tree" / "config" / "env" / "local" / "blocked.yaml").is_file()
+    activate(root, blocked_version)
+    store = ConfigStore.from_bundles(root, "local")
+    assert store.current().blocked == {oid: "offboarding SEC-1"}
+    activate(root, open_version)
+    assert ConfigStore.from_bundles(root, "local").current().blocked == {}

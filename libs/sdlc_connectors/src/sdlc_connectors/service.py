@@ -211,6 +211,30 @@ class ConnectionService:
             await asyncio.to_thread(self.store.delete, oid)
             self._drop(oid)
 
+    async def prune(
+        self, oid: str, reason_to_remove: Callable[[str, ConnectionEntry], str | None]
+    ) -> list[tuple[str, str]]:
+        """Reconcile: remove the connections `reason_to_remove` names, deciding again under the
+        user's lock on a fresh read (a token reconnected since the scan is kept). Deletes the
+        directory when nothing is left. Returns [(connection, reason)] actually removed."""
+        async with self._lock(user_key(oid)):
+            directory = await self._load(oid)
+            if directory is None:
+                return []
+            removed = []
+            for cid, entry in list(directory.connections.items()):
+                reason = reason_to_remove(cid, entry)
+                if reason:
+                    del directory.connections[cid]
+                    removed.append((cid, reason))
+            if removed:
+                if directory.connections:
+                    await asyncio.to_thread(self.store.save, directory)
+                else:
+                    await asyncio.to_thread(self.store.delete, oid)
+                self._drop(oid)
+        return removed
+
     # --- tools ------------------------------------------------------------------------------
 
     async def credential(self, oid: str, connection_id: str) -> Credential:

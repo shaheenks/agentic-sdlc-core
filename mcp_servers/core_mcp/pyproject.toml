@@ -17,6 +17,7 @@ dependencies = [
 
 [project.scripts]
 sdlc-core-mcp = "sdlc_core_mcp.server:main"
+sdlc-reconcile-connections = "sdlc_core_mcp.reconcile_cli:main"
 
 [build-system]
 requires = ["hatchling"]

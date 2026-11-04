@@ -108,6 +108,11 @@ See "Runtime Config Exposure" in docs/plans/version-00.md.
 - Users whose token omits groups (overage) get no groups unless the Graph fallback secret is set.
 - Block list (E3): `config/env/<env>/blocked.yaml` (kind `BlockList`, optional, git-ignored like groups.yaml) is checked by
   the MCP token verifier on every request (via `store.current()`); blocked users get 401, audited as reason `blocked`.
+  On GCP it travels in the config bundle (`-Step config`, live in ~2 min). Review + rotation procedures: docs/SECRETS_REVIEW.md.
+- Reconcile (version-02 N3): `sdlc-reconcile-connections [--apply]` (dry run by default; MCP package, same env as the MCP
+  server) deletes PATs of blocked users, expired and long-rejected tokens, removed connections; each change audited
+  `connection_change` with `actor: reconcile`. Local: `docker compose exec core-mcp sdlc-reconcile-connections`;
+  GCP: job `sdlc-reconcile-<env>` (own service account; `reconcile_schedule`). Decisions are re-checked under the user's lock.
 - Egress (E8): token validation honours `HTTPS_PROXY`/`NO_PROXY`; unreachable JWKS = every request refused (docs/misc/ENTRA_SETUP.md §6).
 - Deny-by-default. Filter tools/list AND re-check on every tools/call.
 - All DB reads go through `sdlc_db` with `app.allowed_sources` + `app.max_classification` set (Postgres RLS).
@@ -208,7 +213,8 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
 - CI: `.github/workflows/ci.yml` (lint, config validate + PR permission diff, UI typecheck/test/build, tests on a pgvector service after
   `sdlc-db bootstrap` + `migrate`, terraform fmt/validate). No secrets or cloud calls in CI; tests must pass without `.env`
   (placeholder Entra IDs, example GroupMap, HashEmbedder, FakeEntra).
-- `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values)
+- `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values;
+  `--check-secrets` also resolves every secret reference and prints names + outcomes only; not in CI)
 - `.\scripts\gcp_deploy.ps1 -EnvName dev -Step state|base|config|images|plan|apply|db|ingest|urls`   GCP deployment, run by the user (see
   docs/GCP_DEPLOYMENT.md). PowerShell, not bash (Windows). Commit first: images and plan use the commit SHA as tag.
   `base`/`apply` create billable resources: only with the user's go-ahead. The saved plan contains secrets (git-ignored,

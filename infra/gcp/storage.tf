@@ -46,6 +46,13 @@ resource "google_storage_bucket_iam_member" "config_store_mcp" {
   member = google_service_account.w["mcp"].member
 }
 
+resource "google_storage_bucket_iam_member" "config_store_reconcile" {
+  count  = var.config_store_bucket == "" ? 0 : 1
+  bucket = google_storage_bucket.config_store[0].name
+  role   = "roles/storage.objectViewer"
+  member = google_service_account.w["reconcile"].member
+}
+
 resource "google_storage_bucket_iam_member" "config_store_ingest" {
   count  = var.config_store_bucket == "" ? 0 : 1
   bucket = google_storage_bucket.config_store[0].name

@@ -44,6 +44,12 @@ def main(argv: list[str] | None = None) -> int:
 
     validate = sub.add_parser("validate", help="validate config for one environment")
     common(validate)
+    validate.add_argument(
+        "--check-secrets",
+        action="store_true",
+        help="also check that every secret reference resolves (values are never printed; "
+        "uses SDLC_SECRETS_BACKEND, so set gcp + SDLC_SECRETS_PROJECT to check Secret Manager)",
+    )
 
     explain = sub.add_parser("explain", help="effective permissions of a persona")
     common(explain)
@@ -121,7 +127,48 @@ def _validate(args) -> int:
             f"warning: users without an oid get no access: {', '.join(snap.users.pending)} "
             f"(run: sdlc-config users sync --env {snap.env} --write)"
         )
+    if getattr(args, "check_secrets", False):
+        return _check_secrets(snap)
     return 0
+
+
+def secret_references(snap) -> dict[tuple[str, str], list[str]]:
+    """(kind, name) -> where it is used. Sources' `spec.credentials` are the only references in
+    config today; user connections are per-user tokens and are not config."""
+    refs: dict[tuple[str, str], list[str]] = {}
+    for source in sorted(snap.sources.values(), key=lambda s: s.id):
+        if source.credentials:
+            refs.setdefault(source.credentials, []).append(f"sources/{source.id}.yaml")
+    return refs
+
+
+def _check_secrets(snap, resolver=None) -> int:
+    """Resolve each reference once; print only names and outcomes (never values)."""
+    from sdlc_secrets import SecretAccessDenied, SecretError, SecretNotFound, resolver_from_env
+
+    refs = secret_references(snap)
+    if not refs:
+        print("secrets: no secret references in config")
+        return 0
+    try:
+        resolver = resolver or resolver_from_env()
+    except SecretError as e:
+        print(f"secrets: cannot create the resolver: {e}", file=sys.stderr)
+        return 1
+    failed = 0
+    for (kind, name), used_by in sorted(refs.items()):
+        try:
+            resolver.resolve((kind, name))
+            outcome = "ok"
+        except SecretNotFound:
+            outcome, failed = "MISSING", failed + 1
+        except SecretAccessDenied:
+            outcome, failed = "ACCESS DENIED", failed + 1
+        except SecretError as e:
+            outcome, failed = f"ERROR ({type(e).__name__})", failed + 1
+        print(f"secrets: {kind}:{name} {outcome} (used by {', '.join(used_by)})")
+    print(f"secrets: {len(refs) - failed}/{len(refs)} resolve (backend {resolver.store.name})")
+    return 1 if failed else 0
 
 
 def _users(args) -> int:

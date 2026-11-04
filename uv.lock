@@ -2303,6 +2303,7 @@ source = { editable = "libs/sdlc_config" }
 dependencies = [
     { name = "jsonschema" },
     { name = "pyyaml" },
+    { name = "sdlc-secrets" },
     { name = "watchfiles" },
 ]
 
@@ -2310,6 +2311,7 @@ dependencies = [
 requires-dist = [
     { name = "jsonschema", specifier = ">=4.23" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "sdlc-secrets", editable = "libs/sdlc_secrets" },
     { name = "watchfiles", specifier = ">=1.0" },
 ]
 
