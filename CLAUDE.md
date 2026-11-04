@@ -182,6 +182,7 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
   tools that read data; `/agui` binds the user id to the token `oid` and strips client `temp:`/`app:`/`user:` state.
   Chat history (version-02 N15): `GET /threads` (agent, caller's sessions only) feeds the sidebar; opening a thread replays
   it in `PassThroughAgentRunner.connect` from the agent's `/agents/state` as the same user; runs send only the latest turn.
+  `DELETE /threads/{id}` deletes the caller's own chat (needs `X-SDLC-Request: 1`; others' and missing threads answer 404).
   ADK developer tools (builder, deploy, evals, tests, other users' traces) are off; `SDLC_DEV_TOOLS=true` enables them (never outside local dev).
 - DB connections use standard `PG*` env vars. Roles: `sdlc_owner` (migrations), `sdlc_app` (MCP, read-only), `sdlc_ingest`
   (writes); none bypasses RLS. Init: `db/bootstrap/README.md`. On the host use `PGHOST=127.0.0.1` (`localhost` tries IPv6

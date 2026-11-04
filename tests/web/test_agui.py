@@ -164,6 +164,85 @@ async def test_a_listed_thread_opens_with_its_history(web, entra):
     assert "what owns the ledger?" in json.dumps(body["messages"])
 
 
+def delete(web, token: str | None, thread: str, *, header: bool = True):
+    headers = {"X-Forwarded-Access-Token": token} if token else {}
+    if header:
+        headers["X-SDLC-Request"] = "1"
+    return web.delete(f"/threads/{thread}", headers=headers)
+
+
+async def test_owner_deletes_a_conversation(web, entra):
+    token = entra.token(oid=OID_A)
+    await run(web, token, run_input("to-delete", "forget me"))
+    await run(web, token, run_input("to-keep", "keep me"))
+
+    resp = await delete(web, token, "to-delete")
+    assert resp.status_code == 204, resp.text
+    assert [t["threadId"] for t in await list_threads(web, token)] == ["to-keep"]
+    state = await web.post(
+        "/agents/state",
+        json={"threadId": "to-delete"},
+        headers={"X-Forwarded-Access-Token": token},
+    )
+    assert state.json()["threadExists"] is False
+    assert (await delete(web, token, "to-delete")).status_code == 404  # already gone
+
+    # the thread id can start over as a new, empty conversation
+    await run(web, token, run_input("to-delete", "a fresh start"))
+    titles = {t["threadId"]: t["title"] for t in await list_threads(web, token)}
+    assert titles["to-delete"] == "a fresh start"
+
+
+async def test_delete_needs_the_owner_a_token_and_the_request_header(web, entra):
+    token_a, token_b = entra.token(oid=OID_A), entra.token(oid=OID_B)
+    await run(web, token_a, run_input("mine", "A's chat"))
+    await run(web, token_b, run_input("shared-id", "B's chat"))
+    await run(web, token_a, run_input("shared-id", "A's other chat"))
+
+    assert (await delete(web, None, "mine")).status_code == 401
+    assert (await delete(web, token_a, "mine", header=False)).status_code == 403
+    assert (await delete(web, token_b, "mine")).status_code == 404  # not B's: same as missing
+    assert (await delete(web, token_a, "../etc")).status_code in (404, 405)
+
+    # B deletes B's own "shared-id"; A's conversation with the same id stays
+    assert (await delete(web, token_b, "shared-id")).status_code == 204
+    assert {t["threadId"] for t in await list_threads(web, token_a)} == {"mine", "shared-id"}
+    assert await list_threads(web, token_b) == []
+
+
+async def test_a_dev_ui_session_can_be_deleted(entra, tmp_path):
+    # one shared store, as in compose (SQLite) and on GCP (Agent Engine); memory:// would give
+    # adk web and /agui separate in-memory stores
+    app = create_app(
+        AGENTS_DIR,
+        entra.verifier(),
+        host="127.0.0.1",
+        port=8000,
+        agui_agent="probe",
+        session_service_uri=f"sqlite:///{(tmp_path / 'sessions.db').as_posix()}",
+    )
+    web = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://agent")
+    token = entra.token(oid=OID_A)
+    headers = {"X-Forwarded-Access-Token": token}
+    # adk web's own routes (the middleware binds the user to the token's oid)
+    created = await web.post("/apps/probe/users/anyone/sessions/dev-session", headers=headers)
+    assert created.status_code == 200, created.text
+    ran = await web.post(
+        "/run",
+        json={
+            "app_name": "probe",
+            "user_id": "anyone",
+            "session_id": "dev-session",
+            "new_message": {"role": "user", "parts": [{"text": "from the dev UI"}]},
+        },
+        headers=headers,
+    )
+    assert ran.status_code == 200, ran.text
+    assert [t["threadId"] for t in await list_threads(web, token)] == ["dev-session"]
+    assert (await delete(web, token, "dev-session")).status_code == 204
+    assert await list_threads(web, token) == []
+
+
 async def test_agui_is_off_unless_an_agent_is_named(entra):
     app = create_app(AGENTS_DIR, entra.verifier(), host="127.0.0.1", port=8000)
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://agent")

@@ -65,6 +65,25 @@ export function connectionStatuses(body: unknown, today: Date = new Date()): Con
     });
 }
 
+/** The status chip on the Connections page: short label, colour and a one-line detail. */
+export type StatusChip = { label: string; state: ConnectionState; detail: string };
+
+export function statusChip(c: Record<string, unknown>, today: Date = new Date()): StatusChip {
+  if (c.connected !== true) return { label: "Not connected", state: "off", detail: "" };
+  const account = str(c.display) || str(c.account);
+  const expires = str(c.expires_at);
+  const parts = [account && `as ${account}`, expires && `expires ${expires}`].filter(Boolean);
+  const detail = parts.join(" · ");
+  if (c.status && c.status !== "ok") return { label: "Token rejected", state: "warn", detail };
+  if (c.expired === true) return { label: "Expired", state: "warn", detail };
+  if (c.expiring_soon === true) {
+    const days = expires ? daysUntil(expires, today) : null;
+    const label = days === null ? "Expiring soon" : days <= 0 ? "Expires today" : `Expires in ${days}d`;
+    return { label, state: "warn", detail };
+  }
+  return { label: "Connected", state: "ok", detail };
+}
+
 /** The worst state across connections, for the badge on the user button. */
 export function overallState(statuses: ConnectionStatus[]): ConnectionState | null {
   if (statuses.some((s) => s.state === "warn")) return "warn";

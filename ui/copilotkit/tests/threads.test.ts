@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  deleteThreadRequest,
   formatUpdated,
+  withoutThread,
   historyMessages,
   latestTurn,
   parseThreads,
@@ -24,6 +26,21 @@ test("parseThreads keeps valid entries only", () => {
   ]);
   assert.deepEqual(parseThreads({ detail: "history unavailable" }), []);
   assert.deepEqual(parseThreads(null), []);
+});
+
+test("delete requests carry the header and only valid ids", () => {
+  const request = deleteThreadRequest("abc-123");
+  assert.equal(request?.url, "/threads/abc-123");
+  assert.equal(request?.init.method, "DELETE");
+  assert.deepEqual(request?.init.headers, { "X-SDLC-Request": "1" });
+  assert.equal(deleteThreadRequest("../threads"), null);
+  assert.equal(deleteThreadRequest(""), null);
+  const list = [
+    { id: "a", title: "A", updatedAt: "" },
+    { id: "b", title: "B", updatedAt: "" },
+  ];
+  assert.deepEqual(withoutThread(list, "a").map((t) => t.id), ["b"]);
+  assert.equal(withoutThread(list, "zzz").length, 2);
 });
 
 test("threadFromSearch accepts only thread ids", () => {

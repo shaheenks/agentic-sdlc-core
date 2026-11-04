@@ -14,7 +14,8 @@ with `ag_ui_adk`. It sits behind EntraUserBindingMiddleware like every other rou
   no memory service, nothing saved to memory, sessions are not deleted by ag_ui_adk's cleanup
   (the retention job owns that);
 - GET /threads (sdlc_web.threads, version-02 N15) lists the caller's conversations from the same
-  store, for the chat app's history list; /agents/state opens one.
+  store, for the chat app's history list; /agents/state opens one; DELETE /threads/{id} deletes
+  one of the caller's own.
 """
 
 from pathlib import Path
@@ -53,5 +54,5 @@ def mount_agui(
         allow_scoped_state_keys=False,
     )
     add_adk_fastapi_endpoint(app, agent, path=path)
-    mount_threads(app, sessions, agent_name)
+    mount_threads(app, sessions, agent_name, agent)
     return agent

@@ -24,6 +24,23 @@ export function parseThreads(body: unknown): ThreadSummary[] {
     .filter((t) => THREAD_ID.test(t.id) && t.title);
 }
 
+/**
+ * DELETE /threads/<id> (agent): deletes one of the caller's conversations. The custom header is
+ * required by the agent (a cross-site page cannot send it without a CORS preflight).
+ */
+export function deleteThreadRequest(id: string): { url: string; init: RequestInit } | null {
+  if (!THREAD_ID.test(id)) return null;
+  return {
+    url: `/threads/${encodeURIComponent(id)}`,
+    init: { method: "DELETE", headers: { "X-SDLC-Request": "1" }, cache: "no-store" },
+  };
+}
+
+/** The list without one thread (optimistic removal). */
+export function withoutThread(threads: ThreadSummary[], id: string): ThreadSummary[] {
+  return threads.filter((t) => t.id !== id);
+}
+
 /** The thread named in the page URL (`?thread=<id>`), if it is a valid id. */
 export function threadFromSearch(search: string): string | null {
   const id = new URLSearchParams(search).get("thread");

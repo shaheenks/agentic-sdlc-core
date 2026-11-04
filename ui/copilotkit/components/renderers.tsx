@@ -5,11 +5,14 @@
 // escapes text, and links are limited to http(s) (lib/results.ts safeUrl).
 
 import { defineToolCallRenderer } from "@copilotkit/react-core/v2";
+import { type ReactNode, useState } from "react";
 import { z } from "zod";
 
 import {
   type Citation,
   citations,
+  type DocumentChip,
+  documentChips,
   graphEntities,
   identity,
   location,
@@ -48,20 +51,139 @@ function CitationCard({ c }: { c: Citation }) {
   );
 }
 
-function Citations({ result, label }: { result: unknown; label: string }) {
-  const items = citations(result);
-  if (!items.length) return <div className="tool">{label}: no matching knowledge you can read.</div>;
+const MAX_CHIPS = 6;
+
+function DocChip({ chip }: { chip: DocumentChip }) {
+  const text = chip.hits > 1 ? `${chip.label} ×${chip.hits}` : chip.label;
+  return chip.url ? (
+    <a
+      className="chip"
+      href={chip.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={chip.tooltip}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {text}
+      <span className="chip-icon" aria-hidden="true">
+        ↗
+      </span>
+    </a>
+  ) : (
+    <span className="chip" title={chip.tooltip}>
+      {text}
+    </span>
+  );
+}
+
+// A compact tool card (version-02 chat UX): one thin line; clicking the card expands the body,
+// clicking the line collapses it (keyboard: Enter/Space). Links in the line stop propagation, so
+// they open without toggling.
+function CompactCard({ line, children }: { line: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const toggle = () => setOpen((v) => !v);
   return (
-    <div className="tool">
-      <div className="tool-title">
-        {label} · {items.length} source{items.length === 1 ? "" : "s"}
+    <div
+      className="tool compact clickable"
+      role="button"
+      tabIndex={0}
+      aria-expanded={open}
+      onClick={() => !open && setOpen(true)}
+      onKeyDown={(e) => {
+        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          toggle();
+        }
+      }}
+    >
+      <div
+        className="tool-line"
+        onClick={(e) => {
+          e.stopPropagation();
+          toggle();
+        }}
+      >
+        {line}
+        <span className="tool-toggle" aria-hidden="true">
+          {open ? "▴" : "▾"}
+        </span>
       </div>
+      {open && (
+        <div className="tool-body" onClick={(e) => e.stopPropagation()}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Search results: small document chips in the line; the full cards with snippets (and graph
+// entities) in the body.
+function Citations({ result, label, children }: { result: unknown; label: string; children?: ReactNode }) {
+  const items = citations(result);
+  if (!items.length) return <div className="tool compact">{label}: no matching knowledge you can read.</div>;
+  const chips = documentChips(items);
+  const hidden = chips.length - MAX_CHIPS;
+  return (
+    <CompactCard
+      line={
+        <>
+          <span className="tool-label" title={label}>
+            {label} · {chips.length} doc{chips.length === 1 ? "" : "s"}
+          </span>
+          {chips.slice(0, MAX_CHIPS).map((chip) => (
+            <DocChip key={chip.key} chip={chip} />
+          ))}
+          {hidden > 0 && <span className="chip more">+{hidden}</span>}
+        </>
+      }
+    >
       <ol className="citations">
         {items.map((c, i) => (
           <CitationCard key={`${c.source}:${c.path}:${i}`} c={c} />
         ))}
       </ol>
-    </div>
+      {children}
+    </CompactCard>
+  );
+}
+
+const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+// whoami: "Signed in as Paul · 2 teams · 4 roles" in the line; the tags in the body.
+function IdentityCard({ result }: { result: unknown }) {
+  const me = identity(result);
+  if (!me) return null;
+  const row = (label: string, values: string[]) =>
+    values.length > 0 && (
+      <div className="identity-row">
+        <span className="identity-label">{label}</span>
+        {values.map((v) => (
+          <span key={v} className="entity">
+            {v}
+          </span>
+        ))}
+      </div>
+    );
+  const facts = [
+    me.teams.length > 0 && count(me.teams.length, "team"),
+    me.roles.length > 0 && count(me.roles.length, "role"),
+    me.groups.length > 0 && count(me.groups.length, "group"),
+  ].filter(Boolean);
+  return (
+    <CompactCard
+      line={
+        <span className="tool-label">
+          Signed in as <strong>{me.name ?? me.upn ?? "you"}</strong>
+          {facts.length > 0 && ` · ${facts.join(" · ")}`}
+        </span>
+      }
+    >
+      {row("Teams", me.teams)}
+      {row("Roles", me.roles)}
+      {row("Groups", me.groups)}
+      {row("App roles", me.appRoles)}
+    </CompactCard>
   );
 }
 
@@ -139,8 +261,7 @@ export const toolRenderers = [
       if (!done(status)) return <Pending label="Querying the knowledge graph" />;
       const entities = graphEntities(result).slice(0, 12);
       return (
-        <div>
-          <Citations result={result} label={`Graph query “${args.query ?? ""}”`} />
+        <Citations result={result} label={`Graph query “${args.query ?? ""}”`}>
           {entities.length > 0 && (
             <div className="entities">
               {entities.map((e) => (
@@ -150,37 +271,14 @@ export const toolRenderers = [
               ))}
             </div>
           )}
-        </div>
+        </Citations>
       );
     },
   }),
   defineToolCallRenderer({
     name: "whoami",
     args: whoamiArgs,
-    render: ({ status, result }) => {
-      if (!done(status)) return <Pending label="Checking who you are" />;
-      const me = identity(result);
-      if (!me) return null;
-      const row = (label: string, values: string[]) =>
-        values.length > 0 && (
-          <div className="identity-row">
-            <span className="identity-label">{label}</span>
-            {values.map((v) => (
-              <span key={v} className="entity">
-                {v}
-              </span>
-            ))}
-          </div>
-        );
-      return (
-        <div className="tool identity">
-          <div className="tool-title">Signed in as {me.name ?? me.upn ?? "you"}</div>
-          {row("Teams", me.teams)}
-          {row("Roles", me.roles)}
-          {row("Groups", me.groups)}
-          {row("App roles", me.appRoles)}
-        </div>
-      );
-    },
+    render: ({ status, result }) =>
+      done(status) ? <IdentityCard result={result} /> : <Pending label="Checking who you are" />,
   }),
 ];

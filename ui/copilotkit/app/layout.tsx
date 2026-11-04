@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "SDLC assistant",
+  title: "SDLC Assistant",
   description: "Chat with the SDLC agents over your team's knowledge",
 };
 

@@ -1,9 +1,24 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { connectionStatuses, initials, overallState, parseMe } from "../lib/status.ts";
+import { connectionStatuses, initials, overallState, parseMe, statusChip } from "../lib/status.ts";
 
 const TODAY = new Date("2026-10-30T09:00:00Z");
+
+test("status chips for the Connections page", () => {
+  assert.deepEqual(statusChip({ connected: false }, TODAY), { label: "Not connected", state: "off", detail: "" });
+  const base = { connected: true, display: "Ana", expires_at: "2026-11-27", status: "ok" };
+  assert.deepEqual(statusChip(base, TODAY), {
+    label: "Connected",
+    state: "ok",
+    detail: "as Ana · expires 2026-11-27",
+  });
+  assert.equal(statusChip({ ...base, expiring_soon: true, expires_at: "2026-11-02" }, TODAY).label, "Expires in 3d");
+  assert.equal(statusChip({ ...base, expiring_soon: true, expires_at: "2026-10-30" }, TODAY).label, "Expires today");
+  assert.equal(statusChip({ ...base, expired: true }, TODAY).label, "Expired");
+  assert.equal(statusChip({ ...base, status: "invalid" }, TODAY).label, "Token rejected");
+  assert.equal(statusChip({ ...base, status: "invalid" }, TODAY).state, "warn");
+});
 
 test("parseMe keeps only name and upn", () => {
   assert.deepEqual(parseMe({ name: "Ana Dev", upn: "ana@example.com", oid: "x", token: "t" }), {
