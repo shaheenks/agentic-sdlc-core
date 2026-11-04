@@ -15,6 +15,25 @@ const agui = createServer((req, res) => {
   req.on("data", (chunk) => (body += chunk));
   req.on("end", () => {
     const input = JSON.parse(body || "{}");
+    if (req.url === "/agents/state") {
+      // the fake agent's history: only TOKEN's user has thread "old-thread"
+      const mine = req.headers["x-forwarded-access-token"] === TOKEN && input.threadId === "old-thread";
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          threadId: input.threadId,
+          threadExists: mine,
+          state: {},
+          messages: mine
+            ? [
+                { id: "u1", role: "user", content: "earlier question", name: null },
+                { id: "a1", role: "assistant", content: "earlier answer" },
+              ]
+            : [],
+        }),
+      );
+      return;
+    }
     const ids = { threadId: input.threadId, runId: input.runId };
     const events = [
       { type: "RUN_STARTED", ...ids },
@@ -95,6 +114,38 @@ test("another user cannot replay a thread from this process", async () => {
   );
   const text = await response.text();
   assert.doesNotMatch(text, /secret answer/);
+});
+
+async function connect(threadId: string, headers: Record<string, string>) {
+  const response = await handler(
+    new Request(`${base}/agent/default/connect`, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "text/event-stream", ...headers },
+      body: JSON.stringify(runInput(threadId)),
+    }),
+  );
+  return { status: response.status, text: await response.text() };
+}
+
+test("opening a thread replays the user's own history from the agent", async () => {
+  const { status, text } = await connect("old-thread", {
+    "x-forwarded-access-token": TOKEN,
+    cookie: "_oauth2_proxy=session-cookie",
+  });
+  assert.equal(status, 200, text);
+  assert.match(text, /MESSAGES_SNAPSHOT/);
+  assert.match(text, /earlier question/);
+  assert.match(text, /earlier answer/);
+  const headers = seen.at(-1)!;
+  assert.equal(headers["x-forwarded-access-token"], TOKEN); // asked as the same user
+  assert.equal(headers.cookie, undefined);
+});
+
+test("another user's token gets no history for the same thread", async () => {
+  const other = await connect("old-thread", { "x-forwarded-access-token": "other-user" });
+  assert.doesNotMatch(other.text, /earlier question|MESSAGES_SNAPSHOT/);
+  const anonymous = await connect("old-thread", {});
+  assert.doesNotMatch(anonymous.text, /earlier question|MESSAGES_SNAPSHOT/);
 });
 
 test("thread listing and history endpoints are not available", async () => {

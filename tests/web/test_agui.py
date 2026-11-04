@@ -114,6 +114,56 @@ async def test_persisted_state_has_no_token_and_threads_are_per_user(web, entra)
     assert RECORDS[-1]["session_user"] == OID_B and RECORDS[-1]["token"] == token_b
 
 
+async def list_threads(web, token: str) -> list[dict]:
+    resp = await web.get("/threads", headers={"X-Forwarded-Access-Token": token})
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["cache-control"] == "no-store"
+    return resp.json()["threads"]
+
+
+async def test_threads_need_sign_in(web):
+    assert (await web.get("/threads")).status_code == 401
+
+
+async def test_threads_list_only_the_callers_conversations(web, entra):
+    token_a, token_b = entra.token(oid=OID_A), entra.token(oid=OID_B)
+    await run(web, token_a, run_input("a-first", "  how do   refunds\nwork? "))
+    await run(web, token_a, run_input("a-second", "x" * 100))
+    await run(web, token_b, run_input("a-first", "B's own question"))  # same id, B's session
+
+    threads_a = await list_threads(web, token_a)
+    assert [t["threadId"] for t in threads_a] == ["a-second", "a-first"]  # newest first
+    assert threads_a[1]["title"] == "how do refunds work?"
+    assert len(threads_a[0]["title"]) == 60 and threads_a[0]["title"].endswith("…")
+    assert all(set(t) == {"threadId", "title", "updatedAt"} for t in threads_a)
+    assert token_a not in json.dumps(threads_a)
+
+    # B (even asking with A's oid as user_id) sees only B's conversation
+    resp = await web.get(
+        "/threads",
+        params={"user_id": OID_A},
+        headers={"X-Forwarded-Access-Token": token_b},
+    )
+    assert [(t["threadId"], t["title"]) for t in resp.json()["threads"]] == [
+        ("a-first", "B's own question")
+    ]
+
+
+async def test_a_listed_thread_opens_with_its_history(web, entra):
+    token = entra.token(oid=OID_A)
+    await run(web, token, run_input("reopen-me", "what owns the ledger?"))
+    [thread] = await list_threads(web, token)
+    resp = await web.post(
+        "/agents/state",
+        json={"threadId": thread["threadId"]},
+        headers={"X-Forwarded-Access-Token": token},
+    )
+    body = resp.json()
+    assert body["threadExists"] is True
+    assert [m["role"] for m in body["messages"]][:1] == ["user"]
+    assert "what owns the ledger?" in json.dumps(body["messages"])
+
+
 async def test_agui_is_off_unless_an_agent_is_named(entra):
     app = create_app(AGENTS_DIR, entra.verifier(), host="127.0.0.1", port=8000)
     client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://agent")

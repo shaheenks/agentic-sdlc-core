@@ -47,6 +47,7 @@ locals {
     OAUTH2_PROXY_CLIENT_ID             = var.entra_client_id
     OAUTH2_PROXY_SCOPE                 = "openid profile email offline_access api://${var.entra_api_client_id}/access_as_user"
     OAUTH2_PROXY_CODE_CHALLENGE_METHOD = "S256"
+    OAUTH2_PROXY_PROMPT                = "select_account" # account picker at sign-in (after Sign out)
     # /chat/ -> CopilotKit app (sidecar), /connections/ -> MCP service (users' own connections),
     # everything else -> the agent (adk web, /agui). As in docker-compose.yml.
     OAUTH2_PROXY_UPSTREAMS = "http://127.0.0.1:8000/,http://127.0.0.1:3000/chat/,https://${local.mcp_host}/connections/"
@@ -61,7 +62,7 @@ locals {
     OAUTH2_PROXY_EMAIL_DOMAINS                        = "*"
     OAUTH2_PROXY_COOKIE_REFRESH                       = "30m"
     OAUTH2_PROXY_COOKIE_EXPIRE                        = "8h"
-    OAUTH2_PROXY_API_ROUTES                           = "^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\\b)"
+    OAUTH2_PROXY_API_ROUTES                           = "^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\\b|threads\\b)"
     OAUTH2_PROXY_REDIRECT_URL                         = "https://${local.app_host}/oauth2/callback"
     OAUTH2_PROXY_COOKIE_SECURE                        = "true"
     OAUTH2_PROXY_REVERSE_PROXY                        = "true" # Cloud Run's front end sets X-Forwarded-*

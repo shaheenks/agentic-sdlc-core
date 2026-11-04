@@ -20,7 +20,8 @@ For every request except public health checks:
   6. Chat UX (version-02): `GET /me` answers with the caller's display name and sign-in name from
      the validated token (nothing else; no token, oid or groups), for the chat app's navbar.
      `GET /` redirects to `home_path` (the chat app, `/chat/`) when one is set; adk web stays
-     at /dev-ui/.
+     at /dev-ui/. `GET /threads` (sdlc_web.threads) lists the caller's conversations; it reads
+     the user from `current_oid`, so it needs no binding here.
 WebSocket: only /run_live, bound the same way: the token from the upgrade request is validated,
 every `user_id` query parameter is replaced by the token's `oid`, and the token stays in context
 for the connection (its MCP calls carry the user). Anything else is closed with 1008.

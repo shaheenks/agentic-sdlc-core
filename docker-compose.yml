@@ -16,6 +16,9 @@ x-oauth2-proxy-env: &oauth2-proxy-env
   # The access token is for the MCP API (aud = sdlc-mcp); offline_access enables refresh.
   OAUTH2_PROXY_SCOPE: openid profile email offline_access api://${ENTRA_API_CLIENT_ID}/access_as_user
   OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+  # Entra shows the account picker on every sign-in, so "Sign out" (/oauth2/sign_out) lets the
+  # user pick another account instead of being signed straight back in by the Entra session.
+  OAUTH2_PROXY_PROMPT: select_account
   # /chat/ -> CopilotKit app (version-01 M5); everything else -> the agent (adk web, /agui)
   # /connections/ -> MCP server (users' own connections, version-01 M6; holds the user secrets)
   OAUTH2_PROXY_UPSTREAMS: http://user-agent:8000/,http://ui-copilotkit:3000/chat/,http://core-mcp:8080/connections/
@@ -34,7 +37,7 @@ x-oauth2-proxy-env: &oauth2-proxy-env
   OAUTH2_PROXY_COOKIE_REFRESH: 30m      # refresh before the ~60-90 min access token expires
   OAUTH2_PROXY_COOKIE_EXPIRE: 8h
   # API calls from the dev UI get 401 instead of a login redirect when the session lapses.
-  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\b)
+  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\b|threads\b)
 
 # Tracing (H8.3): off unless OTEL_EXPORTER_OTLP_ENDPOINT is set in .env (e.g. http://jaeger:4318 with
 # `docker compose --profile observability up -d`). Spans never carry prompts, responses, tokens or

@@ -12,7 +12,9 @@ with `ag_ui_adk`. It sits behind EntraUserBindingMiddleware like every other rou
   `allow_scoped_state_keys` stays off;
 - conversations use the configured session store (SDLC_SESSION_SERVICE_URI) and its retention;
   no memory service, nothing saved to memory, sessions are not deleted by ag_ui_adk's cleanup
-  (the retention job owns that).
+  (the retention job owns that);
+- GET /threads (sdlc_web.threads, version-02 N15) lists the caller's conversations from the same
+  store, for the chat app's history list; /agents/state opens one.
 """
 
 from pathlib import Path
@@ -23,6 +25,7 @@ from google.adk.cli.utils.agent_loader import AgentLoader
 from google.adk.cli.utils.service_factory import create_session_service_from_options
 
 from sdlc_web.middleware import current_oid
+from sdlc_web.threads import mount_threads
 
 AGUI_PATH = "/agui"
 
@@ -50,4 +53,5 @@ def mount_agui(
         allow_scoped_state_keys=False,
     )
     add_adk_fastapi_endpoint(app, agent, path=path)
+    mount_threads(app, sessions, agent_name)
     return agent

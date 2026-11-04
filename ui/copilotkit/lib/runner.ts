@@ -5,9 +5,11 @@
 // authenticate users itself (the agent does), so that store would let one user replay another
 // user's conversation. This runner passes each run straight to the agent and stores nothing:
 // conversation history lives in the agent's session store, which is per user (token oid).
-// `connect` replays nothing; `stop` aborts an in-flight run of this process.
+// `connect` (opening a thread, version-02 N15) asks the agent for that thread's messages as the
+// same user (the forwarded token, nothing else) and replays them as one MESSAGES_SNAPSHOT; without
+// a token or a history URL it replays nothing. `stop` aborts an in-flight run of this process.
 
-import type { AbstractAgent, BaseEvent } from "@ag-ui/client";
+import { type AbstractAgent, type BaseEvent, EventType } from "@ag-ui/client";
 import {
   AgentRunner,
   type AgentRunnerConnectRequest,
@@ -16,12 +18,34 @@ import {
   type AgentRunnerStopRequest,
   finalizeRunEvents,
 } from "@copilotkit/runtime/v2";
-import { EMPTY, type Observable, ReplaySubject } from "rxjs";
+import { EMPTY, Observable, ReplaySubject } from "rxjs";
+
+import { historyMessages, THREAD_ID } from "./threads.ts";
+
+export const TOKEN_HEADER = "x-forwarded-access-token";
+const HISTORY_TIMEOUT_MS = 15_000;
 
 type Active = { agent: AbstractAgent; runId: string; stopRequested: boolean };
 
+function headerValue(headers: Record<string, string> | undefined, name: string): string {
+  for (const [key, value] of Object.entries(headers ?? {})) {
+    if (key.toLowerCase() === name) return value;
+  }
+  return "";
+}
+
 export class PassThroughAgentRunner extends AgentRunner {
   private readonly active = new Map<string, Active>();
+
+  private readonly historyUrl: string | undefined;
+  private readonly fetchImpl: typeof fetch;
+
+  /** @param historyUrl the agent's /agents/state URL (internal); unset = no history replay */
+  constructor(historyUrl?: string, fetchImpl: typeof fetch = fetch) {
+    super();
+    this.historyUrl = historyUrl;
+    this.fetchImpl = fetchImpl;
+  }
 
   run(request: AgentRunnerRunRequest): Observable<BaseEvent> {
     const subject = new ReplaySubject<BaseEvent>(Infinity);
@@ -57,8 +81,41 @@ export class PassThroughAgentRunner extends AgentRunner {
     return subject.asObservable();
   }
 
-  connect(_request: AgentRunnerConnectRequest): Observable<BaseEvent> {
-    return EMPTY; // nothing stored here: history comes from the agent, per user
+  connect(request: AgentRunnerConnectRequest): Observable<BaseEvent> {
+    // nothing stored here: history comes from the agent, for the user the token names
+    const token = headerValue(request.headers, TOKEN_HEADER);
+    if (!this.historyUrl || !token || !THREAD_ID.test(request.threadId)) return EMPTY;
+    const { historyUrl, fetchImpl } = this;
+    return new Observable<BaseEvent>((subscriber) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), HISTORY_TIMEOUT_MS);
+      fetchImpl(historyUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json", [TOKEN_HEADER]: token },
+        body: JSON.stringify({ threadId: request.threadId }),
+        signal: controller.signal,
+      })
+        .then(async (response) => (response.ok ? historyMessages(await response.json()) : []))
+        .then((messages) => {
+          if (messages.length > 0) {
+            const ids = { threadId: request.threadId, runId: `history-${crypto.randomUUID()}` };
+            subscriber.next({ type: EventType.RUN_STARTED, ...ids } as BaseEvent);
+            subscriber.next({ type: EventType.MESSAGES_SNAPSHOT, messages } as BaseEvent);
+            subscriber.next({ type: EventType.RUN_FINISHED, ...ids } as BaseEvent);
+          }
+          subscriber.complete();
+        })
+        .catch((error: unknown) => {
+          // an unreadable history opens an empty thread; no details (they could carry data)
+          console.error("history load failed:", error instanceof Error ? error.name : typeof error);
+          subscriber.complete();
+        })
+        .finally(() => clearTimeout(timer));
+      return () => {
+        clearTimeout(timer);
+        controller.abort();
+      };
+    });
   }
 
   async isRunning(request: AgentRunnerIsRunningRequest): Promise<boolean> {

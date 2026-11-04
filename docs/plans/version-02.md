@@ -39,6 +39,7 @@ are a proposal to confirm milestone by milestone.
 | N12 — Team `sdlc-platform` + GitHub source | ✅ Built (2026-11-03) | `platform` → `sdlc-platform`, members from users.yaml only, source = GitHub `agentic-sdlc-core` tracking `main`; git loader partial-clone fix (§15). Open: re-ingest + remove dropped-source data once all sources are fixed ([pending-task.md](pending-task.md) task 2) |
 | N13 — Config from the config store bucket | ✅ Built (2026-11-03); local bundle checked | MCP + ingest read config bundles from `gs://sdlc-config-store-a7484d8b/bundles/<env>/`, pointer polled every 60 s, `-Step config` publishes (§16). Part of N5 (bundles + reload). Open: `base`, `config`, `images`, `plan`, `apply` on GCP |
 | N14 — Sample sources from the config store bucket | ✅ Built (2026-11-03); live dry-run checked | One-time upload of `samples/sources/*` to `gs://sdlc-config-store-a7484d8b/source_docs/<source id>/`; `eng-standards`, `payments-code`, `payments-incidents` are `gcs` sources (§17); repo copy moved to `tests/fixtures/sample_sources/`. Local DB re-ingested. Open: ingest on GCP ([pending-task.md](pending-task.md) task 2) |
+| N15 — Chat history in the CopilotKit app | ✅ Built (2026-11-04); local stack checked | History sidebar: `GET /threads` (agent, per user) lists previous chats, opening one replays its messages from the agent's `/agents/state`; thread in the URL (§18). Open: GCP `images` + `plan` + `apply` |
 | Pending — Agent runtimes (user / CI / ops) | 📝 Design only | Workload identity, read + report back; trigger sources not decided (D7, [pending-task.md](pending-task.md)) |
 | Deferred — Gemini Enterprise | ⏸ | Design in version-01 §6; needs an org admin, a workforce pool and licences |
 
@@ -280,7 +281,9 @@ on the chat after sign-in, and the navbar should show the signed-in user with th
 - **Navbar user status** (`components/UserStatus.tsx`, `lib/status.ts`) on the chat and Connections pages:
   initials + name, one dot per connection (green connected, amber expiring within 14 days / expired / rejected by
   the provider, grey not connected), a panel with each connection's account and expiry, links to Connections and
-  Sign out. Refreshes on focus and after a connect/disconnect.
+  Sign out. Refreshes on focus and after a connect/disconnect. Sign out clears the oauth2-proxy cookie; every
+  sign-in sends `prompt=select_account` (`OAUTH2_PROXY_PROMPT`, compose + `run.tf`, 2026-11-04), so Entra shows
+  the account picker instead of signing the same user straight back in.
   - `GET /me` (agent middleware): `{name, upn}` from the validated token only (no oid, groups or token),
     `Cache-Control: no-store`.
   - PAT status from the existing `GET /connections/` (MCP server; never returns tokens). Connections off (503) or a
@@ -465,3 +468,38 @@ store was not used: it deletes objects after 7 days, keeps no versions and is wr
   task 2).
 - Changing a sample document: edit it in `tests/fixtures/sample_sources/` and upload it again (its README).
 - The bucket name is in the source config (sources are not per environment): local and GCP dev read the same objects.
+
+## 18. Chat history in the CopilotKit app (N15) — built 2026-11-04
+
+Users could reopen earlier conversations only in the ADK dev UI. The chat app now has the same: a history sidebar
+backed by the agent's per-user session store (the one the dev UI reads). Nothing is stored in the chat app.
+
+**As built:**
+- Agent: `GET /threads` (`libs/sdlc_web/src/sdlc_web/threads.py`, mounted with `/agui`) lists the caller's sessions
+  (`current_oid()` from the validated token; a client `user_id` is ignored), newest first, at most 30:
+  `{threadId, title, updatedAt}`. `threadId` = ag_ui_adk's thread key in session state, or the session id for
+  sessions started in the dev UI (ag_ui_adk opens those too, so the history is shared). `title` = the first user
+  message (whitespace collapsed, 60 characters); state, tool calls and results are never returned. Sessions without a
+  user message or stamped by another app are skipped. Titles are cached per (user, session) in the process; a store
+  error answers 503 without details.
+- Opening a thread: `<CopilotChat threadId>` connects to it; `PassThroughAgentRunner.connect` (`ui/copilotkit/lib/runner.ts`)
+  posts `{threadId}` to the agent's `/agents/state` with the forwarded user token only, cleans the messages
+  (`historyMessages`: user/assistant/tool, nulls dropped) and replays them as RUN_STARTED, MESSAGES_SNAPSHOT,
+  RUN_FINISHED. No token, a bad thread id or an unreadable history opens an empty thread. The runner still stores
+  nothing and does not implement CopilotKit's local thread endpoints.
+- Runs send only the latest turn (`messageFilter={latestTurn}`): the agent already holds the conversation, so replayed
+  history (with ids ag_ui_adk did not record) is never taken as new input.
+- UI: `components/ThreadList.tsx` ("New chat", the list, refreshed on load, focus and after each run); the open thread
+  is in the URL (`/chat/?thread=<id>`, validated), so reload and bookmarks reopen it. Hidden below 760 px.
+- oauth2-proxy: `threads` added to `OAUTH2_PROXY_API_ROUTES` (compose + `run.tf`): an expired session gets 401, not
+  a login redirect.
+- Not changed: `use_thread_id_as_session_id` stays off (session ids are engine-wide on Agent Engine; the thread key
+  in session state already maps threads); retention (7 days) still deletes old chats.
+- Tests: `tests/web/test_agui.py` (sign-in required, only the caller's threads even with a forged `user_id`, newest
+  first, titles cut, a listed thread opens with its history); `ui/copilotkit/tests/threads.test.ts` (parsing, URL ids,
+  latest turn, history cleaning) and `runtime.test.ts` (replay as the same user only; another or no token gets nothing).
+
+**Open:**
+- GCP: `images` (agent + chat app) and `plan` + `apply` (oauth2-proxy routes); check the list and reopening a chat on
+  Agent Engine sessions (one listing + one read per new session).
+- Later, if wanted: delete/rename chats, search across chats, paging beyond 30.
