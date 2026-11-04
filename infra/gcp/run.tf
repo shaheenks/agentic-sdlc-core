@@ -31,6 +31,7 @@ locals {
       SDLC_SECRETS_PROJECT      = var.project_id
     },
     local.bundles_env,
+    local.trace_env,
     # direct members (version-02 N10) without bundles: read from the secret mount
     local.users_secret ? { SDLC_USERS_FILE = "${local.users_dir}/users.yaml" } : {},
   )
@@ -69,7 +70,7 @@ locals {
     OAUTH2_PROXY_WHITELIST_DOMAINS                    = local.app_host
   }
 
-  agent_env = merge(local.vertex_env, local.agent_entra_env, {
+  agent_env = merge(local.vertex_env, local.agent_entra_env, local.trace_env, {
     SDLC_MCP_URL     = "https://${local.mcp_host}/mcp"
     SDLC_AGENT_MODEL = var.agent_model
     # 0.0.0.0, not 127.0.0.1: Cloud Run's startup probes do not connect over loopback. Still private:

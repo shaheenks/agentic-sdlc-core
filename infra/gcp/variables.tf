@@ -140,3 +140,9 @@ variable "schedule_time_zone" {
   type        = string
   default     = "Etc/UTC"
 }
+
+variable "cloud_trace" {
+  description = "Export agent and MCP traces to Cloud Trace (version-02 N4). Spans carry no prompts, tokens or argument values."
+  type        = bool
+  default     = false
+}

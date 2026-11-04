@@ -250,6 +250,25 @@ sdlc groups):
    `secrets.create`), then read a file through the chat.
 7. Audit records in Cloud Logging (`jsonPayload.event` for `tool_call`, `tools_list`, `auth_failure`,
    `connection_change`): `gcloud logging read 'resource.labels.service_name="sdlc-mcp-dev"' --limit 50`.
+8. Traces (version-02 N4, `cloud_trace = true`): Cloud Console > Trace explorer, service `sdlc-user-agent` /
+   `sdlc-core-mcp`. One chat turn is one trace (agent → MCP → Postgres). Spans carry no prompts, tokens or argument
+   values: open a `tools/call` span and check its attributes (`sdlc.*` identifiers, `enduser.id`; no argument values).
+
+### Audit views (Logs Explorer queries, version-02 N4)
+
+Paste into Logs Explorer (project `sdlc-demo-env01`) or use with `gcloud logging read '<query>' --limit 50`.
+Saved queries are per user in the console; these are the shared definitions.
+
+| View | Query |
+|---|---|
+| All audit records | `resource.type="cloud_run_revision" resource.labels.service_name="sdlc-mcp-dev" jsonPayload.event:*` |
+| Denied tool calls | `resource.labels.service_name="sdlc-mcp-dev" jsonPayload.event="tool_call" jsonPayload.decision="deny"` |
+| Rate limited | `resource.labels.service_name="sdlc-mcp-dev" jsonPayload.outcome="rate_limited"` |
+| Sign-in / token failures | `resource.labels.service_name="sdlc-mcp-dev" jsonPayload.event="auth_failure"` (blocked users: add `jsonPayload.reason="blocked"`) |
+| Connection changes (users + reconcile) | `jsonPayload.event="connection_change"` (reconcile only: add `jsonPayload.actor="reconcile"`; job logs have `resource.labels.job_name="sdlc-reconcile-dev"`) |
+| One user | `jsonPayload.oid="<object id>"` |
+| One conversation | `jsonPayload.agent_session_id="<conversation id>"` |
+| Audit records of a trace | `jsonPayload.trace_id="<32-hex trace id from Trace explorer>"` |
 
 ## 9. Cost (rough, per month)
 

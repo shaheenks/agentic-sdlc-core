@@ -32,6 +32,14 @@ resource "google_project_iam_member" "w" {
   member   = google_service_account.w[each.value.workload].member
 }
 
+# Cloud Trace (version-02 N4): the traced workloads may write spans, nothing else.
+resource "google_project_iam_member" "trace" {
+  for_each = var.cloud_trace ? toset(["mcp", "app"]) : toset([])
+  project  = var.project_id
+  role     = "roles/cloudtrace.agent"
+  member   = google_service_account.w[each.value].member
+}
+
 resource "google_secret_manager_secret_iam_member" "w" {
   for_each  = local.secret_grants
   secret_id = google_secret_manager_secret.s[each.value.secret].id

@@ -209,6 +209,8 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
   Jaeger UI http://localhost:16686. One agent turn is one trace across agent, MCP server and Postgres (context travels in
   MCP `_meta`, not HTTP headers; never add a per-call trace header: it would break one MCP session per conversation).
   Spans carry no prompts, responses, tokens or argument values (agent tool args export as `{}`). Audit records carry `trace_id`.
+  GCP (version-02 N4): `cloud_trace = true` sets `SDLC_TRACE_TO_CLOUD=true` (Cloud Trace exporter, takes precedence over OTLP;
+  `roles/cloudtrace.agent` on the MCP and app service accounts). Audit log queries: docs/GCP_DEPLOYMENT.md "Audit views".
 - `cd ui/copilotkit; npm ci; npm test; npm run typecheck; npm run build`   chat app checks (exact versions pinned; telemetry off)
 - CI: `.github/workflows/ci.yml` (lint, config validate + PR permission diff, UI typecheck/test/build, tests on a pgvector service after
   `sdlc-db bootstrap` + `migrate`, terraform fmt/validate). No secrets or cloud calls in CI; tests must pass without `.env`

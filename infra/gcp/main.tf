@@ -14,6 +14,8 @@ locals {
     "iam.googleapis.com",
     "storage.googleapis.com",
     "cloudresourcemanager.googleapis.com", # data.google_project; enable once by hand before the first plan
+    # version-02 N4: Cloud Trace (no cost while cloud_trace = false)
+    "cloudtrace.googleapis.com",
   ]
 
   # Cloud Run's deterministic URLs (https://<service>-<project number>.<region>.run.app), known
@@ -47,6 +49,10 @@ locals {
     ENTRA_API_CLIENT_ID = var.entra_api_client_id
   }
   agent_entra_env = merge(local.entra_env, { ENTRA_AUTHORITY_HOST = var.entra_authority_host })
+
+  # Cloud Trace (version-02 N4): agent and MCP export spans with their service identity. Same span
+  # rules as locally (no prompts, tokens or argument values); one agent turn = one trace.
+  trace_env = var.cloud_trace ? { SDLC_TRACE_TO_CLOUD = "true" } : {}
 }
 
 resource "google_project_service" "apis" {

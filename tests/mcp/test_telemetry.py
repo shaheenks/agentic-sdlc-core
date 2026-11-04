@@ -12,8 +12,38 @@ from sdlc_core_mcp.audit import emit
 def test_tracing_is_off_without_an_endpoint(monkeypatch):
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", raising=False)
+    monkeypatch.delenv("SDLC_TRACE_TO_CLOUD", raising=False)
     assert telemetry.setup_tracing() is False
     assert telemetry.current_trace_id() is None
+
+
+def test_cloud_trace_exporter_selection(monkeypatch):
+    """version-02 N4: SDLC_TRACE_TO_CLOUD picks Cloud Trace (over OTLP) and needs the project."""
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger:4318")
+    monkeypatch.setenv("SDLC_TRACE_TO_CLOUD", "true")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "proj-123")
+    created = {}
+
+    class FakeCloudTrace:
+        def __init__(self, project_id):
+            created["project"] = project_id
+
+    import opentelemetry.exporter.cloud_trace as cloud_trace
+
+    monkeypatch.setattr(cloud_trace, "CloudTraceSpanExporter", FakeCloudTrace)
+    exporter, label = telemetry._exporter()
+    assert isinstance(exporter, FakeCloudTrace) and created == {"project": "proj-123"}
+    assert label == "Cloud Trace (proj-123)" and telemetry.enabled()
+
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT")
+    import pytest
+
+    with pytest.raises(RuntimeError, match="GOOGLE_CLOUD_PROJECT"):
+        telemetry._exporter()
+
+    monkeypatch.setenv("SDLC_TRACE_TO_CLOUD", "false")
+    _, label = telemetry._exporter()
+    assert label == "OTLP/HTTP"
 
 
 def test_audit_record_and_span_reference_each_other(caplog):

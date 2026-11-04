@@ -32,6 +32,7 @@ def create_app(
     dev_tools: bool = False,
     agui_agent: str | None = None,
     allow_origins: list[str] | None = None,
+    trace_to_cloud: bool = False,
 ):
     # Explicit session store: memory:// by default; docker compose persists conversations in
     # sqlite:////data/sessions.db on a volume only this container mounts (agents get no DB
@@ -49,6 +50,9 @@ def create_app(
         # (Cloud Run: oauth2-proxy sends Host 127.0.0.1:8000). Without it ADK's cross-origin guard
         # refuses the dev UI's module scripts (403). Unset: same-origin only, as before.
         allow_origins=allow_origins or None,
+        # GCP (version-02 N4): ADK's Cloud Trace exporter (GOOGLE_CLOUD_PROJECT, the service
+        # identity, roles/cloudtrace.agent). Locally: OTLP to Jaeger via OTEL_EXPORTER_OTLP_*.
+        trace_to_cloud=trace_to_cloud,
     )
 
     @adk_app.get("/healthz", include_in_schema=False)
@@ -120,6 +124,7 @@ def main() -> None:
         allow_origins=[
             o.strip() for o in os.environ.get("SDLC_ALLOWED_ORIGINS", "").split(",") if o.strip()
         ],
+        trace_to_cloud=os.environ.get("SDLC_TRACE_TO_CLOUD", "").lower() == "true",
     )
     log.info("serving agents from %s on %s:%s (Entra user binding on)", agents_dir, host, port)
     uvicorn.run(app, host=host, port=port, proxy_headers=True, forwarded_allow_ips="*")

@@ -1,8 +1,12 @@
-"""OpenTelemetry tracing for the MCP server (H8.3). Off unless an OTLP endpoint is configured.
+"""OpenTelemetry tracing for the MCP server (H8.3). Off unless an exporter is configured.
 
-Enabled by the standard variables OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-(OTLP over HTTP, e.g. http://jaeger:4318). fastmcp already opens a span per MCP request; this adds
-the exporter and psycopg spans (SQL text only: psycopg instrumentation records no parameter values).
+Exporters:
+- OTLP over HTTP (local, e.g. Jaeger): the standard OTEL_EXPORTER_OTLP_ENDPOINT or
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT (e.g. http://jaeger:4318).
+- Cloud Trace (GCP, version-02 N4): SDLC_TRACE_TO_CLOUD=true, project from GOOGLE_CLOUD_PROJECT,
+  the service identity's credentials (roles/cloudtrace.agent). Takes precedence over OTLP.
+fastmcp already opens a span per MCP request; this adds the exporter and psycopg spans (SQL text
+only: psycopg instrumentation records no parameter values). The span rules are the same for both.
 
 Privacy: spans carry no tokens and no tool argument values. The policy middleware adds only
 `sdlc.request_id`, `sdlc.agent_session_id`, `enduser.id` (oid), `sdlc.tool` and the decision, and
@@ -24,20 +28,37 @@ log = logging.getLogger("sdlc.mcp")
 _configured = False
 
 
+def to_cloud() -> bool:
+    return os.environ.get("SDLC_TRACE_TO_CLOUD", "").lower() == "true"
+
+
 def enabled() -> bool:
-    return bool(
+    return to_cloud() or bool(
         os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
         or os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
     )
 
 
+def _exporter():
+    """(exporter, label). Cloud Trace needs the project; without it, fail loudly at startup."""
+    if to_cloud():
+        from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
+
+        project = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
+        if not project:
+            raise RuntimeError("SDLC_TRACE_TO_CLOUD=true needs GOOGLE_CLOUD_PROJECT")
+        return CloudTraceSpanExporter(project_id=project), f"Cloud Trace ({project})"
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+    return OTLPSpanExporter(), "OTLP/HTTP"
+
+
 def setup_tracing(service_name: str = "sdlc-core-mcp") -> bool:
-    """Install a tracer provider with an OTLP/HTTP exporter and psycopg instrumentation.
-    Returns False (and changes nothing) when no endpoint is configured."""
+    """Install a tracer provider with the configured exporter and psycopg instrumentation.
+    Returns False (and changes nothing) when no exporter is configured."""
     global _configured
     if _configured or not enabled():
         return _configured
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
     from opentelemetry.instrumentation.psycopg import PsycopgInstrumentor
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
@@ -45,11 +66,12 @@ def setup_tracing(service_name: str = "sdlc-core-mcp") -> bool:
 
     resource = Resource.create({"service.name": os.environ.get("OTEL_SERVICE_NAME", service_name)})
     provider = TracerProvider(resource=resource)
-    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+    exporter, label = _exporter()
+    provider.add_span_processor(BatchSpanProcessor(exporter))
     trace.set_tracer_provider(provider)
     PsycopgInstrumentor().instrument(enable_commenter=False)
     _configured = True
-    log.info("tracing enabled (OTLP/HTTP)")
+    log.info("tracing enabled (%s)", label)
     return True
 
 
