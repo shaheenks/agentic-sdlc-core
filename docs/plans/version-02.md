@@ -26,12 +26,12 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 |---|---|---|
 | N0 — Carry-over checks | ⏳ | version-01 §10.4 checks not yet confirmed on localhost / the tunnel (G1, G2, G5, G7) |
 | N1 — Dev sources on GCP + ingest | ⏳ | Needs the list of sources (§1) |
-| N2 — Live connector checks + retrieval eval | ⏳ | Needs test instances and tokens (§2, §8) |
+| N2 — Live connector checks + retrieval eval | ⏳ | Cloud editions only in version-02 (scope 2026-11-04); Data Center checks → version-03. Needs D2 and tokens (§2, §8) |
 | N3 — Block list and secret management review | ⏳ | Review first, then build (§3) |
 | N4 — Observability on GCP | ⏳ | Cloud Trace export (§4) |
-| N5 — GCP operations (Stage 7b) | ⏳ | Scale-out, bundles + reload, CI deploy, hostnames, staging (§5) |
-| N6 — Product backlog | ⏳ | Pick items per priority (§6) |
-| N7 — Agent-generated UI (A2UI) + A2A path for Gemini Enterprise | ⏳ | Approved 2026-10-30; spike first, keep CopilotKit (§10) |
+| N5 — GCP operations (Stage 7b) | ➡️ Moved to version-03 (2026-11-04) | Bundles + reload done by N13; its Stage 7b gate is checked in §19 R2. Scale-out, CI deploy, hostnames, private IP, staging, E1/E4–E6 → version-03 (§5) |
+| N6 — Product backlog | ➡️ Moved to version-03 (2026-11-04) | Chat history done by N15; the rest of §6 (incl. write tools) → version-03 |
+| N7 — Agent-generated UI (A2UI) + A2A path for Gemini Enterprise | ⏳ Spike only in version-02 | Approved 2026-10-30; spike first, keep CopilotKit (§10); building the result → version-03 unless the spike says otherwise |
 | N8 — Chat UX | ✅ Built (2026-10-30); answer rendering confirmed by the user | Answer formatting, `/` opens the chat, navbar user + PAT status (§11). Open: navbar and `/` check in the browser, GCP `images` + `plan` + `apply` |
 | N9 — Per-source Entra groups | ✅ Built (2026-11-02) | Sources grant by their own Entra group or `everyone: true`; `graph_query` moved to viewer (§12). Open: real `infra-readers` group in the tenant |
 | N10 — Direct members by email (users.yaml) | ✅ Built (2026-11-02) | Users added to teams/roles in git-ignored `users.yaml`, matched by oid; `sdlc-config users sync`; GCP secret mount (§13). Open: GCP `plan` + `apply`, live check |
@@ -43,8 +43,12 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 | Pending — Agent runtimes (user / CI / ops) | 📝 Design only | Workload identity, read + report back; trigger sources not decided (D7, [pending-task.md](pending-task.md)) |
 | Deferred — Gemini Enterprise | ⏸ | Design in version-01 §6; needs an org admin, a workforce pool and licences |
 
-**Next:** follow the order in §19 (remaining-work plan, 2026-11-04): R1 local checks, R2 GCP dev catch-up deploy,
-R3 merge to `main`, R4 decisions; R5 (security review), R6 (Cloud Trace) and R9 (A2UI spike) can start any time.
+**Scope (narrowed 2026-11-04):** version-02 = close out N8–N15 (checks, GCP deploy, merge to `main`), N0, N1, N2
+(Cloud editions), N3, N4 and the N7 spike. No new features until R1 and R2 are done.
+
+**Next:** follow the order in §19 (remaining-work plan, 2026-11-04): R1 local checks (checklist in §19), R2 GCP dev
+catch-up deploy, R3 merge to `main`, R4 decisions; R5 (security review), R6 (Cloud Trace) and R9 (A2UI spike) can
+start any time.
 
 ## Open decisions
 
@@ -53,8 +57,8 @@ R3 merge to `main`, R4 decisions; R5 (security review), R6 (Cloud Trace) and R9 
 | D1 | Which sources does GCP dev get? (keep the sample folders? `sdlc-platform`: https GitHub location or drop it? which GitHub/Bitbucket repos, GCS bucket, Confluence space, Jira project; their secret names) | N1 |
 | D2 | Which Atlassian Cloud site replaces the `acme.atlassian.net` placeholder in `config/connections.yaml`? Is a Data Center test instance available? | N2 |
 | D3 | Block list and secret management: scope of the review (§3); one user secret per user stays, or move to one per connection / a separate credential service? | N3 |
-| D4 | A staging environment in version-02, or dev only? (project, region, hostnames) | N5 |
-| D5 | Write tools on behalf of the user (create issue, comment, PR): in version-02 or later? | N6 |
+| D4 | A staging environment in version-02, or dev only? **Decided 2026-11-04:** dev only; staging in version-03 with N5 | — |
+| D5 | Write tools on behalf of the user (create issue, comment, PR)? **Decided 2026-11-04:** version-03 (with N6 and the agent runtimes) | — |
 | D6 | Replace CopilotKit with an own chat client (`@ag-ui/client` + `@a2ui/react`)? **Not pursued** (2026-10-30): no Gemini Enterprise benefit (GE has its own UI); it would only remove the Node runtime and its workarounds at the cost of owning a chat UI. Revisit if the CopilotKit runtime becomes a burden | — |
 | D7 | Agent runtimes: interactive `user_agent` plus autonomous `ci_agent` / `ops_agent` (own workload identity, read + report back). **Pending** (2026-11-03): trigger sources not decided; design in [pending-task.md](pending-task.md) | later (version-03) |
 
@@ -561,26 +565,61 @@ and `gcp_deploy.ps1`, decisions, admin actions); **Claude** = code, config and d
 | R1 | Local checks of built work | N0, N8, N10 | nothing | you (Claude prepares the checklist) |
 | R2 | GCP dev catch-up deploy + checks | N8, N10, N11, N13, N14, N15; pending task 2 step 5 | R1 (commit first) | you |
 | R3 | Merge version-02 to `main`, fix eval paths | pending task 2 step 6 | R2 | you + Claude |
-| R4 | Decisions round | D1–D5, artifacts (pending task 3), `infra-readers` group | — | you |
+| R4 | Decisions round | D1–D3, artifacts (pending task 3), `infra-readers` group (D4, D5 decided) | — | you |
 | R5 | N3 security review, then build | N3, E3 | D3 (the review can start now) | Claude, then you on GCP |
 | R6 | N4 observability on GCP | N4 | nothing | Claude, then you on GCP |
 | R7 | N1 dev sources on GCP | N1 | D1, tokens (§8) | Claude, then you on GCP |
-| R8 | N2 live connector checks + eval | N2, H10 | D2, R7, test instances (§8) | you + Claude |
+| R8 | N2 live connector checks + eval (Cloud editions) | N2, H10 | D2, R7, tokens (§8) | you + Claude |
 | R9 | N7 A2UI spike | N7 | nothing (spike only) | Claude |
-| R10 | N5 GCP operations | N5, E1, E4–E6 | D4; Entra admin per change | Claude, then you |
-| R11 | N6 backlog: pick items | N6, D5 | R4 | you pick, Claude builds |
+| ~~R10~~ | ~~N5 GCP operations~~ → version-03 | N5, E1, E4–E6 | — | — |
+| ~~R11~~ | ~~N6 backlog~~ → version-03 | N6, D5 | — | — |
 
 R5, R6 and R9 depend neither on each other nor on outside people, so they can run while R4's decisions and R7's
 prerequisites are being arranged.
 
-### R1 — Local checks of built work
-On localhost **and** the tunnel, after `docker compose up -d --build --wait`:
-- version-01 G1, G2, G5, G7 (version-01 §10.4) → closes N0.
-- N8: `/` lands in `/chat/`; answers read normally in light and dark theme; navbar name and connection dots; connect /
-  disconnect updates them.
-- N10: a test user with no sdlc groups, listed in `users.yaml`, sees their team in `whoami(explain=true)`.
-- Commit the open UI work (layout, artifacts panel placeholder) once its checks pass.
-- Gate: every item above ticked in §11, §13 and the Progress table.
+### R1 — Local checks of built work (checklist)
+Run by you; tick each box here, then mark N0, N8, N10 (and N15's local part) done in Progress. Test users: the
+payments developer, the platform/`users.yaml` member, the admin and your own account (no sdlc groups); UPNs stay
+out of the repo. Use a private window per user.
+
+**Setup**
+- [ ] `docker compose up -d --build --wait` (and `docker compose --profile tunnel up -d --wait` for the tunnel).
+- [ ] `uv run --env-file .env sdlc-config validate --env local` passes.
+- [ ] Paths: **L** = `http://localhost:4180`, **T** = `https://app-sdlc-dev.shaheenks.co.in`.
+
+**N0 — version-01 gates** (§10.4 of version-01)
+- [ ] G1 (L, T): the payments developer signs in; `/chat/` and `/dev-ui/` both load.
+- [ ] G2 (L): "who am I?" in `/chat/` and in `/dev-ui/` list the same teams, roles and tools. Compare the two
+      `tools_list` audit records: `docker compose logs core-mcp | Select-String '"event":"tools_list"'`.
+- [ ] G5 (L): `/dev-ui/` → the session → State shows no token key.
+- [ ] G7 (L): a connection whose token expires within 14 days shows the warning under the tool result and
+      "Expires in Nd" on the Connections page. (Set a short expiry when creating the PAT, or skip if none is at hand.)
+
+**N8 — chat UX** (L and T)
+- [ ] `/` lands in `/chat/` after sign-in; signing out and in again returns to the page you asked for.
+- [ ] Answers read normally (lists, code blocks, no blank line after every sentence) in the light and dark OS theme.
+- [ ] Navbar shows your name and one dot per connection; connecting / disconnecting on the Connections page updates
+      them after a reload.
+- [ ] A `search_knowledge` answer shows one line with document chips; clicking expands the cards, chip links open in
+      a new tab.
+- [ ] Below 1100 px the artifacts panel is hidden; "Artifacts" in the navbar toggles it (empty state only).
+
+**N10 — direct members** (L)
+- [ ] The `users.yaml` member (sdlc-platform, lead) asks "who am I? explain": team `sdlc-platform` appears with the rule
+      `env/local/users.yaml#users/<alias>/teams/sdlc-platform`.
+- [ ] Your own account (no sdlc groups, not in `users.yaml`) sees only `signed-in` (ping, whoami).
+- [ ] Optional strict check: add your own account to `users.yaml` (`teams: {sdlc-platform: [viewer]}`), run
+      `uv run sdlc-config users sync --env local --write`, wait for the reload, and check that you now see the team.
+      Remove the entry afterwards.
+
+**N15 — chat history** (L, quick re-check after the delete feature)
+- [ ] The sidebar lists earlier chats; opening one replays it; reload keeps the open chat (`?thread=` in the URL).
+- [ ] Deleting a chat removes it from the list and it does not come back after a reload.
+- [ ] A second user (private window) does not see the first user's chats; opening the first user's `?thread=` URL
+      gives an empty chat.
+
+**Gate:** every box ticked (or a skipped item written down with the reason); N0 → ✅, the "Open: …browser…" parts
+of N8 and N10 closed.
 
 ### R2 — GCP dev catch-up deploy
 One run covers every "Open: GCP ..." note of N8, N10, N11, N13, N14 and N15 (runbook: docs/GCP_DEPLOYMENT.md):
@@ -604,8 +643,8 @@ task 2.
 | D1 dev sources (repos, GCS bucket, Confluence space, Jira project, secret names) | R7 | The three sample sources + `sdlc-platform`, plus one Atlassian Cloud space and project |
 | D2 Atlassian site; Data Center instance? | R8 | Cloud first; DC checks only if an instance exists |
 | D3 security review scope; user-secret layout | R5 | Keep one secret per user; build the block list check, reconcile job and `--check-secrets` |
-| D4 staging in version-02? | R10 (staging part) | Dev only in version-02; staging opens version-03 |
-| D5 write tools now or later? | R11 | Later (version-03), together with the agent runtimes |
+| D4 staging in version-02? | — | **Decided 2026-11-04:** dev only; staging in version-03 |
+| D5 write tools now or later? | — | **Decided 2026-11-04:** version-03, with the agent runtimes |
 | Artifacts ([pending-task.md](pending-task.md) task 3) in version-02? | new milestone | N16 in version-02 if the artifacts panel should get data soon; otherwise version-03 |
 | `infra-readers` Entra group (admin action) | N9 live check | Create when a real per-source group is needed |
 
@@ -625,27 +664,27 @@ After D1: `config/sources/` for dev, `allowed_hosts`, one Secret Manager secret 
 outside Terraform; decide on an env prefix), `gcs_source_buckets`, Cloud Scheduler per source group (billable: needs
 your go-ahead), persona-matrix `data_rows` + CODEOWNERS rule per source. Gate as in §1.
 
-### R8 — N2 live connector checks (§2)
-Ingest and user-connection checks per provider and edition, Bitbucket DC "who am I", PDF OCR live (H10; needs a source
-with scanned PDFs now that `platform-infra` is gone), retrieval eval per source type, AG-UI gate items 2, 3 and 5.
-Gate: version-01 exit gate closed.
+### R8 — N2 live connector checks, Cloud editions (§2)
+Ingest and user-connection checks for GitHub, Bitbucket Cloud, GCS, Confluence Cloud and Jira Cloud; PDF OCR live
+(H10; needs a source with scanned PDFs now that `platform-infra` is gone); retrieval eval per source type; AG-UI gate
+items 3 and 5. Moved to version-03: every Data Center edition (incl. the Bitbucket DC "who am I" endpoint) and
+Antigravity in gate 2. Gate: version-01 exit gate closed for Cloud editions.
 
 ### R9 — N7 A2UI spike (§10)
 Spike only, no product code until it passes: A2UI over AG-UI and A2A from one code path, citation cards from the
 standard catalog, a version both GE and `@copilotkit/a2ui-renderer` accept, ADK's A2A server behind `sdlc_web`.
 Output: a short findings note in §10 and a go/no-go for §10 Work items 2–4.
 
-### R10 — N5 GCP operations (§5, remaining)
-Scale out `sdlc-app`; shared rate-limit store (only if `sdlc-mcp` scales past one instance); CI deploy stages with
-your approval on apply; custom hostnames + managed certificates (then drop the `*.run.app` exception); Cloud SQL
-private IP; E1/E4/E5/E6 (app roles, federated credentials, Entra apps in Terraform, no Azure CLI pre-auth outside
-dev; each Entra change confirmed). Staging only if D4 says so.
-
-### R11 — N6 backlog (§6)
-Pick by priority after R4. Candidates: Cloud + DC connections side by side, URL elicitation, Antigravity OAuth sign-in
-+ Stage 8 gate, `explain` by UPN, ADK evals in CI, retrieval ranking, new source types (SharePoint, Office documents).
-Write tools only if D5 = version-02.
+### Moved to version-03 (2026-11-04)
+- **N5 GCP operations (§5, remaining):** scale out `sdlc-app`; shared rate-limit store; CI deploy stages; custom
+  hostnames + managed certificates; Cloud SQL private IP; staging (D4); E1/E4/E5/E6.
+- **N6 backlog (§6):** Cloud + DC connections side by side, URL elicitation, Antigravity OAuth sign-in + Stage 8 gate,
+  `explain` by UPN, ADK evals in CI, retrieval ranking, SharePoint / Office sources, write tools (D5).
+- **N2 Data Center checks** and Antigravity in AG-UI gate 2.
+- **N7 build** (§10 Work items 2–4), unless the R9 spike makes a case for version-02.
+- **Pending tasks** ([pending-task.md](pending-task.md)): agent runtimes (task 1); artifacts (task 3) unless R4 takes it
+  as N16.
 
 ### Version-02 exit
-R1–R3 done; R5–R8 done or explicitly moved; R9 decided; R10/R11 items done or listed for version-03. Version-03 then
-starts with the pending tasks (agent runtimes; artifacts unless taken as N16) and whatever R10/R11 left.
+R1–R3 done; R5, R6, R7 and R8 (Cloud) done or explicitly moved with a reason; R9 spike written up with a go/no-go.
+Then version-03 starts from "Moved to version-03" above.
