@@ -28,7 +28,7 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 | N1 — Dev sources on GCP + ingest | 🔨 Built (2026-11-05); not applied | D1: the current four sources (already ingested on GCP in R2, no secrets needed). Added: Cloud Scheduler for the ingest job (`ingest_schedule`, off by default). Open: set the schedule, `plan` + `apply` (§19 R7) |
 | N2 — Live connector checks + retrieval eval | ⏳ | Cloud editions only in version-02 (scope 2026-11-04); Data Center checks → version-03. Needs D2 and tokens (§2, §8) |
 | N3 — Block list and secret management review | 🔨 Built (2026-11-05); not applied | Review: [docs/SECRETS_REVIEW.md](../SECRETS_REVIEW.md). Block list via bundles (tested), reconcile job + CLI, `validate --check-secrets`, rotation procedures, E3 decision (no lifetime policy / CAE now). Open: `images` + `plan` + `apply`, GCP checks (§19 R5) |
-| N4 — Observability on GCP | ⏳ | Cloud Trace export (§4) |
+| N4 — Observability on GCP | 🔨 Built (2026-11-05); not applied | Cloud Trace exporter for agent (ADK `trace_to_cloud`) and MCP (`SDLC_TRACE_TO_CLOUD`), `cloud_trace = true` in dev.tfvars, audit views as Logs Explorer queries (GCP_DEPLOYMENT §8). Open: `images` + `plan` + `apply`, gate check (§19 R6) |
 | N5 — GCP operations (Stage 7b) | ➡️ Moved to version-03 (2026-11-04) | Bundles + reload done by N13; its Stage 7b gate is checked in §19 R2. Scale-out, CI deploy, hostnames, private IP, staging, E1/E4–E6 → version-03 (§5) |
 | N6 — Product backlog | ➡️ Moved to version-03 (2026-11-04) | Chat history done by N15; the rest of §6 (incl. write tools) → version-03 |
 | N7 — Agent-generated UI (A2UI) + A2A path for Gemini Enterprise | ⏳ Spike only in version-02 | Approved 2026-10-30; spike first, keep CopilotKit (§10); building the result → version-03 unless the spike says otherwise |
@@ -701,6 +701,24 @@ Gate: review accepted; each kept item has tests and a GCP check.
 OTLP export to Cloud Trace from agent and MCP (same span rules as with Jaeger); log-based views for `tool_call`,
 `auth_failure`, `connection_change`. Gate: one agent turn = one trace in Cloud Trace with no prompts, tokens or
 argument values; audit records link to it by `trace_id`.
+
+**Built 2026-11-05:**
+- MCP: `telemetry.setup_tracing` picks Google's Cloud Trace exporter (`opentelemetry-exporter-gcp-trace`) when
+  `SDLC_TRACE_TO_CLOUD=true` (project from `GOOGLE_CLOUD_PROJECT`; fails at startup without it), else OTLP as before
+  (test: `tests/mcp/test_telemetry.py::test_cloud_trace_exporter_selection`).
+- Agent: `sdlc_web` passes ADK's `trace_to_cloud` (same exporter; ADK's `otel_to_cloud`, which also exports logs
+  and metrics, stays off).
+- Terraform: `cloud_trace` (default false; **dev.tfvars: true**) adds `SDLC_TRACE_TO_CLOUD` to the MCP and agent
+  containers and `roles/cloudtrace.agent` to their service accounts; `cloudtrace.googleapis.com` is enabled with the
+  other APIs. Cost: the first 2.5 M spans per month are free.
+- Audit views: Logs Explorer queries in docs/GCP_DEPLOYMENT.md §8 "Audit views" (denied calls, rate limited, auth
+  failures, connection changes incl. reconcile, per user / conversation / trace). Log-based metrics and alerts: version-03.
+
+**Your steps (GCP, same `images` + `plan` + `apply` as R5):** expect `roles/cloudtrace.agent` for
+`sdlc-dev-mcp` / `sdlc-dev-app`, the API, new revisions with `SDLC_TRACE_TO_CLOUD=true`. Then ask one question in
+`/chat/` that searches knowledge, open Trace explorer (last 15 min, service `sdlc-user-agent`), check that the trace
+holds agent, MCP and SQL spans with no prompt text or argument values, and that
+`jsonPayload.trace_id="<that trace id>"` in Logs Explorer finds the turn's audit records.
 
 ### R7 — N1 dev sources on GCP (§1)
 After D1: `config/sources/` for dev, `allowed_hosts`, one Secret Manager secret per `{secret:}` reference (values set
