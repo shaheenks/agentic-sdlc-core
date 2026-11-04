@@ -68,6 +68,8 @@ class EffectivePolicy:
     # Per-user calls per minute: scope ("*" = all tools, or a tool) -> (limit, rule it came from).
     # Most generous of the user's teams; "*" falls back to platform defaults/rate_limit.
     rate_limits: Mapping[str, tuple[int, str]] = field(default_factory=dict)
+    # Allowed tools that read knowledge data (tools.yaml `data_scoped: true`).
+    data_tools: tuple[str, ...] = ()
 
     @property
     def readable_sources(self) -> tuple[str, ...]:
@@ -87,6 +89,25 @@ class EffectivePolicy:
 
     def sees_skill(self, name: str) -> bool:
         return name in self.skills
+
+    def _explain_data(self) -> dict:
+        """Data view: `readable` lists only what the user can actually read, which needs both a
+        grant within the ceiling AND a knowledge tool. A grant without such a tool (e.g. an
+        `everyone: true` source for a user with only `signed-in`) is shown as such, not as
+        readable."""
+        data = {
+            "sources": {sid: list(r) for sid, r in sorted(self.data_sources.items())},
+            "max_classification": self.max_classification,
+            "tools": list(self.data_tools),
+            "readable": list(self.readable_sources) if self.data_tools else [],
+        }
+        if self.readable_sources and not self.data_tools:
+            data["note"] = (
+                "granted, but no knowledge tool: "
+                + ", ".join(self.readable_sources)
+                + " cannot be read until a role grants search_knowledge or graph_query"
+            )
+        return data
 
     def explain(self) -> dict:
         """JSON-friendly view for whoami(explain) / config_explain / CLI."""
@@ -114,11 +135,7 @@ class EffectivePolicy:
                 name: {"granted_by": list(g.granted_by), "team": g.team}
                 for name, g in sorted(self.skills.items())
             },
-            "data": {
-                "sources": {sid: list(r) for sid, r in sorted(self.data_sources.items())},
-                "max_classification": self.max_classification,
-                "readable": list(self.readable_sources),
-            },
+            "data": self._explain_data(),
             "rate_limits": {
                 scope: {"calls_per_minute": limit, "rule": rule}
                 for scope, (limit, rule) in sorted(self.rate_limits.items())
@@ -255,6 +272,7 @@ def resolve(
             {sid: snapshot.sources[sid].classification_rank for sid in data_sources}
         ),
         rate_limits=MappingProxyType(_rate_limits(snapshot, team_rules)),
+        data_tools=tuple(t for t in sorted(tools) if catalog[t].data_scoped),
     )
 
 

@@ -171,6 +171,27 @@ def test_source_group_alone_has_no_knowledge_tool(config_dir):
     policy = resolve(load(config_dir), ["infra-readers"])
     assert "platform-infra" in policy.data_sources
     assert not policy.allows("graph_query") and not policy.allows("search_knowledge")
+    data = policy.explain()["data"]
+    assert data["tools"] == [] and data["readable"] == []
+    assert "no knowledge tool" in data["note"]
+
+
+def test_explain_signed_in_only_lists_everyone_source_as_unreadable(config_dir):
+    """No sdlc groups: eng-standards (`everyone: true`, public) is granted, but signed-in has no
+    knowledge tool, so whoami(explain) must not call it readable."""
+    policy = resolve(load(config_dir), [])
+    assert set(policy.roles) == {"signed-in"}
+    assert "eng-standards" in policy.data_sources
+    data = policy.explain()["data"]
+    assert data["readable"] == [] and data["tools"] == []
+    assert "eng-standards" in data["note"]
+
+
+def test_explain_viewer_lists_readable_sources_and_tools(config_dir):
+    data = resolve(load(config_dir), ["eng-all", "payments-devs"]).explain()["data"]
+    assert data["tools"] == ["graph_query", "search_knowledge"]
+    assert set(data["readable"]) == {"eng-standards", "payments-code"}
+    assert "note" not in data
 
 
 @pytest.mark.parametrize(
