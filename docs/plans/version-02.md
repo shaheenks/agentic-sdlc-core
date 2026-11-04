@@ -26,12 +26,12 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 |---|---|---|
 | N0 — Carry-over checks | ✅ Done (2026-11-04) | version-01 G1, G2, G5, G7 passed on localhost / the tunnel (§19 R1) |
 | N1 — Dev sources on GCP + ingest | 🔨 Built (2026-11-05); not applied | D1: the current four sources (already ingested on GCP in R2, no secrets needed). Added: Cloud Scheduler for the ingest job (`ingest_schedule`, off by default). Open: set the schedule, `plan` + `apply` (§19 R7) |
-| N2 — Live connector checks + retrieval eval | ⏳ | Cloud editions only in version-02 (scope 2026-11-04); Data Center checks → version-03. Needs D2 and tokens (§2, §8) |
+| N2 — Live connector checks + retrieval eval | ⏳ Checks C3–C7 open (§19 R8) | GitHub and GCS ingest live on GCP (R2). Atlassian (D2: no site), Data Center and the PDF OCR live check → version-03. Open: GitHub/Bitbucket Cloud user connections on GCP, AG-UI gates 3 and 5, retrieval eval after the merge |
 | N3 — Block list and secret management review | 🔨 Built (2026-11-05); not applied | Review: [docs/SECRETS_REVIEW.md](../SECRETS_REVIEW.md). Block list via bundles (tested), reconcile job + CLI, `validate --check-secrets`, rotation procedures, E3 decision (no lifetime policy / CAE now). Open: `images` + `plan` + `apply`, GCP checks (§19 R5) |
 | N4 — Observability on GCP | 🔨 Built (2026-11-05); not applied | Cloud Trace exporter for agent (ADK `trace_to_cloud`) and MCP (`SDLC_TRACE_TO_CLOUD`), `cloud_trace = true` in dev.tfvars, audit views as Logs Explorer queries (GCP_DEPLOYMENT §8). Open: `images` + `plan` + `apply`, gate check (§19 R6) |
 | N5 — GCP operations (Stage 7b) | ➡️ Moved to version-03 (2026-11-04) | Bundles + reload done by N13; its Stage 7b gate is checked in §19 R2. Scale-out, CI deploy, hostnames, private IP, staging, E1/E4–E6 → version-03 (§5) |
 | N6 — Product backlog | ➡️ Moved to version-03 (2026-11-04) | Chat history done by N15; the rest of §6 (incl. write tools) → version-03 |
-| N7 — Agent-generated UI (A2UI) + A2A path for Gemini Enterprise | ⏳ Spike only in version-02 | Approved 2026-10-30; spike first, keep CopilotKit (§10); building the result → version-03 unless the spike says otherwise |
+| N7 — Agent-generated UI (A2UI) + A2A path for Gemini Enterprise | ✅ Spike done (2026-11-05): GO, build in version-03 | Citation cards from the standard catalog without the model (Google's builder, validated); `/chat/` renders them with the CopilotKit 1.79 we have (`a2ui: { injectA2UITool: false }`); A2A needs `google-adk[a2a]` and an `oid`-bound call context (§10 spike findings) |
 | N8 — Chat UX | ✅ Built (2026-10-30); answer rendering confirmed by the user | Answer formatting, `/` opens the chat, navbar user + PAT status (§11). Browser checks passed (2026-11-04, §19 R1); deployed and checked on GCP dev (2026-11-05, §19 R2) |
 | N9 — Per-source Entra groups | ✅ Built (2026-11-02) | Sources grant by their own Entra group or `everyone: true`; `graph_query` moved to viewer (§12). Open: real `infra-readers` group in the tenant |
 | N10 — Direct members by email (users.yaml) | ✅ Built (2026-11-02) | Users added to teams/roles in git-ignored `users.yaml`, matched by oid; `sdlc-config users sync`; GCP secret mount (§13). Local live check passed (2026-11-04); on GCP dev via the config bundle (2026-11-05, §19 R2) |
@@ -46,9 +46,9 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 **Scope (narrowed 2026-11-04):** version-02 = close out N8–N15 (checks, GCP deploy, merge to `main`), N0, N1, N2
 (Cloud editions), N3, N4 and the N7 spike. No new features until R1 and R2 are done.
 
-**Next:** follow the order in §19 (remaining-work plan, 2026-11-04): R1 local checks (checklist in §19), R2 GCP dev
-catch-up deploy, R3 merge to `main`, R4 decisions; R5 (security review), R6 (Cloud Trace) and R9 (A2UI spike) can
-start any time.
+**Next (2026-11-05):** everything Claude can build for version-02 is built (N3, N4, N1 schedule, N7 spike). Left,
+all yours: merge the version-02 PR (R3), then one GCP `images` + `plan` + `apply` for N1/N3/N4 with the checks in §19
+R5–R7, then the R8 checklist (C3–C7). Version-02 closes when those pass (§19 "Version-02 exit").
 
 ## Open decisions
 
@@ -263,6 +263,33 @@ Explored and approved 2026-10-30. **Keep CopilotKit; make the agent GE-ready.**
    another user's session refused, client state sanitised, no token in persisted events); CI runs the UI checks.
 
 GE registration itself (OAuth authorization, GE app, Entra client) stays deferred (§7).
+
+### Spike findings (2026-11-05) — verdict: GO, build in version-03
+
+Checked against the installed versions, no product code (a scratch script only):
+
+| Question (Work item 1) | Finding |
+|---|---|
+| Can citation cards come from the standard catalog, without the model? | **Yes.** `a2ui-agent-sdk` 0.9.0 (already installed through `ag-ui-adk` 0.11) has a typed builder (`a2ui.builder.v0_9`). A citation = `Card` → `Column` → `Text` (title, `h4`), `Text` (source · path · lines, `caption`), `Button` with `action.functionCall` `openUrl(url)`; there is no Link component, `openUrl` is the catalog's way. Built from a `search_knowledge` hit, it serialises to `createSurface` + `updateComponents` (v0.9) and every component validates against the SDK's v0.9 basic-catalog models (an invalid variant is rejected). URLs are checked `http(s)` before building |
+| How does `/chat/` render it? | **No upgrade needed.** Our pinned `@copilotkit/react-core` 1.79.0 already ships `@copilotkit/a2ui-renderer` 1.79.0 and `@a2ui/web_core` 0.10.4 (v0.8 and v0.9 processors). Path: a tool result carrying `{"a2ui_operations": [...]}` → the runtime's A2UI middleware (`@ag-ui/a2ui-middleware` 0.0.10, enabled by `new CopilotRuntime({ a2ui: { injectA2UITool: false } })`) → an `a2ui-surface` activity → rendered. With `injectA2UITool: false` and no `schema`, nothing is injected into the model: the middleware only renders A2UI it finds |
+| `ag_ui_adk`'s own A2UI support? | **Not for us.** Its `generate_a2ui` tool has a sub-agent **model** write the UI (with a lenient validator). That breaks our rule that security-relevant UI is built deterministically from tool results; we use only the transport (the `a2ui_operations` key) and Google's builder |
+| Version for both GE and the chat app | **v0.9.** GE accepts v0.8 / v0.9 (§10 findings); the renderer processes both; the SDK's builder targets v0.9 |
+| ADK A2A server | Present in ADK 2.10 (`google.adk.a2a.utils.agent_to_a2a.to_a2a` → a Starlette app) but needs the `google-adk[a2a]` extra (`a2a-sdk`), not installed today. **Security finding:** without an authenticated call context, ADK sets the user id to `A2A_USER_<context_id>`, and the context id comes from the client: our endpoint must build the a2a-sdk call context from the token our middleware verified (`user_name` = token `oid`), never fall back. The user's token for MCP calls must be request-scoped, as on the AG-UI path |
+
+**Build plan (version-03; §10 Work items 2–4 stand, with these specifics):**
+1. A `sdlc_agent` helper turns structured MCP results (`search_knowledge` / `graph_query` citations, `whoami`,
+   connected-tool results) into v0.9 operations with the builder; an ADK `after_tool_callback` attaches them under
+   `a2ui_operations`. Decide during the build whether the model also sees that JSON (token cost, echo risk) or whether
+   it travels as a separate event.
+2. Runtime: `a2ui: { injectA2UITool: false }` in `ui/copilotkit/lib/runtime.ts`; replace the hand-written citation
+   renderers only where the A2UI result is equivalent (the compact chip line from N8 may stay).
+3. A2A: add `google-adk[a2a]`, mount `to_a2a(...)` under `sdlc_web` behind `EntraUserBindingMiddleware`, with an
+   a2a-sdk context builder that sets the user from the verified `oid`; tests: no token → 401, another user's
+   context id → refused, no token in session state.
+4. First step of the build: one end-to-end render of a citation card in `/chat/` (local), then the A2A client test.
+
+**Not verified (needs the build or GE):** the end-to-end render in the browser; whether GE renders our cards
+(needs a GE app, §7).
 
 ## 11. Chat UX (N8) — built 2026-10-30
 
@@ -741,20 +768,37 @@ Ingest and user-connection checks for GitHub, Bitbucket Cloud, GCS, Confluence C
 items 3 and 5. Moved to version-03: every Data Center edition (incl. the Bitbucket DC "who am I" endpoint) and
 Antigravity in gate 2. Gate: version-01 exit gate closed for Cloud editions.
 
+**Scope after D1/D2 (2026-11-05):** no Atlassian site → Confluence/Jira live checks and AG-UI gate 5's Jira part move
+to version-03. No source with scanned PDFs → the H10 OCR live check moves to version-03 (the OCR question left the
+eval with `platform-infra`). What stays, as a checklist (run by you; GCP dev unless noted):
+
+| # | Check | Status |
+|---|---|---|
+| C1 | GitHub **ingest** (https, tracked `main`): `sdlc-platform` ingested on GCP | ✅ R2 (2026-11-05) |
+| C2 | GCS **ingest**: the three sample sources from the config store bucket | ✅ R2 (2026-11-05) |
+| C3 | GitHub **user connection** on GCP: connect a fine-grained PAT on `/chat/connections` (first save on GCP also proves the IAM condition covers `secrets.create`), ask the chat to read a file of `agentic-sdlc-core` with `github_get_file`, disconnect, ask again → "not connected" | open |
+| C4 | Bitbucket Cloud **user connection**: an Atlassian API token *with scopes* (`read:user:bitbucket`, `read:repository:bitbucket`) + your Atlassian email on `/chat/connections`; read a file of `agentic-sdlc-demo/agentic-sdlc-core` with `bitbucket_get_file` | open |
+| C5 | AG-UI gate 5 (GitHub part): a second user whose GitHub account has no access to a private repo connects their own PAT and asks for a file there → the provider's 404/403 comes back as "no access", never another user's token | open (needs a private repo) |
+| C6 | AG-UI gate 3: an answer from `search_knowledge` shows citations with links (GitHub blob URL for `sdlc-platform`, bucket object for the samples); Isha (no knowledge tool) and Ana (viewer, no team) never see `payments-code` / `sdlc-platform` citations | open |
+| C7 | Retrieval eval: after the merge to `main` (R3) and a `sdlc-platform` re-ingest, `SDLC_EVAL=1 uv run --env-file .env pytest tests/evals -s` (local, live Vertex); record vector vs hybrid hit rates here | open (after R3) |
+
 ### R9 — N7 A2UI spike (§10)
 Spike only, no product code until it passes: A2UI over AG-UI and A2A from one code path, citation cards from the
 standard catalog, a version both GE and `@copilotkit/a2ui-renderer` accept, ADK's A2A server behind `sdlc_web`.
 Output: a short findings note in §10 and a go/no-go for §10 Work items 2–4.
+
+**Done 2026-11-05:** GO, build in version-03 (§10 "Spike findings").
 
 ### Moved to version-03 (2026-11-04)
 - **N5 GCP operations (§5, remaining):** scale out `sdlc-app`; shared rate-limit store; CI deploy stages; custom
   hostnames + managed certificates; Cloud SQL private IP; staging (D4); E1/E4/E5/E6.
 - **N6 backlog (§6):** Cloud + DC connections side by side, URL elicitation, Antigravity OAuth sign-in + Stage 8 gate,
   `explain` by UPN, ADK evals in CI, retrieval ranking, SharePoint / Office sources, write tools (D5).
-- **N2 Data Center checks** and Antigravity in AG-UI gate 2.
+- **N2:** Data Center checks, Antigravity in AG-UI gate 2, Confluence/Jira Cloud live checks (D2: no site), the H10
+  PDF OCR live check (needs a source with scanned PDFs), source secrets in Secret Manager (first private source).
 - **N7 build** (§10 Work items 2–4), unless the R9 spike makes a case for version-02.
-- **Pending tasks** ([pending-task.md](pending-task.md)): agent runtimes (task 1); artifacts (task 3) unless R4 takes it
-  as N16.
+- **Pending tasks** ([pending-task.md](pending-task.md)): agent runtimes (task 1); artifacts (task 3; decided
+  2026-11-05).
 
 ### Version-02 exit
 R1–R3 done; R5, R6, R7 and R8 (Cloud) done or explicitly moved with a reason; R9 spike written up with a go/no-go.
