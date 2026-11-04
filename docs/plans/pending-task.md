@@ -7,6 +7,7 @@ current plan ([version-02.md](version-02.md)) or a new numbered plan.
 |---|---|---|---|
 | 1 | [Agent runtimes: user, CI and ops agents](#task-1--agent-runtimes-user-ci-and-ops-agents) | Trigger sources decided | 2026-11-03 |
 | 2 | [Re-ingest and remove data of dropped sources](#task-2--re-ingest-and-remove-data-of-dropped-sources) | Local done; GCP dev ingest after deploy | 2026-11-03 |
+| 3 | [Agent-generated artifacts: storage and access](#task-3--agent-generated-artifacts-storage-and-access) | Use cases and storage decided | 2026-11-04 |
 
 ## Task 1 — Agent runtimes: user, CI and ops agents
 
@@ -195,3 +196,67 @@ local dev DB (checked 2026-11-03) still holds:
 5. GCP dev: same steps with `gcp_deploy.ps1 -Step ingest` (run by the user) after the config is deployed.
 6. Retrieval eval: `sdlc-platform` now tracks `main`; update `tests/evals/retrieval_questions.yaml` paths (e.g.
    `core_mcp`, `user_agent`) once version-02 is merged to GitHub `main`, then re-run `SDLC_EVAL=1 ... pytest tests/evals`.
+
+## Task 3 — Agent-generated artifacts: storage and access
+
+**Status:** pending, not scheduled (recorded 2026-11-04). Nothing here is built. Revisit when the first use cases
+and the storage choice are decided; then move it into the current or a new numbered plan.
+
+Related: [../ARCHITECTURE.md](../ARCHITECTURE.md) ("Conversation storage"), Task 1 (autonomous agents would produce
+reports too), [version-02.md](version-02.md) decision D5 (write tools).
+
+### 1. Goal
+
+Let agents produce files that outlive the chat reply: generated test files, design or review documents, user
+stories exported as Markdown, reports. Users can list, download and share them under the same RBAC as everything
+else.
+
+### 2. What exists today
+
+- The agent produces **chat text only**. `agents/user_agent` saves no artifacts and nothing writes files.
+- ADK's artifact service is **in memory**: `libs/sdlc_web/src/sdlc_web/app.py` passes `artifact_service_uri="memory://"`,
+  `use_local_storage=False`. Anything saved would be lost on restart and not shared across Cloud Run instances.
+- `generate_tests`, `review_code`, `approve_design` (`mcp_servers/core_mcp/.../sdlc_tools.py`) are stubs and store nothing.
+- Generated text survives only as session events in the conversation store (SQLite on the `agent-sessions` volume
+  locally, 7-day idle retention; Agent Engine sessions on GCP), bound to the user's `oid`. It is not in Postgres
+  and never reachable through `search_knowledge`.
+- The chat app stores nothing (`PassThroughAgentRunner`).
+
+### 3. Design sketch (proposal)
+
+- **Write through MCP, not the ADK artifact service.** Authorization lives in the MCP server, so artifacts are saved
+  and read through MCP tools (e.g. `save_artifact`, `list_artifacts`, `get_artifact`), each in `tools.yaml` with role
+  grants and persona-matrix rows. The ADK artifact service stays in memory (or off) so it can't become a second,
+  unaudited store.
+- **Storage:** object store for content (GCS bucket on GCP, a compose volume or local folder in dev) behind one
+  `libs/` interface; metadata in Postgres (owner `oid`, team, conversation id, name, media type, size, hash,
+  classification, created/expires) with RLS like the knowledge tables.
+- **Access:** owner-only by default. Sharing with the owner's team is an explicit choice. Classification defaults to
+  the highest classification among the sources the agent read in that conversation, so a summary of confidential
+  incidents can't be read by someone below that ceiling.
+- **Download:** an authenticated endpoint behind oauth2-proxy (like `/connections/`), or short-lived signed URLs
+  issued only after the policy check. The chat app shows artifacts as links, never inline data from other users.
+- **Limits:** max size per file and per user, allowed media types, retention (TTL) and deletion, per-user rate limit.
+- **Audit:** `artifact_change` (create/delete/share) and `artifact_access` (read/download) with oid, artifact id,
+  classification, decision; never the content.
+- **Untrusted content:** artifacts may embed retrieved or provider content; served as downloads with a safe
+  `Content-Type` and `Content-Disposition: attachment`, never rendered as HTML on our origin.
+
+### 4. Milestones (proposal)
+
+| # | Scope | Exit gate |
+|---|---|---|
+| F1 | Storage interface + metadata table (RLS, migration, `tests/db`) + MCP tools + config/persona rows | A user saves and reads back their own artifact; another user gets "not found"; audit records both |
+| F2 | Download endpoint + chat app links | Download works on localhost and the Cloudflare Tunnel; no access without a valid session |
+| F3 | Team sharing + classification inheritance | A shared artifact is readable by teammates at or above its classification, by nobody else |
+| F4 | GCP: bucket, service account access, retention (Terraform, run by the user) | Same gates on GCP dev |
+
+### 5. Open questions
+
+1. First use cases: which outputs need to be files (generated tests, design docs, review reports)?
+2. Storage: GCS + Postgres metadata (proposed), Postgres only for small files, or ADK's `gs://` artifact service with
+   an MCP check in front?
+3. Retention: tie to the conversation's TTL or keep independently?
+4. Sharing scope: owner only, team, or per-artifact access lists?
+5. Should artifacts ever be ingested into the knowledge base (as a source), and with what review?
+6. Autonomous agents (Task 1): do their reports become artifacts owned by the service principal?
