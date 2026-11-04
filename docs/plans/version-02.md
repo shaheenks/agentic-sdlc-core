@@ -6,8 +6,8 @@ GCP runbook: [../GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md).
 
 Version-02 collects everything still open from both earlier plans: what version-01 left pending or deferred
 (§10.3, §10.4, §6) and what version-00 left open (Stage 7b operations, Stage 8 surfaces, the Stage 9 backlog, the
-enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. Nothing here is built yet; scope and order
-are a proposal to confirm milestone by milestone.
+enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8–N15 were added and built along the way
+(see Progress); N0–N7 are still open, ordered in §19.
 
 ## Goals
 
