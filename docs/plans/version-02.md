@@ -25,9 +25,9 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 | Milestone | Status | Notes |
 |---|---|---|
 | N0 — Carry-over checks | ✅ Done (2026-11-04) | version-01 G1, G2, G5, G7 passed on localhost / the tunnel (§19 R1) |
-| N1 — Dev sources on GCP + ingest | ⏳ | Needs the list of sources (§1) |
+| N1 — Dev sources on GCP + ingest | 🔨 Built (2026-11-05); not applied | D1: the current four sources (already ingested on GCP in R2, no secrets needed). Added: Cloud Scheduler for the ingest job (`ingest_schedule`, off by default). Open: set the schedule, `plan` + `apply` (§19 R7) |
 | N2 — Live connector checks + retrieval eval | ⏳ | Cloud editions only in version-02 (scope 2026-11-04); Data Center checks → version-03. Needs D2 and tokens (§2, §8) |
-| N3 — Block list and secret management review | ⏳ | Review first, then build (§3) |
+| N3 — Block list and secret management review | 🔨 Built (2026-11-05); not applied | Review: [docs/SECRETS_REVIEW.md](../SECRETS_REVIEW.md). Block list via bundles (tested), reconcile job + CLI, `validate --check-secrets`, rotation procedures, E3 decision (no lifetime policy / CAE now). Open: `images` + `plan` + `apply`, GCP checks (§19 R5) |
 | N4 — Observability on GCP | ⏳ | Cloud Trace export (§4) |
 | N5 — GCP operations (Stage 7b) | ➡️ Moved to version-03 (2026-11-04) | Bundles + reload done by N13; its Stage 7b gate is checked in §19 R2. Scale-out, CI deploy, hostnames, private IP, staging, E1/E4–E6 → version-03 (§5) |
 | N6 — Product backlog | ➡️ Moved to version-03 (2026-11-04) | Chat history done by N15; the rest of §6 (incl. write tools) → version-03 |
@@ -54,9 +54,9 @@ start any time.
 
 | # | Question | Needed for |
 |---|---|---|
-| D1 | Which sources does GCP dev get? (keep the sample folders? `sdlc-platform`: https GitHub location or drop it? which GitHub/Bitbucket repos, GCS bucket, Confluence space, Jira project; their secret names) | N1 |
-| D2 | Which Atlassian Cloud site replaces the `acme.atlassian.net` placeholder in `config/connections.yaml`? Is a Data Center test instance available? | N2 |
-| D3 | Block list and secret management: scope of the review (§3); one user secret per user stays, or move to one per connection / a separate credential service? | N3 |
+| D1 | Which sources does GCP dev get? **Decided 2026-11-05:** the current four (`eng-standards`, `payments-code`, `payments-incidents` from the config store bucket; `sdlc-platform` from GitHub `main`); no new sources | N1 |
+| D2 | Atlassian Cloud site / Data Center instance? **Decided 2026-11-05:** none available; Jira/Confluence live checks move to version-03 (they stay tested against fakes); `connections.yaml` keeps the placeholder | N2 |
+| D3 | Block list and secret management review scope? **Decided 2026-11-05:** default scope: one secret per user stays; build the GCP block-list check, reconcile job, `validate --check-secrets`, rotation procedure; token lifetime / CAE as a written decision only | N3 |
 | D4 | A staging environment in version-02, or dev only? **Decided 2026-11-04:** dev only; staging in version-03 with N5 | — |
 | D5 | Write tools on behalf of the user (create issue, comment, PR)? **Decided 2026-11-04:** version-03 (with N6 and the agent runtimes) | — |
 | D6 | Replace CopilotKit with an own chat client (`@ag-ui/client` + `@a2ui/react`)? **Not pursued** (2026-10-30): no Gemini Enterprise benefit (GE has its own UI); it would only remove the Node runtime and its workarounds at the cost of owning a chat UI. Revisit if the CopilotKit runtime becomes a burden | — |
@@ -657,12 +657,12 @@ task 2.
 ### R4 — Decisions round
 | Decision | Unblocks | Suggested default |
 |---|---|---|
-| D1 dev sources (repos, GCS bucket, Confluence space, Jira project, secret names) | R7 | The three sample sources + `sdlc-platform`, plus one Atlassian Cloud space and project |
-| D2 Atlassian site; Data Center instance? | R8 | Cloud first; DC checks only if an instance exists |
-| D3 security review scope; user-secret layout | R5 | Keep one secret per user; build the block list check, reconcile job and `--check-secrets` |
+| D1 dev sources | R7 | **Decided 2026-11-05:** the current four |
+| D2 Atlassian site | R8 | **Decided 2026-11-05:** none; Atlassian → version-03 |
+| D3 security review scope | R5 | **Decided 2026-11-05:** default scope |
 | D4 staging in version-02? | — | **Decided 2026-11-04:** dev only; staging in version-03 |
 | D5 write tools now or later? | — | **Decided 2026-11-04:** version-03, with the agent runtimes |
-| Artifacts ([pending-task.md](pending-task.md) task 3) in version-02? | new milestone | N16 in version-02 if the artifacts panel should get data soon; otherwise version-03 |
+| Artifacts ([pending-task.md](pending-task.md) task 3) in version-02? | — | **Decided 2026-11-05:** version-03 |
 | `infra-readers` Entra group (admin action) | N9 live check | Create when a real per-source group is needed |
 
 ### R5 — N3 security review (§3)
@@ -670,6 +670,32 @@ Write the review first (one page: threats, current controls, gaps, what to build
 `sdlc-config validate --check-secrets`; the reconcile job (CLI with `--dry-run`, then a Cloud Run job + Scheduler);
 block list on GCP via bundles; global secret rotation tried once; a decision on token lifetime / CAE (E3).
 Gate: review accepted; each kept item has tests and a GCP check.
+
+**Built 2026-11-05** ([docs/SECRETS_REVIEW.md](../SECRETS_REVIEW.md)):
+- Review: inventory, threats/controls, revocation latency, rotation table; **E3 decision:** no token lifetime policy
+  and no CAE in version-02 (the block list cuts access in ~2 min); revisit with E4 for prod.
+- Block list on GCP = config bundle (`tests/config/test_bundles.py::test_block_list_travels_in_the_bundle`); `sdlc_web`
+  does not check it (agents never read config; the MCP server refuses every call).
+- Reconcile: `sdlc_connectors.reconcile` (rules: blocked → delete all; expired; rejected > 14 days; connection removed
+  from config), store `scan()` for memory/file/GCP (list by label, owner checked against the name),
+  `ConnectionService.prune` (decided again under the user's lock), CLI `sdlc-reconcile-connections [--apply|--dry-run]`,
+  audit `connection_change` + `actor: reconcile`. Terraform: job `sdlc-reconcile-<env>`, service account
+  `sdlc-<env>-reconcile` (user-secret prefix role + list-only role), `reconcile_schedule` (schedules.tf). Local dry run
+  against the real file store: 1 user, 0 changes. Tests: `tests/connectors/test_reconcile.py`.
+- `sdlc-config validate --check-secrets` (`tests/config/test_check_secrets.py`); dev: "no secret references in config".
+
+**Your steps (GCP):**
+1. Commit is done; `-Step images`, then in `infra/gcp/dev.tfvars` optionally `reconcile_schedule = "30 3 * * *"`
+   (and R7's `ingest_schedule`), then `-Step plan`. Expect: new SA `sdlc-dev-reconcile` (+ `sdlc-dev-scheduler` with a
+   schedule), two custom roles, the reconcile job, Cloud Scheduler API/jobs if scheduled, new MCP revision. No
+   destroys.
+2. `-Step apply`, then a dry run: `gcloud run jobs execute sdlc-reconcile-dev --region asia-southeast1
+   --args=--dry-run --wait` and read its log (`gcloud logging read 'resource.labels.job_name="sdlc-reconcile-dev"'
+   --limit 20`). Expected: the users with a connection, 0 unreadable.
+3. Block-list check: add a test user (e.g. the no-groups user) to `config/env/dev/blocked.yaml`, `-Step config`;
+   within ~2 min their chat tools fail (401, audit `auth_failure` reason `blocked`); then remove and publish again.
+4. Optional: connect a PAT with an expiry of tomorrow as a test user, wait a day (or run on the day after), run the job
+   without `--args` override and check the connection is gone and audited.
 
 ### R6 — N4 observability (§4)
 OTLP export to Cloud Trace from agent and MCP (same span rules as with Jaeger); log-based views for `tool_call`,
@@ -680,6 +706,16 @@ argument values; audit records link to it by `trace_id`.
 After D1: `config/sources/` for dev, `allowed_hosts`, one Secret Manager secret per `{secret:}` reference (values set
 outside Terraform; decide on an env prefix), `gcs_source_buckets`, Cloud Scheduler per source group (billable: needs
 your go-ahead), persona-matrix `data_rows` + CODEOWNERS rule per source. Gate as in §1.
+
+**D1 = the current four sources (2026-11-05).** They are configured, have matrix rows and CODEOWNERS rules, need no
+secrets (`sdlc-platform` is a public GitHub repo; GCS through the jobs service account) and were ingested and checked
+per persona on GCP in R2, which meets §1's gate. Left: the schedule. Built: `ingest_schedule` (schedules.tf; Cloud
+Scheduler job `sdlc-ingest-<env>` → the ingest job, as `sdlc-<env>-scheduler`, Cloud Run Invoker on that job only;
+off by default). The `{secret:}` env-prefix question is moot until a private source exists (version-03).
+**Your step:** set `ingest_schedule = "0 2 * * *"` (or another cron, `schedule_time_zone` default UTC) in
+`dev.tfvars`; this enables the Cloud Scheduler API and creates one scheduler job (billable beyond the free tier of
+3 jobs per billing account: with reconcile that is 2). `plan` + `apply` together with R5; check the next morning that
+`gcloud run jobs executions list --job sdlc-ingest-dev --region asia-southeast1` shows a scheduled run.
 
 ### R8 — N2 live connector checks, Cloud editions (§2)
 Ingest and user-connection checks for GitHub, Bitbucket Cloud, GCS, Confluence Cloud and Jira Cloud; PDF OCR live
