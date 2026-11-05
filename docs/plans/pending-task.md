@@ -6,7 +6,7 @@ current plan ([version-02.md](version-02.md)) or a new numbered plan.
 | # | Task | Waits for | Recorded |
 |---|---|---|---|
 | 1 | [Agent runtimes: user, CI and ops agents](#task-1--agent-runtimes-user-ci-and-ops-agents) | Trigger sources decided | 2026-11-03 |
-| 2 | [Re-ingest and remove data of dropped sources](#task-2--re-ingest-and-remove-data-of-dropped-sources) | Local done; GCP dev ingest after deploy | 2026-11-03 |
+| 2 | [Re-ingest and remove data of dropped sources](#task-2--re-ingest-and-remove-data-of-dropped-sources) | Done except the eval run after the merge (version-02 §20 H7) | 2026-11-03 |
 | 3 | [Agent-generated artifacts: storage and access](#task-3--agent-generated-artifacts-storage-and-access) | Version-03 (decided 2026-11-05); use cases and storage still open | 2026-11-04 |
 
 ## Task 1 — Agent runtimes: user, CI and ops agents
@@ -166,7 +166,8 @@ caller ──► POST /triggers/<adapter> ──► verify caller ──► Trig
 
 ## Task 2 — Re-ingest and remove data of dropped sources
 
-**Status:** local dev DB done (2026-11-03, after N14); **GCP dev open** (step 5). Recorded 2026-11-03.
+**Status:** local dev DB done (2026-11-03, after N14); GCP dev ingested in version-02 R2 (2026-11-05, step 5); eval paths
+updated on the version-02 branch (step 6); the eval run waits for the merge (version-02 §20 H1, H7). Recorded 2026-11-03.
 
 **Local run (2026-11-03):** `docker compose --profile ingest build ingest` (the compose image predated the gcs
 loader: `no loader for source type 'gcs'`), then `docker compose run --rm ingest run --all --force`:

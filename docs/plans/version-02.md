@@ -33,10 +33,10 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 | N6 — Product backlog | ➡️ Moved to version-03 (2026-11-04) | Chat history done by N15; the rest of §6 (incl. write tools) → version-03 |
 | N7 — Agent-generated UI (A2UI) + A2A path for Gemini Enterprise | ✅ Spike done (2026-11-05): GO, build in version-03 | Citation cards from the standard catalog without the model (Google's builder, validated); `/chat/` renders them with the CopilotKit 1.79 we have (`a2ui: { injectA2UITool: false }`); A2A needs `google-adk[a2a]` and an `oid`-bound call context (§10 spike findings) |
 | N8 — Chat UX | ✅ Built (2026-10-30); answer rendering confirmed by the user | Answer formatting, `/` opens the chat, navbar user + PAT status (§11). Browser checks passed (2026-11-04, §19 R1); deployed and checked on GCP dev (2026-11-05, §19 R2) |
-| N9 — Per-source Entra groups | ✅ Built (2026-11-02) | Sources grant by their own Entra group or `everyone: true`; `graph_query` moved to viewer (§12). Open: real `infra-readers` group in the tenant |
-| N10 — Direct members by email (users.yaml) | ✅ Built (2026-11-02) | Users added to teams/roles in git-ignored `users.yaml`, matched by oid; `sdlc-config users sync`; GCP secret mount (§13). Local live check passed (2026-11-04); on GCP dev via the config bundle (2026-11-05, §19 R2) |
+| N9 — Per-source Entra groups | ✅ Built (2026-11-02) | Sources grant by their own Entra group or `everyone: true`; `graph_query` moved to viewer (§12). The real `infra-readers` group → version-03 (create when a source needs its own group) |
+| N10 — Direct members by email (users.yaml) | ✅ Built (2026-11-02) | Users added to teams/roles in git-ignored `users.yaml`, matched by oid; `sdlc-config users sync`; GCP secret mount (§13). Local live check passed (2026-11-04); on GCP dev via the config bundle (2026-11-05, §19 R2). 2026-11-05: Przemek added on dev as sdlc-platform developer (oid synced; `users.yaml` now one flow-style line per user); his access check is with the user (§20) |
 | N11 — Rename: `user_agent`, `core_mcp` | ✅ Done (2026-11-03); local stack checked | Starter agent and MCP server renamed for the agent-runtime work (§14). Existing chats no longer show (stored per app name). Deployed on GCP dev (2026-11-05, §19 R2) |
-| N12 — Team `sdlc-platform` + GitHub source | ✅ Built (2026-11-03) | `platform` → `sdlc-platform`, members from users.yaml only, source = GitHub `agentic-sdlc-core` tracking `main`; git loader partial-clone fix (§15). Open: re-ingest + remove dropped-source data once all sources are fixed ([pending-task.md](pending-task.md) task 2) |
+| N12 — Team `sdlc-platform` + GitHub source | ✅ Built (2026-11-03) | `platform` → `sdlc-platform`, members from users.yaml only, source = GitHub `agentic-sdlc-core` tracking `main`; git loader partial-clone fix (§15). Re-ingest + removal of `platform-infra` done locally (2026-11-03) and on GCP dev (R2, 2026-11-05); eval paths updated on the branch (pending task 2) |
 | N13 — Config from the config store bucket | ✅ Built (2026-11-03); local bundle checked | MCP + ingest read config bundles from `gs://sdlc-config-store-a7484d8b/bundles/<env>/`, pointer polled every 60 s, `-Step config` publishes (§16). Part of N5 (bundles + reload). Deployed on GCP dev; config-only change + rollback checked (2026-11-05, §19 R2) |
 | N14 — Sample sources from the config store bucket | ✅ Built (2026-11-03); live dry-run checked | One-time upload of `samples/sources/*` to `gs://sdlc-config-store-a7484d8b/source_docs/<source id>/`; `eng-standards`, `payments-code`, `payments-incidents` are `gcs` sources (§17); repo copy moved to `tests/fixtures/sample_sources/`. Local DB re-ingested; GCP dev ingested (2026-11-05, §19 R2) |
 | N15 — Chat history in the CopilotKit app | ✅ Built (2026-11-04); local stack checked | History sidebar: `GET /threads` (agent, per user) lists previous chats, opening one replays its messages from the agent's `/agents/state`; thread in the URL; delete per chat (`DELETE /threads/{id}`, owner only) (§18). Deployed and checked on GCP dev (2026-11-05, §19 R2) |
@@ -46,9 +46,9 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 **Scope (narrowed 2026-11-04):** version-02 = close out N8–N15 (checks, GCP deploy, merge to `main`), N0, N1, N2
 (Cloud editions), N3, N4 and the N7 spike. No new features until R1 and R2 are done.
 
-**Next (2026-11-05):** everything Claude can build for version-02 is built (N3, N4, N1 schedule, N7 spike). Left,
-all yours: merge the version-02 PR (R3), then one GCP `images` + `plan` + `apply` for N1/N3/N4 with the checks in §19
-R5–R7, then the R8 checklist (C3–C7). Version-02 closes when those pass (§19 "Version-02 exit").
+**Status (2026-11-05): build complete, user checks open.** Everything in scope is built and committed; what is
+left is the merge, one GCP deploy and checks, all run by the user: the handover checklist in §20. Version-02 closes
+when §20 is ticked; [version-03.md](version-03.md) (draft) then becomes the current plan.
 
 ## Open decisions
 
@@ -803,3 +803,31 @@ Output: a short findings note in §10 and a go/no-go for §10 Work items 2–4.
 ### Version-02 exit
 R1–R3 done; R5, R6, R7 and R8 (Cloud) done or explicitly moved with a reason; R9 spike written up with a go/no-go.
 Then version-03 starts from "Moved to version-03" above.
+
+## 20. Close-out (2026-11-05)
+
+**Built in version-02:** N0 checks; N3 secrets review, reconcile job, `--check-secrets`, block list via bundles; N4
+Cloud Trace + audit views; N1 ingest schedule; N7 A2UI spike (GO); N8 chat UX; N9 per-source groups; N10 direct
+members; N11 rename; N12 `sdlc-platform` team + GitHub source; N13 config bundles from the bucket; N14 sample sources
+in the bucket; N15 chat history (+ delete); `whoami(explain)` readable-sources fix; eval questions follow version-02
+paths (CI-checked); `users.yaml` one line per user. Decisions: D1–D5 decided, D6 not pursued, D7 (agent runtimes)
+open for version-03.
+
+**Moved to version-03** (with reasons, §19 "Moved to version-03"): N5 operations and staging (D4), N6 backlog and write
+tools (D5), N2 Atlassian / Data Center / PDF OCR live checks (D2, no source), the N7 build, the `infra-readers` group,
+pending tasks 1 (agent runtimes) and 3 (artifacts). Drafted as [version-03.md](version-03.md).
+
+### Handover checklist (run by the user)
+
+| # | Step | Closes |
+|---|---|---|
+| H1 | Push the last commit (`git push origin version-02`) and merge the version-02 PR into GitHub `main` (mirror to Bitbucket if wanted) | R3 |
+| H2 | `-Step config` (Przemek in the dev bundle); Przemek checks "who am I? explain" → team `sdlc-platform`, role `developer` | N10 (dev user) |
+| H3 | `-Step images`, set `ingest_schedule` / `reconcile_schedule` in `dev.tfvars` if wanted, `-Step plan` (expect: reconcile job + SA, 2 custom roles, Cloud Trace role + env, scheduler only if scheduled; **no destroys**), `-Step apply` | N1, N3, N4 deploy |
+| H4 | Reconcile dry run on GCP; block/unblock a test user via `blocked.yaml` + `-Step config` (§19 R5 steps 2–3) | N3 |
+| H5 | One chat turn = one trace in Cloud Trace, no prompt text or argument values; its audit records by `trace_id` (§19 R6) | N4 |
+| H6 | Next scheduled ingest run visible, if `ingest_schedule` was set (§19 R7) | N1 |
+| H7 | R8 checklist C3–C7: GitHub + Bitbucket Cloud connections on GCP, AG-UI gates 3 and 5, retrieval eval after H1 + a `sdlc-platform` re-ingest (record the hit rates in R8) | N2 |
+
+A failing step stays in version-02 until fixed (or is moved to version-03 with a reason written here); then mark the
+milestone ✅ in Progress, switch CLAUDE.md's "Current plan" to version-03, and start version-03 at its P0.

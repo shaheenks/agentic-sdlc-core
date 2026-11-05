@@ -4,7 +4,7 @@ ADK-based SDLC agents composed from skills. Central MCP server(s) serve skills, 
 knowledge, and enforce Entra ID identity + group-based RBAC defined in `config/`. Postgres +
 pgvector stores embeddings and the knowledge graph. Local: docker compose. Prod: GCP.
 
-Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Current plan: [docs/plans/version-02.md](docs/plans/version-02.md) (everything still open from earlier plans: dev sources on GCP, live connector checks, block list and secret management, GCP operations, backlog; Gemini Enterprise deferred); history: [docs/plans/version-01.md](docs/plans/version-01.md) (new sources, AG-UI web app with CopilotKit, per-user PAT connections, GCP dev) and [docs/plans/version-00.md](docs/plans/version-00.md). Check which stage is
+Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Current plan: [docs/plans/version-02.md](docs/plans/version-02.md) (build complete 2026-11-05; closes when the user's handover checklist in §20 is done); next: [docs/plans/version-03.md](docs/plans/version-03.md) (draft: staging + enterprise identity, A2UI/A2A, artifacts, agent runtimes, write tools, more connectors); history: [docs/plans/version-01.md](docs/plans/version-01.md) (new sources, AG-UI web app with CopilotKit, per-user PAT connections, GCP dev) and [docs/plans/version-00.md](docs/plans/version-00.md). Check which stage is
 current before adding features, and don't build ahead of the current stage's exit gate.
 
 ## Repo structure
