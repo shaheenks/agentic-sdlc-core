@@ -5,9 +5,10 @@
 // escapes text, and links are limited to http(s) (lib/results.ts safeUrl).
 
 import { defineToolCallRenderer } from "@copilotkit/react-core/v2";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { z } from "zod";
 
+import { ARTIFACTS_CHANGED } from "@/components/ArtifactsPanel";
 import {
   type Citation,
   citations,
@@ -229,8 +230,12 @@ function ConnectedResult({ result, label }: { result: unknown; label: string }) 
 }
 
 // Documents the agent saved for the user (version-03 P5). Links point only at /artifacts/<uuid>.
-function ArtifactsResult({ result, label }: { result: unknown; label: string }) {
+function ArtifactsResult({ result, label, saved }: { result: unknown; label: string; saved?: boolean }) {
   const items = savedArtifacts(result);
+  const first = items[0]?.id;
+  useEffect(() => {
+    if (saved && first) window.dispatchEvent(new Event(ARTIFACTS_CHANGED)); // the panel refreshes
+  }, [saved, first]);
   if (items.length === 0) return <div className="tool">{label}: none</div>;
   return (
     <div className="tool">
@@ -309,7 +314,7 @@ export const toolRenderers = [
     name: "save_artifact",
     args: z.object({ name: z.string().optional() }).passthrough(),
     render: ({ status, result }) =>
-      done(status) ? <ArtifactsResult result={result} label="Saved document" /> : <Pending label="Saving document" />,
+      done(status) ? <ArtifactsResult result={result} label="Saved document" saved /> : <Pending label="Saving document" />,
   }),
   defineToolCallRenderer({
     name: "list_artifacts",

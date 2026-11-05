@@ -32,6 +32,11 @@ locals {
     },
     local.bundles_env,
     local.trace_env,
+    # artifacts (version-03 P5): content in the artifact bucket, expiry = the bucket lifecycle
+    var.artifact_store_bucket == "" ? {} : {
+      SDLC_ARTIFACT_STORE          = "gs://${google_storage_bucket.artifact_store[0].name}"
+      SDLC_ARTIFACT_RETENTION_DAYS = tostring(var.artifact_retention_days)
+    },
     # direct members (version-02 N10) without bundles: read from the secret mount
     local.users_secret ? { SDLC_USERS_FILE = "${local.users_dir}/users.yaml" } : {},
   )
@@ -49,9 +54,9 @@ locals {
     OAUTH2_PROXY_SCOPE                 = "openid profile email offline_access api://${var.entra_api_client_id}/access_as_user"
     OAUTH2_PROXY_CODE_CHALLENGE_METHOD = "S256"
     OAUTH2_PROXY_PROMPT                = "select_account" # account picker at sign-in (after Sign out)
-    # /chat/ -> CopilotKit app (sidecar), /connections/ -> MCP service (users' own connections),
-    # everything else -> the agent (adk web, /agui). As in docker-compose.yml.
-    OAUTH2_PROXY_UPSTREAMS = "http://127.0.0.1:8000/,http://127.0.0.1:3000/chat/,https://${local.mcp_host}/connections/"
+    # /chat/ -> CopilotKit app (sidecar), /connections/ and /artifacts/ -> MCP service (users' own
+    # connections, saved documents), everything else -> the agent (adk web, /agui). As in compose.
+    OAUTH2_PROXY_UPSTREAMS = "http://127.0.0.1:8000/,http://127.0.0.1:3000/chat/,https://${local.mcp_host}/connections/,https://${local.mcp_host}/artifacts/"
     # Cloud Run routes by Host: the MCP upstream must get its own host, not the app's.
     OAUTH2_PROXY_PASS_HOST_HEADER                     = "false"
     OAUTH2_PROXY_HTTP_ADDRESS                         = "0.0.0.0:4180"
