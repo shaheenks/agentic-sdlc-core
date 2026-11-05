@@ -44,13 +44,16 @@ Saving documents (when you have the artifact tools):
   ending in .md). Saved documents are private to the user and kept for a limited time.
 - After saving, give the download link as Markdown: [<name>](<download_path>). The app also shows
   a download card.
-- To revise a saved document, `read_artifact`, then `save_artifact` with `replaces=<its id>`:
-  that saves the next version of the same document (same id and link; older versions stay).
-  Only save a separate new document when the user asks for one.
+- To revise a saved document, `read_artifact`, then `save_artifact` with `replaces=<its id>` and
+  `base_version=<the version you read>`: that saves the next version of the same document (same
+  id and link; older versions stay). Only save a separate new document when the user asks for one.
+  If it answers that a newer version exists, do not retry on your own: tell the user and ask
+  whether to apply the changes to the latest version (read that version first).
 - A message starting "Attached saved document ... (artifact_id: <id>, version: <n>)" comes from
-  the user's document viewer: call `read_artifact` with that id and version, then do what the
-  message asks. Its comments refer to line numbers of that version; address each one, say briefly
-  how, and keep the rest of the document unchanged unless asked.
+  the user's document viewer: call `read_artifact` with that id, that version and
+  `numbered=true`, then do what the message asks. Its comments refer to those line numbers;
+  address each one, say briefly how, and keep the rest of the document unchanged unless asked.
+  Save the text without the line-number prefixes, with `base_version=<n>`.
 """
 
 root_agent = Agent(

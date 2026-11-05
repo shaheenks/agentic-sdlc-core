@@ -12,6 +12,7 @@ record; never the content or the file name.
 import asyncio
 import hashlib
 import logging
+import re
 import uuid
 from dataclasses import dataclass
 
@@ -49,6 +50,30 @@ class Artifacts:
         return self.store is not None and self.knowledge is not None
 
 
+def split_lines(text: str) -> list[str]:
+    """Lines as the chat's document viewer numbers them (ui/copilotkit ArtifactViewer): CRLF
+    counts as one break, and a trailing newline gives a last, empty line."""
+    return text.replace("\r\n", "\n").split("\n")
+
+
+def number_lines(text: str) -> str:
+    return "\n".join(f"{n}\t{line}" for n, line in enumerate(split_lines(text), start=1))
+
+
+_NUMBERED = re.compile(r"^\d+\t")
+
+
+def looks_numbered(content: str) -> bool:
+    """True when the content is read_artifact(numbered=true) output saved back unchanged: every
+    line starts with its own number and a tab (1, 2, 3, ...). Ordinary TSV does not count."""
+    lines = split_lines(content)
+    if len(lines) < 2:
+        return False
+    return all(
+        _NUMBERED.match(line) and line.startswith(f"{n}\t") for n, line in enumerate(lines, 1)
+    )
+
+
 def public_row(row: db.ArtifactRow) -> dict:
     """Public view: `id` is the document's stable id; the link opens its latest version."""
     return {**row.public(), "download_path": f"{DOWNLOAD_PATH}{row.document_id}"}
@@ -73,17 +98,29 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
         content: str,
         media_type: str = "text/markdown",
         replaces: str | None = None,
+        base_version: int | None = None,
     ) -> dict:
         """Save a document for the user to download later (design or review notes, user
         stories, reports). Text only: text/markdown (default, name ends in .md), text/plain
         (.txt), text/csv (.csv) or application/json (.json); up to 1 MiB. Kept for a limited
         time (see expires_at). Give the user the download_path as a link.
-        To revise one of the user's documents, pass its id as `replaces`: this saves the next
-        version of the same document (same id and link; older versions stay readable)."""
+        To revise one of the user's documents, pass its id as `replaces` and the version you
+        read and revised as `base_version`: this saves the next version of the same document
+        (same id and link; older versions stay readable). If a newer version exists, nothing
+        is saved and the answer names the latest version."""
         ident, pool = await _begin()
         oid = ident.principal.oid
         action = "update" if replaces else "create"
         try:
+            if replaces and base_version is None:
+                raise ArtifactInputError(
+                    "pass base_version: the version you read with read_artifact and revised"
+                )
+            if replaces and looks_numbered(content):
+                raise ArtifactInputError(
+                    "the content still has line numbers from read_artifact(numbered=true): "
+                    "remove the '<n><tab>' prefix from every line"
+                )
             data = validate(name, content, media_type)
         except ArtifactInputError as e:
             audit_artifact(ident, "artifact_change", action, None, "rejected", reason=str(e))
@@ -98,6 +135,20 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
                 if latest is None:  # missing, expired or not the caller's: the same answer
                     audit_artifact(ident, "artifact_change", action, document_id, "not_found")
                     raise ToolError(NOT_FOUND)
+                if base_version != latest:  # revising an older version would drop newer edits
+                    audit_artifact(
+                        ident,
+                        "artifact_change",
+                        action,
+                        document_id,
+                        "stale",
+                        base_version=base_version,
+                        latest_version=latest,
+                    )
+                    raise ToolError(
+                        f"not saved: you revised version {base_version}, but the latest version "
+                        f"is {latest}. Tell the user and ask how to proceed; do not overwrite it"
+                    )
                 version = latest + 1
             if await db.count_live(conn) >= MAX_LIVE_PER_USER:
                 audit_artifact(ident, "artifact_change", action, document_id, "limit")
@@ -157,9 +208,13 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
             "retention_days": artifacts.retention_days,
         }
 
-    async def read_artifact(artifact_id: str, version: int | None = None) -> dict:
+    async def read_artifact(
+        artifact_id: str, version: int | None = None, numbered: bool = False
+    ) -> dict:
         """Return one of your saved documents with its text, e.g. to revise it. The latest
-        version unless `version` is given."""
+        version unless `version` is given. `numbered=true` prefixes every line with its number
+        and a tab ("12<tab>text"), the numbering of the user's document viewer: use it when the
+        user's comments refer to line numbers, and never save those prefixes."""
         ident, pool = await _begin()
         oid = ident.principal.oid
         key = db.parse_id(artifact_id)
@@ -180,7 +235,10 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
             )
             raise ToolError(NOT_FOUND)
         audit_artifact(ident, "artifact_access", "read", key, "ok", version=row.version)
-        return {**public_row(row), "content": data.decode("utf-8")}
+        text = data.decode("utf-8")
+        if numbered:
+            return {**public_row(row), "content": number_lines(text), "numbered": True}
+        return {**public_row(row), "content": text}
 
     async def delete_artifact(artifact_id: str) -> dict:
         """Delete one of your saved documents, with all its versions."""

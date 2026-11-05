@@ -37,7 +37,9 @@ type Props = {
   onAttach: (message: string) => Promise<string | null>; // null = sent, else the problem
 };
 
-type Draft = { comments: LineComment[]; request: string };
+// `pending` = the comment being written (selected lines + text), kept so that closing the
+// viewer (Escape, a click outside, reload) does not lose it.
+type Draft = { comments: LineComment[]; request: string; pending?: LineComment };
 const draftKey = (id: string) => `sdlc.review.${id}`;
 
 function loadDraft(id: string): Draft {
@@ -45,7 +47,14 @@ function loadDraft(id: string): Draft {
     const raw = window.sessionStorage.getItem(draftKey(id));
     if (raw) {
       const d = JSON.parse(raw);
-      if (Array.isArray(d.comments) && typeof d.request === "string") return d;
+      if (Array.isArray(d.comments) && typeof d.request === "string") {
+        const p = d.pending;
+        const pending =
+          p && Number.isInteger(p.start) && Number.isInteger(p.end) && typeof p.text === "string"
+            ? { start: p.start, end: p.end, text: p.text }
+            : undefined;
+        return { comments: d.comments, request: d.request, pending };
+      }
     }
   } catch {
     // storage blocked or bad JSON: start empty
@@ -68,6 +77,7 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
   const [versions, setVersions] = useState<VersionInfo[]>([]);
   const [version, setVersion] = useState<number | null>(null);
   const [text, setText] = useState<string | null>(null);
+  const [loadedId, setLoadedId] = useState<string | null>(null); // draft id the text belongs to
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<"lines" | "preview">("lines");
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
@@ -115,9 +125,11 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
   useEffect(() => {
     if (version === null) return;
     let live = true;
+    const saved = loadDraft(`${artifact.id}.v${version}`);
     setText(null);
-    setSelection(null);
-    setDraft(loadDraft(`${artifact.id}.v${version}`));
+    setDraft(saved);
+    setSelection(saved.pending ? { start: saved.pending.start, end: saved.pending.end } : null);
+    setNote(saved.pending?.text ?? "");
     (async () => {
       try {
         const response = await fetch(`/artifacts/${artifact.id}?version=${version}`);
@@ -125,8 +137,11 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
         if (response.status === 404) setLoadError("This version no longer exists (deleted or expired).");
         else if (!response.ok) setLoadError(`Could not open the document (${response.status}).`);
         else {
+          const body = await response.text();
+          if (!live) return;
           setLoadError(null);
-          setText(await response.text());
+          setText(body);
+          setLoadedId(`${artifact.id}.v${version}`);
         }
       } catch {
         if (live) setLoadError("Could not open the document. Reload the page to sign in again.");
@@ -137,8 +152,28 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
     };
   }, [artifact.id, version]);
 
+  // keep the comment being written in the draft (after the text loaded, so a version switch
+  // does not write one version's selection into another's draft)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    if (text === null || loadedId !== draftId) return;
+    setDraft((d) => {
+      const pending = selection ? { ...selection, text: note } : undefined;
+      if (d.pending?.start === pending?.start && d.pending?.end === pending?.end && d.pending?.text === pending?.text)
+        return d;
+      const next = { ...d, pending };
+      saveDraft(draftId, next);
+      return next;
+    });
+  }, [selection, note, text, loadedId, draftId]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Escape in a text field leaves the field; it closes the viewer only from elsewhere
+      const field = e.target instanceof HTMLElement ? e.target.closest("textarea, input, select") : null;
+      if (field instanceof HTMLElement) field.blur();
+      else onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -151,6 +186,9 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
     [draftId],
   );
 
+  const latest = versions[0]?.version;
+  const stale = version !== null && latest !== undefined && version !== latest;
+
   const lines = useMemo(() => (text ?? "").replace(/\r\n/g, "\n").split("\n"), [text]);
   const commented = useMemo(() => {
     const marks = new Set<number>();
@@ -159,13 +197,14 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
   }, [draft.comments]);
 
   function addComment() {
-    if (!selection || !note.trim() || draft.comments.length >= MAX_COMMENTS) return;
+    if (stale || !selection || !note.trim() || draft.comments.length >= MAX_COMMENTS) return;
     update({ ...draft, comments: cleanComments([...draft.comments, { ...selection, text: note }]) });
     setNote("");
     setSelection(null);
   }
 
   async function attach() {
+    if (stale) return; // older versions are read-only: comments go on the latest
     setSending(true);
     setSendError(null);
     const target = { ...artifact, version: version ?? undefined };
@@ -235,14 +274,16 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
               <ol className="doc-lines">
                 {lines.map((line, i) => {
                   const n = i + 1;
-                  const selected = selection !== null && n >= selection.start && n <= selection.end;
+                  const selected = !stale && selection !== null && n >= selection.start && n <= selection.end;
+                  const marked = !stale && commented.has(n);
                   return (
-                    <li key={n} className={`${selected ? "selected" : ""} ${commented.has(n) ? "commented" : ""}`}>
+                    <li key={n} className={`${selected ? "selected" : ""} ${marked ? "commented" : ""}`}>
                       <button
                         type="button"
                         className="doc-line"
+                        disabled={stale}
                         onClick={(e) => setSelection(selectLines(selection, n, e.shiftKey))}
-                        title="Click to comment, shift-click to select a range"
+                        title={stale ? undefined : "Click to comment, shift-click to select a range"}
                       >
                         <span className="doc-num">{n}</span>
                         <span className="doc-text">{line || " "}</span>
@@ -272,7 +313,17 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
 
           <aside className="modal-side">
             <div className="side-title">Comments</div>
-            {selection ? (
+            {stale ? (
+              <div className="side-warning" role="note">
+                <p>
+                  v{version} is an older version and is read-only. Comments go on the latest version, so they
+                  cannot undo newer changes.
+                </p>
+                <button type="button" onClick={() => setVersion(latest ?? null)}>
+                  Open v{latest} to comment
+                </button>
+              </div>
+            ) : selection ? (
               <div className="comment-box">
                 <label htmlFor="comment-text">{lineLabel(selection)}</label>
                 <textarea
@@ -298,7 +349,7 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
               <p className="side-hint">Select a line in the Lines tab to comment on it (shift-click for a range).</p>
             )}
             <ul className="comment-list">
-              {draft.comments.map((c, i) => (
+              {(stale ? [] : draft.comments).map((c, i) => (
                 <li key={`${c.start}-${c.end}-${i}`}>
                   <button type="button" className="comment-where" onClick={() => setSelection(c)}>
                     {lineLabel(c)}
@@ -315,17 +366,21 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
                 </li>
               ))}
             </ul>
-            <label className="side-title" htmlFor="review-request">
-              Message to the assistant
-            </label>
-            <textarea
-              id="review-request"
-              value={draft.request}
-              onChange={(e) => update({ ...draft, request: e.target.value })}
-              rows={3}
-            />
+            {!stale && (
+              <>
+                <label className="side-title" htmlFor="review-request">
+                  Message to the assistant
+                </label>
+                <textarea
+                  id="review-request"
+                  value={draft.request}
+                  onChange={(e) => update({ ...draft, request: e.target.value })}
+                  rows={3}
+                />
+              </>
+            )}
             {sendError && <div className="conn-error">{sendError}</div>}
-            <button type="button" className="primary" onClick={attach} disabled={sending || !!loadError}>
+            <button type="button" className="primary" onClick={attach} disabled={sending || !!loadError || stale}>
               {sending ? "Attaching…" : `Attach to chat${draft.comments.length ? ` (${draft.comments.length})` : ""}`}
             </button>
           </aside>

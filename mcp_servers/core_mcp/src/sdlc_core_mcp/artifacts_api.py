@@ -18,6 +18,7 @@ id answers 404 like a missing one. Audit as the tools: `artifact_access` / `arti
 
 import asyncio
 import logging
+import re
 
 from fastmcp import FastMCP
 from fastmcp.server.auth import TokenVerifier
@@ -37,6 +38,8 @@ from sdlc_core_mcp.identity import Identity, resolve_identity
 log = logging.getLogger("sdlc.mcp")
 WRITE_HEADER = "x-sdlc-request"
 # Downloads are data, not pages: never sniffed, framed, scripted or cached by shared caches.
+VERSION_PARAM = re.compile(r"[1-9][0-9]{0,8}")  # 1 .. 999999999 (fits Postgres integer)
+
 DOWNLOAD_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": "default-src 'none'; sandbox",
@@ -130,8 +133,9 @@ def add_artifact_routes(
         if isinstance(ident, Response):
             return ident
         raw_version = request.query_params.get("version")
-        version = int(raw_version) if raw_version and raw_version.isdigit() else None
-        if raw_version and version is None:
+        # ASCII digits only: str.isdigit() accepts "²", which int() rejects (was a 500)
+        version = int(raw_version) if raw_version and VERSION_PARAM.fullmatch(raw_version) else None
+        if raw_version is not None and version is None:
             return not_found()
         oid = ident.principal.oid
         pool = await artifacts.knowledge.open_pool()

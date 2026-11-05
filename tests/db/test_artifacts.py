@@ -241,7 +241,11 @@ async def test_versions_of_one_document(mcp, entra, caplog):
     doc = v1["id"]
     assert (v1["version"], v1["versions"]) == (1, 1)
     v2 = await call(
-        url, entra, erin, "save_artifact", {"name": "design.md", "content": "two", "replaces": doc}
+        url,
+        entra,
+        erin,
+        "save_artifact",
+        {"name": "design.md", "content": "two", "replaces": doc, "base_version": 1},
     )
     assert (v2["id"], v2["version"], v2["download_path"]) == (doc, 2, f"/artifacts/{doc}")
 
@@ -256,7 +260,11 @@ async def test_versions_of_one_document(mcp, entra, caplog):
     # another user cannot add a version to it (same answer as a missing document)
     with pytest.raises(ToolError, match="artifact not found"):
         await call(
-            url, entra, BOB, "save_artifact", {"name": "x.md", "content": "x", "replaces": doc}
+            url,
+            entra,
+            BOB,
+            "save_artifact",
+            {"name": "x.md", "content": "x", "replaces": doc, "base_version": 2},
         )
 
     token = entra.token(oid=erin, groups=[G_ENG_ALL])
@@ -264,7 +272,9 @@ async def test_versions_of_one_document(mcp, entra, caplog):
         latest = await h.get(f"/artifacts/{doc}")
         assert latest.content == b"two" and latest.headers["x-sdlc-artifact-version"] == "2"
         assert (await h.get(f"/artifacts/{doc}?version=1")).content == b"one"
-        assert (await h.get(f"/artifacts/{doc}?version=x")).status_code == 404
+        for bad in ("x", "0", "²", "", "1e3", "9999999999"):  # "²" passed isdigit() (was a 500)
+            r = await h.get(f"/artifacts/{doc}", params={"version": bad})
+            assert r.status_code == 404, bad
         versions = (await h.get(f"/artifacts/{doc}/versions")).json()["versions"]
         assert [v["version"] for v in versions] == [2, 1]
         r = await h.delete(f"/artifacts/{doc}", headers={"X-SDLC-Request": "1"})
@@ -279,3 +289,55 @@ async def test_versions_of_one_document(mcp, entra, caplog):
         ("update", "not_found"),  # Bob's attempt
         ("delete", "ok"),
     ]
+
+
+async def test_revisions_never_drop_newer_versions(mcp, entra, caplog):
+    """Review comments on an older version must not overwrite newer edits (base_version)."""
+    caplog.set_level("INFO", logger="sdlc.audit")
+    url, _, _ = mcp
+    fay = str(uuid.uuid4())
+    save = lambda **kw: call(url, entra, fay, "save_artifact", {"name": "d.md", **kw})  # noqa: E731
+    doc = (await save(content="one"))["id"]
+    await save(content="two", replaces=doc, base_version=1)
+
+    with pytest.raises(ToolError, match="pass base_version"):
+        await save(content="x", replaces=doc)
+    with pytest.raises(ToolError, match="latest version is 2"):
+        await save(content="from v1", replaces=doc, base_version=1)
+    stale = [r for r in audit(caplog, "artifact_change") if r["outcome"] == "stale"]
+    assert [(r["base_version"], r["latest_version"]) for r in stale] == [(1, 2)]
+    listed = (await call(url, entra, fay, "list_artifacts"))["artifacts"]
+    assert [(a["id"], a["version"]) for a in listed] == [(doc, 2)]  # nothing saved
+
+    v3 = await save(content="three", replaces=doc, base_version=2)
+    assert v3["version"] == 3
+
+
+async def test_numbered_read_matches_the_viewer(mcp, entra):
+    """read_artifact(numbered=true) numbers lines as the chat's viewer does; saving that output
+    back unchanged is refused."""
+    url, _, _ = mcp
+    gus = str(uuid.uuid4())
+    text = "# Title\r\n\nbody\twith tab\n"
+    doc = (await call(url, entra, gus, "save_artifact", {"name": "n.md", "content": text}))["id"]
+    read = await call(url, entra, gus, "read_artifact", {"artifact_id": doc, "numbered": True})
+    assert read["numbered"] is True
+    assert read["content"] == "1\t# Title\n2\t\n3\tbody\twith tab\n4\t"
+    plain = await call(url, entra, gus, "read_artifact", {"artifact_id": doc})
+    assert plain["content"] == text and "numbered" not in plain
+
+    with pytest.raises(ToolError, match="line numbers"):
+        await call(
+            url,
+            entra,
+            gus,
+            "save_artifact",
+            {"name": "n.md", "content": read["content"], "replaces": doc, "base_version": 1},
+        )
+
+
+def test_looks_numbered():
+    assert artifact_tools.looks_numbered("1\ta\n2\tb")
+    assert not artifact_tools.looks_numbered("1\ta")  # one line: too little to tell
+    assert not artifact_tools.looks_numbered("1\ta\n3\tb")  # not 1, 2, 3, ...
+    assert not artifact_tools.looks_numbered("id\tname\n1\tx")  # TSV with a header
