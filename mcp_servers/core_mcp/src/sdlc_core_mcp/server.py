@@ -27,6 +27,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from sdlc_core_mcp.admin_tools import make_admin_tools
+from sdlc_core_mcp.artifact_tools import Artifacts, make_artifact_tools
 from sdlc_core_mcp.audit import (
     HiddenSkillError,
     PolicyMiddleware,
@@ -65,6 +66,7 @@ def build_server(
     group_resolver: GroupResolver | None = None,
     knowledge: Knowledge | None = None,
     connected: Connected | None = None,
+    artifacts: Artifacts | None = None,
 ) -> FastMCP:
     cache = PolicyCache()
     mcp = FastMCP(
@@ -144,12 +146,14 @@ def build_server(
     knowledge_tools = make_knowledge_tools(knowledge) if knowledge else []
     connected = connected or Connected(service=None)  # tools answer "not configured"
     connected_tools = make_connected_tools(connected)
+    artifacts = artifacts or Artifacts(store=None, knowledge=None)  # tools answer "not configured"
     for fn in [
         *core,
         *SDLC_TOOLS,
         *make_admin_tools(store, cache),
         *knowledge_tools,
         *connected_tools,
+        *make_artifact_tools(artifacts),
     ]:
         register(fn)
     verifier = getattr(auth, "token_verifier", None)
@@ -283,6 +287,20 @@ def build_connected(store: ConfigStore, knowledge: Knowledge | None) -> Connecte
     return Connected(ConnectionService(user_store, store.current, lock), page_url=page)
 
 
+def build_artifacts(knowledge: Knowledge | None) -> Artifacts:
+    """Artifacts (version-03 P5): off unless SDLC_ARTIFACT_STORE is set (file:// or gs://).
+    Retention should match the GCS bucket lifecycle (artifact_retention_days)."""
+    from sdlc_artifacts import store_from_env
+
+    store = store_from_env()
+    days = float(os.environ.get("SDLC_ARTIFACT_RETENTION_DAYS", "7"))
+    if store is None:
+        log.info("artifacts off (SDLC_ARTIFACT_STORE not set)")
+    else:
+        log.info("artifacts on (%s store, %s days)", store.name, days)
+    return Artifacts(store, knowledge, days)
+
+
 def main() -> None:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(message)s")
     setup_tracing()  # no-op unless OTEL_EXPORTER_OTLP_(TRACES_)ENDPOINT is set
@@ -298,6 +316,7 @@ def main() -> None:
         build_group_resolver(snapshot),
         knowledge,
         build_connected(store, knowledge),
+        build_artifacts(knowledge),
     )
     uvicorn.run(build_http_app(server, store), host=host, port=port, log_level="info")
 

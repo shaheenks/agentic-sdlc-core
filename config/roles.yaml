@@ -15,7 +15,8 @@ roles:
     tools:  { allow: [ping, whoami] }   # lets anyone see who they are and why they lack access
   viewer:
     # knowledge tools: what they return is limited to the caller's sources (Source.access + RLS)
-    tools:  { allow: [ping, whoami, list_skills, load_skill, get_agent_context, search_knowledge, graph_query] }
+    tools:  { allow: [ping, whoami, list_skills, load_skill, get_agent_context, search_knowledge, graph_query,
+                      save_artifact, list_artifacts, read_artifact, delete_artifact] }   # artifacts: owner only
     skills: { allow: ["tag:general"] }
     data:   { max_classification: internal }
   developer:

@@ -109,11 +109,16 @@ services:
       SDLC_USER_SECRETS_BACKEND: ${SDLC_USER_SECRETS_KEY:+file}
       SDLC_USER_SECRETS_KEY: ${SDLC_USER_SECRETS_KEY:-}
       SDLC_USER_SECRETS_DIR: /data/user-secrets
+      # Artifacts (version-03 P5): documents the agent saves for a user (owner only), on a volume only
+      # this container mounts; metadata in Postgres. Empty = off. Retention as the GCS bucket.
+      SDLC_ARTIFACT_STORE: ${SDLC_ARTIFACT_STORE-file:///data/artifacts}
+      SDLC_ARTIFACT_RETENTION_DAYS: ${SDLC_ARTIFACT_RETENTION_DAYS:-7}
     volumes:
       - ./skills:/app/skills:ro
       - ./config:/app/config:ro
       - *adc-mount
       - mcp-user-secrets:/data/user-secrets
+      - mcp-artifacts:/data/artifacts
     depends_on:
       postgres:
         condition: service_healthy
@@ -263,3 +268,4 @@ volumes:
   pgdata:
   agent-sessions:   # agent conversations (SQLite); purged after SDLC_SESSION_RETENTION_DAYS idle
   mcp-user-secrets: # users' connection tokens (encrypted files, MCP server only; version-01 M6)
+  mcp-artifacts:    # agent-generated documents (MCP server only; version-03 P5)

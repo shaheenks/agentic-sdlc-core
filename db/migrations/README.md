@@ -20,5 +20,9 @@ an applied migration must never be edited: add a new file instead.
 - `004_item_metadata.sql`: `documents.title` and `documents.url` (citations); `sync_state` (incremental loader
   cursors), ingest-only like `extraction_cache` (RLS forced, no `sdlc_app` grant).
 
+- `005_artifacts.sql` (version-03 P5): `artifacts` (documents the agent saves for a user). Owner-only RLS
+  (`app_owner` on `sdlc.current_user_oid()`, set by `sdlc_db.owner_scoped`); `sdlc_app` gets `SELECT, INSERT,
+  DELETE` on this table only. Documented exception to the rule below: user-owned files, not source data.
+
 Every new data table needs `FORCE ROW LEVEL SECURITY`, a `source_id` + `classification_rank` column,
 and policies for both roles, plus rows in `tests/db`.

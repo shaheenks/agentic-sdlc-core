@@ -23,3 +23,8 @@ tools:
   confluence_get_page: { server: core-mcp, risk: low, credentials: { user: atlassian } }
   github_get_file:     { server: core-mcp, risk: low, credentials: { user: github },    args: { repo: { type: string } } }
   bitbucket_get_file:  { server: core-mcp, risk: low, credentials: { user: bitbucket }, args: { repo: { type: string } } }
+  # version-03 P5: documents the agent saves for the caller (owner only; content never in audit)
+  save_artifact:       { server: core-mcp, risk: low }
+  list_artifacts:      { server: core-mcp, risk: low }
+  read_artifact:       { server: core-mcp, risk: low }
+  delete_artifact:     { server: core-mcp, risk: low }

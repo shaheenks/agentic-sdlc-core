@@ -1,8 +1,8 @@
 # Agentic SDLC — Implementation Plan version-03 (draft)
 
-**Status: draft (2026-11-05).** Becomes the current plan when version-02's close-out checklist
-([version-02.md](version-02.md) §20) is done. Scope and order are a proposal to confirm milestone by milestone;
-nothing here is built.
+**Status: current (2026-11-05).** Started before version-02's last close-out item (§20 H6, the first scheduled
+ingest/reconcile runs) by the user's decision; H6 is checked alongside. First milestone: **P5 artifacts** (§P5).
+Other milestones remain a proposal, confirmed one by one.
 
 Follows [version-02.md](version-02.md). Architecture: [../ARCHITECTURE.md](../ARCHITECTURE.md); GCP runbook:
 [../GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md); secrets: [../SECRETS_REVIEW.md](../SECRETS_REVIEW.md); designs carried in:
@@ -34,8 +34,52 @@ Follows [version-02.md](version-02.md). Architecture: [../ARCHITECTURE.md](../AR
 | — | Per-source Entra group `infra-readers` (or a real one) in the tenant | N9 | a source that needs its own group |
 | — | Gemini Enterprise registration (A2A agent + OAuth authorization) | version-02 §7 | org admin, workforce pool, licences; P4 |
 
-**Suggested order:** P0 → P4 (no outside dependencies, builds on the spike) → P1 + P2 (staging with enterprise
-identity from day one) → P3 → P5 / P6 / P7 as their decisions land; P8 and P9 picked by priority alongside.
+**Order (decided 2026-11-05):** P5 first (Q4 answered). Then proposed: P4 (no outside dependencies) → P1 + P2
+(staging with enterprise identity from day one) → P3 → P6 / P7 as their decisions land; P8 and P9 by priority.
+
+## P5 — Artifacts (from pending task 3)
+
+**Decisions (2026-11-05, Q4):**
+
+| # | Decision |
+|---|---|
+| A1 | First use cases: **design / review documents** and **user stories / reports**, as text files (Markdown first) |
+| A2 | Metadata in **Postgres** (`sdlc.artifacts`); `sdlc_app` gets a **narrow write grant on that table only** (SELECT, INSERT, DELETE), row-level security by owner oid. Knowledge tables stay read-only for `sdlc_app` |
+| A3 | **Owner only.** Anyone else (admins included) gets "not found". Team sharing + classification inheritance = a later milestone (F3) |
+| A4 | Retention **7 days** from creation, as the GCP artifact bucket's lifecycle today (`artifact_retention_days`) |
+| A5 | Written and read **through the MCP server** (tools + an HTTP download API), never through ADK's artifact service (stays `memory://`), so there is one audited path |
+
+**Design:**
+- **Content store** (`libs/sdlc_artifacts`): put / get / delete by object key `artifacts/<owner oid>/<artifact id>`;
+  backends `file://<folder>` (compose volume on `core-mcp`, like the user secret store) and `gs://<bucket>/<prefix>`
+  (GCP). Selected by `SDLC_ARTIFACT_STORE`; empty = artifacts off (tools answer "not configured").
+- **Metadata** (migration `005_artifacts.sql`): `id` uuid, `owner_oid`, `name`, `media_type`, `size_bytes`, `sha256`,
+  `agent_session_id` (correlation only), `created_at`, `expires_at`. RLS ENABLE + FORCE; policy for `sdlc_app`:
+  `owner_oid = current_setting('app.user_oid')`, set per transaction by `sdlc_db.owner_scoped(conn, oid)` from the
+  verified token. No grant to `sdlc_ingest`. Not knowledge data, so no `source_id` / `classification_rank` yet (F3
+  adds classification for sharing).
+- **MCP tools** (`tools.yaml`, granted to `viewer` and up, persona-matrix rows): `save_artifact(name, content,
+  media_type="text/markdown")` → id, size, expiry, download path; `list_artifacts()`; `read_artifact(id)` (the agent
+  revises a document); `delete_artifact(id)`.
+- **Limits:** text media types only (`text/markdown`, `text/plain`, `text/csv`, `application/json`), 1 MiB per
+  artifact, 50 live artifacts per user, file names `[A-Za-z0-9._ -]`, max 100 characters, with a matching
+  extension. Expired rows are not listed and are deleted on the owner's next save/list.
+- **Download API** on the MCP server, through oauth2-proxy like `/connections/`: `GET /artifacts/` (list),
+  `GET /artifacts/{id}` (download: `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, never
+  rendered as HTML on our origin), `DELETE /artifacts/{id}` (needs `X-SDLC-Request: 1`). Same token checks as MCP
+  (block list included); the caller's policy must allow `list_artifacts` / `read_artifact`.
+- **Audit:** `artifact_change` (create / delete: oid, artifact id, media type, size, outcome) and `artifact_access`
+  (download / read: oid, artifact id, outcome); never the content or the file name. Tool calls are also in `tool_call`.
+- **Chat:** the agent links the download path (`/artifacts/<id>`) in its answer; the chat app needs no new data path.
+
+**Milestones:**
+
+| # | Scope | Exit gate | Status |
+|---|---|---|---|
+| F1 | `libs/sdlc_artifacts` (file + GCS), migration 005 + `owner_scoped`, MCP tools, config + persona rows, compose volume | Tests: a user saves, lists, reads and deletes their own artifact; another user gets "not found"; limits enforced; RLS test in `tests/db`; audit records | ✅ Built 2026-11-05: `tests/db/test_artifacts.py` (RLS + tools end to end), `tests/artifacts/`; migration 005 applied to the local dev DB, core-mcp logs `artifacts on (file store, 7.0 days)`; full suite 779 passed. GCP: needs `-Step db` (migration) with F4 |
+| F2 | Download API + oauth2-proxy routes (localhost **and** the tunnel) + agent instruction to link artifacts | A download works on localhost and the tunnel; no access without a session; another user's id answers 404 | open |
+| F3 | Team sharing + classification inheritance | later (A3) | not planned |
+| F4 | GCP: MCP service account gets `objectUser` on the artifact bucket (the agent's grant is removed), `SDLC_ARTIFACT_STORE` on `sdlc-mcp`, proxy routes; Terraform run by the user | F1/F2 gates on GCP dev | open |
 
 ## Open questions
 
@@ -44,8 +88,8 @@ identity from day one) → P3 → P5 / P6 / P7 as their decisions land; P8 and P
 | Q1 | Staging: GCP project, region, hostnames (`<service>-sdlc-staging.shaheenks.co.in`), who approves applies | P1, P3 |
 | Q2 | Order of P1–P9; what "done" means for version-03 | all |
 | Q3 | Atlassian Cloud site and a Data Center instance for live checks? Which private repos / sources? | P8 |
-| Q4 | Artifacts: first use cases, storage (GCS + Postgres metadata proposed), retention, sharing scope | P5 |
-| Q5 | Agent runtimes: trigger sources (GitHub Actions, Bitbucket Pipelines, Cloud Monitoring, webhooks), report channels | P6, P7 |
+| Q4 | ~~Artifacts: first use cases, storage, retention, sharing scope~~ answered 2026-11-05 (§P5 A1–A5) | P5 |
+| Q5 | Agent runtimes: trigger sources (GitHub Actions, Bitbucket Pipelines, Cloud Monitoring, webhooks), report channels. Option raised 2026-11-05: try `ci_agent` / `ops_agent` first as dev-only folders in the existing ADK web app (they run as the signed-in user, so this tests prompts, skills and report format, not workload identity or triggers) | P6, P7 |
 | Q6 | Write tools: which first, and the approval model (per call, per session, per team policy) | P7 |
 
 ## Rules that carry over

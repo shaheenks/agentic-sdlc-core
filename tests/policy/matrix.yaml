@@ -36,6 +36,18 @@ rows:
   # catalog tools implemented in later stages (rows keep their grants under test)
   - { persona: nobody,        tool: ping,              expect: allow }
   - { persona: viewer,        tool: get_agent_context, expect: allow }
+  # artifacts (version-03 P5): viewer and up, owner only (ownership is enforced by RLS, not here)
+  - { persona: nobody,        tool: save_artifact,     expect: deny }
+  - { persona: nobody,        tool: list_artifacts,    expect: deny }
+  - { persona: nobody,        tool: read_artifact,     expect: deny }
+  - { persona: nobody,        tool: delete_artifact,   expect: deny }
+  - { persona: viewer,        tool: save_artifact,     expect: allow }
+  - { persona: viewer,        tool: list_artifacts,    expect: allow }
+  - { persona: viewer,        tool: read_artifact,     expect: allow }
+  - { persona: viewer,        tool: delete_artifact,   expect: allow }
+  - { persona: payments-dev,  tool: save_artifact,     expect: allow }
+  - { persona: admin,         tool: read_artifact,     expect: allow }
+  - { persona: direct-viewer, tool: save_artifact,     expect: allow }
   - { persona: nobody,        tool: get_agent_context, expect: deny }
   - { persona: viewer,        tool: search_knowledge,  expect: allow }
   - { persona: viewer,        tool: graph_query,       expect: allow }   # data limited to granted sources

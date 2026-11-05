@@ -4,7 +4,7 @@ ADK-based SDLC agents composed from skills. Central MCP server(s) serve skills, 
 knowledge, and enforce Entra ID identity + group-based RBAC defined in `config/`. Postgres +
 pgvector stores embeddings and the knowledge graph. Local: docker compose. Prod: GCP.
 
-Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Current plan: [docs/plans/version-02.md](docs/plans/version-02.md) (build complete 2026-11-05; closes when the user's handover checklist in §20 is done); next: [docs/plans/version-03.md](docs/plans/version-03.md) (draft: staging + enterprise identity, A2UI/A2A, artifacts, agent runtimes, write tools, more connectors); history: [docs/plans/version-01.md](docs/plans/version-01.md) (new sources, AG-UI web app with CopilotKit, per-user PAT connections, GCP dev) and [docs/plans/version-00.md](docs/plans/version-00.md). Check which stage is
+Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Current plan: [docs/plans/version-03.md](docs/plans/version-03.md) (started 2026-11-05; first milestone P5 artifacts; staging + enterprise identity, A2UI/A2A, agent runtimes, write tools, more connectors proposed); history: [docs/plans/version-02.md](docs/plans/version-02.md) (done except §20 H6, the first scheduled runs), [docs/plans/version-01.md](docs/plans/version-01.md) (new sources, AG-UI web app with CopilotKit, per-user PAT connections, GCP dev) and [docs/plans/version-00.md](docs/plans/version-00.md). Check which stage is
 current before adding features, and don't build ahead of the current stage's exit gate.
 
 ## Repo structure
@@ -16,6 +16,7 @@ current before adding features, and don't build ahead of the current stage's exi
 - `libs/sdlc_policy`        Enforcement: tools/list filtering, call authz, arg constraints
 - `libs/sdlc_db`            Postgres/pgvector access with RLS session context
 - `libs/sdlc_connectors`    External systems: `HttpClient` (host allowlist), Atlassian converters, user connections (providers, per-user secret store, service)
+- `libs/sdlc_artifacts`     Artifact content store (local folder / GCS) + limits (version-03 P5); metadata in `sdlc_db.artifacts`
 - `libs/sdlc_secrets`       Secret references (`{env: X}` / `{secret: x}`) resolved at runtime: env or Secret Manager, 5-min cache
 - `libs/sdlc_web`           Serves agents (ADK web app + AG-UI `/agui`) behind oauth2-proxy: token re-validation, user binding, token passthrough
 - `ui/copilotkit`           CopilotKit chat app (Next.js) at `/chat/` behind oauth2-proxy; talks AG-UI to the agent's `/agui`
@@ -123,11 +124,19 @@ See "Runtime Config Exposure" in docs/plans/version-00.md.
   uses one declares `credentials: { user: <connection> }` (connection in `config/connections.yaml`, host in `allowed_hosts`) and is
   in `connected_tools.TOOL_PROVIDERS`; no usable connection = "not connected", never a service-credential fallback. Provider
   content is untrusted data. Audit: `connection_change`; `tool_call` gets `credential`, `connection`, `connection_outcome`.
+- Artifacts (version-03 P5): documents the agent saves for a user, **owner only**, written and read only through the MCP
+  server (tools `save/list/read/delete_artifact`; the ADK artifact service stays `memory://`). The owner is the token
+  `oid`, never a tool argument. Metadata in `sdlc.artifacts` under owner RLS (`sdlc_db.owner_scoped`: the only table
+  `sdlc_app` may write, no UPDATE); content in `SDLC_ARTIFACT_STORE` (`file://` volume / `gs://` bucket) under
+  `artifacts/<oid>/<id>`. Text only, 1 MiB, 50 per user, `SDLC_ARTIFACT_RETENTION_DAYS` = bucket lifecycle (7).
+  Another user's id answers "artifact not found". Audit: `artifact_change` / `artifact_access` (ids, type, size; never
+  the content or file name).
 - Audit to the `sdlc.audit` logger (JSON lines), one `event` per record:
   `tool_call` (oid, teams, roles, tool, args hash, decision, matched rule, outcome, config_version),
   `tools_list` (who listed tools, visible names, hidden count; hidden names are not logged),
   `skill_access` (load_skill: skill, allow/deny, matched rule and the real reason; callers only see "unknown skill"),
   `skills_list` (visible skill names, hidden count),
+  `artifact_change` / `artifact_access` (artifact id, action, outcome),
   `auth_failure` (401/403 on the MCP endpoint: reason from UNVERIFIED claims, client IP, token fingerprint).
   Every record carries `request_id` (one MCP request) and `agent_session_id` (the conversation, client-supplied,
   correlation only; `mcp_session_id` only when a client sends the header). Failures record `error_type` + `error` (<=500 chars); unexpected exceptions
@@ -189,7 +198,7 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
   it in `PassThroughAgentRunner.connect` from the agent's `/agents/state` as the same user; runs send only the latest turn.
   `DELETE /threads/{id}` deletes the caller's own chat (needs `X-SDLC-Request: 1`; others' and missing threads answer 404).
   ADK developer tools (builder, deploy, evals, tests, other users' traces) are off; `SDLC_DEV_TOOLS=true` enables them (never outside local dev).
-- DB connections use standard `PG*` env vars. Roles: `sdlc_owner` (migrations), `sdlc_app` (MCP, read-only), `sdlc_ingest`
+- DB connections use standard `PG*` env vars. Roles: `sdlc_owner` (migrations), `sdlc_app` (MCP, read-only except its own rows in `artifacts`), `sdlc_ingest`
   (writes); none bypasses RLS. Init: `db/bootstrap/README.md`. On the host use `PGHOST=127.0.0.1` (`localhost` tries IPv6
   first and hangs; Docker publishes Postgres on IPv4 only).
 - `uv run --env-file .env sdlc-agent-web`   agent web app outside Docker (expects a token in `X-Forwarded-Access-Token` or `Authorization: Bearer`)

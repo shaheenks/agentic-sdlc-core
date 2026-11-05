@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "agentic-sdlc",
     "sdlc-agent",
+    "sdlc-artifacts",
     "sdlc-auth",
     "sdlc-config",
     "sdlc-connectors",
@@ -2323,6 +2324,21 @@ requires-dist = [
 ]
 
 [[package]]
+name = "sdlc-artifacts"
+version = "0.1.0"
+source = { editable = "libs/sdlc_artifacts" }
+dependencies = [
+    { name = "httpx" },
+    { name = "sdlc-secrets" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "sdlc-secrets", editable = "libs/sdlc_secrets" },
+]
+
+[[package]]
 name = "sdlc-auth"
 version = "0.1.0"
 source = { editable = "libs/sdlc_auth" }
@@ -2390,6 +2406,7 @@ dependencies = [
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-instrumentation-psycopg" },
     { name = "pyyaml" },
+    { name = "sdlc-artifacts" },
     { name = "sdlc-auth", extra = ["server"] },
     { name = "sdlc-config" },
     { name = "sdlc-connectors" },
@@ -2404,6 +2421,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.42.1" },
     { name = "opentelemetry-instrumentation-psycopg", specifier = ">=0.63b1" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "sdlc-artifacts", editable = "libs/sdlc_artifacts" },
     { name = "sdlc-auth", extras = ["server"], editable = "libs/sdlc_auth" },
     { name = "sdlc-config", editable = "libs/sdlc_config" },
     { name = "sdlc-connectors", editable = "libs/sdlc_connectors" },

@@ -8,6 +8,7 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 # Dependencies first (cached layer): workspace manifests + lockfile only.
 COPY pyproject.toml uv.lock ./
 COPY libs/sdlc_agent/pyproject.toml libs/sdlc_agent/
+COPY libs/sdlc_artifacts/pyproject.toml libs/sdlc_artifacts/
 COPY libs/sdlc_auth/pyproject.toml libs/sdlc_auth/
 COPY libs/sdlc_config/pyproject.toml libs/sdlc_config/
 COPY libs/sdlc_connectors/pyproject.toml libs/sdlc_connectors/
@@ -21,6 +22,7 @@ COPY mcp_servers/core_mcp/pyproject.toml mcp_servers/core_mcp/
 COPY agents/user_agent/pyproject.toml agents/user_agent/
 RUN uv sync --frozen --no-dev --package sdlc-core-mcp --no-install-workspace
 
+COPY libs/sdlc_artifacts libs/sdlc_artifacts
 COPY libs/sdlc_auth libs/sdlc_auth
 COPY libs/sdlc_config libs/sdlc_config
 COPY libs/sdlc_connectors libs/sdlc_connectors
@@ -40,8 +42,9 @@ ENV PATH=/app/.venv/bin:$PATH \
     MCP_HOST=0.0.0.0 \
     MCP_PORT=8080 \
     HOME=/tmp
-# User connections (version-01 M6, local file store): a named volume only this container mounts.
-RUN mkdir -p /data/user-secrets && chown -R nobody /data
+# User connections (version-01 M6) and artifacts (version-03 P5), local file stores: named volumes
+# only this container mounts.
+RUN mkdir -p /data/user-secrets /data/artifacts && chown -R nobody /data
 USER nobody
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \

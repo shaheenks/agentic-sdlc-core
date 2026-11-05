@@ -7,7 +7,7 @@ current plan ([version-02.md](version-02.md)) or a new numbered plan.
 |---|---|---|---|
 | 1 | [Agent runtimes: user, CI and ops agents](#task-1--agent-runtimes-user-ci-and-ops-agents) | Trigger sources decided | 2026-11-03 |
 | 2 | [Re-ingest and remove data of dropped sources](#task-2--re-ingest-and-remove-data-of-dropped-sources) | **Done 2026-11-05** (re-ingest local + GCP at `7a5e4df`, eval passed) | 2026-11-03 |
-| 3 | [Agent-generated artifacts: storage and access](#task-3--agent-generated-artifacts-storage-and-access) | Version-03 (decided 2026-11-05); use cases and storage still open | 2026-11-04 |
+| 3 | [Agent-generated artifacts: storage and access](#task-3--agent-generated-artifacts-storage-and-access) | **Moved to version-03 P5** (2026-11-05: decisions A1–A5, build started) | 2026-11-04 |
 
 ## Task 1 — Agent runtimes: user, CI and ops agents
 
