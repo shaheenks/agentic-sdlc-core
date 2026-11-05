@@ -296,6 +296,7 @@ a.chip:hover { border-color: var(--sdlc-accent); color: var(--sdlc-accent); }
 .modal-tabs button { font: inherit; font-size: 13px; padding: 4px 10px; border: 1px solid var(--sdlc-line); border-radius: 6px; background: transparent; color: var(--sdlc-muted); cursor: pointer; }
 .modal-tabs button[aria-selected="true"] { color: var(--sdlc-accent); border-color: var(--sdlc-accent); background: var(--sdlc-chip); }
 .modal-link { font-size: 13px; }
+.modal-version { font: inherit; font-size: 13px; padding: 3px 6px; border: 1px solid var(--sdlc-line); border-radius: 6px; background: var(--sdlc-bg); color: var(--sdlc-text); }
 .modal-body { flex: 1; min-height: 0; display: flex; }
 .modal-doc { flex: 1; min-width: 0; overflow: auto; padding: 8px 0; }
 .modal-side { width: 320px; border-left: 1px solid var(--sdlc-line); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }

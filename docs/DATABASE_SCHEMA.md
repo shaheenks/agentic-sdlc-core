@@ -17,6 +17,7 @@ Definitions live in:
     (incremental loader cursors, ingest only).
   - `005_artifacts.sql` (version-03 P5): `artifacts` (metadata of documents the agent saves for a user;
     owner-only RLS; the only table `sdlc_app` may write).
+  - `006_artifact_versions.sql` (version-03 P5): `artifacts.document_id` + `version` (revisions of one document).
 
 Related: [ARCHITECTURE.md](ARCHITECTURE.md) "Data access" and "Knowledge graph".
 
@@ -228,7 +229,9 @@ Documents the agent saved for a user (version-03 P5). Metadata only: the content
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | `uuid` PK | Made by the MCP server |
+| `id` | `uuid` PK | Made by the MCP server; this version's own id (the content's object key) |
+| `document_id` | `uuid` | Stable id of the document (= `id` of version 1); the public id and link (006) |
+| `version` | `integer` | 1, 2, … per document, unique with `document_id` (`artifacts_document_version`); the highest live one is current (006) |
 | `owner_oid` | `text` | Entra `oid` of the caller, from the verified token; lowercase GUID (checked) |
 | `name` | `text` | File name, 1–100 characters (checked again in `sdlc_artifacts.limits`) |
 | `media_type` | `text` | `text/markdown`, `text/plain`, `text/csv` or `application/json` |
@@ -238,7 +241,7 @@ Documents the agent saved for a user (version-03 P5). Metadata only: the content
 
 Owner only: RLS enabled and forced, policy `app_owner` for `sdlc_app` on `owner_oid = sdlc.current_user_oid()`
 (`USING` and `WITH CHECK`), set per transaction by `sdlc_db.owner_scoped(conn, oid)`. No `UPDATE` grant (a
-revision is a new artifact) and no grant to `sdlc_ingest`. Not knowledge data, so no `source_id` /
+revision is a new row: the next `version` of the same `document_id`) and no grant to `sdlc_ingest`. Not knowledge data, so no `source_id` /
 `classification_rank` (sharing, version-03 F3, would add classification). Index `artifacts_owner_created`.
 
 ### `schema_migrations` (created by `sdlc-db migrate`)

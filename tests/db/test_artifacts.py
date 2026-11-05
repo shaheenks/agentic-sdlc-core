@@ -49,10 +49,12 @@ def as_app(oid: str | None, sql_text: str, params=()):
 
 
 def insert_sql(owner: str) -> tuple[str, tuple]:
+    row_id = str(uuid.uuid4())
     return (
-        "INSERT INTO artifacts (id, owner_oid, name, media_type, size_bytes, sha256, expires_at)"
-        " VALUES (%s, %s, 'a.md', 'text/markdown', 1, %s, now() + interval '1 day')",
-        (str(uuid.uuid4()), owner, "0" * 64),
+        "INSERT INTO artifacts (id, document_id, owner_oid, name, media_type, size_bytes, sha256,"
+        " expires_at) VALUES (%s, %s, %s, 'a.md', 'text/markdown', 1, %s,"
+        " now() + interval '1 day')",
+        (row_id, row_id, owner, "0" * 64),
     )
 
 
@@ -226,3 +228,54 @@ async def test_download_api_owner_only(mcp, entra, caplog):
     downloads = [r for r in audit(caplog, "artifact_access") if r["action"] == "download"]
     assert {(r["oid"], r["outcome"]) for r in downloads} >= {(ALICE, "ok"), (BOB, "not_found")}
     assert all("stories.md" not in json.dumps(r) for r in downloads)
+
+
+# --- versions (F6): revisions of one document keep its id and link ------------------------------
+
+
+async def test_versions_of_one_document(mcp, entra, caplog):
+    caplog.set_level("INFO", logger="sdlc.audit")
+    url, content, _ = mcp
+    erin = str(uuid.uuid4())
+    v1 = await call(url, entra, erin, "save_artifact", {"name": "design.md", "content": "one"})
+    doc = v1["id"]
+    assert (v1["version"], v1["versions"]) == (1, 1)
+    v2 = await call(
+        url, entra, erin, "save_artifact", {"name": "design.md", "content": "two", "replaces": doc}
+    )
+    assert (v2["id"], v2["version"], v2["download_path"]) == (doc, 2, f"/artifacts/{doc}")
+
+    listed = (await call(url, entra, erin, "list_artifacts"))["artifacts"]
+    assert [(a["id"], a["version"], a["versions"]) for a in listed] == [(doc, 2, 2)]
+    read = lambda **kw: call(url, entra, erin, "read_artifact", {"artifact_id": doc, **kw})  # noqa: E731
+    assert (await read())["content"] == "two"
+    assert (await read(version=1))["content"] == "one"
+    with pytest.raises(ToolError, match="artifact not found"):
+        await read(version=3)
+
+    # another user cannot add a version to it (same answer as a missing document)
+    with pytest.raises(ToolError, match="artifact not found"):
+        await call(
+            url, entra, BOB, "save_artifact", {"name": "x.md", "content": "x", "replaces": doc}
+        )
+
+    token = entra.token(oid=erin, groups=[G_ENG_ALL])
+    async with httpx.AsyncClient(base_url=url, headers={"X-Forwarded-Access-Token": token}) as h:
+        latest = await h.get(f"/artifacts/{doc}")
+        assert latest.content == b"two" and latest.headers["x-sdlc-artifact-version"] == "2"
+        assert (await h.get(f"/artifacts/{doc}?version=1")).content == b"one"
+        assert (await h.get(f"/artifacts/{doc}?version=x")).status_code == 404
+        versions = (await h.get(f"/artifacts/{doc}/versions")).json()["versions"]
+        assert [v["version"] for v in versions] == [2, 1]
+        r = await h.delete(f"/artifacts/{doc}", headers={"X-SDLC-Request": "1"})
+        assert r.json() == {"id": doc, "deleted": True, "versions": 2}
+        assert (await h.get(f"/artifacts/{doc}/versions")).status_code == 404
+    assert not [k for k in content.objects if k.startswith(f"artifacts/{erin}/")]
+
+    changes = [r for r in audit(caplog, "artifact_change") if r["artifact_id"] == doc]
+    assert [(r["action"], r["outcome"]) for r in changes] == [
+        ("create", "ok"),
+        ("update", "ok"),
+        ("update", "not_found"),  # Bob's attempt
+        ("delete", "ok"),
+    ]

@@ -46,6 +46,12 @@ test("attachment message: reference and comments, never the document text", () =
   assert.match(msg, /Line 5: Add an acceptance criterion\n {2}for timeouts/);
 });
 
+test("attachment message names the version the comments refer to", () => {
+  const msg = attachmentMessage({ ...doc, version: 3 }, [{ start: 1, end: 1, text: "x" }]);
+  assert.match(msg, /\(artifact_id: 0b9f3c8e-1d2a-4c5b-9e7f-112233445566, version: 3\)\./);
+  assert.doesNotMatch(attachmentMessage({ ...doc, version: 0 }, []), /version: /);
+});
+
 test("attachment message without comments, custom request, odd names", () => {
   const msg = attachmentMessage({ ...doc, name: 'a"b`\nc.md' }, [], "Summarise it.");
   assert.equal(msg, `Attached saved document "a b  c.md" (artifact_id: ${doc.id}).\nSummarise it.`);

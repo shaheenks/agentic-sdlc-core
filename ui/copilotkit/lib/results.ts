@@ -177,7 +177,15 @@ export function documentChips(items: Citation[]): DocumentChip[] {
 // Saved documents (version-03 P5): save_artifact returns one, list_artifacts a list. The download
 // link is built here from the id alone (a UUID), never taken from the result, so a tool result
 // cannot point the link anywhere but this app's own /artifacts/ API (oauth2-proxy -> MCP server).
-export type SavedArtifact = { id: string; name: string; sizeBytes: number; expiresAt: string; href: string };
+export type SavedArtifact = {
+  id: string; // the document's stable id (all versions)
+  name: string;
+  version: number;
+  versions: number;
+  sizeBytes: number;
+  expiresAt: string;
+  href: string; // latest version
+};
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -186,6 +194,8 @@ function artifact(value: unknown): SavedArtifact | null {
   return {
     id: value.id,
     name: typeof value.name === "string" ? value.name : "document",
+    version: typeof value.version === "number" && value.version >= 1 ? value.version : 1,
+    versions: typeof value.versions === "number" && value.versions >= 1 ? value.versions : 1,
     sizeBytes: typeof value.size_bytes === "number" ? value.size_bytes : 0,
     expiresAt: typeof value.expires_at === "string" ? value.expires_at : "",
     href: `/artifacts/${value.id}`,

@@ -2,8 +2,11 @@
 caller's own artifacts.
 
   GET    /artifacts/        the caller's artifacts (metadata only)
-  GET    /artifacts/{id}    download (attachment, never rendered on our origin)
-  DELETE /artifacts/{id}    needs `X-SDLC-Request: 1` (a cross-site form or image cannot send it)
+  GET    /artifacts/{id}    download the latest version (attachment, never rendered on our origin);
+                            ?version=N for an older one (header X-SDLC-Artifact-Version names it)
+  GET    /artifacts/{id}/versions   the document's live versions (metadata only)
+  DELETE /artifacts/{id}    the document with all its versions; needs `X-SDLC-Request: 1`
+                            (a cross-site form or image cannot send it)
 
 Served by the MCP server and reached by the browser through oauth2-proxy at /artifacts/ (the proxy
 adds the user's Entra token as X-Forwarded-Access-Token; `Authorization: Bearer` works too). The
@@ -84,6 +87,18 @@ def add_artifact_routes(
             {"artifacts": [public_row(r) for r in rows], "retention_days": artifacts.retention_days}
         )
 
+    @mcp.custom_route("/artifacts/{artifact_id}/versions", methods=["GET"])
+    async def versions(request: Request) -> Response:
+        ident = await caller(request, "read_artifact")
+        if isinstance(ident, Response):
+            return ident
+        pool = await artifacts.knowledge.open_pool()
+        async with pool.connection() as conn, owner_scoped(conn, ident.principal.oid):
+            rows = await db.list_versions(conn, request.path_params["artifact_id"])
+        if not rows:
+            return not_found()
+        return JSONResponse({"id": rows[0].document_id, "versions": [public_row(r) for r in rows]})
+
     @mcp.custom_route("/artifacts/{artifact_id}", methods=["GET", "DELETE"])
     async def one_artifact(request: Request) -> Response:
         artifact_id = request.path_params["artifact_id"]
@@ -97,37 +112,46 @@ def add_artifact_routes(
             oid = ident.principal.oid
             pool = await artifacts.knowledge.open_pool()
             async with pool.connection() as conn, owner_scoped(conn, oid):
-                deleted = await db.delete(conn, artifact_id)
-            if not deleted:
+                row_ids = await db.delete_document(conn, artifact_id)
+            if not row_ids:
                 audit_artifact(ident, "artifact_change", "delete", key, "not_found", via="api")
                 return not_found()
-            try:
-                await asyncio.to_thread(artifacts.store.delete, object_key(oid, key))
-            except ArtifactStoreError as e:  # the row is gone; the bucket lifecycle cleans up
-                log.warning("artifact content not deleted (%s): %s", key, e)
-            audit_artifact(ident, "artifact_change", "delete", key, "ok", via="api")
-            return JSONResponse({"id": key, "deleted": True})
+            for row_id in row_ids:  # the rows are gone; the bucket lifecycle cleans up leftovers
+                try:
+                    await asyncio.to_thread(artifacts.store.delete, object_key(oid, row_id))
+                except ArtifactStoreError as e:
+                    log.warning("artifact content not deleted (%s): %s", row_id, e)
+            audit_artifact(
+                ident, "artifact_change", "delete", key, "ok", via="api", versions=len(row_ids)
+            )
+            return JSONResponse({"id": key, "deleted": True, "versions": len(row_ids)})
 
         ident = await caller(request, "read_artifact")
         if isinstance(ident, Response):
             return ident
+        raw_version = request.query_params.get("version")
+        version = int(raw_version) if raw_version and raw_version.isdigit() else None
+        if raw_version and version is None:
+            return not_found()
         oid = ident.principal.oid
         pool = await artifacts.knowledge.open_pool()
         async with pool.connection() as conn, owner_scoped(conn, oid):
-            row = await db.get_live(conn, artifact_id)
+            row = await db.get_live(conn, artifact_id, version)
         if row is None:
             audit_artifact(ident, "artifact_access", "download", key, "not_found")
             return not_found()
         try:
-            data = await asyncio.to_thread(artifacts.store.get, object_key(oid, row.id))
+            data = await asyncio.to_thread(artifacts.store.get, object_key(oid, row.row_id))
         except ArtifactStoreError as e:
             log.error("artifact not readable: %s", e)
-            audit_artifact(ident, "artifact_access", "download", row.id, "error")
+            audit_artifact(ident, "artifact_access", "download", key, "error", version=row.version)
             return JSONResponse({"detail": "the artifact could not be read"}, status_code=502)
         if data is None:
-            audit_artifact(ident, "artifact_access", "download", row.id, "content_missing")
+            audit_artifact(
+                ident, "artifact_access", "download", key, "content_missing", version=row.version
+            )
             return not_found()
-        audit_artifact(ident, "artifact_access", "download", row.id, "ok")
+        audit_artifact(ident, "artifact_access", "download", key, "ok", version=row.version)
         # row.name passed sdlc_artifacts.limits (letters, digits, . _ - space): safe in the header
         return Response(
             data,
@@ -135,5 +159,6 @@ def add_artifact_routes(
             headers={
                 **DOWNLOAD_HEADERS,
                 "Content-Disposition": f'attachment; filename="{row.name}"',
+                "X-SDLC-Artifact-Version": str(row.version),
             },
         )

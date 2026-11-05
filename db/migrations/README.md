@@ -24,5 +24,8 @@ an applied migration must never be edited: add a new file instead.
   (`app_owner` on `sdlc.current_user_oid()`, set by `sdlc_db.owner_scoped`); `sdlc_app` gets `SELECT, INSERT,
   DELETE` on this table only. Documented exception to the rule below: user-owned files, not source data.
 
+- `006_artifact_versions.sql` (version-03 P5): `artifacts.document_id` + `version`; a revision adds a row
+  (rows stay immutable). Backfill lifts `FORCE ROW LEVEL SECURITY` for its own transaction only.
+
 Every new data table needs `FORCE ROW LEVEL SECURITY`, a `source_id` + `classification_rank` column,
 and policies for both roles, plus rows in `tests/db`.

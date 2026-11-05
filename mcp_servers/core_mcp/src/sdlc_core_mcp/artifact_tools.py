@@ -16,6 +16,7 @@ import uuid
 from dataclasses import dataclass
 
 from fastmcp.exceptions import ToolError
+from psycopg.errors import UniqueViolation
 from sdlc_artifacts import (
     MAX_LIVE_PER_USER,
     ArtifactInputError,
@@ -49,7 +50,8 @@ class Artifacts:
 
 
 def public_row(row: db.ArtifactRow) -> dict:
-    return {**row.public(), "download_path": f"{DOWNLOAD_PATH}{row.id}"}
+    """Public view: `id` is the document's stable id; the link opens its latest version."""
+    return {**row.public(), "download_path": f"{DOWNLOAD_PATH}{row.document_id}"}
 
 
 def make_artifact_tools(artifacts: Artifacts) -> list:
@@ -59,68 +61,91 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
             raise ToolError("artifacts are not configured on this server")
         return ident, await artifacts.knowledge.open_pool()
 
-    async def _drop_objects(oid: str, ids: list[str]) -> None:
-        for artifact_id in ids:  # best effort: the store's lifecycle removes leftovers
+    async def _drop_objects(oid: str, row_ids: list[str]) -> None:
+        for row_id in row_ids:  # best effort: the store's lifecycle removes leftovers
             try:
-                await asyncio.to_thread(artifacts.store.delete, object_key(oid, artifact_id))
+                await asyncio.to_thread(artifacts.store.delete, object_key(oid, row_id))
             except ArtifactStoreError as e:
-                log.warning("artifact content not deleted (%s): %s", artifact_id, e)
+                log.warning("artifact content not deleted (%s): %s", row_id, e)
 
-    async def save_artifact(name: str, content: str, media_type: str = "text/markdown") -> dict:
+    async def save_artifact(
+        name: str,
+        content: str,
+        media_type: str = "text/markdown",
+        replaces: str | None = None,
+    ) -> dict:
         """Save a document for the user to download later (design or review notes, user
         stories, reports). Text only: text/markdown (default, name ends in .md), text/plain
         (.txt), text/csv (.csv) or application/json (.json); up to 1 MiB. Kept for a limited
-        time (see expires_at). Give the user the download_path as a link. A revision is a new
-        artifact: save it again, then delete the old one if the user wants."""
+        time (see expires_at). Give the user the download_path as a link.
+        To revise one of the user's documents, pass its id as `replaces`: this saves the next
+        version of the same document (same id and link; older versions stay readable)."""
         ident, pool = await _begin()
         oid = ident.principal.oid
+        action = "update" if replaces else "create"
         try:
             data = validate(name, content, media_type)
         except ArtifactInputError as e:
-            audit_artifact(ident, "artifact_change", "create", None, "rejected", reason=str(e))
+            audit_artifact(ident, "artifact_change", action, None, "rejected", reason=str(e))
             raise ToolError(str(e)) from None
-        artifact_id = str(uuid.uuid4())
+        row_id = str(uuid.uuid4())
+        document_id = db.parse_id(replaces) if replaces else row_id
         async with pool.connection() as conn, owner_scoped(conn, oid):
             expired = await db.delete_expired(conn)
+            version = 1
+            if replaces:
+                latest = await db.latest_version(conn, replaces)
+                if latest is None:  # missing, expired or not the caller's: the same answer
+                    audit_artifact(ident, "artifact_change", action, document_id, "not_found")
+                    raise ToolError(NOT_FOUND)
+                version = latest + 1
             if await db.count_live(conn) >= MAX_LIVE_PER_USER:
-                audit_artifact(ident, "artifact_change", "create", None, "limit")
+                audit_artifact(ident, "artifact_change", action, document_id, "limit")
                 raise ToolError(
-                    f"you have {MAX_LIVE_PER_USER} saved artifacts (the limit): "
+                    f"you have {MAX_LIVE_PER_USER} saved documents and versions (the limit): "
                     "delete some with delete_artifact first"
                 )
-            row = await db.insert(
-                conn,
-                artifact_id=artifact_id,
-                owner_oid=oid,
-                name=name,
-                media_type=media_type,
-                size_bytes=len(data),
-                sha256=hashlib.sha256(data).hexdigest(),
-                agent_session_id=current_correlation().get("agent_session_id"),
-                retention_days=artifacts.retention_days,
-            )
+            try:
+                row = await db.insert(
+                    conn,
+                    artifact_id=row_id,
+                    document_id=document_id,
+                    version=version,
+                    owner_oid=oid,
+                    name=name,
+                    media_type=media_type,
+                    size_bytes=len(data),
+                    sha256=hashlib.sha256(data).hexdigest(),
+                    agent_session_id=current_correlation().get("agent_session_id"),
+                    retention_days=artifacts.retention_days,
+                )
+            except UniqueViolation:  # two revisions of one document at the same moment
+                audit_artifact(ident, "artifact_change", action, document_id, "conflict")
+                raise ToolError("the document changed at the same time; try again") from None
             try:  # inside the transaction: a failed upload leaves no row
                 await asyncio.to_thread(
-                    artifacts.store.put, object_key(oid, artifact_id), data, media_type
+                    artifacts.store.put, object_key(oid, row_id), data, media_type
                 )
             except ArtifactStoreError as e:
                 log.error("artifact not stored: %s", e)
-                audit_artifact(ident, "artifact_change", "create", artifact_id, "error")
+                audit_artifact(ident, "artifact_change", action, document_id, "error")
                 raise ToolError("the artifact could not be saved; try again later") from None
         await _drop_objects(oid, expired)
         audit_artifact(
             ident,
             "artifact_change",
-            "create",
-            artifact_id,
+            action,
+            document_id,
             "ok",
+            version=version,
             media_type=media_type,
             size_bytes=len(data),
         )
         return public_row(row)
 
     async def list_artifacts() -> dict:
-        """List the documents you saved with save_artifact (newest first) that have not expired."""
+        """List the documents you saved with save_artifact (latest version of each, newest
+        first) that have not expired."""
         ident, pool = await _begin()
         async with pool.connection() as conn, owner_scoped(conn, ident.principal.oid):
             expired = await db.delete_expired(conn)
@@ -132,39 +157,43 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
             "retention_days": artifacts.retention_days,
         }
 
-    async def read_artifact(artifact_id: str) -> dict:
-        """Return one of your saved documents with its text, e.g. to revise it."""
+    async def read_artifact(artifact_id: str, version: int | None = None) -> dict:
+        """Return one of your saved documents with its text, e.g. to revise it. The latest
+        version unless `version` is given."""
         ident, pool = await _begin()
         oid = ident.principal.oid
+        key = db.parse_id(artifact_id)
         async with pool.connection() as conn, owner_scoped(conn, oid):
-            row = await db.get_live(conn, artifact_id)
+            row = await db.get_live(conn, artifact_id, version)
         if row is None:
-            audit_artifact(ident, "artifact_access", "read", db.parse_id(artifact_id), "not_found")
+            audit_artifact(ident, "artifact_access", "read", key, "not_found")
             raise ToolError(NOT_FOUND)
         try:
-            data = await asyncio.to_thread(artifacts.store.get, object_key(oid, row.id))
+            data = await asyncio.to_thread(artifacts.store.get, object_key(oid, row.row_id))
         except ArtifactStoreError as e:
             log.error("artifact not readable: %s", e)
-            audit_artifact(ident, "artifact_access", "read", row.id, "error")
+            audit_artifact(ident, "artifact_access", "read", key, "error", version=row.version)
             raise ToolError("the artifact could not be read; try again later") from None
         if data is None:  # content gone (store lifecycle) before the row expired
-            audit_artifact(ident, "artifact_access", "read", row.id, "content_missing")
+            audit_artifact(
+                ident, "artifact_access", "read", key, "content_missing", version=row.version
+            )
             raise ToolError(NOT_FOUND)
-        audit_artifact(ident, "artifact_access", "read", row.id, "ok")
+        audit_artifact(ident, "artifact_access", "read", key, "ok", version=row.version)
         return {**public_row(row), "content": data.decode("utf-8")}
 
     async def delete_artifact(artifact_id: str) -> dict:
-        """Delete one of your saved documents."""
+        """Delete one of your saved documents, with all its versions."""
         ident, pool = await _begin()
         oid = ident.principal.oid
-        async with pool.connection() as conn, owner_scoped(conn, oid):
-            deleted = await db.delete(conn, artifact_id)
         key = db.parse_id(artifact_id)
-        if not deleted:
+        async with pool.connection() as conn, owner_scoped(conn, oid):
+            row_ids = await db.delete_document(conn, artifact_id)
+        if not row_ids:
             audit_artifact(ident, "artifact_change", "delete", key, "not_found")
             raise ToolError(NOT_FOUND)
-        await _drop_objects(oid, [key])
-        audit_artifact(ident, "artifact_change", "delete", key, "ok")
-        return {"id": key, "deleted": True}
+        await _drop_objects(oid, row_ids)
+        audit_artifact(ident, "artifact_change", "delete", key, "ok", versions=len(row_ids))
+        return {"id": key, "deleted": True, "versions": len(row_ids)}
 
     return [save_artifact, list_artifacts, read_artifact, delete_artifact]

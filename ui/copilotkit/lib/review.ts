@@ -34,17 +34,19 @@ export function cleanComments(comments: LineComment[]): LineComment[] {
 }
 
 export const DEFAULT_REQUEST =
-  "Read it with read_artifact, apply my comments, save the result as a new document and give me the link.";
+  "Read it with read_artifact, apply my comments, save the result as the next version of the same document and give me the link.";
 
 /** The chat message that attaches a saved document with its comments. */
 export function attachmentMessage(
-  artifact: { id: string; name: string },
+  artifact: { id: string; name: string; version?: number },
   comments: LineComment[],
   request: string = DEFAULT_REQUEST,
 ): string {
   if (!UUID.test(artifact.id)) throw new Error("not a saved document id");
   const name = artifact.name.replace(/[\r\n"`]/g, " ").slice(0, 100);
-  const lines = [`Attached saved document "${name}" (artifact_id: ${artifact.id}).`];
+  const v = artifact.version;
+  const version = typeof v === "number" && Number.isInteger(v) && v >= 1 ? `, version: ${v}` : "";
+  const lines = [`Attached saved document "${name}" (artifact_id: ${artifact.id}${version}).`];
   const ask = request.trim();
   if (ask) lines.push(ask);
   const cleaned = cleanComments(comments);

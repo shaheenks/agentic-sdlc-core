@@ -62,26 +62,46 @@ function saveDraft(id: string, draft: Draft | null): void {
   }
 }
 
+type VersionInfo = { version: number; created: string };
+
 export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
+  const [versions, setVersions] = useState<VersionInfo[]>([]);
+  const [version, setVersion] = useState<number | null>(null);
   const [text, setText] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tab, setTab] = useState<"lines" | "preview">("lines");
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
   const [note, setNote] = useState("");
-  const [draft, setDraft] = useState<Draft>(() => loadDraft(artifact.id));
+  const [draft, setDraft] = useState<Draft>({ comments: [], request: DEFAULT_REQUEST });
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const dialog = useRef<HTMLDivElement>(null);
+  // comments refer to the line numbers of one version: drafts are kept per version
+  const draftId = `${artifact.id}.v${version ?? 0}`;
 
   useEffect(() => {
     let live = true;
     (async () => {
       try {
-        const response = await fetch(`/artifacts/${artifact.id}`);
+        const response = await fetch(`/artifacts/${artifact.id}/versions`);
         if (!live) return;
-        if (response.status === 404) setLoadError("This document no longer exists (deleted or expired).");
-        else if (!response.ok) setLoadError(`Could not open the document (${response.status}).`);
-        else setText(await response.text());
+        if (response.status === 404) {
+          setLoadError("This document no longer exists (deleted or expired).");
+          return;
+        }
+        if (!response.ok) {
+          setLoadError(`Could not open the document (${response.status}).`);
+          return;
+        }
+        const body = await response.json();
+        const list: VersionInfo[] = (Array.isArray(body.versions) ? body.versions : [])
+          .filter((v: { version?: unknown }) => typeof v.version === "number")
+          .map((v: { version: number; created_at?: unknown }) => ({
+            version: v.version,
+            created: typeof v.created_at === "string" ? v.created_at.slice(0, 16).replace("T", " ") : "",
+          }));
+        setVersions(list);
+        setVersion(list[0]?.version ?? null);
       } catch {
         if (live) setLoadError("Could not open the document. Reload the page to sign in again.");
       }
@@ -93,6 +113,31 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
   }, [artifact.id]);
 
   useEffect(() => {
+    if (version === null) return;
+    let live = true;
+    setText(null);
+    setSelection(null);
+    setDraft(loadDraft(`${artifact.id}.v${version}`));
+    (async () => {
+      try {
+        const response = await fetch(`/artifacts/${artifact.id}?version=${version}`);
+        if (!live) return;
+        if (response.status === 404) setLoadError("This version no longer exists (deleted or expired).");
+        else if (!response.ok) setLoadError(`Could not open the document (${response.status}).`);
+        else {
+          setLoadError(null);
+          setText(await response.text());
+        }
+      } catch {
+        if (live) setLoadError("Could not open the document. Reload the page to sign in again.");
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [artifact.id, version]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -101,9 +146,9 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
   const update = useCallback(
     (next: Draft) => {
       setDraft(next);
-      saveDraft(artifact.id, next);
+      saveDraft(draftId, next);
     },
-    [artifact.id],
+    [draftId],
   );
 
   const lines = useMemo(() => (text ?? "").replace(/\r\n/g, "\n").split("\n"), [text]);
@@ -123,13 +168,14 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
   async function attach() {
     setSending(true);
     setSendError(null);
-    const problem = await onAttach(attachmentMessage(artifact, draft.comments, draft.request));
+    const target = { ...artifact, version: version ?? undefined };
+    const problem = await onAttach(attachmentMessage(target, draft.comments, draft.request));
     setSending(false);
     if (problem) {
       setSendError(problem);
       return;
     }
-    saveDraft(artifact.id, null);
+    saveDraft(draftId, null);
     onClose();
   }
 
@@ -145,6 +191,22 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
       >
         <header className="modal-head">
           <span className="modal-title">{artifact.name}</span>
+          {versions.length > 1 && version !== null && (
+            <select
+              className="modal-version"
+              aria-label="Version"
+              value={version}
+              onChange={(e) => setVersion(Number(e.target.value))}
+            >
+              {versions.map((v, i) => (
+                <option key={v.version} value={v.version}>
+                  v{v.version}
+                  {i === 0 ? " (latest)" : ""} {v.created}
+                </option>
+              ))}
+            </select>
+          )}
+          {versions.length === 1 && <span className="chip">v{versions[0].version}</span>}
           <div className="modal-tabs" role="tablist">
             <button type="button" role="tab" aria-selected={tab === "lines"} onClick={() => setTab("lines")}>
               Lines
@@ -153,7 +215,11 @@ export function ArtifactViewer({ artifact, onClose, onAttach }: Props) {
               Preview
             </button>
           </div>
-          <a className="modal-link" href={`/artifacts/${artifact.id}`} download={artifact.name}>
+          <a
+            className="modal-link"
+            href={`/artifacts/${artifact.id}${version ? `?version=${version}` : ""}`}
+            download={artifact.name}
+          >
             Download
           </a>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close">

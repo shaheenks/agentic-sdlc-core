@@ -57,6 +57,7 @@ function ArtifactRow({ a, onChange }: { a: SavedArtifact; onChange: () => void }
         {a.name}
       </button>
       <div className="citation-meta">
+        <span>v{a.version}{a.versions > 1 ? ` · ${a.versions} versions` : ""}</span>
         <span>{size(a.sizeBytes)}</span>
         {a.expiresAt && <span>kept until {a.expiresAt.slice(0, 10)}</span>}
       </div>

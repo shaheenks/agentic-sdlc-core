@@ -250,6 +250,7 @@ function ArtifactsResult({ result, label, saved }: { result: unknown; label: str
             Review
           </button>
           <div className="citation-meta">
+            <span>v{a.version}{a.versions > 1 ? ` · ${a.versions} versions` : ""}</span>
             <span>{a.sizeBytes < 1024 ? `${a.sizeBytes} B` : `${Math.ceil(a.sizeBytes / 1024)} KB`}</span>
             {a.expiresAt && <span>kept until {a.expiresAt.slice(0, 10)}</span>}
             <span>only you can open it</span>

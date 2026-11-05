@@ -113,7 +113,15 @@ test("saved artifacts: links are built from the UUID only", () => {
   const id = "0b9f3c8e-1d2a-4c5b-9e7f-112233445566";
   const saved = { id, name: "stories.md", size_bytes: 12, expires_at: "2026-11-12T00:00:00+00:00", download_path: "https://evil.example/x" };
   assert.deepEqual(savedArtifacts(saved), [
-    { id, name: "stories.md", sizeBytes: 12, expiresAt: "2026-11-12T00:00:00+00:00", href: `/artifacts/${id}` },
+    {
+      id,
+      name: "stories.md",
+      version: 1,
+      versions: 1,
+      sizeBytes: 12,
+      expiresAt: "2026-11-12T00:00:00+00:00",
+      href: `/artifacts/${id}`,
+    },
   ]);
   assert.equal(savedArtifacts({ artifacts: [saved, { id: "../../etc" }] }).length, 1);
   assert.deepEqual(savedArtifacts({ id: "javascript:alert(1)" }), []);

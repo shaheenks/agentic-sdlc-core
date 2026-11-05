@@ -129,7 +129,8 @@ See "Runtime Config Exposure" in docs/plans/version-00.md.
   `oid`, never a tool argument. Metadata in `sdlc.artifacts` under owner RLS (`sdlc_db.owner_scoped`: the only table
   `sdlc_app` may write, no UPDATE); content in `SDLC_ARTIFACT_STORE` (`file://` volume / `gs://` bucket) under
   `artifacts/<oid>/<id>`. Text only, 1 MiB, 50 per user, `SDLC_ARTIFACT_RETENTION_DAYS` = bucket lifecycle (7).
-  Another user's id answers "artifact not found". Browser downloads: MCP `/artifacts/` API through oauth2-proxy (an
+  Another user's id answers "artifact not found". Versions: `save_artifact(replaces=<id>)` adds the next version of
+  the same document (rows immutable, id/link stable, older versions readable via `version`). Browser downloads: MCP `/artifacts/` API through oauth2-proxy (an
   upstream, not an API route), same token checks + the matching tool grant; served as attachments (`nosniff`, CSP
   sandbox), DELETE needs `X-SDLC-Request: 1`; the chat card builds links from the UUID only. Audit: `artifact_change` /
   `artifact_access` (ids, type, size; never the content or file name).

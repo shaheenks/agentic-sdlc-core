@@ -31,6 +31,7 @@ Follows [version-02.md](version-02.md). Architecture: [../ARCHITECTURE.md](../AR
 | P7 | Write tools on behalf of the user (create issue, comment, PR) with UI confirmation | N6, D5 | P6 decisions (approval gates) |
 | P8 | Connectors and sources: Atlassian Cloud live checks (incl. AG-UI gate 5 Jira part), Data Center editions (Bitbucket DC "who am I"), Cloud + DC side by side, URL elicitation, PDF OCR live check (a source with scanned PDFs), source secrets in Secret Manager (first private source), SharePoint / Office documents, GitHub App tokens, `inherit_from_source` | N2, N6 | Q3 (Atlassian site, DC instance, private sources) |
 | P9 | Quality and tooling: ADK evals in CI, retrieval ranking (re-ranker, query entities), `explain` by UPN, Antigravity OAuth sign-in + Stage 8 gate, OBO where providers support it, OPA/Cedar if rules outgrow YAML, admin UI over config | N6, version-00 Stage 8/9 | — |
+| P10 | EGM document flow: full-context agent drafts, isolated Goldfish reviewers critique, user approves (§P10) | user request 2026-11-05 | P5 F2 live check |
 | — | Per-source Entra group `infra-readers` (or a real one) in the tenant | N9 | a source that needs its own group |
 | — | Gemini Enterprise registration (A2A agent + OAuth authorization) | version-02 §7 | org admin, workforce pool, licences; P4 |
 
@@ -79,8 +80,44 @@ Follows [version-02.md](version-02.md). Architecture: [../ARCHITECTURE.md](../AR
 | F1 | `libs/sdlc_artifacts` (file + GCS), migration 005 + `owner_scoped`, MCP tools, config + persona rows, compose volume | Tests: a user saves, lists, reads and deletes their own artifact; another user gets "not found"; limits enforced; RLS test in `tests/db`; audit records | ✅ Built 2026-11-05: `tests/db/test_artifacts.py` (RLS + tools end to end), `tests/artifacts/`; migration 005 applied to the local dev DB, core-mcp logs `artifacts on (file store, 7.0 days)`; full suite 779 passed. GCP: needs `-Step db` (migration) with F4 |
 | F2 | Download API + oauth2-proxy routes (localhost **and** the tunnel) + agent instruction to link artifacts | A download works on localhost and the tunnel; no access without a session; another user's id answers 404 | 🔨 Built 2026-11-05: `artifacts_api.py` (GET list / GET download / DELETE with `X-SDLC-Request: 1`; 401 without token, 403 without the tool, 404 for others' ids; attachment + `nosniff` + CSP sandbox), proxy upstream (both local proxies answer 302 to sign-in), agent instruction, chat card for `save_artifact` / `list_artifacts` (links built from the UUID only). Tests: `tests/db/test_artifacts.py`, UI `results.test.ts`. Live check 2026-11-05: download works (localhost). The chat's **Artifacts panel** (version-02 placeholder) now lists the caller's documents from `GET /artifacts/` (download, delete with confirmation, refresh when the chat saves one) |
 | F5 | Review in the chat (asked 2026-11-05): overlay modal to view a saved document (Lines with numbers + Markdown Preview, no raw HTML or images), inline line comments, "Attach to chat" = one user message with a reference + the comments (decision: comments live in the conversation, the agent reads the text with `read_artifact`) | Open from the panel or a chat card; attaching starts an agent run that revises the document and saves a new version | 🔨 Built 2026-11-05 (`ArtifactViewer`, `ArtifactReviewHost`, `lib/review.ts` + tests; `react-markdown` 10.1.0 pinned). Live check passed 2026-11-05 (attach → agent read the document and saved a revised version) |
+| F6 | Versions (asked 2026-11-05: "can the agent update the same document?"; decision: versions, not overwrite): `save_artifact(replaces=<id>)` adds version N+1 of the same document; stable id and link (latest), `read_artifact(id, version)`, `GET /artifacts/{id}?version=N` and `/versions`, delete removes all versions; viewer version picker, drafts per version, attach message names the version | The agent revises a reviewed document as v2 of the same entry; v1 stays viewable | 🔨 Built 2026-11-05: migration 006 (applied to the local dev DB, 2 rows backfilled as v1), `test_versions_of_one_document`; full suite 781 passed. Live check passed 2026-11-05 (revision saved as v2 of the same entry, v1 viewable) |
 | F3 | Team sharing + classification inheritance | later (A3) | not planned |
 | F4 | GCP: MCP service account gets `objectUser` on the artifact bucket (the agent's grant is removed), `SDLC_ARTIFACT_STORE` on `sdlc-mcp`, proxy routes; Terraform run by the user | F1/F2 gates on GCP dev | 🔨 Built 2026-11-05 (not applied): bucket grant moved from `sdlc-app` to `sdlc-mcp` (`artifact_store_mcp`; the plan shows the old `artifact_store_agent` member destroyed), `SDLC_ARTIFACT_STORE` + `SDLC_ARTIFACT_RETENTION_DAYS` on `sdlc-mcp`, proxy upstream `/artifacts/`. Your steps: `-Step images`, `plan`, `apply`, then `-Step db` (migration 005) right after |
+
+## P10 — EGM document flow (Elephant-Goldfish Model, https://egm.dev/)
+
+**Decisions (2026-11-05):**
+
+| # | Decision |
+|---|---|
+| E1 | Only for **document work** (designs, user stories, reviews, reports). Quick Q&A stays a single turn. No reviewer runs until the user says go |
+| E2 | Reviewer lenses are **skills served by MCP** (tag `goldfish-lens`), granted in `config/`; teams can add their own |
+| E3 | Starts after P5 (F2 live check). Drafts and review reports are saved as P5 artifacts |
+
+**Design:**
+- **Elephant** = `user_agent` (conversation, team context, knowledge tools, artifacts), guided by the flow skill
+  `egm-document-flow`: brainstorm → draft → ask "review with Goldfish?" → review → resolve (PROPOSE FIX / CONTEST,
+  only user-approved edits, at most one re-review) → approve → save `<name>.md` + `<name>-review.md`.
+- **Goldfish** = agent-side tool `goldfish_review(draft, lenses)` (`libs/sdlc_agent/goldfish.py`). One nested ADK run
+  per lens, run concurrently. Each run, like `AgentTool`, has a fresh in-memory session and sees only the draft and
+  the lens name. Unlike `AgentTool`, its state starts **empty**. Reviewers load their lens with `load_skill` and may
+  check claims with `search_knowledge` / `graph_query`, all through MCP **as the user**. A lens the user can't see is
+  reported `unavailable`. A tool-less synthesizer dedupes the findings into Blocker / Major / Nit, each traced to
+  its lens.
+- **Lenses:** `lens-zoom-out`, `lens-comprehension`, `lens-design-critic`, `lens-implementation-readiness`
+  (`skills/core/`); viewer gets `tag:goldfish-lens`. `design-review` stays for now.
+- **Audit correlation:** a `_conversation_id` ContextVar in `sdlc_auth.adk`, set by the tool, keeps the parent
+  conversation id in `X-SDLC-Agent-Session` for the nested MCP sessions (each reviewer opens and closes its own).
+- **Limits:** `max_lenses` 6, `max_llm_calls_per_reviewer` 8, draft size capped. About 10–20 model calls per review.
+- No new MCP tools, so no `tools.yaml` changes; authorization is unchanged.
+
+**Milestones:**
+
+| # | Scope | Exit gate | Status |
+|---|---|---|---|
+| G1 | `goldfish.py` + conversation-id ContextVar | `tests/agent/test_goldfish.py` (stub LLM). A reviewer sees no parent history and empty state; MCP calls carry the user token and the parent conversation id; a hidden lens is reported `unavailable`; the lens cap holds; synthesizer output is validated | waits for P5 F2 |
+| G2 | Flow + lens skills, `skills.yaml`, viewer grant, `skill_rows` | `sdlc-config validate` + `diff` reviewed; policy/config tests pass | waits for G1 |
+| G3 | `user_agent` tool + instruction; chat card for `goldfish_review` | Live on localhost and the tunnel: brainstorm → draft → gate → review card → resolve → both artifacts download; lens `skill_access` audit records carry the chat's `agent_session_id`; a user with no groups sees no flow or lenses | waits for G2 |
 
 ## Open questions
 
