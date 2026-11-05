@@ -3,16 +3,11 @@
 # Then run `uv run sdlc-config users sync --env local --write` to fill in each user's Entra object
 # ID (read-only lookup with the Azure CLI). Tokens are matched on the object ID only; an entry
 # without an oid grants nothing. Team and role names must exist in config/ (unknown = invalid).
+# One user per line (YAML flow style, JSON-like); `users sync --write` keeps this layout.
+#   teams: team -> roles in that team; roles: global roles, like a roles.yaml binding
 apiVersion: sdlc/v1
 kind: UserMap
 users:
-  paul:
-    email: paul@example.com
-    oid: "00000000-0000-0000-0000-000000000101"
-    teams: { sdlc-platform: [developer] }    # team -> roles in that team
-  ana:
-    email: ana@example.com
-    teams: { sdlc-platform: [lead], payments: [developer] }
-  ben:
-    email: ben@example.com
-    roles: [viewer]                          # global roles, like a roles.yaml binding
+  paul: {email: paul@example.com, oid: "00000000-0000-0000-0000-000000000101", teams: {sdlc-platform: [developer]}}
+  ana: {email: ana@example.com, teams: {sdlc-platform: [lead], payments: [developer]}}
+  ben: {email: ben@example.com, roles: [viewer]}

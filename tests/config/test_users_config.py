@@ -180,6 +180,11 @@ def test_sync_fills_missing_oids_only_with_write(config_dir):
     users = load(config_dir).users
     assert users.pending == () and users.alias_for(PENDING_USER["id"]) == "pending"
     assert all(c[:3] in (["account", "show", "--query"], ["ad", "user", "show"]) for c in az.calls)
+    # one flow-style (JSON-like) line per user, header comments kept
+    text = users_file(config_dir).read_text(encoding="utf-8")
+    entries = [line for line in text.splitlines() if line.startswith("  ") and ": {" in line]
+    assert len(entries) == len(users.email_by_alias)
+    assert any(line.startswith("  pending: {email: ") for line in entries)
 
 
 def test_sync_reports_unknown_email(config_dir):

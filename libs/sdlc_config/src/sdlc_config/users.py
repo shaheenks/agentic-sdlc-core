@@ -94,7 +94,28 @@ def sync(
             if not line.startswith("#"):
                 break
             header.append(line)
-        body = yaml.safe_dump(doc, sort_keys=False, allow_unicode=True)
+        body = dump_user_map(doc)
         path.write_text("\n".join([*header, body]) if header else body, encoding="utf-8")
         lines.append(f"saved {path}")
     return lines, problems
+
+
+def dump_user_map(doc: dict) -> str:
+    """users.yaml with one flow-style (JSON-like) line per user, so each entry reads at a glance
+    and diffs per user: `paul: {email: paul@x.com, oid: ..., teams: {sdlc-platform: [lead]}}`."""
+    head = {k: v for k, v in doc.items() if k != "users"}
+    out = yaml.safe_dump(head, sort_keys=False, allow_unicode=True)
+    users = doc.get("users") or {}
+    if not users:
+        return out + "users: {}\n"
+    out += "users:\n"
+    for alias, entry in users.items():
+        line = yaml.safe_dump(
+            {alias: entry},
+            default_flow_style=True,
+            sort_keys=False,
+            allow_unicode=True,
+            width=10_000,
+        ).strip()
+        out += f"  {line[1:-1]}\n"  # drop the outer braces: `alias: {...}`
+    return out
