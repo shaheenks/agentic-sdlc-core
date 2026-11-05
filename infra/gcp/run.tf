@@ -83,6 +83,9 @@ locals {
     # Conversations in Agent Engine sessions (sessions.tf), deleted this many days after they start.
     SDLC_SESSION_SERVICE_URI    = "agentengine://${google_vertex_ai_reasoning_engine.sessions.id}"
     SDLC_SESSION_RETENTION_DAYS = tostring(var.session_retention_days)
+    # never export prompts/responses (as in compose; sdlc_web also forces these)
+    ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS               = "false"
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = "false"
   })
 
   # CopilotKit chat app sidecar (version-01 M5): forwards only the proxy's token header to /agui.
