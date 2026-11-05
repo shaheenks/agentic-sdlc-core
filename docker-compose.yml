@@ -21,7 +21,9 @@ x-oauth2-proxy-env: &oauth2-proxy-env
   OAUTH2_PROXY_PROMPT: select_account
   # /chat/ -> CopilotKit app (version-01 M5); everything else -> the agent (adk web, /agui)
   # /connections/ -> MCP server (users' own connections, version-01 M6; holds the user secrets)
-  OAUTH2_PROXY_UPSTREAMS: http://user-agent:8000/,http://ui-copilotkit:3000/chat/,http://core-mcp:8080/connections/
+  # /artifacts/ -> MCP server (downloads of the user's saved documents, version-03 P5). Not an API
+  # route: a download link opened after the session lapsed signs in first, then downloads.
+  OAUTH2_PROXY_UPSTREAMS: http://user-agent:8000/,http://ui-copilotkit:3000/chat/,http://core-mcp:8080/connections/,http://core-mcp:8080/artifacts/
   OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
   OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
   OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"

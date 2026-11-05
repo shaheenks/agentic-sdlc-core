@@ -17,6 +17,7 @@ import {
   identity,
   location,
   safeUrl,
+  savedArtifacts,
   toolPayload,
 } from "@/lib/results";
 
@@ -227,6 +228,29 @@ function ConnectedResult({ result, label }: { result: unknown; label: string }) 
   );
 }
 
+// Documents the agent saved for the user (version-03 P5). Links point only at /artifacts/<uuid>.
+function ArtifactsResult({ result, label }: { result: unknown; label: string }) {
+  const items = savedArtifacts(result);
+  if (items.length === 0) return <div className="tool">{label}: none</div>;
+  return (
+    <div className="tool">
+      <div className="tool-title">{label}</div>
+      {items.map((a) => (
+        <div key={a.id}>
+          <a href={a.href} download={a.name}>
+            {a.name}
+          </a>
+          <div className="citation-meta">
+            <span>{a.sizeBytes < 1024 ? `${a.sizeBytes} B` : `${Math.ceil(a.sizeBytes / 1024)} KB`}</span>
+            {a.expiresAt && <span>kept until {a.expiresAt.slice(0, 10)}</span>}
+            <span>only you can open it</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const connectedRenderer = (name: string, label: string) =>
   defineToolCallRenderer({
     name,
@@ -280,5 +304,17 @@ export const toolRenderers = [
     args: whoamiArgs,
     render: ({ status, result }) =>
       done(status) ? <IdentityCard result={result} /> : <Pending label="Checking who you are" />,
+  }),
+  defineToolCallRenderer({
+    name: "save_artifact",
+    args: z.object({ name: z.string().optional() }).passthrough(),
+    render: ({ status, result }) =>
+      done(status) ? <ArtifactsResult result={result} label="Saved document" /> : <Pending label="Saving document" />,
+  }),
+  defineToolCallRenderer({
+    name: "list_artifacts",
+    args: z.object({}).passthrough(),
+    render: ({ status, result }) =>
+      done(status) ? <ArtifactsResult result={result} label="Your saved documents" /> : <Pending label="Listing documents" />,
   }),
 ];

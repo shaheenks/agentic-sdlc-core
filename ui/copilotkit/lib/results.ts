@@ -173,3 +173,28 @@ export function documentChips(items: Citation[]): DocumentChip[] {
     return { key, label, url: doc.url, tooltip, hits: doc.hits };
   });
 }
+
+// Saved documents (version-03 P5): save_artifact returns one, list_artifacts a list. The download
+// link is built here from the id alone (a UUID), never taken from the result, so a tool result
+// cannot point the link anywhere but this app's own /artifacts/ API (oauth2-proxy -> MCP server).
+export type SavedArtifact = { id: string; name: string; sizeBytes: number; expiresAt: string; href: string };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function artifact(value: unknown): SavedArtifact | null {
+  if (!isObject(value) || typeof value.id !== "string" || !UUID.test(value.id)) return null;
+  return {
+    id: value.id,
+    name: typeof value.name === "string" ? value.name : "document",
+    sizeBytes: typeof value.size_bytes === "number" ? value.size_bytes : 0,
+    expiresAt: typeof value.expires_at === "string" ? value.expires_at : "",
+    href: `/artifacts/${value.id}`,
+  };
+}
+
+export function savedArtifacts(raw: unknown): SavedArtifact[] {
+  const payload = toolPayload(raw);
+  if (!payload) return [];
+  const items = Array.isArray(payload.artifacts) ? payload.artifacts : [payload];
+  return items.map(artifact).filter((a): a is SavedArtifact => a !== null);
+}

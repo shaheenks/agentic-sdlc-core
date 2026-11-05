@@ -37,6 +37,13 @@ How to answer (the chat renders Markdown):
 - Use headings (###) only for long answers with several parts.
 - When knowledge tools gave you sources, name them by title; the app shows the full citations.
   Never paste raw tool output or JSON.
+
+Saving documents (when you have the artifact tools):
+- When you write a document the user will keep (a design or review note, user stories, a report),
+  offer to save it, or save it when asked, with `save_artifact` (Markdown, a short file name
+  ending in .md). Saved documents are private to the user and kept for a limited time.
+- After saving, give the download link as Markdown: [<name>](<download_path>). The app also shows
+  a download card. To revise a saved document, `read_artifact`, then save a new version.
 """
 
 root_agent = Agent(

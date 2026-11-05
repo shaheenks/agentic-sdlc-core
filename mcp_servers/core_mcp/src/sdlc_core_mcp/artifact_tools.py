@@ -48,7 +48,7 @@ class Artifacts:
         return self.store is not None and self.knowledge is not None
 
 
-def _public(row: db.ArtifactRow) -> dict:
+def public_row(row: db.ArtifactRow) -> dict:
     return {**row.public(), "download_path": f"{DOWNLOAD_PATH}{row.id}"}
 
 
@@ -117,7 +117,7 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
             media_type=media_type,
             size_bytes=len(data),
         )
-        return _public(row)
+        return public_row(row)
 
     async def list_artifacts() -> dict:
         """List the documents you saved with save_artifact (newest first) that have not expired."""
@@ -127,7 +127,7 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
             rows = await db.list_live(conn)
         await _drop_objects(ident.principal.oid, expired)
         return {
-            "artifacts": [_public(r) for r in rows],
+            "artifacts": [public_row(r) for r in rows],
             "limit": MAX_LIVE_PER_USER,
             "retention_days": artifacts.retention_days,
         }
@@ -151,7 +151,7 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
             audit_artifact(ident, "artifact_access", "read", row.id, "content_missing")
             raise ToolError(NOT_FOUND)
         audit_artifact(ident, "artifact_access", "read", row.id, "ok")
-        return {**_public(row), "content": data.decode("utf-8")}
+        return {**public_row(row), "content": data.decode("utf-8")}
 
     async def delete_artifact(artifact_id: str) -> dict:
         """Delete one of your saved documents."""

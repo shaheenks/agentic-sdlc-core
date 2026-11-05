@@ -28,6 +28,7 @@ from starlette.responses import JSONResponse
 
 from sdlc_core_mcp.admin_tools import make_admin_tools
 from sdlc_core_mcp.artifact_tools import Artifacts, make_artifact_tools
+from sdlc_core_mcp.artifacts_api import add_artifact_routes
 from sdlc_core_mcp.audit import (
     HiddenSkillError,
     PolicyMiddleware,
@@ -157,8 +158,9 @@ def build_server(
     ]:
         register(fn)
     verifier = getattr(auth, "token_verifier", None)
-    if verifier is not None:  # the Connections API uses the same token checks as MCP
+    if verifier is not None:  # the Connections and Artifacts APIs use the same token checks as MCP
         add_connection_routes(mcp, connected, verifier)
+        add_artifact_routes(mcp, artifacts, verifier, store, group_resolver, cache)
 
     # Catalog vs code: fail startup on bad constraint args; re-check (log) on every reload.
     problems = catalog_problems(store.current(), registered)

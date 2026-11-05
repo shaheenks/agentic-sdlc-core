@@ -8,6 +8,7 @@ import asyncio
 import json
 import uuid
 
+import httpx
 import psycopg
 import pytest
 from fastmcp import Client
@@ -180,3 +181,48 @@ async def test_expired_artifacts_disappear_and_their_content_is_removed(mcp, ent
     await asyncio.sleep(1.5)
     assert (await call(url, entra, dave, "list_artifacts"))["artifacts"] == []
     assert f"artifacts/{dave}/{saved['id']}" not in content.objects
+
+
+# --- download API (F2): what the browser reaches through oauth2-proxy at /artifacts/ -------------
+
+
+async def test_download_api_owner_only(mcp, entra, caplog):
+    caplog.set_level("INFO", logger="sdlc.audit")
+    url, _, _ = mcp
+    saved = await call(url, entra, ALICE, "save_artifact", {"name": "stories.md", "content": "# S"})
+    aid = saved["id"]
+
+    def as_user(oid, groups=(G_ENG_ALL,)):
+        # oauth2-proxy forwards the session's access token in this header
+        token = entra.token(oid=oid, groups=list(groups))
+        return httpx.AsyncClient(base_url=url, headers={"X-Forwarded-Access-Token": token})
+
+    async with as_user(ALICE) as alice, as_user(BOB) as bob, as_user(ALICE, ()) as nobody:
+        listed = (await alice.get("/artifacts/")).json()["artifacts"]
+        assert aid in {a["id"] for a in listed}
+
+        r = await alice.get(f"/artifacts/{aid}")
+        assert r.status_code == 200 and r.content == b"# S"
+        assert r.headers["content-disposition"] == 'attachment; filename="stories.md"'
+        assert r.headers["content-type"].startswith("text/markdown")
+        assert r.headers["x-content-type-options"] == "nosniff"
+        assert "sandbox" in r.headers["content-security-policy"]
+
+        assert (await bob.get(f"/artifacts/{aid}")).status_code == 404  # same as missing
+        assert (await bob.get("/artifacts/not-a-uuid")).status_code == 404
+        assert aid not in {a["id"] for a in (await bob.get("/artifacts/")).json()["artifacts"]}
+        assert (
+            await bob.delete(f"/artifacts/{aid}", headers={"X-SDLC-Request": "1"})
+        ).status_code == 404
+        assert (await nobody.get("/artifacts/")).status_code == 403  # no artifact tool, no API
+        async with httpx.AsyncClient(base_url=url) as anonymous:
+            assert (await anonymous.get(f"/artifacts/{aid}")).status_code == 401
+
+        assert (await alice.delete(f"/artifacts/{aid}")).status_code == 403  # no write header
+        r = await alice.delete(f"/artifacts/{aid}", headers={"X-SDLC-Request": "1"})
+        assert r.status_code == 200 and r.json()["deleted"] is True
+        assert (await alice.get(f"/artifacts/{aid}")).status_code == 404
+
+    downloads = [r for r in audit(caplog, "artifact_access") if r["action"] == "download"]
+    assert {(r["oid"], r["outcome"]) for r in downloads} >= {(ALICE, "ok"), (BOB, "not_found")}
+    assert all("stories.md" not in json.dumps(r) for r in downloads)
