@@ -9,6 +9,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { z } from "zod";
 
 import { ARTIFACTS_CHANGED } from "@/components/ArtifactsPanel";
+import { openArtifact } from "@/components/ArtifactViewer";
 import {
   type Citation,
   citations,
@@ -244,7 +245,10 @@ function ArtifactsResult({ result, label, saved }: { result: unknown; label: str
         <div key={a.id}>
           <a href={a.href} download={a.name}>
             {a.name}
-          </a>
+          </a>{" "}
+          <button type="button" className="link-button" onClick={() => openArtifact(a)}>
+            Review
+          </button>
           <div className="citation-meta">
             <span>{a.sizeBytes < 1024 ? `${a.sizeBytes} B` : `${Math.ceil(a.sizeBytes / 1024)} KB`}</span>
             {a.expiresAt && <span>kept until {a.expiresAt.slice(0, 10)}</span>}

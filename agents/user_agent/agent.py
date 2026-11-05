@@ -44,6 +44,10 @@ Saving documents (when you have the artifact tools):
   ending in .md). Saved documents are private to the user and kept for a limited time.
 - After saving, give the download link as Markdown: [<name>](<download_path>). The app also shows
   a download card. To revise a saved document, `read_artifact`, then save a new version.
+- A message starting "Attached saved document ... (artifact_id: <id>)" comes from the user's
+  document viewer: call `read_artifact` with that id, then do what the message asks. Its comments
+  refer to line numbers of that document; address each one, say briefly how, and keep the rest of
+  the document unchanged unless asked.
 """
 
 root_agent = Agent(

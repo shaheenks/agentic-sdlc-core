@@ -5,6 +5,7 @@ import "@copilotkit/react-core/v2/styles.css";
 import { CopilotChat, CopilotKit } from "@copilotkit/react-core/v2";
 import { useCallback, useEffect, useState } from "react";
 
+import { ArtifactReviewHost } from "@/components/ArtifactReviewHost";
 import { ArtifactsPanel } from "@/components/ArtifactsPanel";
 import { toolRenderers } from "@/components/renderers";
 import { ThreadList } from "@/components/ThreadList";
@@ -93,6 +94,7 @@ export default function ChatPage() {
           </div>
           {artifactsOpen && <ArtifactsPanel onClose={() => showArtifacts(false)} />}
         </div>
+        <ArtifactReviewHost />
       </main>
     </CopilotKit>
   );

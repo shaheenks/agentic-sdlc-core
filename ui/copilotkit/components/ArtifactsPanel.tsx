@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { openArtifact } from "@/components/ArtifactViewer";
 import { type SavedArtifact, savedArtifacts } from "@/lib/results";
 
 export const ARTIFACTS_CHANGED = "sdlc:artifacts-changed";
@@ -52,9 +53,9 @@ function ArtifactRow({ a, onChange }: { a: SavedArtifact; onChange: () => void }
 
   return (
     <li className="artifact-row">
-      <a href={a.href} download={a.name} className="artifact-name" title={`Download ${a.name}`}>
+      <button type="button" className="artifact-name" onClick={() => openArtifact(a)} title={`Open ${a.name}`}>
         {a.name}
-      </a>
+      </button>
       <div className="citation-meta">
         <span>{size(a.sizeBytes)}</span>
         {a.expiresAt && <span>kept until {a.expiresAt.slice(0, 10)}</span>}
@@ -71,9 +72,17 @@ function ArtifactRow({ a, onChange }: { a: SavedArtifact; onChange: () => void }
             </button>
           </>
         ) : (
-          <button type="button" onClick={() => setConfirm(true)}>
-            Delete
-          </button>
+          <>
+            <button type="button" onClick={() => openArtifact(a)}>
+              Review
+            </button>
+            <a href={a.href} download={a.name}>
+              Download
+            </a>
+            <button type="button" onClick={() => setConfirm(true)}>
+              Delete
+            </button>
+          </>
         )}
       </div>
       {error && <div className="conn-error">{error}</div>}

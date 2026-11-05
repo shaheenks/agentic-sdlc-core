@@ -283,3 +283,41 @@ a.chip:hover { border-color: var(--sdlc-accent); color: var(--sdlc-accent); }
 .conn-help { color: var(--sdlc-muted); font-size: 12px; }
 .conn-help p { margin: 4px 0 0 14px; line-height: 1.5; }
 .conn-error { color: #b91c1c; font-size: 12.5px; margin-top: 6px; }
+
+/* Document viewer + inline review (version-03 P5 F5) */
+.artifact-name { font: inherit; font-weight: 600; background: none; border: 0; padding: 0; color: var(--sdlc-accent); cursor: pointer; text-align: left; word-break: break-word; }
+.artifact-actions a { font-size: 12px; }
+.link-button { font: inherit; font-size: 12px; background: none; border: 0; padding: 0; color: var(--sdlc-accent); cursor: pointer; text-decoration: underline; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal { background: var(--sdlc-panel); color: var(--sdlc-text); border: 1px solid var(--sdlc-line); border-radius: 12px; width: min(1200px, 100%); height: min(85vh, 900px); display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); outline: none; }
+.modal-head { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--sdlc-line); }
+.modal-title { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal-tabs { display: flex; gap: 4px; }
+.modal-tabs button { font: inherit; font-size: 13px; padding: 4px 10px; border: 1px solid var(--sdlc-line); border-radius: 6px; background: transparent; color: var(--sdlc-muted); cursor: pointer; }
+.modal-tabs button[aria-selected="true"] { color: var(--sdlc-accent); border-color: var(--sdlc-accent); background: var(--sdlc-chip); }
+.modal-link { font-size: 13px; }
+.modal-body { flex: 1; min-height: 0; display: flex; }
+.modal-doc { flex: 1; min-width: 0; overflow: auto; padding: 8px 0; }
+.modal-side { width: 320px; border-left: 1px solid var(--sdlc-line); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+.modal-side textarea { font: inherit; font-size: 13px; width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--sdlc-line); border-radius: 6px; background: var(--sdlc-bg); color: var(--sdlc-text); resize: vertical; }
+.modal-side button.primary { font: inherit; font-weight: 600; padding: 8px 12px; border: 0; border-radius: 8px; background: var(--sdlc-accent); color: #fff; cursor: pointer; margin-top: auto; }
+.modal-side button.primary:disabled { opacity: 0.6; cursor: default; }
+.side-title { font-weight: 600; font-size: 13px; }
+.side-hint { font-size: 12px; color: var(--sdlc-muted); margin: 0; }
+.comment-box label { font-size: 12px; font-weight: 600; color: var(--sdlc-accent); }
+.comment-actions { display: flex; gap: 6px; margin-top: 4px; }
+.comment-actions button { font-size: 12px; padding: 2px 10px; border: 1px solid var(--sdlc-line); border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+.comment-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.comment-list li { display: grid; grid-template-columns: 1fr auto; gap: 2px 6px; padding: 6px 8px; border: 1px solid var(--sdlc-line); border-radius: 6px; font-size: 13px; }
+.comment-where { grid-column: 1; font: inherit; font-size: 12px; font-weight: 600; background: none; border: 0; padding: 0; color: var(--sdlc-accent); cursor: pointer; text-align: left; }
+.comment-text { grid-column: 1; white-space: pre-wrap; word-break: break-word; }
+.comment-list .icon-button { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+.doc-lines { list-style: none; margin: 0; padding: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+.doc-line { display: flex; width: 100%; gap: 12px; padding: 1px 14px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; border-left: 3px solid transparent; }
+.doc-line:hover { background: var(--sdlc-chip); }
+.doc-lines li.commented .doc-line { border-left-color: #d97706; }
+.doc-lines li.selected .doc-line { background: var(--sdlc-chip); border-left-color: var(--sdlc-accent); }
+.doc-num { min-width: 3ch; text-align: right; color: var(--sdlc-muted); user-select: none; }
+.doc-text { white-space: pre-wrap; word-break: break-word; flex: 1; }
+.doc-preview { padding: 4px 24px; line-height: 1.6; font-size: 14px; }
+@media (max-width: 800px) { .modal-body { flex-direction: column; } .modal-side { width: auto; border-left: 0; border-top: 1px solid var(--sdlc-line); } }
