@@ -43,7 +43,7 @@ def test_baseline_and_team_tool_limit(config_dir):
 
 def test_most_generous_team_wins_and_team_overall_replaces_baseline(config_dir):
     edit_yaml(
-        config_dir / "teams/platform.yaml",
+        config_dir / "teams/sdlc-platform.yaml",
         lambda d: d.setdefault("policy", {}).update(
             limits={"calls_per_minute": 40, "tools": {"graph_query": {"calls_per_minute": 90}}}
         ),
@@ -51,7 +51,7 @@ def test_most_generous_team_wins_and_team_overall_replaces_baseline(config_dir):
     snap = load_snapshot(config_dir, "local", TEST_ENV)
     both = resolve(snap, ["eng-all", "payments-devs", "platform-devs"])
     assert both.rate_limits["graph_query"][0] == 90  # platform's 90 beats payments' 30
-    assert both.rate_limits["*"] == (40, "teams/platform.yaml#policy/limits/calls_per_minute")
+    assert both.rate_limits["*"] == (40, "teams/sdlc-platform.yaml#policy/limits/calls_per_minute")
     assert both.explain()["rate_limits"]["graph_query"]["calls_per_minute"] == 90
 
 

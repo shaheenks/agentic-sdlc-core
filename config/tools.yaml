@@ -3,23 +3,23 @@ kind: ToolCatalog
 # A tool registered in code but absent here is never exposed. `args` lists the arguments that
 # team policies may constrain (policy.tools.constraints); the server checks they exist in code.
 servers:
-  bootstrap: { description: "Bootstrap MCP server (mcp_servers/bootstrap)" }
+  core-mcp: { description: "Core MCP server (mcp_servers/core_mcp)" }
 tools:
-  ping:              { server: bootstrap, risk: low }
-  whoami:            { server: bootstrap, risk: low }
-  list_skills:       { server: bootstrap, risk: low }
-  load_skill:        { server: bootstrap, risk: low }
-  get_agent_context: { server: bootstrap, risk: low }
-  search_knowledge:  { server: bootstrap, risk: low,    data_scoped: true }
-  graph_query:       { server: bootstrap, risk: low,    data_scoped: true }
-  generate_tests:    { server: bootstrap, risk: low,    args: { repo: { type: string } } }
-  review_code:       { server: bootstrap, risk: medium, args: { repo: { type: string } } }
-  approve_design:    { server: bootstrap, risk: high,   args: { repo: { type: string } } }
-  config_info:       { server: bootstrap, risk: high }    # admin only (via roles.admin "*")
-  config_explain:    { server: bootstrap, risk: high }    # admin only; input: group aliases / app roles
+  ping:              { server: core-mcp, risk: low }
+  whoami:            { server: core-mcp, risk: low }
+  list_skills:       { server: core-mcp, risk: low }
+  load_skill:        { server: core-mcp, risk: low }
+  get_agent_context: { server: core-mcp, risk: low }
+  search_knowledge:  { server: core-mcp, risk: low,    data_scoped: true }
+  graph_query:       { server: core-mcp, risk: low,    data_scoped: true }
+  generate_tests:    { server: core-mcp, risk: low,    args: { repo: { type: string } } }
+  review_code:       { server: core-mcp, risk: medium, args: { repo: { type: string } } }
+  approve_design:    { server: core-mcp, risk: high,   args: { repo: { type: string } } }
+  config_info:       { server: core-mcp, risk: high }    # admin only (via roles.admin "*")
+  config_explain:    { server: core-mcp, risk: high }    # admin only; input: group aliases / app roles
   # version-01 M6: read-only tools that call an external system AS THE USER, with the user's own
   # connection (connections.yaml). The provider's own permissions apply on top of this policy.
-  jira_get_issue:      { server: bootstrap, risk: low, credentials: { user: atlassian } }
-  confluence_get_page: { server: bootstrap, risk: low, credentials: { user: atlassian } }
-  github_get_file:     { server: bootstrap, risk: low, credentials: { user: github },    args: { repo: { type: string } } }
-  bitbucket_get_file:  { server: bootstrap, risk: low, credentials: { user: bitbucket }, args: { repo: { type: string } } }
+  jira_get_issue:      { server: core-mcp, risk: low, credentials: { user: atlassian } }
+  confluence_get_page: { server: core-mcp, risk: low, credentials: { user: atlassian } }
+  github_get_file:     { server: core-mcp, risk: low, credentials: { user: github },    args: { repo: { type: string } } }
+  bitbucket_get_file:  { server: core-mcp, risk: low, credentials: { user: bitbucket }, args: { repo: { type: string } } }

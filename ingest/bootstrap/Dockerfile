@@ -23,8 +23,8 @@ COPY libs/sdlc_secrets/pyproject.toml libs/sdlc_secrets/
 COPY libs/sdlc_web/pyproject.toml libs/sdlc_web/
 COPY ingest/bootstrap/pyproject.toml ingest/bootstrap/
 COPY ingest/loaders/pyproject.toml ingest/loaders/
-COPY mcp_servers/bootstrap/pyproject.toml mcp_servers/bootstrap/
-COPY agents/bootstrap/pyproject.toml agents/bootstrap/
+COPY mcp_servers/core_mcp/pyproject.toml mcp_servers/core_mcp/
+COPY agents/user_agent/pyproject.toml agents/user_agent/
 RUN uv sync --frozen --no-dev --package sdlc-ingest --no-install-workspace
 
 COPY libs/sdlc_config libs/sdlc_config
@@ -35,14 +35,13 @@ COPY ingest/loaders ingest/loaders
 COPY ingest/bootstrap ingest/bootstrap
 RUN uv sync --frozen --no-dev --package sdlc-ingest
 
-# Migrations are baked in (versioned with the code). docker compose bind-mounts ./config,
-# ./skills (config validation checks skill files) and ./samples; baked-in copies are for
-# standalone runs.
+# Migrations are baked in (versioned with the code). docker compose bind-mounts ./config and
+# ./skills (config validation checks skill files); baked-in copies are for standalone runs.
+# Source documents are not in the image: the sample corpus is read from the config store bucket
+# (gcs sources, version-02 N14); the repo copy is the test corpus (tests/fixtures/sample_sources).
 COPY db/migrations db/migrations
 COPY config config
 COPY skills skills
-# Synthetic sample corpus (config/sources point here); real sources arrive with Stage 9 source types.
-COPY samples samples
 
 ENV PATH=/app/.venv/bin:$PATH \
     SDLC_CONFIG_DIR=/app/config \

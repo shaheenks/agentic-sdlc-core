@@ -5,8 +5,8 @@ metadata:
   owner_team: payments
   description: payments-api service code and docs
 spec:
-  type: local_folder
-  location: samples/sources/payments-api      # relative to the repo root
+  type: gcs
+  location: gs://sdlc-config-store-a7484d8b/source_docs/payments-code/   # config store bucket (one-time move from samples/, version-02 N14)
   include: ["**/*.py", "**/*.md"]
   exclude: ["**/tests/fixtures/**"]
   classification: internal

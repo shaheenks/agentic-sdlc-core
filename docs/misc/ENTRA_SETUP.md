@@ -186,7 +186,7 @@ ENTRA_GRAPH_CLIENT_SECRET=                        # optional (step 4)
 
 ```bash
 uv run --env-file .env sdlc-config validate --env local
-docker compose up -d --build --wait mcp-bootstrap
+docker compose up -d --build --wait core-mcp
 
 # Stage 2 check, before 2d: sign in as each test user and compare whoami.
 az login --tenant $TENANT_ID --allow-no-subscriptions            # as user A
@@ -199,10 +199,10 @@ uv run python scripts/mcp_whoami.py --token "$(az account get-access-token \
 
 ```powershell
 docker compose up -d --build --wait     # needs ENTRA_CLIENT_ID/SECRET and OAUTH2_PROXY_COOKIE_SECRET in .env
-start http://localhost:4180             # sign in as a test user, then use the "bootstrap" agent
+start http://localhost:4180             # sign in as a test user, then use the "user_agent" agent
 ```
 
-The agent's MCP calls now carry that user's token. `docker compose logs mcp-bootstrap` shows
+The agent's MCP calls now carry that user's token. `docker compose logs core-mcp` shows
 `sdlc.audit` lines with the user's `oid`. The automated end-to-end check needs a real user token:
 
 ```powershell
@@ -251,7 +251,7 @@ Outbound HTTPS each component needs (hosts come from `platform.yaml` `identity.a
 | MCP server, agent, ingest | Vertex AI (`aiplatform.googleapis.com`) or the Gemini API | Model calls and embeddings |
 
 Behind a corporate proxy, set the standard variables on each service: `HTTPS_PROXY` (and
-`HTTP_PROXY`), plus `NO_PROXY` for internal names (for example `postgres,mcp-bootstrap,localhost`).
+`HTTP_PROXY`), plus `NO_PROXY` for internal names (for example `postgres,core-mcp,localhost`).
 Token validation honours them (verified by `tests/auth/test_egress_proxy.py`: keys are fetched through
 the proxy; without a route the token is rejected, never accepted). If JWKS cannot be reached, every
 request is refused (fail closed); the audit reason is `invalid_token`.

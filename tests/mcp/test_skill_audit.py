@@ -5,7 +5,7 @@ import json
 import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
-from sdlc_mcp_bootstrap.audit import ERROR_TEXT_LIMIT, error_text
+from sdlc_core_mcp.audit import ERROR_TEXT_LIMIT, error_text
 
 from tests.support.entra import G_ENG_ALL, G_PAYMENTS_DEVS, G_PLATFORM_DEVS
 
@@ -90,7 +90,7 @@ async def test_skills_list_is_recorded(base_url, entra, caplog):
 
 
 async def test_unexpected_error_details_and_traceback(base_url, entra, caplog, monkeypatch):
-    import sdlc_mcp_bootstrap.sdlc_tools as sdlc_tools
+    import sdlc_core_mcp.sdlc_tools as sdlc_tools
 
     def broken(tool, **inputs):
         raise RuntimeError("backend exploded: connection reset by peer")

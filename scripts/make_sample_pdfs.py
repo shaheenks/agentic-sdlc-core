@@ -1,4 +1,4 @@
-"""Generate the sample PDFs in samples/sources (H10). Synthetic content, deterministic output.
+"""Generate the sample PDFs in tests/fixtures/sample_sources (H10). Synthetic, deterministic.
 
     uv run python scripts/make_sample_pdfs.py
 
@@ -17,6 +17,7 @@ from fpdf import FPDF
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
+SAMPLES = ROOT / "tests/fixtures/sample_sources"
 FIXED_DATE = datetime(2026, 10, 1, tzinfo=UTC)
 
 
@@ -133,9 +134,8 @@ def change_freeze_notice() -> bytes:
 
 def main() -> None:
     targets = {
-        ROOT / "samples/sources/eng-standards/incident-policy.pdf": incident_policy(),
-        ROOT
-        / "samples/sources/platform-infra/docs/change-freeze-notice.pdf": change_freeze_notice(),
+        SAMPLES / "eng-standards/incident-policy.pdf": incident_policy(),
+        SAMPLES / "platform-infra/docs/change-freeze-notice.pdf": change_freeze_notice(),
     }
     for path, data in targets.items():
         path.parent.mkdir(parents=True, exist_ok=True)

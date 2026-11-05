@@ -60,6 +60,12 @@ variable "groups_yaml_path" {
   type        = string
 }
 
+variable "users_yaml_path" {
+  description = "Optional git-ignored UserMap for this env (direct members: emails + object IDs), stored in Secret Manager and mounted into the MCP service. Empty = none. gcp_deploy.ps1 sets it when config/env/<env>/users.yaml exists."
+  type        = string
+  default     = ""
+}
+
 variable "agent_model" {
   type    = string
   default = "gemini-3.8-flash"
@@ -97,4 +103,46 @@ variable "gcs_source_buckets" {
   description = "Buckets read by `gcs` sources (config/sources). The ingest job gets objectViewer on these buckets only (version-01 M2)."
   type        = list(string)
   default     = []
+}
+
+variable "config_store_bucket" {
+  description = "Private bucket for source content read by ingest (gcs sources; the former samples/ corpus), created in var.region (storage.tf). Empty = no bucket."
+  type        = string
+  default     = ""
+}
+
+variable "artifact_store_bucket" {
+  description = "Private bucket for temporary files and agent artefacts, written by the agent (sdlc-app), created in var.region (storage.tf). Empty = no bucket."
+  type        = string
+  default     = ""
+}
+
+variable "artifact_retention_days" {
+  description = "Objects in the artifact store are deleted this many days after they are written."
+  type        = number
+  default     = 7
+}
+
+variable "ingest_schedule" {
+  description = "Cron (schedule_time_zone) for the sdlc-ingest job via Cloud Scheduler, e.g. \"0 2 * * *\". Empty = no schedule (run with -Step ingest). version-02 N1."
+  type        = string
+  default     = ""
+}
+
+variable "reconcile_schedule" {
+  description = "Cron (schedule_time_zone) for the user-connection reconcile job, e.g. \"30 3 * * *\". Empty = no schedule (run the job by hand). version-02 N3."
+  type        = string
+  default     = ""
+}
+
+variable "schedule_time_zone" {
+  description = "Time zone for ingest_schedule / reconcile_schedule."
+  type        = string
+  default     = "Etc/UTC"
+}
+
+variable "cloud_trace" {
+  description = "Export agent and MCP traces to Cloud Trace (version-02 N4). Spans carry no prompts, tokens or argument values."
+  type        = bool
+  default     = false
 }

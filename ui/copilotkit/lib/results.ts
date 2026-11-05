@@ -134,3 +134,42 @@ export function location(c: Citation): string {
   if (c.lines) return `lines ${c.lines[0]}-${c.lines[1]}`;
   return "";
 }
+
+/** One chip per cited document (version-02 chat UX): the compact line above the details. */
+export type DocumentChip = {
+  key: string;
+  label: string; // document title, else the file name
+  url?: string; // the first http(s) link among the document's hits
+  tooltip: string; // "source · path · lines 1-20, p. 3 · via graph"
+  hits: number;
+};
+
+const CHIP_LABEL_CHARS = 40;
+
+function fileName(path: string): string {
+  const parts = path.split("/").filter(Boolean);
+  return parts[parts.length - 1] ?? path;
+}
+
+/** Citations grouped by document (source + path), in result order. */
+export function documentChips(items: Citation[]): DocumentChip[] {
+  const byDoc = new Map<string, { first: Citation; url?: string; locations: string[]; hits: number; graph: boolean }>();
+  for (const c of items) {
+    const key = `${c.source}\u0000${c.path}`;
+    const doc = byDoc.get(key) ?? { first: c, locations: [], hits: 0, graph: false };
+    doc.hits += 1;
+    doc.url ??= c.url;
+    doc.graph ||= c.via === "graph";
+    const where = location(c);
+    if (where && !doc.locations.includes(where)) doc.locations.push(where);
+    byDoc.set(key, doc);
+  }
+  return [...byDoc.entries()].map(([key, doc]) => {
+    const name = doc.first.title ?? fileName(doc.first.path) ?? doc.first.source;
+    const label = name.length > CHIP_LABEL_CHARS ? `${name.slice(0, CHIP_LABEL_CHARS - 1)}…` : name;
+    const tooltip = [doc.first.source, doc.first.path, doc.locations.join(", "), doc.graph ? "via graph" : ""]
+      .filter(Boolean)
+      .join(" · ");
+    return { key, label, url: doc.url, tooltip, hits: doc.hits };
+  });
+}

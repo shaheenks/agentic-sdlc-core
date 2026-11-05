@@ -10,16 +10,16 @@ resolution-markers = [
 members = [
     "agentic-sdlc",
     "sdlc-agent",
-    "sdlc-agent-bootstrap",
     "sdlc-auth",
     "sdlc-config",
     "sdlc-connectors",
+    "sdlc-core-mcp",
     "sdlc-db",
     "sdlc-ingest",
     "sdlc-loaders",
-    "sdlc-mcp-bootstrap",
     "sdlc-policy",
     "sdlc-secrets",
+    "sdlc-user-agent",
     "sdlc-web",
 ]
 
@@ -962,6 +962,22 @@ wheels = [
 ]
 
 [[package]]
+name = "google-cloud-trace"
+version = "1.21.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpcio" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ff/cf/e9000f42609f834812063ce632a3e9d7ef34df6ccaf818c97a51ff187572/google_cloud_trace-1.21.0.tar.gz", hash = "sha256:5e0e02b51db9def0bed2f83627fa5043a8eecd00e477a7fb98d1e04c31a713c0", size = 103182, upload-time = "2026-10-01T18:18:34.842Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/41/83/0f297a29c96976d9c6fe4dc5f5f0e7e6ebcd1af08860ad0ef6faa92d47ec/google_cloud_trace-1.21.0-py3-none-any.whl", hash = "sha256:6522ac906d6d4b84443bb9e84edc2360db2010645916e8fb778227faefa3d2c8", size = 109513, upload-time = "2026-10-01T18:12:48.774Z" },
+]
+
+[[package]]
 name = "google-crc32c"
 version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1485,6 +1501,22 @@ wheels = [
 ]
 
 [[package]]
+name = "opentelemetry-exporter-gcp-trace"
+version = "1.15.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-cloud-trace" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-resourcedetector-gcp" },
+    { name = "opentelemetry-sdk" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4e/0c/58bb79084ce208e4f46666b6343ad94533d7a8976a60d2af980a62c43e68/opentelemetry_exporter_gcp_trace-1.15.0.tar.gz", hash = "sha256:70db6b807756c0815dce6af2f230663a07983f73bde0b7302e21f3a241b512cd", size = 19597, upload-time = "2026-08-19T21:44:12.954Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/f1/7e04fa6e95c233c83ef92ca298dc56150dfa363e325e6d7d5a074151fdcb/opentelemetry_exporter_gcp_trace-1.15.0-py3-none-any.whl", hash = "sha256:bab0bda41a74c9ece16611da2e1dd442d9d6f45238a734e62fee796e2c3b122c", size = 14373, upload-time = "2026-08-19T21:44:09.012Z" },
+]
+
+[[package]]
 name = "opentelemetry-exporter-otlp-proto-common"
 version = "1.42.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1568,6 +1600,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b4/55/63eac3e1089b768ba014091fdd2ae8a9a440c821ef5e2b786909c94c8836/opentelemetry_proto-1.42.1.tar.gz", hash = "sha256:c6a51e6b4f05ae63565f3a113217f3d2bfaec68f78c02d7a6c85f9010d1cfca6", size = 45839, upload-time = "2026-05-21T16:33:03.937Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/9d/171c02c84a76940b7e601805b3bb536985aded9168fbcc9ba52f0a730fa2/opentelemetry_proto-1.42.1-py3-none-any.whl", hash = "sha256:dedb74cba2886c59c7789b227a7a670613025a07489040050aedff6e5c0fb43c", size = 71782, upload-time = "2026-05-21T16:32:44.867Z" },
+]
+
+[[package]]
+name = "opentelemetry-resourcedetector-gcp"
+version = "1.14.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-sdk" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/06/54/0a95db467d25d81abc16961f5c4538b65f5707e62628a7bb9cdac2849486/opentelemetry_resourcedetector_gcp-1.14.0.tar.gz", hash = "sha256:10b41802acf815838a85c9fe1dae02f5d27ebc17527b77441111c010bead95bc", size = 14831, upload-time = "2026-07-24T19:08:37.901Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/26/75/81a3035969eb44ff4c6a18abc26c5cbff73ba5e4bde6be94298004c3fbb2/opentelemetry_resourcedetector_gcp-1.14.0-py3-none-any.whl", hash = "sha256:cc4818570933b5c651aef80fbf6e8fbe26d63fe6fbc24ce22ae37e78744d30eb", size = 15561, upload-time = "2026-07-24T19:08:36.843Z" },
 ]
 
 [[package]]
@@ -2277,23 +2323,6 @@ requires-dist = [
 ]
 
 [[package]]
-name = "sdlc-agent-bootstrap"
-version = "0.1.0"
-source = { virtual = "agents/bootstrap" }
-dependencies = [
-    { name = "google-adk", extra = ["mcp"] },
-    { name = "sdlc-agent" },
-    { name = "sdlc-auth" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "google-adk", extras = ["mcp"], specifier = ">=2.10" },
-    { name = "sdlc-agent", editable = "libs/sdlc_agent" },
-    { name = "sdlc-auth", editable = "libs/sdlc_auth" },
-]
-
-[[package]]
 name = "sdlc-auth"
 version = "0.1.0"
 source = { editable = "libs/sdlc_auth" }
@@ -2320,6 +2349,7 @@ source = { editable = "libs/sdlc_config" }
 dependencies = [
     { name = "jsonschema" },
     { name = "pyyaml" },
+    { name = "sdlc-secrets" },
     { name = "watchfiles" },
 ]
 
@@ -2327,6 +2357,7 @@ dependencies = [
 requires-dist = [
     { name = "jsonschema", specifier = ">=4.23" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "sdlc-secrets", editable = "libs/sdlc_secrets" },
     { name = "watchfiles", specifier = ">=1.0" },
 ]
 
@@ -2347,6 +2378,37 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28" },
     { name = "sdlc-config", editable = "libs/sdlc_config" },
     { name = "sdlc-secrets", editable = "libs/sdlc_secrets" },
+]
+
+[[package]]
+name = "sdlc-core-mcp"
+version = "0.1.0"
+source = { editable = "mcp_servers/core_mcp" }
+dependencies = [
+    { name = "fastmcp" },
+    { name = "opentelemetry-exporter-gcp-trace" },
+    { name = "opentelemetry-exporter-otlp-proto-http" },
+    { name = "opentelemetry-instrumentation-psycopg" },
+    { name = "pyyaml" },
+    { name = "sdlc-auth", extra = ["server"] },
+    { name = "sdlc-config" },
+    { name = "sdlc-connectors" },
+    { name = "sdlc-db" },
+    { name = "sdlc-policy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastmcp", specifier = ">=4.0" },
+    { name = "opentelemetry-exporter-gcp-trace", specifier = ">=1.9" },
+    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.42.1" },
+    { name = "opentelemetry-instrumentation-psycopg", specifier = ">=0.63b1" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "sdlc-auth", extras = ["server"], editable = "libs/sdlc_auth" },
+    { name = "sdlc-config", editable = "libs/sdlc_config" },
+    { name = "sdlc-connectors", editable = "libs/sdlc_connectors" },
+    { name = "sdlc-db", editable = "libs/sdlc_db" },
+    { name = "sdlc-policy", editable = "libs/sdlc_policy" },
 ]
 
 [[package]]
@@ -2411,35 +2473,6 @@ requires-dist = [
 ]
 
 [[package]]
-name = "sdlc-mcp-bootstrap"
-version = "0.1.0"
-source = { editable = "mcp_servers/bootstrap" }
-dependencies = [
-    { name = "fastmcp" },
-    { name = "opentelemetry-exporter-otlp-proto-http" },
-    { name = "opentelemetry-instrumentation-psycopg" },
-    { name = "pyyaml" },
-    { name = "sdlc-auth", extra = ["server"] },
-    { name = "sdlc-config" },
-    { name = "sdlc-connectors" },
-    { name = "sdlc-db" },
-    { name = "sdlc-policy" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastmcp", specifier = ">=4.0" },
-    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.42.1" },
-    { name = "opentelemetry-instrumentation-psycopg", specifier = ">=0.63b1" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "sdlc-auth", extras = ["server"], editable = "libs/sdlc_auth" },
-    { name = "sdlc-config", editable = "libs/sdlc_config" },
-    { name = "sdlc-connectors", editable = "libs/sdlc_connectors" },
-    { name = "sdlc-db", editable = "libs/sdlc_db" },
-    { name = "sdlc-policy", editable = "libs/sdlc_policy" },
-]
-
-[[package]]
 name = "sdlc-policy"
 version = "0.1.0"
 source = { editable = "libs/sdlc_policy" }
@@ -2468,6 +2501,23 @@ requires-dist = [
 ]
 
 [[package]]
+name = "sdlc-user-agent"
+version = "0.1.0"
+source = { virtual = "agents/user_agent" }
+dependencies = [
+    { name = "google-adk", extra = ["mcp"] },
+    { name = "sdlc-agent" },
+    { name = "sdlc-auth" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "google-adk", extras = ["mcp"], specifier = ">=2.10" },
+    { name = "sdlc-agent", editable = "libs/sdlc_agent" },
+    { name = "sdlc-auth", editable = "libs/sdlc_auth" },
+]
+
+[[package]]
 name = "sdlc-web"
 version = "0.1.0"
 source = { editable = "libs/sdlc_web" }
@@ -2475,6 +2525,7 @@ dependencies = [
     { name = "ag-ui-adk" },
     { name = "google-adk", extra = ["mcp"] },
     { name = "google-cloud-aiplatform" },
+    { name = "opentelemetry-exporter-gcp-trace" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "sdlc-auth", extra = ["server"] },
     { name = "uvicorn" },
@@ -2485,6 +2536,7 @@ requires-dist = [
     { name = "ag-ui-adk", specifier = ">=0.11.0" },
     { name = "google-adk", extras = ["mcp"], specifier = ">=2.10" },
     { name = "google-cloud-aiplatform", specifier = ">=1.148.1,<2" },
+    { name = "opentelemetry-exporter-gcp-trace", specifier = ">=1.9" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.42.1" },
     { name = "sdlc-auth", extras = ["server"], editable = "libs/sdlc_auth" },
     { name = "uvicorn", specifier = ">=0.30" },

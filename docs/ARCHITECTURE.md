@@ -32,7 +32,7 @@ flowchart TB
     Entra[(Microsoft Entra ID<br/>single IdP<br/>groups claim)]
 
     subgraph AgentTier["Agent tier"]
-        A1[ADK root agent<br/>agents/bootstrap]
+        A1[ADK root agent<br/>agents/user_agent]
         A2[Future SDLC agents<br/>agents/&lt;name&gt;]
         LLM[[Gemini<br/>Vertex AI]]
     end
@@ -54,7 +54,7 @@ flowchart TB
 
     subgraph Ingest["Ingest pipeline"]
         I1[Loaders → Chunkers →<br/>Embedders → Graph extractors]
-        SRC[/Source artefacts<br/>local folders · git at a pinned commit<br/>later: Jira, wiki/]
+        SRC[/Source artefacts<br/>local folders · git (pinned commit or tracked branch)<br/>later: Jira, wiki/]
     end
 
     subgraph Config["Config (git → versioned bundle)"]
@@ -96,7 +96,7 @@ flowchart TB
 | **Shared libs** | `libs/` | `sdlc_auth` (identity), `sdlc_config` (config, resolver, bundles), `sdlc_policy` (authorization, rate limits), `sdlc_db` (RLS-scoped DB access, graph), `sdlc_web` (agent web app: user binding, conversation retention), `sdlc_agent` (per-session team context). |
 | **Skills** | `skills/` | SKILL.md instruction packages. They hold content only; access is declared in `config/`. Naming: lowercase kebab-case, globally unique (global `skills/core/<name>/`, team add-ons `skills/teams/<team>/<name>/`, team instructions `skills/teams/<team>/AGENT_ADDENDUM.md`); folder = frontmatter `name` = config key. |
 | **Config** | `config/` | YAML that declares groups, roles, teams, tools, skills, sources, rate limits and the block list. Served from the watched folder in dev, or from immutable, verified bundles (`sdlc-config compile`). |
-| **Ingest** | `ingest/` | Reads source artefacts declared in `config/sources/` (local folders, git repositories at a pinned commit), chunks and embeds them, extracts a knowledge graph, and tags every row with `source_id` + `classification`. |
+| **Ingest** | `ingest/` | Reads source artefacts declared in `config/sources/` (local folders, git repositories at a pinned commit or tracked branch), chunks and embeds them, extracts a knowledge graph, and tags every row with `source_id` + `classification`. |
 | **Postgres + pgvector** | `db/` | Vector search plus the knowledge graph (as edge tables). Row-level security is the last line of defense for data access. |
 | **Observability** | compose profile `observability` | OpenTelemetry traces (agent, MCP server, Postgres) to Jaeger when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; no prompts, responses, tokens or argument values in spans. |
 | **CI** | `.github/workflows/ci.yml` | Lint, config validation + PR permission diff, tests on a pgvector service, Terraform checks. No secrets or cloud access. |
@@ -164,7 +164,7 @@ The security checkpoints in this flow are:
     client carries the trace context in the request's `_meta`, not in an HTTP header, so the one-session-per-
     conversation rule is untouched. Direct MCP clients (Antigravity) send no conversation id and start their own
     server-side traces.
-  `docker compose logs mcp-bootstrap | grep <agent_session_id>` shows everything one conversation did.
+  `docker compose logs core-mcp | grep <agent_session_id>` shows everything one conversation did.
 
 ## 5. Identity and authorization model
 
@@ -173,6 +173,9 @@ flowchart LR
     T[Entra token<br/>oid · groups · roles] --> GA[Group aliases<br/>env/&lt;env&gt;/groups.yaml]
     T --> AR[App roles<br/>roles claim]
     T --> EV[Every signed-in user]
+    T --> UA[User alias by oid<br/>env/&lt;env&gt;/users.yaml]
+    UA --> TM
+    UA --> GB
     GA --> TM[Teams<br/>teams/*.yaml membership]
     AR --> TM
     GA --> GB[Global bindings<br/>roles.yaml]
@@ -193,6 +196,10 @@ flowchart LR
 - **Identity** is the Entra `oid` plus group membership and, for enterprise tenants, Entra **app roles**
   (`roles` claim). Entra is the only trusted issuer. Every signed-in user also matches `everyone: true`
   bindings, which grant only the `signed-in` basics (`ping`, `whoami`).
+- **Direct members** (version-02 N10): where the tenant has no group per team, `config/env/<env>/users.yaml`
+  (git-ignored) adds users to teams (with team roles) and global roles. Admins list emails; `sdlc-config users sync`
+  looks up each `oid` (read-only); the server matches tokens on `oid` only, never on an email claim, and an entry
+  without an `oid` grants nothing. A user's policy is the union of their groups, app roles and users.yaml entry.
 - **Teams** define who belongs, which roles each group gets, and team add-ons (extra skills, extra agent instructions, tool argument limits).
 - **Roles** are reusable permission bundles. A role can inherit from another.
 - **Data access** is granted only by each source's own `access` block. The sensitivity ceiling comes from roles.
@@ -220,8 +227,8 @@ flowchart LR
     MCP -- "SET LOCAL app.allowed_sources,<br/>app.max_classification_rank" --> PG
 ```
 
-- **Two checks, one source of truth.** The resolver turns `Source.access` (teams, roles, groups) into the
-  user's granted sources, takes the highest `max_classification` across the user's roles, and keeps the
+- **Two checks, one source of truth.** The resolver turns `Source.access` (teams, roles, groups, `everyone`) into the
+  user's granted sources (a source can have its own Entra group, so readers need no team), takes the highest `max_classification` across the user's roles, and keeps the
   granted sources whose **current** classification is at or below that ceiling (`readable_sources`). The
   MCP server searches only those, and Postgres RLS filters every row on the same values (set per
   transaction by `sdlc_db.scoped()`) plus each row's own classification stamp. A bug in tool code cannot
@@ -239,7 +246,7 @@ flowchart LR
   RETRIEVAL_DOCUMENT for chunks and RETRIEVAL_QUERY for questions; HNSW cosine index with iterative scan so
   RLS filtering still returns k results.
 - Ingest runs on demand (`docker compose run --rm ingest run --all`) and skips unchanged files by content hash.
-  Sources are local folders or git repositories read at a pinned commit (never the working tree), e.g.
+  Sources are local folders or git repositories read at a pinned commit or a tracked branch (never the working tree), e.g.
   `sdlc-platform` = this repository.
 - **Document types:** UTF-8 text files (Markdown by headings, Python/Terraform by definitions, everything else by
   line windows) and **PDFs** (H10): the text layer is read locally; pages without text (scans) are read by Gemini
@@ -262,8 +269,8 @@ flowchart LR
 - **Extraction** runs at ingest (Gemini structured output, temperature 0, types from the Source config). Model output
   is untrusted: only allowed types and relations between extracted entities are stored. Results are cached by chunk
   content, so re-ingesting costs model calls only for changed text.
-- **`graph_query`** (developers) returns documents plus the entities and relations it walked; `search_knowledge`
-  (everyone with data access) stays vector-only. Both run entirely under the caller's RLS context.
+- **`graph_query`** (viewers and up) returns documents plus the entities and relations it walked; `search_knowledge`
+  (viewers and up) stays vector-only. Both run entirely under the caller's RLS context.
 - **Measured value:** on the sample corpus and on this repository (`tests/evals`), `graph_query` beats
   `search_knowledge` only through returning one result per document; its graph re-ranking adds nothing measurable
   yet. Its value today is the structured entities/relations in the answer.
@@ -356,8 +363,8 @@ Details for dev exposure: [CLOUDFLARE_TUNNEL.md](misc/CLOUDFLARE_TUNNEL.md). GCP
 
 | Aspect | Development: local + Cloudflare Tunnel (current phase) | GCP (dev since version-01 M7; staging/prod later) |
 |---|---|---|
-| Agent | `agent-bootstrap` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` or publicly via Cloudflare Tunnel (host connector) → `oauth2-proxy-public` (localhost:4181) at `https://app-sdlc-dev.shaheenks.co.in` | Cloud Run service `sdlc-app-<env>`: oauth2-proxy ingress container + agent sidecar (`:8000`, `/agui`) + CopilotKit chat app sidecar (`:3000`, `/chat/`), 1 instance; later Agent Runtime (Gemini Enterprise) |
-| MCP server | `mcp-bootstrap` container (`localhost:8080`; public `https://mcp-sdlc-dev.shaheenks.co.in/mcp` via Cloudflare Tunnel) | Cloud Run service `sdlc-mcp-<env>` (public, stateless, scales out; Entra token is the gate) |
+| Agent | `user-agent` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` or publicly via Cloudflare Tunnel (host connector) → `oauth2-proxy-public` (localhost:4181) at `https://app-sdlc-dev.shaheenks.co.in` | Cloud Run service `sdlc-app-<env>`: oauth2-proxy ingress container + agent sidecar (`:8000`, `/agui`) + CopilotKit chat app sidecar (`:3000`, `/chat/`), 1 instance; later Agent Runtime (Gemini Enterprise) |
+| MCP server | `core-mcp` container (`localhost:8080`; public `https://mcp-sdlc-dev.shaheenks.co.in/mcp` via Cloudflare Tunnel) | Cloud Run service `sdlc-mcp-<env>` (public, stateless, scales out; Entra token is the gate) |
 | Database | `postgres` container (pgvector, `127.0.0.1:5432`) | Cloud SQL for PostgreSQL 17 + pgvector via the Cloud SQL connector only (no authorized networks; private IP later); roles/RLS by the `sdlc-db-setup` job |
 | Ingest | CLI in container (on demand, profile `ingest`; `.git` mounted read-only for git sources) | Cloud Run Job `sdlc-ingest-<env>` |
 | Config | bind-mounted `config/`, file-watch reload (local bundles optional) | 7a: baked into the image per release, tenant `groups.yaml` from Secret Manager; 7b: GCS bundle + `current` pointer, Pub/Sub reload |
@@ -371,7 +378,7 @@ Details for dev exposure: [CLOUDFLARE_TUNNEL.md](misc/CLOUDFLARE_TUNNEL.md). GCP
 ## 9. Growth path
 
 The platform starts as one agent, one MCP server, one ingest CLI and one database; that is
-the `bootstrap/` component in each area. It grows by adding **sibling components**: more
+a starter component in each area (`agents/user_agent`, `mcp_servers/core_mcp`, `ingest/bootstrap`). It grows by adding **sibling components**: more
 SDLC agents, specialised MCP servers (e.g. a knowledge server), and ingest loaders for Jira
 and wikis (local folders and git repositories exist today). All of them share `libs/` and the same `config/` policy, so identity and
 selective disclosure stay consistent as the system expands.

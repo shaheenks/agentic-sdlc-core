@@ -53,13 +53,13 @@ async def test_signed_in_user_runs_skill_through_mcp():
         transport=httpx.ASGITransport(app=app), base_url="http://agent", timeout=180
     ) as web:
         session = (
-            await web.post("/apps/bootstrap/users/user/sessions", headers=headers, json={})
+            await web.post("/apps/user_agent/users/user/sessions", headers=headers, json={})
         ).json()
         resp = await web.post(
             "/run",
             headers=headers,
             json={
-                "appName": "bootstrap",  # camelCase, as the ADK dev UI sends it
+                "appName": "user_agent",  # camelCase, as the ADK dev UI sends it
                 "userId": "user",
                 "sessionId": session["id"],
                 "newMessage": {

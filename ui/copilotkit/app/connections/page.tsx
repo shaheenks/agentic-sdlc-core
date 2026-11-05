@@ -4,8 +4,15 @@
 // Talks to the MCP server's /connections/ API, same origin through oauth2-proxy (the proxy adds the
 // user's Entra token). The token typed here goes only to that API: it is never stored in the
 // browser, never sent back, never shown again. Never paste a token into the chat.
+//
+// Layout (version-02 chat UX): one compact row per connection (name, provider, status chip,
+// account and expiry, actions). The token form opens on Connect / Replace; the provider's token
+// instructions sit in a collapsible panel inside it. Disconnect asks inline first.
 
 import { type FormEvent, useCallback, useEffect, useState } from "react";
+
+import { CONNECTIONS_CHANGED, UserStatus } from "@/components/UserStatus";
+import { statusChip } from "@/lib/status";
 
 type Connection = {
   id: string;
@@ -43,9 +50,13 @@ async function detail(response: Response): Promise<string> {
   }
 }
 
-function ConnectionCard({ c, onChange }: { c: Connection; onChange: () => void }) {
+type Mode = "idle" | "form" | "confirm-disconnect";
+
+function ConnectionRow({ c, onChange }: { c: Connection; onChange: () => void }) {
+  const [mode, setMode] = useState<Mode>("idle");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const chip = statusChip(c);
 
   async function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,7 +76,10 @@ function ConnectionCard({ c, onChange }: { c: Connection; onChange: () => void }
     form.reset(); // the token leaves the page either way
     setBusy(false);
     if (!response.ok) setError(await detail(response));
-    else onChange();
+    else {
+      setMode("idle");
+      onChange();
+    }
   }
 
   async function disconnect() {
@@ -76,68 +90,95 @@ function ConnectionCard({ c, onChange }: { c: Connection; onChange: () => void }
       headers: WRITE_HEADERS,
     });
     setBusy(false);
+    setMode("idle");
     if (!response.ok) setError(await detail(response));
     else onChange();
   }
 
-  const state = !c.connected
-    ? "Not connected"
-    : c.status === "invalid"
-      ? "Token rejected by the provider: connect again"
-      : c.expired
-        ? "Token expired: connect again"
-        : `Connected as ${c.display || c.account}`;
-  const warn = c.connected && (c.status === "invalid" || c.expired || c.expiring_soon);
-
   return (
-    <section className="tool connection">
-      <div className="tool-title">
-        {c.description || c.id} <span className="badge">{c.provider} · {c.edition}</span>
-      </div>
-      <div className={warn ? "conn-state warn" : "conn-state"}>
-        {state}
-        {c.connected && c.expires_at && <span> · expires {c.expires_at}</span>}
-        {c.expiring_soon && !c.expired && <span> · expiring soon</span>}
-      </div>
-      {c.token_help && <p className="conn-help">{c.token_help}</p>}
-      <form className="conn-form" onSubmit={connect} autoComplete="off">
-        {c.needs_username && (
-          <label>
-            Account email
-            <input name="username" type="email" required defaultValue={c.username ?? ""} />
-          </label>
-        )}
-        <label>
-          Personal access token
-          <input name="token" type="password" required autoComplete="off" spellCheck={false} />
-        </label>
-        <label>
-          Token expires on
-          <input
-            name="expires_at"
-            type="date"
-            min={isoDay(0)}
-            max={isoDay(c.max_token_days)}
-            required={c.provider !== "github"}
-          />
-        </label>
-        <div className="conn-actions">
-          <button type="submit" disabled={busy}>
-            {c.connected ? "Replace token" : "Connect"}
-          </button>
-          {c.connected && (
-            <button type="button" onClick={disconnect} disabled={busy}>
-              Disconnect
-            </button>
+    <section className="conn-row">
+      <div className="conn-head">
+        <div className="conn-name">
+          <span className="conn-title">{c.description || c.id}</span>
+          <span className="chip">
+            {c.provider} · {c.edition}
+          </span>
+          <span className={`status-chip status-${chip.state}`}>{chip.label}</span>
+        </div>
+        <div className="conn-buttons">
+          {mode === "idle" && (
+            <>
+              <button type="button" onClick={() => setMode("form")} disabled={busy}>
+                {c.connected ? "Replace" : "Connect"}
+              </button>
+              {c.connected && (
+                <button type="button" onClick={() => setMode("confirm-disconnect")} disabled={busy}>
+                  Disconnect
+                </button>
+              )}
+            </>
           )}
         </div>
-      </form>
-      {error && <div className="conn-error">{error}</div>}
-      {c.connected && (
-        <p className="conn-help">
-          Disconnecting removes the token here; revoke it at {c.provider} too if you no longer need it.
-        </p>
+      </div>
+      {chip.detail && <div className="conn-sub">{chip.detail}</div>}
+
+      {mode === "confirm-disconnect" && (
+        <div className="conn-confirm">
+          <span>
+            Remove this token here? Revoke it at {c.provider} too if you no longer need it.
+          </span>
+          <span className="conn-buttons">
+            <button type="button" className="danger" onClick={disconnect} disabled={busy} autoFocus>
+              Disconnect
+            </button>
+            <button type="button" onClick={() => setMode("idle")} disabled={busy}>
+              Cancel
+            </button>
+          </span>
+        </div>
       )}
+
+      {mode === "form" && (
+        <form className="conn-form" onSubmit={connect} autoComplete="off">
+          <div className="conn-fields">
+            {c.needs_username && (
+              <label>
+                Account email
+                <input name="username" type="email" required defaultValue={c.username ?? ""} />
+              </label>
+            )}
+            <label>
+              Personal access token
+              <input name="token" type="password" required autoComplete="off" spellCheck={false} autoFocus />
+            </label>
+            <label>
+              Expires on
+              <input
+                name="expires_at"
+                type="date"
+                min={isoDay(0)}
+                max={isoDay(c.max_token_days)}
+                required={c.provider !== "github"}
+              />
+            </label>
+          </div>
+          {c.token_help && (
+            <details className="conn-help">
+              <summary>How to create this token</summary>
+              <p>{c.token_help}</p>
+            </details>
+          )}
+          <div className="conn-buttons">
+            <button type="submit" className="primary" disabled={busy}>
+              {c.connected ? "Save new token" : "Connect"}
+            </button>
+            <button type="button" onClick={() => setMode("idle")} disabled={busy}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+      {error && <div className="conn-error">{error}</div>}
     </section>
   );
 }
@@ -154,6 +195,7 @@ export default function ConnectionsPage() {
     }
     setError(null);
     setItems((await response.json()).connections);
+    window.dispatchEvent(new Event(CONNECTIONS_CHANGED)); // navbar status follows connect/disconnect
   }, []);
 
   useEffect(() => {
@@ -163,21 +205,23 @@ export default function ConnectionsPage() {
   return (
     <main className="shell">
       <header className="topbar">
-        <span className="brand">Connections</span>
+        <span className="brand">SDLC Assistant</span>
         <nav>
           <a href="/chat/">Chat</a>
-          <a href="/oauth2/sign_out">Sign out</a>
+          <UserStatus />
         </nav>
       </header>
-      <div className="page">
-        <p className="conn-intro">
-          Connect your own accounts so the assistant can read Jira, Confluence, GitHub and Bitbucket
-          with <strong>your</strong> permissions. Tokens are stored encrypted for you only and are
-          never shown again. Never paste a token into the chat.
+      <div className="page conn-page">
+        <h1 className="page-title">Connections</h1>
+        <p className="conn-about">
+          Read Jira, Confluence, GitHub and Bitbucket with your own permissions, using a personal access token you
+          create. Tokens are stored encrypted for you only and never shown again. Never paste a token into the chat.
         </p>
         {error && <div className="conn-error">{error}</div>}
         {items === null && !error && <div className="tool pending">Loading…</div>}
-        {items?.map((c) => <ConnectionCard key={c.id} c={c} onChange={load} />)}
+        <div className="conn-list-page">
+          {items?.map((c) => <ConnectionRow key={c.id} c={c} onChange={load} />)}
+        </div>
       </div>
     </main>
   );

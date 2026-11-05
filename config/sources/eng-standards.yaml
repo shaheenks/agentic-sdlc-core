@@ -2,11 +2,11 @@ apiVersion: sdlc/v1
 kind: Source
 metadata:
   id: eng-standards
-  owner_team: platform
+  owner_team: sdlc-platform
   description: engineering standards shared by all teams
 spec:
-  type: local_folder
-  location: samples/sources/eng-standards
+  type: gcs
+  location: gs://sdlc-config-store-a7484d8b/source_docs/eng-standards/   # config store bucket (one-time move from samples/, version-02 N14)
   include: ["**/*.md", "**/*.pdf"]
   classification: public
   ingest:
@@ -15,5 +15,5 @@ spec:
       enabled: true
       entity_types: [standard, process, service, team, metric]
 access:
-  groups: [eng-all]
+  everyone: true                 # every signed-in user
   roles: [admin]

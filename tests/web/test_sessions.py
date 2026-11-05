@@ -79,7 +79,7 @@ def test_parse_accepts_only_the_full_resource_name():
 def test_every_new_session_gets_the_retention_ttl():
     svc, fake = service_with_fake()
     session = asyncio.run(
-        svc.create_session(app_name="bootstrap", user_id="oid-1", state={"k": "v"})
+        svc.create_session(app_name="user_agent", user_id="oid-1", state={"k": "v"})
     )
     call = fake.calls[0]
     assert call["name"] == "reasoningEngines/1234567890"
@@ -92,7 +92,7 @@ def test_every_new_session_gets_the_retention_ttl():
 def test_an_explicit_expiry_is_kept():
     svc, fake = service_with_fake()
     asyncio.run(
-        svc.create_session(app_name="bootstrap", user_id="u", expire_time="2026-12-01T00:00:00Z")
+        svc.create_session(app_name="user_agent", user_id="u", expire_time="2026-12-01T00:00:00Z")
     )
     assert "ttl" not in fake.calls[0]["config"]
 

@@ -8,3 +8,8 @@ personas:
   platform-dev:  { groups: [eng-all, platform-devs] }
   multi-team-dev: { groups: [eng-all, payments-devs, platform-devs] }
   admin:         { groups: [eng-all, platform-admins] }
+  infra-reader:  { groups: [eng-all, infra-readers] }    # a source's own group, no team
+  # users.yaml direct members (no groups at all); test users from tests/support/config.py
+  direct-payments-dev: { groups: [], user: direct-dev }
+  direct-viewer:       { groups: [], user: direct-viewer }
+  pending-user:        { groups: [], user: pending }       # no oid yet: no access

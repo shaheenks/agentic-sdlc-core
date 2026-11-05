@@ -86,34 +86,34 @@ async def test_bearer_header_also_accepted(web, entra, downstream):
 
 async def test_session_paths_are_bound_to_token_oid(web, entra, downstream):
     token = entra.token(oid=OID_A)
-    await web.get("/apps/bootstrap/users/someone-else/sessions", headers=fwd(token))
-    await web.post("/apps/bootstrap/users/user/sessions/s1", headers=fwd(token), json={})
-    await web.get("/apps/bootstrap/users/user", headers=fwd(token))
+    await web.get("/apps/user_agent/users/someone-else/sessions", headers=fwd(token))
+    await web.post("/apps/user_agent/users/user/sessions/s1", headers=fwd(token), json={})
+    await web.get("/apps/user_agent/users/user", headers=fwd(token))
     assert [c["path"] for c in downstream.calls] == [
-        f"/apps/bootstrap/users/{OID_A}/sessions",
-        f"/apps/bootstrap/users/{OID_A}/sessions/s1",
-        f"/apps/bootstrap/users/{OID_A}",
+        f"/apps/user_agent/users/{OID_A}/sessions",
+        f"/apps/user_agent/users/{OID_A}/sessions/s1",
+        f"/apps/user_agent/users/{OID_A}",
     ]
     assert all(c["token"] == token for c in downstream.calls)
 
 
 RUN_BODIES = {
     "snake_case": {
-        "app_name": "bootstrap",
+        "app_name": "user_agent",
         "user_id": "victim",
         "session_id": "s1",
         "state_delta": {USER_TOKEN_STATE_KEY: "stolen", "keep": 1},
     },
     # what the ADK dev UI sends
     "camelCase": {
-        "appName": "bootstrap",
+        "appName": "user_agent",
         "userId": "victim",
         "sessionId": "s1",
         "stateDelta": {USER_TOKEN_STATE_KEY: "stolen", "keep": 1},
     },
     # both spellings: ADK's alias (camelCase) wins, so both must be rewritten
     "mixed": {
-        "appName": "bootstrap",
+        "appName": "user_agent",
         "user_id": OID_A,
         "userId": "victim",
         "sessionId": "s1",
@@ -177,7 +177,7 @@ async def test_run_live_without_valid_token_is_closed(entra, downstream, headers
 async def test_run_live_is_bound_to_the_token_user(entra, downstream):
     app = EntraUserBindingMiddleware(downstream, entra.verifier())
     token = entra.token(oid=OID_A)
-    query = b"app_name=bootstrap&user_id=someone-else&user_id=x&session_id=s1&modalities=TEXT"
+    query = b"app_name=user_agent&user_id=someone-else&user_id=x&session_id=s1&modalities=TEXT"
     sent = await websocket(
         app, headers=[(b"x-forwarded-access-token", token.encode())], query=query
     )

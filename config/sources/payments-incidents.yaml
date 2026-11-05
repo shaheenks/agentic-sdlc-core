@@ -5,8 +5,8 @@ metadata:
   owner_team: payments
   description: payments incident postmortems (confidential)
 spec:
-  type: local_folder
-  location: samples/sources/payments-incidents
+  type: gcs
+  location: gs://sdlc-config-store-a7484d8b/source_docs/payments-incidents/   # config store bucket (one-time move from samples/, version-02 N14)
   include: ["**/*.md"]
   classification: confidential        # readable only by roles cleared for confidential (lead, admin)
   ingest:

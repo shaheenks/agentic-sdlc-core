@@ -17,7 +17,7 @@ the Cloudflare dashboard**. The connector runs on the **host** as the Windows se
 | Public hostname | Tunnel service URL (host connector) | Container | Purpose |
 |---|---|---|---|
 | `app-sdlc-dev.shaheenks.co.in` | `http://localhost:4181` | `oauth2-proxy-public` | Entra sign-in + agent UI (`/dev-ui/`) |
-| `mcp-sdlc-dev.shaheenks.co.in` | `http://localhost:8080` | `mcp-bootstrap` | MCP endpoint `/mcp` + OAuth metadata for MCP clients (Antigravity, verified with a user token from `az account get-access-token`) |
+| `mcp-sdlc-dev.shaheenks.co.in` | `http://localhost:8080` | `core-mcp` | MCP endpoint `/mcp` + OAuth metadata for MCP clients (Antigravity, verified with a user token from `az account get-access-token`) |
 | `api-sdlc-dev.shaheenks.co.in` | *(Stage 8)* | agent API / A2A | Gemini Enterprise / Agent Engine |
 
 Local equivalents (no tunnel): `http://localhost:4180` (sign-in + UI via `oauth2-proxy`) and
@@ -77,7 +77,7 @@ Guest (B2B) users are out of scope for now.
 - **The host service runs independently of Docker.** When the stack is down, the public
   hostnames return Cloudflare 502 errors. When the stack moves to another machine, either
   install the connector there or switch to a `cloudflared` container: routes would then use
-  Docker service names (`oauth2-proxy-public:4180`, `mcp-bootstrap:8080`), and 4181 need not
+  Docker service names (`oauth2-proxy-public:4180`, `core-mcp:8080`), and 4181 need not
   be published.
 - The public oauth2-proxy trusts `X-Forwarded-*` headers (reverse-proxy mode) and uses
   `Secure` cookies. It is published on `127.0.0.1` only.

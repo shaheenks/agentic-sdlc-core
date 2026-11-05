@@ -62,6 +62,7 @@ def compile_bundle(
     """Validate config_dir for env and write an immutable bundle. Returns (version, created);
     created is False if that exact bundle already exists."""
     environ = dict(os.environ if environ is None else environ)
+    environ.pop("SDLC_USERS_FILE", None)  # bundles hold config/env/<env>/users.yaml, not a mount
     sha = environ.get("SDLC_CONFIG_GIT_SHA") or git_sha(config_dir.parent)
     environ["SDLC_CONFIG_GIT_SHA"] = sha
     snapshot = load_snapshot(config_dir, env, environ, dummy_env=dummy_env)  # raises ConfigError
@@ -170,6 +171,7 @@ def load_bundle(
         raise ConfigError([f"bundle {version} is for env '{manifest['env']}', not '{env}'"])
     environ = dict(os.environ if environ is None else environ)
     environ["SDLC_CONFIG_GIT_SHA"] = manifest["git_sha"]
+    environ.pop("SDLC_USERS_FILE", None)  # a bundle is self-contained: its own users.yaml only
     snapshot = load_snapshot(root / version / TREE / "config", env, environ)
     if snapshot.version != version:
         raise ConfigError([f"bundle {version}: content loads as version {snapshot.version}"])

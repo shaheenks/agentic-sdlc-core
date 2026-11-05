@@ -13,12 +13,13 @@ VIEWER_TOOLS = {
     "load_skill",
     "get_agent_context",
     "search_knowledge",
+    "graph_query",  # version-02 N9: results limited to the caller's sources
 }
-DEV_TOOLS = VIEWER_TOOLS | {"graph_query", "generate_tests", "review_code"}
+DEV_TOOLS = VIEWER_TOOLS | {"generate_tests", "review_code"}
 # version-01 M6: read with the user's own connected account
 DEV_TOOLS |= {"jira_get_issue", "confluence_get_page", "github_get_file", "bitbucket_get_file"}
 PAYMENTS_REPOS = {"payments-api", "payments-ui"}
-PLATFORM_REPOS = {"platform-infra", "platform-ci"}
+PLATFORM_REPOS = {"agentic-sdlc-core"}
 
 
 @pytest.fixture
@@ -72,7 +73,7 @@ def test_payments_lead_gets_approve_design_within_payments(snap):
 def test_platform_developer_gets_platform_repos(snap):
     policy = resolve(snap, ["eng-all", "platform-devs"])
     assert policy.tools["review_code"].constraints == {"repo": PLATFORM_REPOS}
-    assert set(policy.teams) == {"platform"}
+    assert set(policy.teams) == {"sdlc-platform"}
 
 
 def test_member_of_two_teams_gets_union_of_limits(snap):

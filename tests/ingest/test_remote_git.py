@@ -225,3 +225,48 @@ def test_missing_secret_is_a_loader_error(tmp_path):
     )
     with pytest.raises(LoaderError, match="credentials secret:github-token"):
         list(remote.items())
+
+
+# --- partial clones: one pack for small files, no per-file lazy fetches ------------------------
+
+
+def test_partial_clone_gets_small_files_in_one_pack_and_prefetches_big_pdfs(
+    upstream, tmp_path, monkeypatch
+):
+    """The clone filter keeps blobs above MAX_FILE_BYTES on the server: a big text file is
+    skipped without being downloaded, a big PDF is fetched in one explicit call."""
+    from sdlc_loaders import files
+
+    monkeypatch.setattr(files, "MAX_FILE_BYTES", 1000)
+    monkeypatch.setattr(files, "CLONE_FILTER", "blob:limit=1000")
+    big_pdf = "%PDF-1.4\n" + "x" * 5000
+    commit(upstream, {"a.md": "# A\n", "big.md": "y" * 5000, "doc.pdf": big_pdf}, "one")
+    calls = []
+    real_run = subprocess.run
+
+    def spy(cmd, *args, **kwargs):
+        calls.append(cmd)
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", spy)
+    remote = loader(tmp_path, include=("**/*.md", "**/*.pdf"))
+    items = {i.path: i for i in remote.items()}
+    assert set(items) == {"a.md", "doc.pdf"}  # big.md: too large, never downloaded
+    cache = next((tmp_path / "cache").iterdir())
+    assert git(cache, "config", "remote.origin.partialclonefilter") == "blob:limit=1000"
+    fetches = [c for c in calls if "fetch" in c]
+    assert len(fetches) == 2  # the branch, then the one big PDF; never one per file
+    assert "--no-write-fetch-head" in fetches[1]
+    assert remote.details["commit"] == git(upstream, "rev-parse", "HEAD")
+
+
+def test_cache_cloned_with_another_filter_is_replaced(upstream, tmp_path):
+    commit(upstream, {"a.md": "# A\n"}, "one")
+    cache_root = tmp_path / "cache"
+    first = loader(tmp_path)
+    assert [i.path for i in first.items()] == ["a.md"]
+    cache = next(cache_root.iterdir())
+    git(cache, "config", "remote.origin.partialclonefilter", "blob:none")  # an older cache
+    again = loader(tmp_path)
+    assert [i.path for i in again.items()] == ["a.md"]
+    assert git(cache, "config", "remote.origin.partialclonefilter") != "blob:none"

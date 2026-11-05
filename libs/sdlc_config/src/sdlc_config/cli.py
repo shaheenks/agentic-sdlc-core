@@ -1,7 +1,8 @@
 """sdlc-config CLI.
 
 validate  check config for one environment (schemas + cross-references)
-explain   effective permissions of a persona or a set of group aliases / app roles
+explain   effective permissions of a persona or a set of group aliases / app roles / a user
+users     users sync: look up (read-only) the Entra object IDs of env/<env>/users.yaml
 diff      per-persona permission changes between two git revisions (for PR review / CI)
 compile   validate and write an immutable bundle (optionally activate it)
 activate  point a bundle root's `current` at a version (rollback = an older version)
@@ -43,12 +44,19 @@ def main(argv: list[str] | None = None) -> int:
 
     validate = sub.add_parser("validate", help="validate config for one environment")
     common(validate)
+    validate.add_argument(
+        "--check-secrets",
+        action="store_true",
+        help="also check that every secret reference resolves (values are never printed; "
+        "uses SDLC_SECRETS_BACKEND, so set gcp + SDLC_SECRETS_PROJECT to check Secret Manager)",
+    )
 
     explain = sub.add_parser("explain", help="effective permissions of a persona")
     common(explain)
     who = explain.add_mutually_exclusive_group(required=True)
     who.add_argument("--persona", help="name from the personas file")
     who.add_argument("--groups", help="comma-separated group aliases")
+    who.add_argument("--user", help="users.yaml alias (add --groups via a persona if needed)")
     explain.add_argument("--app-roles", default="", help="comma-separated Entra app roles")
     explain.add_argument("--personas", type=Path, default=DEFAULT_PERSONAS)
     explain.add_argument("--json", action="store_true", help="machine-readable output")
@@ -79,6 +87,18 @@ def main(argv: list[str] | None = None) -> int:
     ls = sub.add_parser("bundles", help="list bundles; * marks the active one")
     ls.add_argument("--root", type=Path, required=True)
 
+    users = sub.add_parser("users", help="direct members (env/<env>/users.yaml)")
+    users_sub = users.add_subparsers(dest="users_command", required=True)
+    sync = users_sub.add_parser(
+        "sync", help="look up missing object IDs by email in Entra (read-only, via az)"
+    )
+    sync.add_argument("--env", default="local")
+    sync.add_argument("--config-dir", type=Path, default=DEFAULT_CONFIG_DIR)
+    sync.add_argument("--write", action="store_true", help="save found object IDs to users.yaml")
+    sync.add_argument(
+        "--check", action="store_true", help="also re-check existing object IDs against the emails"
+    )
+
     args = parser.parse_args(argv)
     try:
         if args.command == "validate":
@@ -87,6 +107,8 @@ def main(argv: list[str] | None = None) -> int:
             return _explain(args)
         if args.command in ("compile", "activate", "bundles"):
             return _bundle_command(args)
+        if args.command == "users":
+            return _users(args)
         return _diff(args)
     except ConfigError as e:
         print(e, file=sys.stderr)
@@ -98,9 +120,66 @@ def _validate(args) -> int:
     print(
         f"OK env={snap.env} version={snap.version} groups={len(snap.groups.alias_by_id)} "
         f"roles={len(snap.roles)} teams={len(snap.teams)} tools={len(snap.tools)} "
-        f"tenant={snap.platform.tenant_id}"
+        f"users={len(snap.users.alias_by_oid)} tenant={snap.platform.tenant_id}"
     )
+    if snap.users.pending:
+        print(
+            f"warning: users without an oid get no access: {', '.join(snap.users.pending)} "
+            f"(run: sdlc-config users sync --env {snap.env} --write)"
+        )
+    if getattr(args, "check_secrets", False):
+        return _check_secrets(snap)
     return 0
+
+
+def secret_references(snap) -> dict[tuple[str, str], list[str]]:
+    """(kind, name) -> where it is used. Sources' `spec.credentials` are the only references in
+    config today; user connections are per-user tokens and are not config."""
+    refs: dict[tuple[str, str], list[str]] = {}
+    for source in sorted(snap.sources.values(), key=lambda s: s.id):
+        if source.credentials:
+            refs.setdefault(source.credentials, []).append(f"sources/{source.id}.yaml")
+    return refs
+
+
+def _check_secrets(snap, resolver=None) -> int:
+    """Resolve each reference once; print only names and outcomes (never values)."""
+    from sdlc_secrets import SecretAccessDenied, SecretError, SecretNotFound, resolver_from_env
+
+    refs = secret_references(snap)
+    if not refs:
+        print("secrets: no secret references in config")
+        return 0
+    try:
+        resolver = resolver or resolver_from_env()
+    except SecretError as e:
+        print(f"secrets: cannot create the resolver: {e}", file=sys.stderr)
+        return 1
+    failed = 0
+    for (kind, name), used_by in sorted(refs.items()):
+        try:
+            resolver.resolve((kind, name))
+            outcome = "ok"
+        except SecretNotFound:
+            outcome, failed = "MISSING", failed + 1
+        except SecretAccessDenied:
+            outcome, failed = "ACCESS DENIED", failed + 1
+        except SecretError as e:
+            outcome, failed = f"ERROR ({type(e).__name__})", failed + 1
+        print(f"secrets: {kind}:{name} {outcome} (used by {', '.join(used_by)})")
+    print(f"secrets: {len(refs) - failed}/{len(refs)} resolve (backend {resolver.store.name})")
+    return 1 if failed else 0
+
+
+def _users(args) -> int:
+    from sdlc_config.users import az_runner, sync
+
+    path = args.config_dir / "env" / args.env / "users.yaml"
+    lines, problems = sync(path, az_runner(), write=args.write, check=args.check)
+    print("\n".join(lines))
+    if not args.write and any(" (not saved)" in line for line in lines):
+        print("re-run with --write to save the object IDs")
+    return 1 if problems else 0
 
 
 def _bundle_command(args) -> int:
@@ -141,10 +220,15 @@ def _explain(args) -> int:
             raise ConfigError([f"unknown persona '{args.persona}' (have: {sorted(personas)})"])
         persona = personas[args.persona]
     else:
-        persona = Persona("(ad hoc)", _split(args.groups), _split(args.app_roles))
+        persona = Persona(
+            "(ad hoc)", _split(args.groups or ""), _split(args.app_roles), args.user or None
+        )
     known = set(snap.groups.alias_by_id.values())
     unknown = sorted(set(persona.groups) - known)
-    policy = resolve(snap, [g for g in persona.groups if g in known], persona.app_roles)
+    if persona.user and persona.user not in snap.users.email_by_alias:
+        unknown.append(f"user:{persona.user}")
+    groups = [g for g in persona.groups if g in known]
+    policy = resolve(snap, groups, persona.app_roles, _known_user(snap, persona))
     if args.json:
         view = policy.explain()
         view["persona"], view["unknown_groups"] = persona.name, unknown
@@ -154,14 +238,19 @@ def _explain(args) -> int:
     return 0
 
 
+def _known_user(snap, persona: Persona) -> str | None:
+    """The persona's users.yaml alias if this environment has it (users.yaml is per tenant)."""
+    return persona.user if persona.user in snap.users.email_by_alias else None
+
+
 def _render(persona: Persona, policy: EffectivePolicy, unknown: list[str]) -> str:
     lines = [
         f"persona: {persona.name}  groups: {', '.join(persona.groups) or '-'}  "
-        f"app roles: {', '.join(persona.app_roles) or '-'}",
+        f"app roles: {', '.join(persona.app_roles) or '-'}  user: {persona.user or '-'}",
         f"config:  {policy.config_version}",
     ]
     if unknown:
-        lines.append(f"unknown groups (ignored): {', '.join(unknown)}")
+        lines.append(f"unknown groups/users (ignored): {', '.join(unknown)}")
     lines.append("teams:")
     lines += [f"  {t:<14} <- {', '.join(r)}" for t, r in sorted(policy.teams.items())] or ["  -"]
     lines.append("roles:")
@@ -232,6 +321,10 @@ def _config_at(rev: str, config_dir: Path, env: str, workdir: Path) -> Path:
             source = config_dir / "env" / env / "groups.yaml.example"
         groups.parent.mkdir(parents=True, exist_ok=True)
         groups.write_bytes(source.read_bytes())
+    users = config_dir / "env" / env / "users.yaml"  # git-ignored too; optional
+    knows_users = (at_rev / "schemas" / "usermap.schema.json").exists()  # version-02 N10+
+    if users.exists() and knows_users and not (at_rev / "env" / env / "users.yaml").exists():
+        (at_rev / "env" / env / "users.yaml").write_bytes(users.read_bytes())
     return at_rev
 
 
@@ -263,7 +356,11 @@ def _diff(args) -> int:
     print(f"permission diff {args.rev_from} -> {args.rev_to} (env {args.env})")
     for name, persona in personas.items():
         before, after = (
-            _summary(resolve(snaps[rev], persona.groups, persona.app_roles))
+            _summary(
+                resolve(
+                    snaps[rev], persona.groups, persona.app_roles, _known_user(snaps[rev], persona)
+                )
+            )
             for rev in (args.rev_from, args.rev_to)
         )
         lines = [f"  + {t}  ({after[t]})" for t in sorted(after.keys() - before.keys())]

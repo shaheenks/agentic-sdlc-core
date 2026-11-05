@@ -12,14 +12,21 @@ from fastmcp.server.auth import RemoteAuthProvider
 from psycopg_pool import AsyncConnectionPool
 from sdlc_auth.entra import entra_issuer
 from sdlc_config import load_snapshot, resolve
+from sdlc_core_mcp.knowledge_tools import Knowledge
+from sdlc_core_mcp.server import build_http_app, build_server
 from sdlc_db import HashEmbedder, graph_search
-from sdlc_mcp_bootstrap.knowledge_tools import Knowledge
-from sdlc_mcp_bootstrap.server import build_http_app, build_server
 
 from tests.support import db
 from tests.support.config import make_config_dir
 from tests.support.db import app_query, ingest_as_ingest_role, run, superuser_query
-from tests.support.entra import G_ENG_ALL, G_PAYMENTS_DEVS, G_PLATFORM_DEVS, TENANT, TEST_ENV
+from tests.support.entra import (
+    G_ENG_ALL,
+    G_INFRA_READERS,
+    G_PAYMENTS_DEVS,
+    G_PLATFORM_DEVS,
+    TENANT,
+    TEST_ENV,
+)
 from tests.support.graph import VocabularyExtractor
 from tests.support.servers import free_port, serve
 
@@ -29,6 +36,7 @@ EMBEDDER = HashEmbedder()
 PAYMENTS_DEV = ["eng-all", "payments-devs"]
 PAYMENTS_LEAD = ["eng-all", "payments-leads"]
 PLATFORM_DEV = ["eng-all", "platform-devs"]
+INFRA_READER = ["eng-all", "infra-readers"]  # source group only, no team
 ADMIN = ["platform-admins"]
 GRAPH_TABLES = ("entities", "mentions", "edges")
 
@@ -83,7 +91,7 @@ def test_extractions_are_cached(corpus):
 
 def test_failed_extraction_skips_the_file_and_retries(corpus):
     config_dir, snapshot, _, _ = corpus
-    folder = config_dir.parent / "samples/sources/platform-infra/docs"
+    folder = config_dir.parent / "sample_sources/platform-infra/docs"
     (folder / "new-service.md").write_text("# queue-service\n\nqueue-service runs on job-runner.\n")
     failing = VocabularyExtractor(fail_on="new-service.md")
     [report] = run(
@@ -108,7 +116,7 @@ def test_failed_extraction_skips_the_file_and_retries(corpus):
 
 def test_deleted_files_drop_their_entities(corpus):
     config_dir, snapshot, _, _ = corpus
-    incidents = config_dir.parent / "samples/sources/payments-incidents"
+    incidents = config_dir.parent / "sample_sources/payments-incidents"
     moved = incidents / "INC-2044-ledger-posting-lag.md"
     text = moved.read_text(encoding="utf-8")
     moved.unlink()
@@ -151,6 +159,8 @@ def test_no_rls_context_means_no_graph_rows(corpus):
         (PAYMENTS_DEV, {"eng-standards", "payments-code"}),
         (PAYMENTS_LEAD, {"eng-standards", "payments-code", "payments-incidents"}),
         (PLATFORM_DEV, {"eng-standards", "platform-infra"}),
+        (INFRA_READER, {"eng-standards", "platform-infra"}),
+        (["eng-all"], {"eng-standards"}),
         (ADMIN, {"eng-standards", "payments-code", "payments-incidents", "platform-infra"}),
     ],
 )
@@ -234,6 +244,20 @@ async def test_graph_query_tool_per_user(knowledge_url, entra):
     assert paul["results"] and all(r["via"] in {"vector", "graph"} for r in paul["results"])
 
 
-async def test_graph_query_needs_the_developer_role(knowledge_url, entra):
-    with pytest.raises(ToolError, match="not granted"):  # viewer: search_knowledge only
-        await graph(knowledge_url, entra, [G_ENG_ALL], "anything")
+async def test_graph_query_for_a_source_group_member(knowledge_url, entra):
+    """version-02 N9: a source's own Entra group grants that source without team membership."""
+    question = "Which service does the refund-worker run on and who owns it?"
+    reader = await graph(knowledge_url, entra, [G_ENG_ALL, G_INFRA_READERS], question)
+    viewer = await graph(knowledge_url, entra, [G_ENG_ALL], question)
+    allowed = {"eng-standards", "platform-infra"}
+    assert {r["source"] for r in reader["results"]} <= allowed
+    assert {e["source"] for e in reader["entities"]} <= allowed
+    assert all(r["source"] in allowed for r in reader["relations"])
+    assert "platform-infra" in {e["source"] for e in reader["entities"]}
+    assert {r["source"] for r in viewer["results"]} <= {"eng-standards"}
+    assert {e["source"] for e in viewer["entities"]} <= {"eng-standards"}
+
+
+async def test_graph_query_needs_the_viewer_role(knowledge_url, entra):
+    with pytest.raises(ToolError, match="not granted"):  # signed-in only: ping, whoami
+        await graph(knowledge_url, entra, [], "anything")

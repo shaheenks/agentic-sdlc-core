@@ -27,7 +27,9 @@ from sdlc_loaders.files import (
     GitSourceError,
     changed_paths,
     git_repository,
+    prefetch_blobs,
     read_blobs,
+    remote_git_env,
     resolve_commit,
     selected_paths,
 )
@@ -119,9 +121,9 @@ class GitLoader(Loader):
 
     def items(self, cursor: Mapping[str, Any] | None = None) -> Iterator[SourceItem]:
         try:
-            repo = git_repository(
-                self.location, self.repo_root, self.cache_root, self.ref, self._auth_header()
-            )
+            header = self._auth_header()
+            env = remote_git_env(self.location, header) if self.remote else None
+            repo = git_repository(self.location, self.repo_root, self.cache_root, self.ref, header)
             commit = resolve_commit(repo, FETCHED if self.remote else self.ref)
             wanted = selected_paths(repo, commit, self.include, self.exclude)
         except GitSourceError as e:
@@ -145,6 +147,8 @@ class GitLoader(Loader):
         paths = [p for p in wanted if p in changed] if changed is not None else wanted
         self.details.update(commit=commit, mode="incremental" if self.incremental else "full")
         try:
+            if env is not None:
+                prefetch_blobs(repo, commit, paths, env)
             for item in read_blobs(repo, commit, paths):
                 yield replace(item, url=deep_link(self.provider, self.location, commit, item.path))
         except GitSourceError as e:

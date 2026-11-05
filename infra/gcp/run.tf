@@ -5,17 +5,36 @@
 locals {
   secret = { for k, v in google_secret_manager_secret.s : k => v.secret_id }
 
-  mcp_env = merge(local.vertex_env, local.entra_env, {
-    SDLC_ENV          = var.env
-    SDLC_CONFIG_WATCH = "false" # config is baked into the image per release (bundles: 7b)
-    MCP_PUBLIC_URL    = "https://${local.mcp_host}"
-    PGHOST            = local.cloudsql_socket
-    PGDATABASE        = google_sql_database.sdlc.name
-    PGUSER            = "sdlc_app"
-    # user connections (version-01 M6): users' own PATs, one Secret Manager secret per user
-    SDLC_USER_SECRETS_BACKEND = "gcp"
-    SDLC_SECRETS_PROJECT      = var.project_id
-  })
+  # Config bundles (version-02 N13): with a config store bucket, the MCP service and the ingest
+  # job read the active bundle from gs://<bucket>/bundles/<env>/ (mounted read-only; published
+  # by `gcp_deploy.ps1 -Step config`). A bundle carries config, skills and the tenant
+  # groups.yaml / users.yaml, so the secret mounts for those files are not used then.
+  bundles     = var.config_store_bucket != ""
+  bundles_dir = "/app/config-bundles"
+  bundles_env = local.bundles ? { SDLC_CONFIG_BUNDLES = local.bundles_dir } : {}
+  # users.yaml as a secret mount only without bundles (version-02 N10)
+  users_secret = !local.bundles && var.users_yaml_path != ""
+
+  mcp_env = merge(
+    local.vertex_env,
+    local.entra_env,
+    {
+      SDLC_ENV                 = var.env
+      SDLC_CONFIG_WATCH        = "false" # without bundles: config baked into the image per release
+      SDLC_CONFIG_POLL_SECONDS = "60"    # with bundles: check the `current` pointer every minute
+      MCP_PUBLIC_URL           = "https://${local.mcp_host}"
+      PGHOST                   = local.cloudsql_socket
+      PGDATABASE               = google_sql_database.sdlc.name
+      PGUSER                   = "sdlc_app"
+      # user connections (version-01 M6): users' own PATs, one Secret Manager secret per user
+      SDLC_USER_SECRETS_BACKEND = "gcp"
+      SDLC_SECRETS_PROJECT      = var.project_id
+    },
+    local.bundles_env,
+    local.trace_env,
+    # direct members (version-02 N10) without bundles: read from the secret mount
+    local.users_secret ? { SDLC_USERS_FILE = "${local.users_dir}/users.yaml" } : {},
+  )
   mcp_secret_env = merge(
     { PGPASSWORD = "pg-app-password" },
     contains(keys(local.secret), "entra-graph-secret") ? { ENTRA_GRAPH_CLIENT_SECRET = "entra-graph-secret" } : {},
@@ -29,6 +48,7 @@ locals {
     OAUTH2_PROXY_CLIENT_ID             = var.entra_client_id
     OAUTH2_PROXY_SCOPE                 = "openid profile email offline_access api://${var.entra_api_client_id}/access_as_user"
     OAUTH2_PROXY_CODE_CHALLENGE_METHOD = "S256"
+    OAUTH2_PROXY_PROMPT                = "select_account" # account picker at sign-in (after Sign out)
     # /chat/ -> CopilotKit app (sidecar), /connections/ -> MCP service (users' own connections),
     # everything else -> the agent (adk web, /agui). As in docker-compose.yml.
     OAUTH2_PROXY_UPSTREAMS = "http://127.0.0.1:8000/,http://127.0.0.1:3000/chat/,https://${local.mcp_host}/connections/"
@@ -43,20 +63,20 @@ locals {
     OAUTH2_PROXY_EMAIL_DOMAINS                        = "*"
     OAUTH2_PROXY_COOKIE_REFRESH                       = "30m"
     OAUTH2_PROXY_COOKIE_EXPIRE                        = "8h"
-    OAUTH2_PROXY_API_ROUTES                           = "^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/)"
+    OAUTH2_PROXY_API_ROUTES                           = "^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\\b|threads\\b)"
     OAUTH2_PROXY_REDIRECT_URL                         = "https://${local.app_host}/oauth2/callback"
     OAUTH2_PROXY_COOKIE_SECURE                        = "true"
     OAUTH2_PROXY_REVERSE_PROXY                        = "true" # Cloud Run's front end sets X-Forwarded-*
     OAUTH2_PROXY_WHITELIST_DOMAINS                    = local.app_host
   }
 
-  agent_env = merge(local.vertex_env, local.agent_entra_env, {
+  agent_env = merge(local.vertex_env, local.agent_entra_env, local.trace_env, {
     SDLC_MCP_URL     = "https://${local.mcp_host}/mcp"
     SDLC_AGENT_MODEL = var.agent_model
     # 0.0.0.0, not 127.0.0.1: Cloud Run's startup probes do not connect over loopback. Still private:
     # only the ingress container's port (oauth2-proxy, 4180) is exposed by a multi-container service.
     HOST            = "0.0.0.0"
-    SDLC_AGUI_AGENT = "bootstrap" # AG-UI endpoint /agui for the CopilotKit app (version-01 M5)
+    SDLC_AGUI_AGENT = "user_agent" # AG-UI endpoint /agui for the CopilotKit app (version-01 M5)
     # oauth2-proxy does not pass the browser's Host (PASS_HOST_HEADER=false), so ADK's cross-origin
     # guard needs the public origin explicitly, or the dev UI's scripts get 403.
     SDLC_ALLOWED_ORIGINS = "https://${local.app_host}"
@@ -93,6 +113,8 @@ resource "google_cloud_run_v2_service" "mcp" {
 
   template {
     service_account = google_service_account.w["mcp"].email
+    # Cloud Storage volumes (config bundles) need the second generation execution environment.
+    execution_environment = local.bundles ? "EXECUTION_ENVIRONMENT_GEN2" : null
     scaling {
       min_instance_count = 0
       max_instance_count = 3
@@ -128,9 +150,26 @@ resource "google_cloud_run_v2_service" "mcp" {
         name       = "cloudsql"
         mount_path = "/cloudsql"
       }
-      volume_mounts {
-        name       = "groups"
-        mount_path = local.config_env_dir
+      dynamic "volume_mounts" {
+        for_each = local.bundles ? [] : [1]
+        content {
+          name       = "groups"
+          mount_path = local.config_env_dir
+        }
+      }
+      dynamic "volume_mounts" {
+        for_each = local.users_secret ? [1] : []
+        content {
+          name       = "users"
+          mount_path = local.users_dir
+        }
+      }
+      dynamic "volume_mounts" {
+        for_each = local.bundles ? [1] : []
+        content {
+          name       = "config-bundles"
+          mount_path = local.bundles_dir
+        }
       }
       startup_probe {
         http_get {
@@ -146,13 +185,40 @@ resource "google_cloud_run_v2_service" "mcp" {
         instances = [google_sql_database_instance.sdlc.connection_name]
       }
     }
-    volumes {
-      name = "groups"
-      secret {
-        secret = local.secret["groups-yaml"]
-        items {
-          version = "latest"
-          path    = "groups.yaml"
+    dynamic "volumes" {
+      for_each = local.bundles ? [] : [1]
+      content {
+        name = "groups"
+        secret {
+          secret = local.secret["groups-yaml"]
+          items {
+            version = "latest"
+            path    = "groups.yaml"
+          }
+        }
+      }
+    }
+    dynamic "volumes" {
+      for_each = local.users_secret ? [1] : []
+      content {
+        name = "users"
+        secret {
+          secret = local.secret["users-yaml"]
+          items {
+            version = "latest"
+            path    = "users.yaml"
+          }
+        }
+      }
+    }
+    dynamic "volumes" {
+      for_each = local.bundles ? [1] : []
+      content {
+        name = "config-bundles"
+        gcs {
+          bucket        = google_storage_bucket.config_store[0].name
+          read_only     = true
+          mount_options = ["only-dir=bundles/${var.env}"]
         }
       }
     }
@@ -334,6 +400,8 @@ resource "google_cloud_run_v2_job" "ingest" {
       service_account = google_service_account.w["jobs"].email
       max_retries     = 0
       timeout         = "1800s"
+      # Cloud Storage volumes (config bundles) need the second generation execution environment.
+      execution_environment = local.bundles ? "EXECUTION_ENVIRONMENT_GEN2" : null
       containers {
         image = local.images.ingest
         args  = ["run", "--all"]
@@ -343,10 +411,12 @@ resource "google_cloud_run_v2_job" "ingest" {
         dynamic "env" {
           # Source credentials (spec.credentials {secret: x}) come from Secret Manager at run time
           # (version-01 M0); the jobs service account needs accessor on each connector secret.
-          for_each = merge(local.vertex_env, local.entra_env, local.jobs_db_env, {
+          # With bundles, relative local_folder locations resolve against the image (/app).
+          for_each = merge(local.vertex_env, local.entra_env, local.jobs_db_env, local.bundles_env, {
             SDLC_ENV             = var.env
             SDLC_SECRETS_BACKEND = "gcp"
             SDLC_SECRETS_PROJECT = var.project_id
+            SDLC_SOURCES_ROOT    = "/app"
           })
           content {
             name  = env.key
@@ -366,9 +436,19 @@ resource "google_cloud_run_v2_job" "ingest" {
           name       = "cloudsql"
           mount_path = "/cloudsql"
         }
-        volume_mounts {
-          name       = "groups"
-          mount_path = local.config_env_dir
+        dynamic "volume_mounts" {
+          for_each = local.bundles ? [] : [1]
+          content {
+            name       = "groups"
+            mount_path = local.config_env_dir
+          }
+        }
+        dynamic "volume_mounts" {
+          for_each = local.bundles ? [1] : []
+          content {
+            name       = "config-bundles"
+            mount_path = local.bundles_dir
+          }
         }
       }
       volumes {
@@ -377,13 +457,123 @@ resource "google_cloud_run_v2_job" "ingest" {
           instances = [google_sql_database_instance.sdlc.connection_name]
         }
       }
+      dynamic "volumes" {
+        for_each = local.bundles ? [] : [1]
+        content {
+          name = "groups"
+          secret {
+            secret = local.secret["groups-yaml"]
+            items {
+              version = "latest"
+              path    = "groups.yaml"
+            }
+          }
+        }
+      }
+      dynamic "volumes" {
+        for_each = local.bundles ? [1] : []
+        content {
+          name = "config-bundles"
+          gcs {
+            bucket        = google_storage_bucket.config_store[0].name
+            read_only     = true
+            mount_options = ["only-dir=bundles/${var.env}"]
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [google_secret_manager_secret_version.s, google_secret_manager_secret_iam_member.w]
+}
+
+# User-connection reconcile (version-02 N3): deletes stored PATs of blocked users, expired and
+# long-rejected tokens, and connections no longer configured (sdlc_connectors.reconcile). MCP image,
+# own service account (iam.tf: name-prefixed user secrets + list), DB only for the per-user lock.
+# Scheduled with reconcile_schedule (schedules.tf); by hand:
+#   gcloud run jobs execute sdlc-reconcile-<env> --region <region> --args=--dry-run   (report only)
+resource "google_cloud_run_v2_job" "reconcile" {
+  name                = "sdlc-reconcile-${var.env}"
+  location            = var.region
+  deletion_protection = var.deletion_protection
+
+  template {
+    template {
+      service_account       = google_service_account.w["reconcile"].email
+      max_retries           = 0
+      timeout               = "600s"
+      execution_environment = local.bundles ? "EXECUTION_ENVIRONMENT_GEN2" : null
+      containers {
+        image   = local.images.mcp
+        command = ["sdlc-reconcile-connections"]
+        args    = ["--apply"]
+        dynamic "env" {
+          for_each = merge(local.vertex_env, local.entra_env, local.jobs_db_env, local.bundles_env, {
+            SDLC_ENV                  = var.env
+            SDLC_CONFIG_WATCH         = "false"
+            SDLC_USER_SECRETS_BACKEND = "gcp"
+            SDLC_SECRETS_PROJECT      = var.project_id
+          })
+          content {
+            name  = env.key
+            value = env.value
+          }
+        }
+        env {
+          name = "PGPASSWORD"
+          value_source {
+            secret_key_ref {
+              secret  = local.secret["pg-app-password"]
+              version = "latest"
+            }
+          }
+        }
+        volume_mounts {
+          name       = "cloudsql"
+          mount_path = "/cloudsql"
+        }
+        dynamic "volume_mounts" {
+          for_each = local.bundles ? [] : [1]
+          content {
+            name       = "groups"
+            mount_path = local.config_env_dir
+          }
+        }
+        dynamic "volume_mounts" {
+          for_each = local.bundles ? [1] : []
+          content {
+            name       = "config-bundles"
+            mount_path = local.bundles_dir
+          }
+        }
+      }
       volumes {
-        name = "groups"
-        secret {
-          secret = local.secret["groups-yaml"]
-          items {
-            version = "latest"
-            path    = "groups.yaml"
+        name = "cloudsql"
+        cloud_sql_instance {
+          instances = [google_sql_database_instance.sdlc.connection_name]
+        }
+      }
+      dynamic "volumes" {
+        for_each = local.bundles ? [] : [1]
+        content {
+          name = "groups"
+          secret {
+            secret = local.secret["groups-yaml"]
+            items {
+              version = "latest"
+              path    = "groups.yaml"
+            }
+          }
+        }
+      }
+      dynamic "volumes" {
+        for_each = local.bundles ? [1] : []
+        content {
+          name = "config-bundles"
+          gcs {
+            bucket        = google_storage_bucket.config_store[0].name
+            read_only     = true
+            mount_options = ["only-dir=bundles/${var.env}"]
           }
         }
       }

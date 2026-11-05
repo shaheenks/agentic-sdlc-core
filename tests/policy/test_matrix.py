@@ -29,7 +29,7 @@ def _row_id(row: dict) -> str:
 @pytest.mark.parametrize("row", ROWS, ids=[_row_id(r) for r in ROWS])
 def test_matrix_row(snap, row):
     persona = PERSONAS[row["persona"]]
-    policy = resolve(snap, persona.groups, persona.app_roles)
+    policy = resolve(snap, persona.groups, persona.app_roles, persona.user)
     decision = authorize(policy, row["tool"], row.get("args") or {})
     assert decision.allowed is (row["expect"] == "allow"), (decision.reason, decision.matched_rule)
 
@@ -60,7 +60,7 @@ SKILL_ROWS = yaml.safe_load((HERE / "matrix.yaml").read_text(encoding="utf-8"))[
 )
 def test_skill_row(snap, row):
     persona = PERSONAS[row["persona"]]
-    policy = resolve(snap, persona.groups, persona.app_roles)
+    policy = resolve(snap, persona.groups, persona.app_roles, persona.user)
     assert policy.sees_skill(row["skill"]) is (row["expect"] == "visible"), policy.skills
 
 
@@ -77,7 +77,7 @@ DATA_ROWS = yaml.safe_load((HERE / "matrix.yaml").read_text(encoding="utf-8"))["
 )
 def test_data_row(snap, row):
     persona = PERSONAS[row["persona"]]
-    policy = resolve(snap, persona.groups, persona.app_roles)
+    policy = resolve(snap, persona.groups, persona.app_roles, persona.user)
     source = snap.sources[row["source"]]
     readable = (
         source.id in policy.data_sources

@@ -23,7 +23,7 @@ def test_repo_rbac_config_loads(config_dir):
     assert snap.roles["developer"].inherits == ("viewer",)
     assert snap.roles["admin"].unconstrained and "*" in snap.roles["admin"].tools_allow
     assert snap.tools["review_code"].args == {"repo"}
-    assert set(snap.teams) >= {"payments", "platform"}
+    assert set(snap.teams) >= {"payments", "sdlc-platform"}
     payments = snap.teams["payments"]
     assert payments.constraints["review_code"]["repo"] == {"payments-api", "payments-ui"}
     assert payments.membership[0].rule == "teams/payments.yaml#membership[0]"
@@ -44,8 +44,11 @@ def test_app_role_bindings_are_accepted(config_dir):
         ),
     )
     snap = load(config_dir)
-    assert str(snap.bindings[-1].ref) == "app_role:SDLC.Admin"
-    assert str(snap.teams["payments"].membership[-1].ref) == "app_role:SDLC.Payments.Developer"
+    # users.yaml entries (kind "user") come after the declared ones
+    declared = [b for b in snap.bindings if b.ref.kind != "user"]
+    members = [m for m in snap.teams["payments"].membership if m.ref.kind != "user"]
+    assert str(declared[-1].ref) == "app_role:SDLC.Admin"
+    assert str(members[-1].ref) == "app_role:SDLC.Payments.Developer"
 
 
 @pytest.mark.parametrize(
@@ -139,10 +142,11 @@ def test_bad_rbac_config_fails(config_dir, file, mutate, message):
 
 
 def test_teams_folder_may_be_empty(config_dir):
-    # sources reference teams (owner_team, access), so they go too
+    # sources and users.yaml reference teams (owner_team, access, users/*/teams), so they go too
     for folder in ("teams", "sources"):
         for path in (config_dir / folder).glob("*.yaml"):
             path.unlink()
+    (config_dir / "env/local/users.yaml").unlink()
     snap = load(config_dir)
     assert snap.teams == {} and snap.sources == {}
 
@@ -151,7 +155,9 @@ def test_all_problems_reported_together(config_dir):
     edit_yaml(
         config_dir / "roles.yaml", lambda d: d["roles"]["viewer"]["tools"]["allow"].append("a")
     )
-    edit_yaml(config_dir / "teams/platform.yaml", lambda d: d["metadata"].update(owners=["zz"]))
+    edit_yaml(
+        config_dir / "teams/sdlc-platform.yaml", lambda d: d["metadata"].update(owners=["zz"])
+    )
     with pytest.raises(ConfigError) as exc:
         load(config_dir)
     assert len(exc.value.problems) >= 2

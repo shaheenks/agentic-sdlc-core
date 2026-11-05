@@ -11,9 +11,9 @@ from fastmcp.server.auth import RemoteAuthProvider
 from psycopg_pool import AsyncConnectionPool
 from sdlc_auth.entra import entra_issuer
 from sdlc_config import load_snapshot, resolve
+from sdlc_core_mcp.knowledge_tools import Knowledge
+from sdlc_core_mcp.server import build_http_app, build_server
 from sdlc_db import HashEmbedder, rls_settings, search
-from sdlc_mcp_bootstrap.knowledge_tools import Knowledge
-from sdlc_mcp_bootstrap.server import build_http_app, build_server
 
 from tests.support import db
 from tests.support.config import make_config_dir
@@ -99,7 +99,8 @@ def test_forged_context_values_are_rejected(corpus):
 @pytest.mark.parametrize(
     ("groups", "expected"),
     [
-        ([], set()),
+        ([], {"eng-standards"}),  # everyone: true, public
+        (["eng-all", "infra-readers"], {"eng-standards", "platform-infra"}),  # source group
         (["eng-all"], {"eng-standards"}),
         (["eng-all", "payments-devs"], {"eng-standards", "payments-code"}),  # not confidential
         (["eng-all", "payments-leads"], {"eng-standards", "payments-code", "payments-incidents"}),
@@ -140,7 +141,7 @@ def test_reingest_skips_changes_and_deletes(corpus):
     unchanged = run(_ingest(snapshot, config_dir.parent, ["eng-standards"]))[0]
     assert (unchanged.files_changed, unchanged.files_unchanged) == (0, 6)  # 5 .md + 1 .pdf
 
-    folder = config_dir.parent / "samples/sources/eng-standards"
+    folder = config_dir.parent / "sample_sources/eng-standards"
     (folder / "api-design.md").write_text("# API design\n\nUse plural nouns.\n")
     (folder / "security-baseline.md").unlink()
     report = run(_ingest(snapshot, config_dir.parent, ["eng-standards"]))[0]

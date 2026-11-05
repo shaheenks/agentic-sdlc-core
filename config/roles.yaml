@@ -14,13 +14,14 @@ roles:
   signed-in:
     tools:  { allow: [ping, whoami] }   # lets anyone see who they are and why they lack access
   viewer:
-    tools:  { allow: [ping, whoami, list_skills, load_skill, get_agent_context, search_knowledge] }
+    # knowledge tools: what they return is limited to the caller's sources (Source.access + RLS)
+    tools:  { allow: [ping, whoami, list_skills, load_skill, get_agent_context, search_knowledge, graph_query] }
     skills: { allow: ["tag:general"] }
     data:   { max_classification: internal }
   developer:
     inherits: [viewer]
     # *_get_*: read with the user's own connected account (version-01 M6)
-    tools:  { allow: [graph_query, generate_tests, review_code,
+    tools:  { allow: [generate_tests, review_code,
                       jira_get_issue, confluence_get_page, github_get_file, bitbucket_get_file] }
     skills: { allow: ["tag:engineering"] }
   lead:

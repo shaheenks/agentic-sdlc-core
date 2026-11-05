@@ -55,11 +55,24 @@ class GroupMap:
 
 
 @dataclass(frozen=True)
-class IdentityRef:
-    """Who a binding applies to: a group alias (groups.yaml), an Entra app role value, or
-    everyone (every signed-in user)."""
+class UserMap:
+    """Users added directly to teams/roles (env/<env>/users.yaml, git-ignored). Matched ONLY on
+    the token's oid; emails are for people and for the oid lookup, never for authorization."""
 
-    kind: str  # "group" | "app_role" | "everyone"
+    alias_by_oid: Mapping[str, str] = field(default_factory=dict)  # lower-cased oid -> alias
+    email_by_alias: Mapping[str, str] = field(default_factory=dict)
+    pending: tuple[str, ...] = ()  # aliases without an oid yet: they grant nothing
+
+    def alias_for(self, oid: str | None) -> str | None:
+        return self.alias_by_oid.get(oid.lower()) if oid else None
+
+
+@dataclass(frozen=True)
+class IdentityRef:
+    """Who a binding applies to: a group alias (groups.yaml), an Entra app role value, a user
+    alias (users.yaml) or everyone (every signed-in user)."""
+
+    kind: str  # "group" | "app_role" | "user" | "everyone"
     value: str
 
     def __str__(self) -> str:
@@ -184,6 +197,7 @@ class SourceDef:
     access_teams: frozenset[str] = frozenset()
     access_roles: frozenset[str] = frozenset()
     access_groups: frozenset[str] = frozenset()
+    access_everyone: bool = False  # access.everyone: every signed-in user
     description: str = ""
 
 
@@ -203,6 +217,7 @@ class Snapshot:
     skills: Mapping[str, SkillDef] = field(default_factory=dict)  # global + team add-ons
     sources: Mapping[str, SourceDef] = field(default_factory=dict)
     connections: Mapping[str, "ConnectionDef"] = field(default_factory=dict)
+    users: UserMap = field(default_factory=UserMap)  # direct members (env/<env>/users.yaml)
     # E3: user object IDs (lower-case) denied on every request -> reason (env/<env>/blocked.yaml)
     blocked: Mapping[str, str] = field(default_factory=dict)
     # Every file this version was built from, repo-relative (config/..., skills/...) -> sha256.

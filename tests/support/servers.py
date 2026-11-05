@@ -14,7 +14,7 @@ from fastmcp import FastMCP
 from fastmcp.server.auth import RemoteAuthProvider
 from sdlc_auth.entra import entra_issuer
 from sdlc_config import ConfigStore
-from sdlc_mcp_bootstrap.server import build_server
+from sdlc_core_mcp.server import build_server
 
 from tests.support.entra import TENANT, FakeEntra
 
@@ -55,7 +55,7 @@ def serve(app, port: int) -> Iterator[str]:
 def build_test_mcp_server(
     entra: FakeEntra, store: ConfigStore, port: int, connected=None
 ) -> FastMCP:
-    """Bootstrap MCP server wired like production (build_auth), with the fake issuer's keys."""
+    """Core MCP server wired like production (build_auth), with the fake issuer's keys."""
     auth = RemoteAuthProvider(
         token_verifier=entra.verifier(),
         authorization_servers=[entra_issuer(TENANT)],

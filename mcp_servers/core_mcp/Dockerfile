@@ -1,0 +1,49 @@
+# Build context: repo root (uv workspace). See docker-compose.yml.
+FROM python:3.12-slim
+COPY --from=ghcr.io/astral-sh/uv:0.12.16 /uv /bin/uv
+
+WORKDIR /app
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
+
+# Dependencies first (cached layer): workspace manifests + lockfile only.
+COPY pyproject.toml uv.lock ./
+COPY libs/sdlc_agent/pyproject.toml libs/sdlc_agent/
+COPY libs/sdlc_auth/pyproject.toml libs/sdlc_auth/
+COPY libs/sdlc_config/pyproject.toml libs/sdlc_config/
+COPY libs/sdlc_connectors/pyproject.toml libs/sdlc_connectors/
+COPY libs/sdlc_db/pyproject.toml libs/sdlc_db/
+COPY libs/sdlc_policy/pyproject.toml libs/sdlc_policy/
+COPY libs/sdlc_secrets/pyproject.toml libs/sdlc_secrets/
+COPY libs/sdlc_web/pyproject.toml libs/sdlc_web/
+COPY ingest/bootstrap/pyproject.toml ingest/bootstrap/
+COPY ingest/loaders/pyproject.toml ingest/loaders/
+COPY mcp_servers/core_mcp/pyproject.toml mcp_servers/core_mcp/
+COPY agents/user_agent/pyproject.toml agents/user_agent/
+RUN uv sync --frozen --no-dev --package sdlc-core-mcp --no-install-workspace
+
+COPY libs/sdlc_auth libs/sdlc_auth
+COPY libs/sdlc_config libs/sdlc_config
+COPY libs/sdlc_connectors libs/sdlc_connectors
+COPY libs/sdlc_db libs/sdlc_db
+COPY libs/sdlc_policy libs/sdlc_policy
+COPY libs/sdlc_secrets libs/sdlc_secrets
+COPY mcp_servers/core_mcp mcp_servers/core_mcp
+RUN uv sync --frozen --no-dev --package sdlc-core-mcp
+
+# Baked-in copies for standalone runs; docker compose bind-mounts ./skills and ./config over them.
+COPY skills skills
+COPY config config
+
+ENV PATH=/app/.venv/bin:$PATH \
+    SDLC_CONFIG_DIR=/app/config \
+    SDLC_ENV=local \
+    MCP_HOST=0.0.0.0 \
+    MCP_PORT=8080 \
+    HOME=/tmp
+# User connections (version-01 M6, local file store): a named volume only this container mounts.
+RUN mkdir -p /data/user-secrets && chown -R nobody /data
+USER nobody
+EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz')"
+CMD ["sdlc-core-mcp"]

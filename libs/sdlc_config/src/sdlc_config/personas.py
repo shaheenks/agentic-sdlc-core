@@ -1,4 +1,5 @@
-"""Personas: named sets of group aliases / app roles, for tests, `explain` and `diff`."""
+"""Personas: named sets of group aliases / app roles / a users.yaml user, for tests, `explain`
+and `diff`."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +14,7 @@ class Persona:
     name: str
     groups: tuple[str, ...]
     app_roles: tuple[str, ...] = ()
+    user: str | None = None  # users.yaml alias (direct member)
 
 
 def load_personas(path: Path) -> dict[str, Persona]:
@@ -27,6 +29,7 @@ def load_personas(path: Path) -> dict[str, Persona]:
             name=name,
             groups=tuple(entry.get("groups", [])),
             app_roles=tuple(entry.get("app_roles", [])),
+            user=entry.get("user"),
         )
     if not personas:
         raise ConfigError([f"{path}: no personas defined"])

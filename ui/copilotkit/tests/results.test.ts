@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { citations, graphEntities, identity, location, safeUrl, toolPayload } from "../lib/results.ts";
+import {
+  citations,
+  documentChips,
+  graphEntities,
+  identity,
+  location,
+  safeUrl,
+  toolPayload,
+} from "../lib/results.ts";
 
 const search = {
   query: "restart ledger",
@@ -45,6 +53,34 @@ test("citations keep only http(s) links", () => {
   assert.equal(safeUrl("data:text/html,x"), undefined);
   assert.equal(safeUrl("http://x.example/a"), "http://x.example/a");
   assert.deepEqual(citations({ nothing: true }), []);
+});
+
+test("document chips group hits per document", () => {
+  const items = citations({
+    results: [
+      { source: "payments-code", path: "docs/refunds.md", lines: [1, 9], snippet: "a", url: "https://git.example/r" },
+      { source: "payments-code", path: "docs/refunds.md", lines: [20, 30], snippet: "b", via: "graph" },
+      { source: "eng-standards", path: "incident-policy.pdf", title: "Incident policy", pages: [3, 3], snippet: "c" },
+      { source: "x", path: "dir/" + "y".repeat(60) + ".md", snippet: "d", url: "javascript:alert(1)" },
+    ],
+  });
+  const chips = documentChips(items);
+  assert.equal(chips.length, 3);
+  assert.deepEqual(
+    { label: chips[0].label, url: chips[0].url, hits: chips[0].hits, tooltip: chips[0].tooltip },
+    {
+      label: "refunds.md",
+      url: "https://git.example/r",
+      hits: 2,
+      tooltip: "payments-code · docs/refunds.md · lines 1-9, lines 20-30 · via graph",
+    },
+  );
+  assert.equal(chips[1].label, "Incident policy"); // title wins over the file name
+  assert.equal(chips[1].url, undefined);
+  assert.equal(chips[2].label.length, 40);
+  assert.ok(chips[2].label.endsWith("…"));
+  assert.equal(chips[2].url, undefined); // unsafe link dropped
+  assert.deepEqual(documentChips([]), []);
 });
 
 test("graph entities", () => {

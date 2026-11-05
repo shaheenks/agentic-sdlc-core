@@ -16,9 +16,12 @@ x-oauth2-proxy-env: &oauth2-proxy-env
   # The access token is for the MCP API (aud = sdlc-mcp); offline_access enables refresh.
   OAUTH2_PROXY_SCOPE: openid profile email offline_access api://${ENTRA_API_CLIENT_ID}/access_as_user
   OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+  # Entra shows the account picker on every sign-in, so "Sign out" (/oauth2/sign_out) lets the
+  # user pick another account instead of being signed straight back in by the Entra session.
+  OAUTH2_PROXY_PROMPT: select_account
   # /chat/ -> CopilotKit app (version-01 M5); everything else -> the agent (adk web, /agui)
   # /connections/ -> MCP server (users' own connections, version-01 M6; holds the user secrets)
-  OAUTH2_PROXY_UPSTREAMS: http://agent-bootstrap:8000/,http://ui-copilotkit:3000/chat/,http://mcp-bootstrap:8080/connections/
+  OAUTH2_PROXY_UPSTREAMS: http://user-agent:8000/,http://ui-copilotkit:3000/chat/,http://core-mcp:8080/connections/
   OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
   OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
   OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
@@ -34,7 +37,7 @@ x-oauth2-proxy-env: &oauth2-proxy-env
   OAUTH2_PROXY_COOKIE_REFRESH: 30m      # refresh before the ~60-90 min access token expires
   OAUTH2_PROXY_COOKIE_EXPIRE: 8h
   # API calls from the dev UI get 401 instead of a login redirect when the session lapses.
-  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/)
+  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\b|threads\b)
 
 # Tracing (H8.3): off unless OTEL_EXPORTER_OTLP_ENDPOINT is set in .env (e.g. http://jaeger:4318 with
 # `docker compose --profile observability up -d`). Spans never carry prompts, responses, tokens or
@@ -77,10 +80,10 @@ services:
       timeout: 3s
       retries: 10
 
-  mcp-bootstrap:
+  core-mcp:
     build:
       context: .
-      dockerfile: mcp_servers/bootstrap/Dockerfile
+      dockerfile: mcp_servers/core_mcp/Dockerfile
     ports: ["127.0.0.1:8080:8080"]
     environment:
       SDLC_ENV: ${SDLC_ENV:-local}
@@ -92,7 +95,7 @@ services:
       ENTRA_GRAPH_CLIENT_SECRET: ${ENTRA_GRAPH_CLIENT_SECRET:-}
       # Advertised in the RFC 9728 metadata (the 401 challenge) for external MCP clients.
       MCP_PUBLIC_URL: https://${SDLC_MCP_HOST:-mcp-sdlc-dev.shaheenks.co.in}
-      OTEL_SERVICE_NAME: sdlc-mcp-bootstrap
+      OTEL_SERVICE_NAME: sdlc-core-mcp
       # search_knowledge embeds the query (config/platform.yaml knowledge.embedding) on Vertex AI.
       <<: [*vertex-env, *otel-env]
       # libpq-standard vars; only MCP servers get DB credentials (agents never touch the DB).
@@ -115,27 +118,27 @@ services:
       postgres:
         condition: service_healthy
 
-  agent-bootstrap:
+  user-agent:
     build:
       context: .
-      dockerfile: agents/bootstrap/Dockerfile
+      dockerfile: agents/user_agent/Dockerfile
     # Not published: reached only via oauth2-proxy. It re-validates the user token anyway.
     expose: ["8000"]
     # Explicit allow-list instead of env_file: the agent must not receive DB credentials.
     environment:
-      SDLC_MCP_URL: http://mcp-bootstrap:8080/mcp
+      SDLC_MCP_URL: http://core-mcp:8080/mcp
       SDLC_AGENT_MODEL: ${SDLC_AGENT_MODEL:-gemini-3.8-flash}
       # Entra identity (validate the forwarded user token; not secrets)
       ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
       ENTRA_API_CLIENT_ID: ${ENTRA_API_CLIENT_ID:-}
       ENTRA_AUTHORITY_HOST: ${ENTRA_AUTHORITY_HOST:-}
       <<: [*vertex-env, *otel-env]
-      OTEL_SERVICE_NAME: sdlc-agent-bootstrap
+      OTEL_SERVICE_NAME: sdlc-user-agent
       # Conversations survive restarts (H9); only this container mounts the volume.
       SDLC_SESSION_SERVICE_URI: sqlite:////data/sessions.db
       SDLC_SESSION_RETENTION_DAYS: ${SDLC_SESSION_RETENTION_DAYS:-7}
       # AG-UI endpoint /agui for the CopilotKit app (version-01 M5); empty = off
-      SDLC_AGUI_AGENT: ${SDLC_AGUI_AGENT-bootstrap}
+      SDLC_AGUI_AGENT: ${SDLC_AGUI_AGENT-user_agent}
       # never export prompts/responses (retrieved content can be confidential)
       ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS: "false"
       OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: "false"
@@ -143,7 +146,7 @@ services:
       - *adc-mount
       - agent-sessions:/data
     depends_on:
-      mcp-bootstrap:
+      core-mcp:
         condition: service_healthy
 
   # CopilotKit chat app (version-01 M5): reached only via oauth2-proxy at /chat/. It forwards the
@@ -155,12 +158,12 @@ services:
       dockerfile: ui/copilotkit/Dockerfile
     expose: ["3000"]
     environment:
-      SDLC_AGUI_URL: http://agent-bootstrap:8000/agui
+      SDLC_AGUI_URL: http://user-agent:8000/agui
       NEXT_TELEMETRY_DISABLED: "1"
       COPILOTKIT_TELEMETRY_DISABLED: "true"
       DO_NOT_TRACK: "1"
     depends_on:
-      agent-bootstrap:
+      user-agent:
         condition: service_healthy
 
   # Local sign-in: http://localhost:4180 (published on localhost only).
@@ -172,7 +175,7 @@ services:
       OAUTH2_PROXY_REDIRECT_URL: http://localhost:4180/oauth2/callback
       OAUTH2_PROXY_COOKIE_SECURE: "false"   # plain http, localhost only
     depends_on:
-      agent-bootstrap:
+      user-agent:
         condition: service_healthy
       ui-copilotkit:
         condition: service_started   # adk web keeps working if the chat app is down
@@ -192,7 +195,7 @@ services:
       OAUTH2_PROXY_REVERSE_PROXY: "true"      # trust X-Forwarded-* from cloudflared
       OAUTH2_PROXY_WHITELIST_DOMAINS: ${SDLC_APP_HOST:-app-sdlc-dev.shaheenks.co.in}
     depends_on:
-      agent-bootstrap:
+      user-agent:
         condition: service_healthy
       ui-copilotkit:
         condition: service_started   # adk web keeps working if the chat app is down
@@ -248,7 +251,7 @@ services:
     volumes:
       - ./config:/app/config:ro
       - ./skills:/app/skills:ro
-      - ./samples:/app/samples:ro
+      # gcs sources (config store bucket) are read with the ADC below
       # this repository's history for the `sdlc-platform` git source (read at a pinned commit)
       - ./.git:/app/.git:ro
       - *adc-mount

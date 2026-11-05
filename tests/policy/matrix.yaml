@@ -20,12 +20,13 @@ rows:
   - { persona: payments-lead, tool: approve_design,  args: { repo: payments-api },   expect: allow }
   - { persona: payments-lead, tool: approve_design,  args: { repo: platform-ci },    expect: deny }
   # platform developer: platform repos only
-  - { persona: platform-dev,  tool: review_code,     args: { repo: platform-infra }, expect: allow }
+  - { persona: platform-dev,  tool: review_code,     args: { repo: agentic-sdlc-core }, expect: allow }
   - { persona: platform-dev,  tool: review_code,     args: { repo: payments-api },   expect: deny }
-  - { persona: platform-dev,  tool: generate_tests,  args: { repo: platform-ci },    expect: allow }
+  - { persona: platform-dev,  tool: generate_tests,  args: { repo: agentic-sdlc-core }, expect: allow }
+  - { persona: platform-dev,  tool: generate_tests,  args: { repo: platform-ci },    expect: deny }   # old repo name
   # member of two teams: union of repos
   - { persona: multi-team-dev, tool: review_code,    args: { repo: payments-api },   expect: allow }
-  - { persona: multi-team-dev, tool: review_code,    args: { repo: platform-ci },    expect: allow }
+  - { persona: multi-team-dev, tool: review_code,    args: { repo: agentic-sdlc-core }, expect: allow }
   - { persona: multi-team-dev, tool: review_code,    args: { repo: secret-repo },    expect: deny }
   # admin: whole catalog, unconstrained
   - { persona: admin,         tool: config_info,     expect: allow }
@@ -37,11 +38,13 @@ rows:
   - { persona: viewer,        tool: get_agent_context, expect: allow }
   - { persona: nobody,        tool: get_agent_context, expect: deny }
   - { persona: viewer,        tool: search_knowledge,  expect: allow }
-  - { persona: viewer,        tool: graph_query,       expect: deny }
+  - { persona: viewer,        tool: graph_query,       expect: allow }   # data limited to granted sources
   - { persona: payments-dev,  tool: graph_query,       expect: allow }
   - { persona: platform-dev,  tool: graph_query,       expect: allow }
   - { persona: nobody,        tool: graph_query,       expect: deny }
   - { persona: admin,         tool: graph_query,       expect: allow }
+  - { persona: infra-reader,  tool: graph_query,       expect: allow }
+  - { persona: infra-reader,  tool: generate_tests,    args: { repo: platform-infra }, expect: deny }  # source group grants data, not developer tools
   # version-01 M6: tools that use the user's own connection (developers and above)
   - { persona: viewer,        tool: jira_get_issue,      expect: deny }
   - { persona: payments-dev,  tool: jira_get_issue,      expect: allow }
@@ -52,6 +55,16 @@ rows:
   - { persona: admin,         tool: github_get_file,     args: { repo: any/repo }, expect: allow }
   - { persona: viewer,        tool: bitbucket_get_file,  args: { repo: ws/pay },   expect: deny }
   - { persona: platform-dev,  tool: bitbucket_get_file,  args: { repo: ws/infra }, expect: allow }
+
+  # version-02 N10: direct members from users.yaml (no Entra groups)
+  - { persona: direct-payments-dev, tool: review_code,  args: { repo: payments-api },   expect: allow }
+  - { persona: direct-payments-dev, tool: review_code,  args: { repo: platform-infra }, expect: deny }
+  - { persona: direct-payments-dev, tool: graph_query,  expect: allow }
+  - { persona: direct-payments-dev, tool: approve_design, args: { repo: payments-api }, expect: deny }
+  - { persona: direct-viewer,       tool: search_knowledge, expect: allow }
+  - { persona: direct-viewer,       tool: review_code,  args: { repo: payments-api },   expect: deny }
+  - { persona: pending-user,        tool: graph_query,  expect: deny }
+  - { persona: pending-user,        tool: review_code,  args: { repo: platform-infra }, expect: deny }
 
 # Skill visibility (Stage 4). expect: visible | hidden. Every skill needs rows.
 skill_rows:
@@ -71,11 +84,14 @@ skill_rows:
   - { persona: multi-team-dev, skill: infra-change-review,  expect: visible }
   - { persona: admin,          skill: ledger-design-review, expect: visible }  # "*" covers add-ons
   - { persona: admin,          skill: infra-change-review,  expect: visible }
+  - { persona: direct-payments-dev, skill: pci-checklist,        expect: visible }
+  - { persona: direct-payments-dev, skill: ledger-design-review, expect: hidden }
+  - { persona: pending-user,        skill: infra-change-review,  expect: hidden }
 
 # Data access (Stage 5). readable = source granted by Source.access AND its classification is at
 # or below the persona's ceiling (both are enforced by Postgres RLS). Every source needs rows.
 data_rows:
-  - { persona: nobody,        source: eng-standards,      expect: unreadable }
+  - { persona: nobody,        source: eng-standards,      expect: readable }    # everyone + public (no search tool though)
   - { persona: viewer,        source: eng-standards,      expect: readable }
   - { persona: viewer,        source: payments-code,      expect: unreadable }
   - { persona: payments-dev,  source: payments-code,      expect: readable }
@@ -90,3 +106,16 @@ data_rows:
   - { persona: payments-dev,  source: sdlc-platform,      expect: unreadable }
   - { persona: viewer,        source: sdlc-platform,      expect: unreadable }
   - { persona: admin,         source: sdlc-platform,      expect: readable }
+  # source-level Entra group without team membership (version-02 N9)
+  - { persona: infra-reader,  source: platform-infra,     expect: readable }
+  - { persona: infra-reader,  source: eng-standards,      expect: readable }
+  - { persona: infra-reader,  source: payments-code,      expect: unreadable }
+  - { persona: infra-reader,  source: sdlc-platform,      expect: unreadable }
+  - { persona: infra-reader,  source: payments-incidents, expect: unreadable }
+  # users.yaml direct members (version-02 N10)
+  - { persona: direct-payments-dev, source: payments-code,      expect: readable }
+  - { persona: direct-payments-dev, source: payments-incidents, expect: unreadable }  # confidential
+  - { persona: direct-payments-dev, source: platform-infra,     expect: unreadable }
+  - { persona: direct-viewer,       source: eng-standards,      expect: readable }
+  - { persona: direct-viewer,       source: payments-code,      expect: unreadable }
+  - { persona: pending-user,        source: platform-infra,     expect: unreadable }

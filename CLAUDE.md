@@ -4,12 +4,12 @@ ADK-based SDLC agents composed from skills. Central MCP server(s) serve skills, 
 knowledge, and enforce Entra ID identity + group-based RBAC defined in `config/`. Postgres +
 pgvector stores embeddings and the knowledge graph. Local: docker compose. Prod: GCP.
 
-Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Current plan: [docs/plans/version-02.md](docs/plans/version-02.md) (everything still open from earlier plans: dev sources on GCP, live connector checks, block list and secret management, GCP operations, backlog; Gemini Enterprise deferred); history: [docs/plans/version-01.md](docs/plans/version-01.md) (new sources, AG-UI web app with CopilotKit, per-user PAT connections, GCP dev) and [docs/plans/version-00.md](docs/plans/version-00.md). Check which stage is
+Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Current plan: [docs/plans/version-02.md](docs/plans/version-02.md) (build complete 2026-11-05; closes when the user's handover checklist in §20 is done); next: [docs/plans/version-03.md](docs/plans/version-03.md) (draft: staging + enterprise identity, A2UI/A2A, artifacts, agent runtimes, write tools, more connectors); history: [docs/plans/version-01.md](docs/plans/version-01.md) (new sources, AG-UI web app with CopilotKit, per-user PAT connections, GCP dev) and [docs/plans/version-00.md](docs/plans/version-00.md). Check which stage is
 current before adding features, and don't build ahead of the current stage's exit gate.
 
 ## Repo structure
-- `agents/<name>/`          ADK agents (`agents/bootstrap` = starter root agent)
-- `mcp_servers/<name>/`     FastMCP servers, streamable HTTP (`mcp_servers/bootstrap` = starter)
+- `agents/<name>/`          ADK agents (`agents/user_agent` = starter root agent)
+- `mcp_servers/<name>/`     FastMCP servers, streamable HTTP (`mcp_servers/core_mcp` = starter)
 - `ingest/<component>/`     RAG + KG pipeline (`ingest/bootstrap` = pipeline + CLI; `ingest/loaders` = `sdlc_loaders`, one loader per source type)
 - `libs/sdlc_auth`          Entra JWT validation, group overage fallback, `get_user_token(context)`
 - `libs/sdlc_config`        Config loader + JSON Schemas + resolver → `EffectivePolicy`; CLI validate/explain/diff
@@ -27,8 +27,8 @@ current before adding features, and don't build ahead of the current stage's exi
 - `tests/`                  persona-matrix, resolver, RLS, e2e, retrieval evals
 - `docs/`                   Implementation plan and design docs
 
-`bootstrap/` is the starter component in each area. Add new components as siblings instead of
-growing bootstrap indefinitely. Shared code goes in `libs/`, never copied between components.
+Each area has a starter component (`agents/user_agent`, `mcp_servers/core_mcp`, `ingest/bootstrap`, `db/bootstrap`).
+Add new components as siblings instead of growing a starter indefinitely. Shared code goes in `libs/`, never copied between components.
 
 ## Configuration rules
 - All access is declared in `config/`. Never hardcode roles, groups, tool lists or data scopes in code.
@@ -37,18 +37,27 @@ growing bootstrap indefinitely. Shared code goes in `libs/`, never copied betwee
 - `config/env/*/groups.yaml` is git-ignored (tenant-specific). Commit only `groups.yaml.example`
   with placeholder GUIDs; never commit tenant IDs, app IDs, group IDs or test-user UPNs.
 - Resolution: groups → teams (membership) + global bindings → roles (inherits) → tools/skills/sources.
-  Deny wins. Arg constraints are unioned across teams. Data access is granted only by `Source.access`.
+  Deny wins. Arg constraints are unioned across teams. Data access is granted only by `Source.access`
+  (`teams`, `roles`, `groups` = a source's own Entra group alias, or `everyone: true`); the role ceiling still applies.
 - A new tool requires: `tools.yaml` entry (with `args` for any argument a team may limit) + role/team grants +
   persona-matrix rows (`tests/policy/matrix.yaml`; a test fails if a catalog tool has no rows).
 - Identities in bindings/membership: `group:` (alias), `app_role:` (Entra app role) or `everyone: true` (roles.yaml only;
   every signed-in user gets the minimal `signed-in` role: ping, whoami).
+- Direct members (version-02 N10): `config/env/<env>/users.yaml` (kind `UserMap`, optional, git-ignored like groups.yaml)
+  lists users by email with their `teams: {<team>: [roles]}` and global `roles`, for tenants without a group per team.
+  Matched on `oid` ONLY (never on an email/UPN claim); an entry without `oid` grants nothing. Fill oids with
+  `uv run sdlc-config users sync --env <env> [--write] [--check]` (read-only `az ad user show`, as whoever az is signed in as).
+  Rules read `env/<env>/users.yaml#users/<alias>/teams/<team>`; personas may set `user: <alias>`; `explain --user <alias>`.
 - Argument limits: unioned across the teams that constrain a tool; a team that does not constrain it never widens
   access; roles with `tools.unconstrained: true` (admin) skip limits. Deny wins over any allow.
 - Rate limits: `platform.yaml` `defaults.rate_limit` (baseline) + `teams/<team>.yaml` `policy.limits` (overall and per tool);
   most generous team wins; enforced per user after authorization; audited `outcome: rate_limited` with the rule.
 - A new source requires: `config/sources/<id>.yaml` with `access` + `classification`, persona-matrix `data_rows`, a CODEOWNERS rule.
-  `git` sources read a `ref` (full SHA = pinned, branch = tracked), never the working tree; eval corpora stay pinned.
+  `git` sources read a `ref` (full SHA = pinned, branch = tracked), never the working tree. `sdlc-platform` tracks GitHub
+  `main` (version-02 N12), so the retrieval eval's repo questions follow main (re-check them after merges).
   Remote git (`https`) needs `provider` (github | bitbucket-cloud | bitbucket-dc); DB tests ingest only `local_folder` sources.
+  Sample sources (version-02 N14) are `gcs` under `gs://sdlc-config-store-a7484d8b/source_docs/<id>/` (one-time upload of
+  the former `samples/sources/`); tests point them back to the repo copy, `tests/fixtures/sample_sources/` (`tests/support/config.py`).
 - Source loaders (version-01): a new source type = a factory in `sdlc_loaders.LOADERS` + its `spec` in the schema. Remote
   hosts must be in `platform.yaml` `knowledge.allowed_hosts`; remote HTTP goes through `sdlc_connectors.http.HttpClient`
   (allowlist on every request and redirect). Credentials are references only (`spec.credentials`), resolved via
@@ -57,6 +66,9 @@ growing bootstrap indefinitely. Shared code goes in `libs/`, never copied betwee
   `knowledge.ocr`), cached as `ocr:` keys; chunks store PAGE ranges (`documents.media_type`), results return `pages`.
   PDFs are parsed only in ingest. Sample PDFs come from `scripts/make_sample_pdfs.py` (edit the script, not the PDFs).
 - A team add-on (skills, instructions, context) goes in `config/teams/<team>.yaml` + `skills/teams/<team>/`.
+- Teams (version-02 N12): `payments` (example, group members) and `sdlc-platform` (repo `agentic-sdlc-core` on GitHub;
+  members only from users.yaml, `membership: []`). Tests add fixture-only group members and a local `platform-infra`
+  source to sdlc-platform (`tests/support/config.py`); `tests/config/test_repo_teams.py` pins the real setup.
 - **Skill naming** (validated at load):
   - lowercase kebab-case `^[a-z][a-z0-9-]*$`, **globally unique** across `skills.yaml` and every team's add-ons
     (a duplicate fails validation);
@@ -80,6 +92,11 @@ See "Runtime Config Exposure" in docs/plans/version-00.md.
   makes services load bundles instead of the folder. Bundles never contain secrets (`${VAR}` stays unresolved until
   load) but do contain the tenant `groups.yaml`: keep bundle roots out of git (`.bundles/`). Dev uses the watched folder.
 - Startup fails closed without a valid bundle; reload keeps the last-known-good. Rollback = move the `current` pointer.
+- GCP (version-02 N13): with `config_store_bucket` set, the MCP service and ingest job read bundles from
+  `gs://<bucket>/bundles/<env>/` (mounted read-only); the MCP server polls `current` (`SDLC_CONFIG_POLL_SECONDS`, 60).
+  Publish: `gcp_deploy.ps1 -Step config` (compile, upload, move `current` last); rollback: `-ConfigVersion <v>`.
+  `ConfigStore.start_updates()` picks polling (bundles) or file watching (folder). Bundles ignore `SDLC_USERS_FILE`.
+  Ingest resolves relative source locations against `SDLC_SOURCES_ROOT` (default: config dir parent; bundles: repo root).
 - Viewing another user's policy (`config_explain`) is an admin-only tool; `whoami(explain)` shows only the caller's own view.
 
 ## Security rules
@@ -91,6 +108,11 @@ See "Runtime Config Exposure" in docs/plans/version-00.md.
 - Users whose token omits groups (overage) get no groups unless the Graph fallback secret is set.
 - Block list (E3): `config/env/<env>/blocked.yaml` (kind `BlockList`, optional, git-ignored like groups.yaml) is checked by
   the MCP token verifier on every request (via `store.current()`); blocked users get 401, audited as reason `blocked`.
+  On GCP it travels in the config bundle (`-Step config`, live in ~2 min). Review + rotation procedures: docs/SECRETS_REVIEW.md.
+- Reconcile (version-02 N3): `sdlc-reconcile-connections [--apply]` (dry run by default; MCP package, same env as the MCP
+  server) deletes PATs of blocked users, expired and long-rejected tokens, removed connections; each change audited
+  `connection_change` with `actor: reconcile`. Local: `docker compose exec core-mcp sdlc-reconcile-connections`;
+  GCP: job `sdlc-reconcile-<env>` (own service account; `reconcile_schedule`). Decisions are re-checked under the user's lock.
 - Egress (E8): token validation honours `HTTPS_PROXY`/`NO_PROXY`; unreachable JWKS = every request refused (docs/misc/ENTRA_SETUP.md §6).
 - Deny-by-default. Filter tools/list AND re-check on every tools/call.
 - All DB reads go through `sdlc_db` with `app.allowed_sources` + `app.max_classification` set (Postgres RLS).
@@ -153,16 +175,19 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
 
 ## Commands
 - `uv sync --all-packages`   install every workspace member (plain `uv sync` installs only the root)
-- `docker compose up -d --build --wait`   postgres (:5432), mcp-bootstrap (:8080), agent-bootstrap (internal :8000), oauth2-proxy (:4180)
+- `docker compose up -d --build --wait`   postgres (:5432), core-mcp (:8080), user-agent (internal :8000), oauth2-proxy (:4180)
 - `docker compose --profile tunnel up -d --wait`   also starts `oauth2-proxy-public` on 127.0.0.1:4181. Public endpoints
   `https://app-sdlc-dev.shaheenks.co.in` (UI -> localhost:4181) and `https://mcp-sdlc-dev.shaheenks.co.in/mcp` (-> localhost:8080) go
   through the host's `Cloudflared` Windows service (tunnel + hostnames managed in the Cloudflare dashboard). Run exactly one
   connector per tunnel. See docs/misc/CLOUDFLARE_TUNNEL.md.
   Public names are one level deep (`*-sdlc-dev.shaheenks.co.in`) so free Universal SSL covers them.
-- Open **http://localhost:4180** and sign in with Entra to use the agents (dev UI at /dev-ui/, CopilotKit chat at /chat/). The agent
+- Open **http://localhost:4180** and sign in with Entra to use the agents (`/` opens the CopilotKit chat at /chat/; dev UI at /dev-ui/; the navbar reads `GET /me` and `GET /connections/`). The agent
   and chat app ports are not published. AG-UI rules: the chat app forwards ONLY `X-Forwarded-Access-Token` to `/agui`
   (`forwardHeaders.allow`), stores no conversations (`PassThroughAgentRunner`, never `InMemoryAgentRunner`), has no frontend
   tools that read data; `/agui` binds the user id to the token `oid` and strips client `temp:`/`app:`/`user:` state.
+  Chat history (version-02 N15): `GET /threads` (agent, caller's sessions only) feeds the sidebar; opening a thread replays
+  it in `PassThroughAgentRunner.connect` from the agent's `/agents/state` as the same user; runs send only the latest turn.
+  `DELETE /threads/{id}` deletes the caller's own chat (needs `X-SDLC-Request: 1`; others' and missing threads answer 404).
   ADK developer tools (builder, deploy, evals, tests, other users' traces) are off; `SDLC_DEV_TOOLS=true` enables them (never outside local dev).
 - DB connections use standard `PG*` env vars. Roles: `sdlc_owner` (migrations), `sdlc_app` (MCP, read-only), `sdlc_ingest`
   (writes); none bypasses RLS. Init: `db/bootstrap/README.md`. On the host use `PGHOST=127.0.0.1` (`localhost` tries IPv6
@@ -184,22 +209,25 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
   Jaeger UI http://localhost:16686. One agent turn is one trace across agent, MCP server and Postgres (context travels in
   MCP `_meta`, not HTTP headers; never add a per-call trace header: it would break one MCP session per conversation).
   Spans carry no prompts, responses, tokens or argument values (agent tool args export as `{}`). Audit records carry `trace_id`.
+  GCP (version-02 N4): `cloud_trace = true` sets `SDLC_TRACE_TO_CLOUD=true` (Cloud Trace exporter, takes precedence over OTLP;
+  `roles/cloudtrace.agent` on the MCP and app service accounts). Audit log queries: docs/GCP_DEPLOYMENT.md "Audit views".
 - `cd ui/copilotkit; npm ci; npm test; npm run typecheck; npm run build`   chat app checks (exact versions pinned; telemetry off)
 - CI: `.github/workflows/ci.yml` (lint, config validate + PR permission diff, UI typecheck/test/build, tests on a pgvector service after
   `sdlc-db bootstrap` + `migrate`, terraform fmt/validate). No secrets or cloud calls in CI; tests must pass without `.env`
   (placeholder Entra IDs, example GroupMap, HashEmbedder, FakeEntra).
-- `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values)
-- `.\scripts\gcp_deploy.ps1 -EnvName dev -Step state|base|images|plan|apply|db|ingest|urls`   GCP deployment, run by the user (see
+- `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values;
+  `--check-secrets` also resolves every secret reference and prints names + outcomes only; not in CI)
+- `.\scripts\gcp_deploy.ps1 -EnvName dev -Step state|base|config|images|plan|apply|db|ingest|urls`   GCP deployment, run by the user (see
   docs/GCP_DEPLOYMENT.md). PowerShell, not bash (Windows). Commit first: images and plan use the commit SHA as tag.
   `base`/`apply` create billable resources: only with the user's go-ahead. The saved plan contains secrets (git-ignored,
   deleted by `apply`).
 - `uv run --env-file .env sdlc-db bootstrap`   extension, roles, schema, grants (idempotent; no true superuser needed, as on
   Cloud SQL); fails if any role can bypass RLS. The test database is built with it.
-- `uv run sdlc-config explain --persona payments-dev` | `--groups eng-all,payments-devs [--app-roles X] [--json]` (`--dummy-env` works)
+- `uv run sdlc-config explain --persona payments-dev` | `--groups eng-all,payments-devs [--app-roles X]` | `--user <alias>` `[--json]` (`--dummy-env` works)
 - `uv run sdlc-config diff [--from HEAD] [--to WORKTREE] [--exit-code]`   per-persona permission changes (review on every config PR)
 - MCP tools: `whoami(explain=true)` (own view with source rules); `list_skills` / `load_skill` (per-user; hidden skills answer
   "unknown skill"); `get_agent_context` (team instructions + context); `search_knowledge` (viewer+, vector) and
-  `graph_query` (developer+, vector + knowledge graph), both under RLS; admin only: `config_info()`, `config_explain(groups, app_roles)`
+  `graph_query` (viewer+, vector + knowledge graph), both under RLS; admin only: `config_info()`, `config_explain(groups, app_roles)`
 - Skills: a `"*"` skill grant (admin) covers every team's add-ons; team instructions are guidance, never authorization.
   `sdlc-config diff` cannot compare across the Stage 4 boundary (older revisions lack skills.yaml) or the Stage 6 boundary
   (older revisions enable a source graph without `platform.yaml` `knowledge.graph`); later revisions diff normally.

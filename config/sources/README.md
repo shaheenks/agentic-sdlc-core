@@ -71,6 +71,17 @@ types whose loaders read credentials accept the field.
 PDFs (H10): add `**/*.pdf` to `include`; optional `spec.ingest.pdf: {ocr: none|gemini, max_mb: 50, max_pages: 500}`.
 `ocr: gemini` sends pages without a text layer (scans) to `platform.yaml` `knowledge.ocr.model`; results cite pages.
 
+Access (`access`, the ONLY grant for this data; any one entry is enough):
+- `teams: [<team>]`: members of the team (team membership comes from `teams/<team>.yaml`).
+- `groups: [<alias>]`: members of an Entra group, independent of teams. Give a source its own Entra group
+  (alias in `config/env/<env>/groups.yaml`, e.g. `infra-readers` on `platform-infra`) when its readers are not a team.
+- `roles: [<role>]`: holders of a role (e.g. `admin`).
+- `everyone: true`: every signed-in user.
+
+The caller's role ceiling still applies on top: a source above the caller's `max_classification` stays unreadable,
+whoever it is granted to. Reading also needs a knowledge tool (`search_knowledge`, `graph_query`: `viewer` and up,
+bound to `eng-all` in `roles.yaml`); both return only the caller's readable sources (Postgres RLS).
+
 Globs (`include`/`exclude`) match the whole path relative to the source root: `*` within a directory,
 `**` across directories (`docs/**`, `**/*.md`). Every source needs rows in `tests/policy/matrix.yaml`
 (data_rows) and a rule in `.github/CODEOWNERS`.

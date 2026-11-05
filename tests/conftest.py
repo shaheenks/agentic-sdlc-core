@@ -13,7 +13,7 @@ for _var in [v for v in os.environ if v.startswith("OTEL_EXPORTER_OTLP_")]:
 import pytest
 from fastmcp import FastMCP
 from sdlc_config import ConfigStore, load_snapshot
-from sdlc_mcp_bootstrap.server import build_http_app
+from sdlc_core_mcp.server import build_http_app
 
 from tests.support.config import make_config_dir
 from tests.support.entra import TEST_ENV, FakeEntra
@@ -48,7 +48,7 @@ def server(entra, store, port) -> FastMCP:
 
 @pytest.fixture
 def base_url(server, store, port):
-    """Bootstrap MCP server running on a real port (base URL without /mcp), wired as in main()."""
+    """Core MCP server running on a real port (base URL without /mcp), wired as in main()."""
     with serve(build_http_app(server, store), port) as url:
         yield url
 

@@ -18,8 +18,8 @@
       }
     },
     "membership": {
+      "description": "group / app role members; may be empty when members come from env/<env>/users.yaml",
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,

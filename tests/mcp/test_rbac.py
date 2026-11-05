@@ -6,8 +6,9 @@ import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
 from sdlc_config import ConfigStore, load_snapshot
-from sdlc_mcp_bootstrap.server import build_server
+from sdlc_core_mcp.server import build_server
 
+from tests.support.config import DIRECT_DEV_OID
 from tests.support.entra import (
     G_ENG_ALL,
     G_PAYMENTS_DEVS,
@@ -72,7 +73,9 @@ async def test_payments_dev_calls_within_limits_only(base_url, entra):
 
 async def test_platform_dev_gets_platform_repos(base_url, entra):
     async with client(base_url, entra.token(groups=PERSONAS["platform_dev"])) as c:
-        assert (await c.call_tool("generate_tests", {"repo": "platform-ci", "target": "x"})).data
+        assert (
+            await c.call_tool("generate_tests", {"repo": "agentic-sdlc-core", "target": "x"})
+        ).data
         with pytest.raises(ToolError, match="not allowed"):
             await c.call_tool("generate_tests", {"repo": "payments-api", "target": "x"})
 
@@ -149,3 +152,28 @@ def test_startup_fails_if_catalog_constrains_missing_parameter(config_dir, entra
     store = ConfigStore(lambda: load_snapshot(config_dir, "local", TEST_ENV))
     with pytest.raises(ValueError, match=r"review_code: args \['branch'\]"):
         build_server(store, entra.verifier())
+
+
+async def test_direct_member_from_users_yaml(base_url, entra):
+    """version-02 N10: a user with no groups, listed in users.yaml, is matched by oid."""
+    token = entra.token(oid=DIRECT_DEV_OID, groups=[], upn="renamed@example.com")
+    async with client(base_url, token) as c:
+        me = (await c.call_tool("whoami", {"explain": True})).data
+        ok = (await c.call_tool("review_code", {"repo": "payments-api"})).data
+        with pytest.raises(ToolError):
+            await c.call_tool("review_code", {"repo": "platform-infra"})
+    assert me["user"] == "direct-dev" and me["groups"] == []
+    assert me["policy"]["teams"] == {
+        "payments": ["env/local/users.yaml#users/direct-dev/teams/payments"]
+    }
+    assert ok["inputs"]["repo"] == "payments-api"
+
+
+async def test_users_yaml_email_alone_grants_nothing(base_url, entra):
+    """The email claim of a listed user, with another oid, gets signed-in basics only."""
+    token = entra.token(
+        groups=[], upn="direct.dev@example.com", preferred_username="direct.dev@example.com"
+    )
+    async with client(base_url, token) as c:
+        me = (await c.call_tool("whoami", {"explain": True})).data
+    assert me["user"] is None and me["policy"]["teams"] == {}

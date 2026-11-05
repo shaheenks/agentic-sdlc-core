@@ -5,7 +5,12 @@
 .DESCRIPTION
   Run from anywhere; paths resolve from the repo root. Steps, in order for a first deployment:
     state    create the Terraform state bucket (once per project)
-    base     APIs + Artifact Registry (targeted apply; images need the registry)
+    base     APIs + Artifact Registry + config store bucket (targeted apply; images need the
+             registry, `config` needs the bucket)
+    config   compile + verify a config bundle (config, skills, tenant groups.yaml/users.yaml),
+             upload it to gs://<config_store_bucket>/bundles/<env>/ and point `current` at it.
+             Cloud Run reads the active bundle and picks up a new one within ~2 minutes.
+             -ConfigVersion <version>: only move `current` to an uploaded bundle (rollback).
     images   build + push mcp/agent/ingest/ui images (tag = git short SHA), mirror oauth2-proxy
     plan     full terraform plan -> infra/gcp/<env>.tfplan (review it)
     apply    apply the saved plan (deleted afterwards: it contains secret values)
@@ -14,6 +19,8 @@
     urls     print app / MCP URLs and the OAuth callback to register on sdlc-client
 
   Tenant values (ENTRA_*) come from .env; group IDs from config/env/<env>/groups.yaml (git-ignored).
+  First deployment with a config store bucket: state, base, config, images, plan, apply, db, ingest.
+  A config-only change afterwards: commit, then `config` (no new images, no apply).
   `base` and `apply` change cloud resources and ask for confirmation unless -AutoApprove.
   Images and the plan use the same tag (the current commit), so commit before `images` and `plan`.
 
@@ -23,9 +30,10 @@
 param(
     [Parameter(Mandatory = $true)][string]$EnvName,
     [Parameter(Mandatory = $true)]
-    [ValidateSet('state', 'base', 'images', 'plan', 'apply', 'db', 'ingest', 'urls')]
+    [ValidateSet('state', 'base', 'config', 'images', 'plan', 'apply', 'db', 'ingest', 'urls')]
     [string]$Step,
     [string]$ImageTag = '',      # override the git-SHA tag (e.g. to re-plan with already pushed images)
+    [string]$ConfigVersion = '', # config step: activate this already uploaded bundle (rollback)
     [switch]$AutoApprove
 )
 
@@ -45,9 +53,18 @@ function Get-HclString([string]$File, [string]$Name) {
     return $line.Matches[0].Groups[1].Value
 }
 
+# Optional string in a tfvars file ('' when absent).
+function Get-HclOptional([string]$File, [string]$Name) {
+    $line = Select-String -Path $File -Pattern "^\s*$Name\s*=\s*`"(.*)`"" | Select-Object -First 1
+    if (-not $line) { return '' }
+    return $line.Matches[0].Groups[1].Value
+}
+
 $Project = Get-HclString $TfVars 'project_id'
 $Region = Get-HclString $TfVars 'region'
 $Registry = "$Region-docker.pkg.dev/$Project/sdlc"
+$ConfigBucket = Get-HclOptional $TfVars 'config_store_bucket'   # '' = config baked into images
+$BundleRoot = if ($ConfigBucket) { "gs://$ConfigBucket/bundles/$EnvName" } else { '' }
 
 $Terraform = (Get-Command terraform -ErrorAction SilentlyContinue).Source
 if (-not $Terraform) {   # winget install without a restarted shell
@@ -91,6 +108,10 @@ function Set-TerraformEnv {
     $env:TF_VAR_entra_client_id = Get-DotEnv 'ENTRA_CLIENT_ID'
     $env:TF_VAR_entra_client_secret = Get-DotEnv 'ENTRA_CLIENT_SECRET'
     $env:TF_VAR_entra_graph_client_secret = Get-DotEnv 'ENTRA_GRAPH_CLIENT_SECRET'
+    # Optional direct members (version-02 N10): stored as a secret and mounted into the MCP service.
+    $usersYaml = Join-Path $Root "config/env/$EnvName/users.yaml"
+    $env:TF_VAR_users_yaml_path = if (Test-Path $usersYaml) { "../../config/env/$EnvName/users.yaml" } else { '' }
+    if ($env:TF_VAR_users_yaml_path) { Write-Host "users.yaml: config/env/$EnvName/users.yaml" }
     foreach ($v in 'entra_tenant_id', 'entra_api_client_id', 'entra_client_id', 'entra_client_secret') {
         if (-not (Get-Item "env:TF_VAR_$v").Value) { throw "TF_VAR_$v is empty (check .env)" }
     }
@@ -129,18 +150,19 @@ switch ($Step) {
     'base' {
         Set-TerraformEnv
         Initialize-Terraform
-        Confirm-Change 'enable APIs and create the Artifact Registry repository'
-        Invoke-Terraform @('apply', '-input=false', '-auto-approve', "-var-file=$EnvName.tfvars",
-            '-target=google_project_service.apis', '-target=google_artifact_registry_repository.sdlc')
+        Confirm-Change 'enable APIs, create the Artifact Registry repository and the config store bucket'
+        $targets = @('-target=google_project_service.apis', '-target=google_artifact_registry_repository.sdlc')
+        if ($ConfigBucket) { $targets += '-target=google_storage_bucket.config_store' }
+        Invoke-Terraform (@('apply', '-input=false', '-auto-approve', "-var-file=$EnvName.tfvars") + $targets)
     }
     'images' {
         $tag = Get-ImageTag
         Invoke-Native 'gcloud' @('auth', 'configure-docker', "$Region-docker.pkg.dev", '--quiet')
         $images = [ordered]@{
-            'mcp-bootstrap'   = 'mcp_servers/bootstrap/Dockerfile'
-            'agent-bootstrap' = 'agents/bootstrap/Dockerfile'
-            'ingest'          = 'ingest/bootstrap/Dockerfile'
-            'ui-copilotkit'   = 'ui/copilotkit/Dockerfile'   # CopilotKit chat app (version-01 M5)
+            'core-mcp'      = 'mcp_servers/core_mcp/Dockerfile'
+            'user-agent'    = 'agents/user_agent/Dockerfile'
+            'ingest'        = 'ingest/bootstrap/Dockerfile'
+            'ui-copilotkit' = 'ui/copilotkit/Dockerfile'   # CopilotKit chat app (version-01 M5)
         }
         foreach ($name in $images.Keys) {
             Invoke-Native 'docker' @('build', '--platform', 'linux/amd64', '-f', (Join-Path $Root $images[$name]),
@@ -154,10 +176,48 @@ switch ($Step) {
         Invoke-Native 'docker' @('push', "$Registry/oauth2-proxy:$OAuth2ProxyTag")
         Write-Host "pushed images with tag $tag"
     }
+    'config' {
+        if (-not $BundleRoot) { throw "config_store_bucket is not set in $TfVars" }
+        if ($ConfigVersion) {
+            $version = $ConfigVersion
+            if (-not (Test-Native 'gcloud' @('storage', 'objects', 'describe', "$BundleRoot/$version/manifest.json"))) {
+                throw "bundle $version is not in $BundleRoot (list: gcloud storage ls $BundleRoot/)"
+            }
+        }
+        else {
+            [void](Get-ImageTag)   # refuses uncommitted changes: the bundle version starts with the commit
+            if (-not (Test-Path (Join-Path $Root "config/env/$EnvName/groups.yaml"))) {
+                throw "missing config/env/$EnvName/groups.yaml"
+            }
+            $local = Join-Path $Root ".bundles/$EnvName"   # git-ignored: bundles hold tenant files
+            # uv reads --env-file shell-style (backslashes are escapes): pass forward slashes.
+            $envFile = (Join-Path $Root '.env') -replace '\\', '/'
+            $out = & uv run --env-file $envFile sdlc-config compile --env $EnvName `
+                --config-dir (Join-Path $Root 'config') --out $local
+            if ($LASTEXITCODE -ne 0) { throw 'sdlc-config compile failed (see above)' }
+            $out | ForEach-Object { Write-Host $_ }
+            $match = $out | Select-String -Pattern '^(compiled|unchanged) (\S+) ->' | Select-Object -First 1
+            if (-not $match) { throw 'could not read the bundle version from sdlc-config compile' }
+            $version = $match.Matches[0].Groups[2].Value
+            # Bundles are immutable: upload the files first, move the pointer last.
+            Invoke-Native 'gcloud' @('storage', 'rsync', '--recursive', (Join-Path $local $version), "$BundleRoot/$version")
+        }
+        Confirm-Change "activate config bundle $version for $EnvName"
+        $pointer = Join-Path ([System.IO.Path]::GetTempPath()) "sdlc-current-$EnvName"
+        [System.IO.File]::WriteAllText($pointer, $version)
+        try { Invoke-Native 'gcloud' @('storage', 'cp', $pointer, "$BundleRoot/current") }
+        finally { Remove-Item $pointer -ErrorAction SilentlyContinue }
+        Write-Host "active: $version ($BundleRoot/current); Cloud Run picks it up within ~2 minutes"
+    }
     'plan' {
         Set-TerraformEnv
         if (-not (Test-Path (Join-Path $Root "config/env/$EnvName/groups.yaml"))) {
             throw "missing config/env/$EnvName/groups.yaml"
+        }
+        # With a config store bucket, Cloud Run reads its config from there: an active bundle must
+        # exist first, or the new MCP revision fails closed at startup.
+        if ($BundleRoot -and -not (Test-Native 'gcloud' @('storage', 'objects', 'describe', "$BundleRoot/current"))) {
+            throw "no active config bundle in ${BundleRoot}: run -Step base, then -Step config, first"
         }
         Initialize-Terraform
         Invoke-Terraform @('plan', '-input=false', "-var-file=$EnvName.tfvars", "-out=$Plan")

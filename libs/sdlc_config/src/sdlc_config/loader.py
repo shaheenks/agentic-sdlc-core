@@ -35,6 +35,7 @@ from sdlc_config.model import (
     SourceDef,
     TeamDef,
     ToolDef,
+    UserMap,
 )
 from sdlc_config.skills import SkillFileError, parse_skill_md, resolve_in_skills
 
@@ -73,8 +74,19 @@ _KINDS: dict[str, _Kind] = {
     "SkillCatalog": _Kind("skillcatalog.schema.json", "skills.yaml"),
     "Source": _Kind("source.schema.json", "sources/*.yaml", many=True),
     "BlockList": _Kind("blocklist.schema.json", "env/{env}/blocked.yaml", optional=True),
+    "UserMap": _Kind("usermap.schema.json", "env/{env}/users.yaml", optional=True),
     "ConnectionCatalog": _Kind("connectioncatalog.schema.json", "connections.yaml", optional=True),
 }
+
+
+# Files that a deployment may mount outside config/ (Cloud Run mounts one secret per folder, and
+# config/env/<env>/ already holds groups.yaml): kind -> env var with the file's path.
+_PATH_OVERRIDES = {"UserMap": "SDLC_USERS_FILE"}
+
+
+def _path_override(kind: str, environ: Mapping[str, str]) -> Path | None:
+    value = environ.get(_PATH_OVERRIDES.get(kind, ""), "")
+    return Path(value) if value else None
 
 
 def load_snapshot(
@@ -92,6 +104,14 @@ def load_snapshot(
 
     for kind, spec in _KINDS.items():
         schema_path = config_dir / "schemas" / spec.schema
+        override = _path_override(kind, environ)
+        if (
+            spec.optional
+            and not spec.many
+            and not (override or config_dir / spec.path.format(env=env)).is_file()
+        ):
+            docs[kind] = []  # absent optional file: its schema is not needed (older revisions)
+            continue
         if not schema_path.is_file():
             problems.append(f"schemas/{spec.schema}: schema not found")
             continue
@@ -102,7 +122,7 @@ def load_snapshot(
         if spec.many:
             paths = sorted(config_dir.glob(pattern))
         else:
-            path = config_dir / pattern
+            path = override or config_dir / pattern
             if not path.is_file() and spec.optional:
                 docs[kind] = []
                 continue
@@ -115,7 +135,8 @@ def load_snapshot(
             paths = [path]
         docs[kind] = []
         for path in paths:
-            rel = path.relative_to(config_dir).as_posix()
+            # an override file is still named by its usual path (rules, messages, bundle tree)
+            rel = pattern if override else path.relative_to(config_dir).as_posix()
             doc = _read_doc(path, rel, kind, schema, environ, dummy_env, raw_files, problems)
             config_keys.add(rel)
             if doc is not None:
@@ -136,6 +157,7 @@ def load_snapshot(
     skills = _build_skills(
         docs["SkillCatalog"][0][1], addon_skills, roles, teams, repo_root, raw_files, problems
     )
+    users, bindings, teams = _build_users(docs["UserMap"], env, roles, teams, bindings, problems)
     sources = _build_sources(docs["Source"], platform, teams, roles, aliases, problems)
     connections = _build_connections(docs["ConnectionCatalog"], platform, problems)
     for tool in tools.values():
@@ -160,6 +182,7 @@ def load_snapshot(
         skills=MappingProxyType(skills),
         sources=MappingProxyType(sources),
         connections=MappingProxyType(connections),
+        users=users,
         blocked=MappingProxyType(
             {
                 entry["oid"].lower(): entry["reason"]
@@ -378,6 +401,59 @@ def _build_roles(doc, tools, aliases, platform, problems):
         _check_binding(ref, entry["roles"], rel, where, aliases, known, problems)
         bindings.append(RoleBinding(ref, tuple(entry["roles"]), f"{rel}#{where}"))
     return roles, tuple(bindings)
+
+
+def _build_users(user_docs, env, roles, teams, bindings, problems):
+    """Direct members from env/<env>/users.yaml (optional). Each entry becomes ordinary team
+    membership entries and role bindings for IdentityRef("user", alias), so the resolver has one
+    path. Only entries with an oid match a token; the rest are pending and grant nothing."""
+    if not user_docs:
+        return UserMap(), bindings, teams
+    rel, doc = user_docs[0]
+    alias_by_oid: dict[str, str] = {}
+    email_by_alias: dict[str, str] = {}
+    alias_by_email: dict[str, str] = {}
+    pending: list[str] = []
+    extra_bindings: list[RoleBinding] = []
+    extra_members: dict[str, list[RoleBinding]] = {}
+    for alias, entry in doc["users"].items():
+        email = entry["email"].lower()
+        if email in alias_by_email:
+            problems.append(f"{rel}: users/{alias}/email: also used by '{alias_by_email[email]}'")
+        alias_by_email[email] = alias
+        email_by_alias[alias] = email
+        oid = entry.get("oid", "").lower()
+        if not oid:
+            pending.append(alias)
+        elif oid in alias_by_oid:
+            problems.append(f"{rel}: users/{alias}/oid: also used by '{alias_by_oid[oid]}'")
+        else:
+            alias_by_oid[oid] = alias
+        ref = IdentityRef("user", alias)
+        for team, team_roles in entry.get("teams", {}).items():
+            where = f"users/{alias}/teams/{team}"
+            if team not in teams:
+                problems.append(f"{rel}: {where}: unknown team '{team}'")
+                continue
+            _check_binding(ref, team_roles, rel, where, set(), roles, problems)
+            if oid:  # pending entries are validated but grant nothing, not even in explain
+                rule = RoleBinding(ref, tuple(team_roles), f"{rel}#{where}", team)
+                extra_members.setdefault(team, []).append(rule)
+        if entry.get("roles"):
+            where = f"users/{alias}/roles"
+            _check_binding(ref, entry["roles"], rel, where, set(), roles, problems)
+            if oid:
+                extra_bindings.append(RoleBinding(ref, tuple(entry["roles"]), f"{rel}#{where}"))
+    teams = {
+        name: replace(team, membership=team.membership + tuple(extra_members.get(name, ())))
+        for name, team in teams.items()
+    }
+    users = UserMap(
+        alias_by_oid=MappingProxyType(alias_by_oid),
+        email_by_alias=MappingProxyType(email_by_alias),
+        pending=tuple(sorted(pending)),
+    )
+    return users, bindings + tuple(extra_bindings), teams
 
 
 def _inheritance_cycles(roles: dict[str, RoleDef]) -> list[list[str]]:
@@ -681,6 +757,7 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             access_teams=frozenset(access.get("teams", [])),
             access_roles=frozenset(access.get("roles", [])),
             access_groups=frozenset(access.get("groups", [])),
+            access_everyone=bool(access.get("everyone")),
             description=meta.get("description", ""),
         )
     return sources
