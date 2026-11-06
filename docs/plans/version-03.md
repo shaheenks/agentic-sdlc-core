@@ -25,7 +25,7 @@ Follows [version-02.md](version-02.md). Architecture: [../ARCHITECTURE.md](../AR
 | P1 | Staging environment | N5, D4 | Q1 (project, region, hostnames); billing go-ahead |
 | P2 | Enterprise identity: app roles defined in the tenant (E1), federated credentials instead of client secrets (E4), Entra apps in Terraform (E5), no Azure CLI pre-auth outside dev (E6), per-environment Entra client | N5, version-00 E1/E4–E6, SECRETS_REVIEW §6 | Entra admin, confirmed per change |
 | P3 | Operations: custom hostnames + managed certificates (drop the `*.run.app` exception), CI deploy stages (build → plan → apply with approval), Cloud SQL private IP, scale out `sdlc-app`, shared rate-limit store (if `sdlc-mcp` > 1 instance), log-based metrics + alerts on audit events, Secret Manager data-access logs | N5, N4, SECRETS_REVIEW §6 | P1 for staging parts |
-| P4 | A2UI citation cards in `/chat/` + A2A endpoint | N7 spike (version-02 §10 "Spike findings") | — |
+| P4 | A2UI citation cards in `/chat/` + A2A endpoint (§P4, started 2026-11-06) | N7 spike (version-02 §10 "Spike findings") | U1–U6 confirmed |
 | P5 | Artifacts: store, list and download agent-generated files under RBAC | pending task 3 | Q4 (use cases, storage) |
 | P6 | Agent runtimes: `ci_agent`, `ops_agent` with workload identity, read + report back | pending task 1, D7 | Q5 (trigger sources, report channels) |
 | P7 | Write tools on behalf of the user (create issue, comment, PR) with UI confirmation | N6, D5 | P6 decisions (approval gates) |
@@ -37,6 +37,32 @@ Follows [version-02.md](version-02.md). Architecture: [../ARCHITECTURE.md](../AR
 
 **Order (decided 2026-11-05):** P5 first (Q4 answered). Then proposed: P4 (no outside dependencies) → P1 + P2
 (staging with enterprise identity from day one) → P3 → P6 / P7 as their decisions land; P8 and P9 by priority.
+
+## P4 — A2UI cards in the chat + A2A endpoint (from the version-02 N7 spike)
+
+Started 2026-11-06. Builds on version-02 §10 ("Spike findings": GO). Gemini Enterprise registration stays out of
+scope (needs a GE app, workforce pool and licences; milestone row "—" above).
+
+**Decisions (confirmed by the user 2026-11-06; P4 before P10):**
+
+| # | Decision |
+|---|---|
+| U1 | A2UI **v0.9, standard catalog only**, built **deterministically from MCP tool results** with `a2ui-agent-sdk`'s builder (`a2ui.builder.v0_9`). The model never writes UI; `ag_ui_adk`'s `generate_a2ui` (a model writes it) is not used |
+| U2 | Cards for: `search_knowledge` / `graph_query` citations, `whoami`, connected-tool results (`*_get_*`). Artifact cards stay hand-written: their links are same-origin `/artifacts/<id>`, which an A2A client such as GE cannot open |
+| U3 | Links only `http(s)` (checked before building), opened with the catalog's `openUrl`. A2UI user actions are input to the agent, **never authorization** |
+| U4 | The model does **not** see the A2UI JSON: it travels next to the tool result for the transports, so tokens are not spent on it and it cannot be echoed or altered (C1 checks how `ag_ui_adk` forwards it) |
+| U5 | A2A endpoint on the agent service (`/a2a`), behind the same Entra checks as `/agui`: user id = token `oid` (never ADK's `A2A_USER_<context_id>` fallback), the token request-scoped (never in session state), client state sanitised, one A2A context = one session in the existing store, another user's context refused |
+| U6 | How A2A clients reach it: callers send `Authorization: Bearer <Entra token>` (GE's model). Locally through oauth2-proxy as an API route that accepts bearer tokens, or the agent port for tests only; GCP exposure decided in C5 |
+
+**Milestones:**
+
+| # | Scope | Exit gate | Status |
+|---|---|---|---|
+| C1 | `libs/sdlc_agent/a2ui_cards.py`: tool result → v0.9 operations (`createSurface` + `updateComponents`); `after_tool_callback` attaches them for the transports, not the model | Unit tests: valid v0.9 for each covered tool (validated against the SDK's catalog models); non-`http(s)` links dropped; malformed or empty results give no surface; the model-visible tool result is unchanged | open |
+| C2 | Chat renders A2UI: `CopilotRuntime({ a2ui: { injectA2UITool: false } })`; replace the hand-written citation / whoami / connected renderers where the A2UI result is equivalent (the N8 chip line may stay) | Live on localhost **and** the tunnel: a `search_knowledge` answer shows citation cards whose buttons open the source; UI tests + typecheck + build | waits for C1 |
+| C3 | A2A server: `google-adk[a2a]`, `to_a2a(...)` mounted at `/a2a` in `sdlc_web` behind the Entra middleware, a call-context builder from the verified `oid`, A2UI as `DataPart` (`application/json+a2ui`), agent card at `/.well-known/agent-card.json` | Tests (FakeEntra): no token → 401; a valid user gets an answer with the A2UI DataPart; another user's context id → refused; no token in persisted session events; client state stripped | waits for C1 |
+| C4 | Local A2A access: oauth2-proxy route for `/a2a` with bearer tokens (both proxies), a small `scripts/a2a_client.py` | A local A2A client with your Entra token gets the same answer and cards as the chat; without a token 401 | waits for C3 |
+| C5 | GCP: deploy, decide exposure (U6), audit + trace checks | The same A2A call works against GCP dev; audit records carry the A2A context as `agent_session_id`; no prompt content in Cloud Trace | waits for C4 |
 
 ## P5 — Artifacts (from pending task 3)
 
