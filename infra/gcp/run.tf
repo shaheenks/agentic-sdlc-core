@@ -68,11 +68,17 @@ locals {
     OAUTH2_PROXY_EMAIL_DOMAINS                        = "*"
     OAUTH2_PROXY_COOKIE_REFRESH                       = "30m"
     OAUTH2_PROXY_COOKIE_EXPIRE                        = "8h"
-    OAUTH2_PROXY_API_ROUTES                           = "^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\\b|threads\\b)"
+    OAUTH2_PROXY_API_ROUTES                           = "^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\\b|threads\\b|a2a\\b)"
     OAUTH2_PROXY_REDIRECT_URL                         = "https://${local.app_host}/oauth2/callback"
     OAUTH2_PROXY_COOKIE_SECURE                        = "true"
     OAUTH2_PROXY_REVERSE_PROXY                        = "true" # Cloud Run's front end sets X-Forwarded-*
     OAUTH2_PROXY_WHITELIST_DOMAINS                    = local.app_host
+    # A2A clients (version-03 P4) send `Authorization: Bearer <Entra token>` instead of a session
+    # cookie: the proxy checks issuer, signature and audience (the API's client id); every upstream
+    # re-validates fully (scope, tenant). The agent card is public (no data in it). As in compose.
+    OAUTH2_PROXY_SKIP_JWT_BEARER_TOKENS = "true"
+    OAUTH2_PROXY_EXTRA_JWT_ISSUERS      = "${var.entra_authority_host}/${var.entra_tenant_id}/v2.0=${var.entra_api_client_id}"
+    OAUTH2_PROXY_SKIP_AUTH_ROUTES       = "GET=^/\\.well-known/agent-card\\.json$"
   }
 
   agent_env = merge(local.vertex_env, local.agent_entra_env, local.trace_env, {
@@ -82,6 +88,10 @@ locals {
     # only the ingress container's port (oauth2-proxy, 4180) is exposed by a multi-container service.
     HOST            = "0.0.0.0"
     SDLC_AGUI_AGENT = "user_agent" # AG-UI endpoint /agui for the CopilotKit app (version-01 M5)
+    # A2A endpoint /a2a (version-03 P4). The card advertises the public URL: the agent sees
+    # 127.0.0.1 as its host (PASS_HOST_HEADER=false).
+    SDLC_A2A_AGENT = "user_agent"
+    SDLC_A2A_URL   = "https://${local.app_host}/a2a"
     # oauth2-proxy does not pass the browser's Host (PASS_HOST_HEADER=false), so ADK's cross-origin
     # guard needs the public origin explicitly, or the dev UI's scripts get 403.
     SDLC_ALLOWED_ORIGINS = "https://${local.app_host}"
