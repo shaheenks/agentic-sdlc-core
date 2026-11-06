@@ -13,6 +13,7 @@ import os
 from google.adk.agents import Agent
 from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
 from sdlc_agent import with_team_context
+from sdlc_agent.a2ui_cards import after_tool_callback, before_model_callback
 from sdlc_auth.adk import agent_header_provider
 
 MCP_URL = os.environ.get("SDLC_MCP_URL", "http://127.0.0.1:8080/mcp")
@@ -61,6 +62,9 @@ root_agent = Agent(
     model=MODEL,
     description="Interactive SDLC assistant that works through centrally served skills.",
     instruction=with_team_context(INSTRUCTION, MCP_URL),
+    # A2UI cards (version-03 P4): built from tool results for the chat, hidden from the model
+    after_tool_callback=after_tool_callback,
+    before_model_callback=before_model_callback,
     tools=[
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(url=MCP_URL),

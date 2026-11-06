@@ -2313,12 +2313,14 @@ name = "sdlc-agent"
 version = "0.1.0"
 source = { editable = "libs/sdlc_agent" }
 dependencies = [
+    { name = "a2ui-agent-sdk" },
     { name = "google-adk", extra = ["mcp"] },
     { name = "sdlc-auth" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "a2ui-agent-sdk", specifier = ">=0.9,<0.10" },
     { name = "google-adk", extras = ["mcp"], specifier = ">=2.10" },
     { name = "sdlc-auth", editable = "libs/sdlc_auth" },
 ]
