@@ -76,7 +76,7 @@ def strictly_valid(ops: list[dict]) -> None:
     MessageProcessor([BasicCatalog("v0.9")], options=options).process_messages(ops)
 
 
-def test_citation_cards_are_valid_v09_with_http_links_only():
+def test_citation_chips_are_valid_v09_with_http_links_only():
     ops = build_operations("search_knowledge", mcp(SEARCH), "s1")
     assert [list(m)[1] for m in ops] == ["createSurface", "updateComponents"]
     assert all(m["version"] == "v0.9" for m in ops)
@@ -84,21 +84,26 @@ def test_citation_cards_are_valid_v09_with_http_links_only():
     strictly_valid(ops)
     assert links(ops) == [GH]  # javascript: and a URL with a space are not linked
     shown = texts(ops)
-    assert "libs/sdlc_db/src/sdlc_db/scoped.py" in shown
-    assert "Security rules" in shown  # direction override removed
-    assert "sdlc-platform · lines 1–40" in shown and "eng-standards · lines 3" in shown
-    assert "x · p. 2–4" in shown
+    assert shown[0] == "Sources · 4 docs"
+    # one chip per document: the linked one is a button, the rest plain text
+    assert {"scoped.py", "Security rules", "evil.md", "manual.pdf"} <= set(shown)  # bidi removed
+    assert not any(c["component"] == "Card" for c in components(ops))  # compact: no big cards
 
 
-def test_graph_results_and_card_cap():
+def test_chips_group_hits_per_document_and_are_capped():
+    twice = {"results": [{"source": "s", "path": "a/b.md", "url": GH}] * 2}
+    ops = build_operations("search_knowledge", mcp(twice), "t1")
+    assert texts(ops) == ["Sources · 1 doc", "b.md ×2"]
     many = {"results": [{"source": "s", "path": f"f{i}.md", "via": "graph"} for i in range(25)]}
     ops = build_operations("graph_query", mcp(many), "g1")
     strictly_valid(ops)
-    assert sum(c["component"] == "Card" for c in components(ops)) == a2ui_cards.MAX_CARDS
-    assert "s · via knowledge graph" in texts(ops)
+    shown = texts(ops)
+    assert shown[0] == "Sources (knowledge graph) · 25 docs · via knowledge graph"
+    assert sum(t.startswith("f") for t in shown) == a2ui_cards.MAX_DOCS
+    assert shown[-1] == f"+{25 - a2ui_cards.MAX_DOCS}"
 
 
-def test_identity_card():
+def test_identity_is_one_line_with_details_in_a_dialog():
     who = {
         "oid": "c150bc3b-0000-0000-0000-000000000000",
         "upn": "paul@example.com",
@@ -108,13 +113,16 @@ def test_identity_card():
     }
     ops = build_operations("whoami", mcp(who), "w1")
     strictly_valid(ops)
-    assert texts(ops) == [
+    assert any(c["component"] == "Modal" for c in components(ops))
+    assert texts(ops)[0] == "Signed in as Paul · 1 team · 1 role · 2 groups"
+    assert {
+        "Details",
         "Paul",
         "paul@example.com",
         "Teams: payments",
         "Roles: developer",
         "Groups: eng-all, payments-devs",
-    ]
+    } <= set(texts(ops))
 
 
 def test_connected_cards():

@@ -8,9 +8,12 @@ from the standard (basic) catalog. Rules (version-03 decisions U1-U4):
   the agent, never authorization.
 - Every surface is validated strictly against the basic catalog before it is sent. Anything
   invalid, empty or unexpected gives **no card**: the chat still shows the answer.
-- The cards travel under `a2ui_operations` in the tool result. The A2UI middleware reads them
-  there (CopilotKit), and so will the A2A path. `after_tool_callback` removes any
-  `a2ui_operations` a tool result already carries, so only cards built here are rendered.
+- Cards are compact: citations are one caption plus a row of document chips that open their
+  link; identity is one line with the details in a dialog.
+- The cards travel under `a2ui_operations` in the tool result, for A2A clients (version-03 P4
+  C3). The chat (/chat/) ignores them and keeps its own compact renderers (C2 decision).
+  `after_tool_callback` removes any `a2ui_operations` a tool result already carries, so only
+  cards built here are rendered.
   `before_model_callback` removes them from the model's copy of the conversation, so the model
   neither pays for them nor sees them.
 
@@ -32,7 +35,9 @@ from a2ui.builder.v0_9 import (
     Column,
     ComponentBuilderNode,
     ComponentTree,
+    Modal,
     OpenUrl,
+    Row,
     Text,
 )
 from a2ui.core.basic_catalog import BasicCatalog
@@ -43,7 +48,7 @@ log = logging.getLogger("sdlc.agent")
 
 A2UI_KEY = "a2ui_operations"  # read by @ag-ui/a2ui-middleware in TOOL_CALL_RESULT content
 VERSION = "v0.9"
-MAX_CARDS = 10
+MAX_DOCS = 10
 MAX_TEXT = 200
 MAX_URL = 2048
 _CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f​-‏‪-‮⁦-⁩]")
@@ -103,65 +108,85 @@ def _open_button(url: str | None, label: str = "Open") -> list[ComponentBuilderN
     link = safe_url(url)
     if not link:
         return []
-    return [Button(child=Text(text=label), action=Action(function_call=OpenUrl(url=link)))]
+    return [
+        Button(
+            child=Text(text=label),
+            variant="borderless",
+            action=Action(function_call=OpenUrl(url=link)),
+        )
+    ]
 
 
-def _where(hit: Payload) -> str:
-    for key, unit in (("pages", "p."), ("lines", "lines")):
-        span = hit.get(key)
-        if isinstance(span, list) and len(span) == 2 and all(isinstance(n, int) for n in span):
-            return f"{unit} {span[0]}" if span[0] == span[1] else f"{unit} {span[0]}–{span[1]}"
-    return ""
+def _count(n: int, word: str) -> str:
+    return f"{n} {word}{'' if n == 1 else 's'}"
 
 
 def citations(payload: Payload, label: str) -> ComponentBuilderNode | None:
-    """search_knowledge / graph_query: one card per result (title or path, source and place,
-    an Open button when the item has a link)."""
+    """search_knowledge / graph_query: one compact line, "<label> · N docs", then one chip per
+    document (title or file name, ×hits) that opens its link; documents without a link are plain
+    text. Snippets stay out: the answer quotes what matters."""
     results = payload.get("results")
     if not isinstance(results, list):
         return None
-    cards: list[ComponentBuilderNode] = []
-    for hit in results[:MAX_CARDS]:
+    docs: dict[tuple[str, str], Payload] = {}
+    for hit in results:
         if not isinstance(hit, dict) or not hit.get("path"):
             continue
-        meta = " · ".join(x for x in (plain(hit.get("source", "")), _where(hit)) if x)
-        if hit.get("via") == "graph":
-            meta += " · via knowledge graph"
-        heading = plain(hit.get("title") or hit.get("path"))
-        body: list[ComponentBuilderNode] = [Text(text=heading, variant="h4")]
-        if hit.get("title"):
-            body.append(Text(text=plain(hit["path"]), variant="caption"))
-        body.append(Text(text=meta, variant="caption"))
-        body += _open_button(hit.get("url"))
-        cards.append(Card(child=Column(children=body)))
-    if not cards:
+        key = (str(hit.get("source", "")), str(hit["path"]))
+        doc = docs.setdefault(key, {"hit": hit, "hits": 0, "url": None, "graph": False})
+        doc["hits"] += 1
+        doc["url"] = doc["url"] or safe_url(hit.get("url"))
+        doc["graph"] = doc["graph"] or hit.get("via") == "graph"
+    if not docs:
         return None
-    return Column(children=[Text(text=plain(label), variant="h5"), *cards])
+    chips: list[ComponentBuilderNode] = []
+    for doc in list(docs.values())[:MAX_DOCS]:
+        hit = doc["hit"]
+        name = plain(hit.get("title") or str(hit["path"]).rsplit("/", 1)[-1], 60)
+        if doc["hits"] > 1:
+            name += f" ×{doc['hits']}"
+        if doc["url"]:
+            chips += _open_button(doc["url"], name)
+        else:
+            chips.append(Text(text=name, variant="caption"))
+    if len(docs) > MAX_DOCS:
+        chips.append(Text(text=f"+{len(docs) - MAX_DOCS}", variant="caption"))
+    header = f"{plain(label)} · {_count(len(docs), 'doc')}"
+    if any(d["graph"] for d in docs.values()):
+        header += " · via knowledge graph"
+    return Column(children=[Text(text=header, variant="caption"), Row(children=chips)])
 
 
 def identity(payload: Payload) -> ComponentBuilderNode | None:
-    """whoami: who the server thinks you are, with teams and roles when explained."""
+    """whoami: one line ("Signed in as Paul · 1 team · 1 role"); the details open in a dialog."""
     if not isinstance(payload.get("oid"), str):
         return None
     policy = payload.get("policy") if isinstance(payload.get("policy"), dict) else {}
 
-    def names(value: Any) -> str:
-        items = list(value) if isinstance(value, dict | list) else []
-        return ", ".join(plain(x, 60) for x in items[:20]) or "none"
+    def items(value: Any) -> list[str]:
+        return [plain(x, 60) for x in (list(value) if isinstance(value, dict | list) else [])][:20]
 
-    rows: list[ComponentBuilderNode] = [
-        Text(
-            text=plain(payload.get("name") or payload.get("upn") or "Signed-in user"), variant="h4"
-        )
-    ]
+    teams = items(policy.get("teams"))
+    roles = [r for r in items(policy.get("roles")) if r != "signed-in"]
+    groups = items(payload.get("groups"))
+    who = plain(payload.get("name") or payload.get("upn") or "you", 80)
+    facts = [_count(len(teams), "team")] if teams else []
+    facts += [_count(len(roles), "role")] if roles else []
+    facts += [_count(len(groups), "group")] if groups else []
+    rows: list[ComponentBuilderNode] = [Text(text=who, variant="h4")]
     if payload.get("upn"):
         rows.append(Text(text=plain(payload["upn"]), variant="caption"))
     if policy:
-        rows.append(Text(text=f"Teams: {names(policy.get('teams'))}"))
-        roles = [r for r in (policy.get("roles") or {}) if r != "signed-in"]
-        rows.append(Text(text=f"Roles: {names(roles)}"))
-    rows.append(Text(text=f"Groups: {names(payload.get('groups'))}"))
-    return Card(child=Column(children=rows))
+        rows.append(Text(text=f"Teams: {', '.join(teams) or 'none'}"))
+        rows.append(Text(text=f"Roles: {', '.join(roles) or 'none'}"))
+    rows.append(Text(text=f"Groups: {', '.join(groups) or 'none'}"))
+    return Row(
+        align="center",
+        children=[
+            Text(text=" · ".join([f"Signed in as {who}", *facts])),
+            Modal(trigger=Text(text="Details", variant="caption"), content=Column(children=rows)),
+        ],
+    )
 
 
 def connected(label: str) -> Callable[[Payload], ComponentBuilderNode | None]:
