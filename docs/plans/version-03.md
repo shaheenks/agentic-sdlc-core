@@ -1,7 +1,7 @@
 # Agentic SDLC — Implementation Plan version-03 (draft)
 
-**Status: current (2026-11-05).** Started before version-02's last close-out item (§20 H6, the first scheduled
-ingest/reconcile runs) by the user's decision; H6 is checked alongside. First milestone: **P5 artifacts** (§P5).
+**Status: current (2026-11-05).** Version-02 closed 2026-11-06 (§20 H6, the first scheduled runs, passed).
+First milestone: **P5 artifacts** (§P5).
 Other milestones remain a proposal, confirmed one by one.
 
 Follows [version-02.md](version-02.md). Architecture: [../ARCHITECTURE.md](../ARCHITECTURE.md); GCP runbook:

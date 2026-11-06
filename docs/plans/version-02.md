@@ -46,9 +46,8 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 **Scope (narrowed 2026-11-04):** version-02 = close out N8–N15 (checks, GCP deploy, merge to `main`), N0, N1, N2
 (Cloud editions), N3, N4 and the N7 spike. No new features until R1 and R2 are done.
 
-**Status (2026-11-05): build complete, user checks open.** Everything in scope is built and committed; what is
-left is the merge, one GCP deploy and checks, all run by the user: the handover checklist in §20. Version-02 closes
-when §20 is ticked; [version-03.md](version-03.md) (draft) then becomes the current plan.
+**Status: closed (2026-11-06).** Everything in scope is built, deployed to GCP dev and checked; the §20 handover
+checklist is complete (H6, the first scheduled runs, on 2026-11-06). Current plan: [version-03.md](version-03.md).
 
 ## Open decisions
 
@@ -826,7 +825,7 @@ pending tasks 1 (agent runtimes) and 3 (artifacts). Drafted as [version-03.md](v
 | H3 | `-Step images`, set `ingest_schedule` / `reconcile_schedule` in `dev.tfvars` if wanted, `-Step plan` (expect: reconcile job + SA, 2 custom roles, Cloud Trace role + env, scheduler only if scheduled; **no destroys**), `-Step apply`. **Done 2026-11-05:** apply without errors; scheduler jobs `sdlc-ingest-dev` 02:00 and `sdlc-reconcile-dev` 03:30 (Asia/Kolkata), MCP `SDLC_TRACE_TO_CLOUD=true` | N1, N3, N4 deploy |
 | H4 | Reconcile dry run on GCP; block/unblock a test user via `blocked.yaml` + `-Step config` (§19 R5 steps 2–3). Dry run **done 2026-11-05** (execution `hkfgd`: secrets list 200, 0 users, 0 changes; no PATs on GCP yet). Block **passed 2026-11-05**: Ana in `blocked.yaml`, `-Step config` (bundle `1fe0d66`), her MCP requests got 401, audit `auth_failure` reason `blocked` with her oid; unblock **passed** (empty `blocked: []`, bundle `44ba0b4`, her tool calls ok again). **H4 done** | N3 |
 | H5 | One chat turn = one trace in Cloud Trace, no prompt text or argument values; its audit records by `trace_id` (§19 R6). **Done 2026-11-05 after a fix** (first check failed; redeployed `1fe0d66`, recheck: traces of 74 and 23 spans, every content field `{}`). One trace (28 spans: agent, LLM, MCP, Postgres; audit `tool_call` records carry its `trace_id`), but ADK spans held the prompt, model response, tool response and tool args: Cloud Run lacked the compose vars `ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS` / `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`. Now forced off in `sdlc_web/__init__.py` (test `tests/web/test_span_content.py`) and set in `run.tf`. SQL spans hold placeholders only. Traces already exported keep content until Cloud Trace retention (30 days) ends | N4 |
-| H6 | Next scheduled ingest run visible, if `ingest_schedule` was set (§19 R7) | N1 |
+| H6 | Next scheduled ingest run visible, if `ingest_schedule` was set (§19 R7). **Done 2026-11-06:** started by `sdlc-dev-scheduler` on time, both succeeded: ingest `f6s8r` at 02:00 IST (no changes, `main` still `7a5e4df`), reconcile `5dpwc` at 03:30 IST with `--apply` (1 user scanned, 0 changes) | N1 |
 | H7 | R8 checklist C3–C7: GitHub + Bitbucket Cloud connections on GCP, AG-UI gates 3 and 5, retrieval eval after H1 + a `sdlc-platform` re-ingest (record the hit rates in R8). **H7 done 2026-11-05:** C3–C6 verified by the user, eval (C7) passed. Re-ingest **done 2026-11-05** at `7a5e4df`, local and GCP (80 changed, 25 deleted, 683 chunks, 408 LLM calls each) | N2 |
 
 A failing step stays in version-02 until fixed (or is moved to version-03 with a reason written here); then mark the
