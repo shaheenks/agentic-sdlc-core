@@ -260,6 +260,7 @@ a.chip:hover { border-color: var(--sdlc-accent); color: var(--sdlc-accent); }
 .status-ok { color: #15803d; background: rgb(22 163 74 / 0.1); }
 .status-warn { color: #c2410c; background: rgb(217 119 6 / 0.12); }
 .status-off { color: var(--sdlc-muted); background: var(--sdlc-chip); }
+.status-bad { color: #b91c1c; background: rgb(220 38 38 / 0.1); }
 .conn-buttons { display: flex; gap: 6px; }
 .conn-buttons button {
   font: inherit; font-size: 12.5px; border: 1px solid var(--sdlc-line); border-radius: 6px; padding: 4px 10px;

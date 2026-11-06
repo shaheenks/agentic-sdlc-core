@@ -208,3 +208,61 @@ export function savedArtifacts(raw: unknown): SavedArtifact[] {
   const items = Array.isArray(payload.artifacts) ? payload.artifacts : [payload];
   return items.map(artifact).filter((a): a is SavedArtifact => a !== null);
 }
+
+// Goldfish reviews (version-03 P10): goldfish_review returns lens outcomes and findings grouped by
+// severity. All text is reviewer model output (untrusted): shown as plain text only, never linked.
+export type Severity = "blocker" | "major" | "nit";
+export const SEVERITIES: Severity[] = ["blocker", "major", "nit"];
+
+export type ReviewFinding = {
+  severity: Severity;
+  title: string;
+  detail?: string;
+  where?: string;
+  suggestion?: string;
+  lenses: string[];
+};
+
+export type LensOutcome = { lens: string; status: "ok" | "unavailable" | "failed"; findings: number };
+
+export type GoldfishReview = {
+  lenses: LensOutcome[];
+  findings: ReviewFinding[]; // blockers first, then major, then nits
+  counts: Record<Severity, number>;
+  summary?: string;
+  error?: string;
+};
+
+const LENS_STATUS = new Set(["ok", "unavailable", "failed"]);
+
+export function goldfishReview(raw: unknown): GoldfishReview | null {
+  const payload = toolPayload(raw);
+  if (!payload) return null;
+  const counts = { blocker: 0, major: 0, nit: 0 };
+  if (typeof payload.error === "string") return { lenses: [], findings: [], counts, error: payload.error };
+  if (!Array.isArray(payload.lenses)) return null;
+  const lenses = payload.lenses.flatMap((l): LensOutcome[] =>
+    isObject(l) && typeof l.lens === "string" && LENS_STATUS.has(String(l.status))
+      ? [{ lens: l.lens, status: l.status as LensOutcome["status"], findings: typeof l.findings === "number" ? l.findings : 0 }]
+      : [],
+  );
+  const grouped = isObject(payload.findings) ? payload.findings : {};
+  const findings = SEVERITIES.flatMap((severity) =>
+    (Array.isArray(grouped[severity]) ? grouped[severity] : []).flatMap((f): ReviewFinding[] =>
+      isObject(f) && str(f.title)
+        ? [
+            {
+              severity,
+              title: String(f.title),
+              detail: str(f.detail),
+              where: str(f.where),
+              suggestion: str(f.suggestion),
+              lenses: strings(f.lenses),
+            },
+          ]
+        : [],
+    ),
+  );
+  for (const f of findings) counts[f.severity] += 1;
+  return { lenses, findings, counts, summary: str(payload.summary) };
+}

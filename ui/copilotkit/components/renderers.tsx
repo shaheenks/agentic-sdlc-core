@@ -15,11 +15,13 @@ import {
   citations,
   type DocumentChip,
   documentChips,
+  goldfishReview,
   graphEntities,
   identity,
   location,
   safeUrl,
   savedArtifacts,
+  SEVERITIES,
   toolPayload,
 } from "@/lib/results";
 
@@ -261,6 +263,62 @@ function ArtifactsResult({ result, label, saved }: { result: unknown; label: str
   );
 }
 
+// Goldfish review (version-03 P10): one line with the counts and the lens outcomes; the findings
+// in the body. Reviewer text is plain text. The agent presents and resolves them in its answer.
+const SEVERITY_CLASS = { blocker: "status-bad", major: "status-warn", nit: "status-off" } as const;
+const LENS_CLASS = { ok: "status-ok", unavailable: "status-off", failed: "status-warn" } as const;
+
+function GoldfishCard({ result }: { result: unknown }) {
+  const review = goldfishReview(result);
+  if (!review) return null;
+  if (review.error) return <div className="tool compact">Goldfish review: {review.error}</div>;
+  const ran = review.lenses.filter((l) => l.status === "ok").length;
+  return (
+    <CompactCard
+      line={
+        <>
+          <span className="tool-label">
+            Goldfish review · {ran}/{count(review.lenses.length, "lens")}
+          </span>
+          {SEVERITIES.map((s) => (
+            <span key={s} className={`status-chip ${review.counts[s] ? SEVERITY_CLASS[s] : "status-off"}`}>
+              {review.counts[s]} {s}
+            </span>
+          ))}
+        </>
+      }
+    >
+      <div className="identity-row">
+        {review.lenses.map((l) => (
+          <span key={l.lens} className={`status-chip ${LENS_CLASS[l.status]}`} title={l.status}>
+            {l.lens.replace(/^lens-/, "")}
+            {l.status === "ok" ? ` · ${l.findings}` : ` · ${l.status}`}
+          </span>
+        ))}
+      </div>
+      {review.summary && <p className="citation-snippet">{review.summary}</p>}
+      <ol className="citations">
+        {review.findings.map((f, i) => (
+          <li key={`${f.severity}-${i}`} className="citation">
+            <div className="citation-head">
+              <span className={`status-chip ${SEVERITY_CLASS[f.severity]}`}>{f.severity}</span>
+              <span>{f.title}</span>
+            </div>
+            <div className="citation-meta">
+              {f.lenses.map((l) => (
+                <span key={l}>{l.replace(/^lens-/, "")}</span>
+              ))}
+              {f.where && <span>§ {f.where}</span>}
+            </div>
+            {f.detail && <p className="citation-snippet">{f.detail}</p>}
+            {f.suggestion && <p className="citation-snippet">Fix: {f.suggestion}</p>}
+          </li>
+        ))}
+      </ol>
+    </CompactCard>
+  );
+}
+
 const connectedRenderer = (name: string, label: string) =>
   defineToolCallRenderer({
     name,
@@ -320,6 +378,16 @@ export const toolRenderers = [
     args: z.object({ name: z.string().optional() }).passthrough(),
     render: ({ status, result }) =>
       done(status) ? <ArtifactsResult result={result} label="Saved document" saved /> : <Pending label="Saving document" />,
+  }),
+  defineToolCallRenderer({
+    name: "goldfish_review",
+    args: z.object({ lenses: z.array(z.string()).optional() }).passthrough(),
+    render: ({ status, args, result }) =>
+      done(status) ? (
+        <GoldfishCard result={result} />
+      ) : (
+        <Pending label={`Goldfish reviewers are reading the draft (${args.lenses?.length || "default"} lenses)`} />
+      ),
   }),
   defineToolCallRenderer({
     name: "list_artifacts",

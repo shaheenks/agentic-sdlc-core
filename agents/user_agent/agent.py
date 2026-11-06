@@ -14,6 +14,7 @@ from google.adk.agents import Agent
 from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
 from sdlc_agent import with_team_context
 from sdlc_agent.a2ui_cards import after_tool_callback, before_model_callback
+from sdlc_agent.goldfish import make_goldfish_review
 from sdlc_auth.adk import agent_header_provider
 
 MCP_URL = os.environ.get("SDLC_MCP_URL", "http://127.0.0.1:8080/mcp")
@@ -55,6 +56,12 @@ Saving documents (when you have the artifact tools):
   `numbered=true`, then do what the message asks. Its comments refer to those line numbers;
   address each one, say briefly how, and keep the rest of the document unchanged unless asked.
   Save the text without the line-number prefixes, with `base_version=<n>`.
+
+Goldfish reviews (when you have `goldfish_review`):
+- For document work, follow the `egm-document-flow` skill if it is available.
+- Call `goldfish_review` only after the user agreed to a review, with the full current draft.
+  Its reviewers see only the draft; present their findings by severity with the lenses that
+  raised them, and change the document only as the user approves.
 """
 
 root_agent = Agent(
@@ -69,6 +76,8 @@ root_agent = Agent(
         McpToolset(
             connection_params=StreamableHTTPConnectionParams(url=MCP_URL),
             header_provider=agent_header_provider,  # user token + conversation id
-        )
+        ),
+        # version-03 P10: isolated reviewers per lens, as the user (lenses and tools via MCP)
+        make_goldfish_review(MCP_URL, MODEL),
     ],
 )

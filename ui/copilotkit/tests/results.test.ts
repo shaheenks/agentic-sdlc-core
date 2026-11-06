@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   citations,
   documentChips,
+  goldfishReview,
   graphEntities,
   identity,
   location,
@@ -126,4 +127,41 @@ test("saved artifacts: links are built from the UUID only", () => {
   assert.equal(savedArtifacts({ artifacts: [saved, { id: "../../etc" }] }).length, 1);
   assert.deepEqual(savedArtifacts({ id: "javascript:alert(1)" }), []);
   assert.deepEqual(savedArtifacts("not json"), []);
+});
+
+test("goldfish review: lenses, findings by severity, plain text only", () => {
+  const review = goldfishReview({
+    result: JSON.stringify({
+      lenses: [
+        { lens: "lens-zoom-out", status: "ok", findings: 2 },
+        { lens: "lens-x", status: "unavailable" },
+        { lens: "lens-y", status: "weird" },
+      ],
+      findings: {
+        nit: [{ title: "typo", lenses: ["lens-zoom-out"] }],
+        blocker: [{ title: "no rollback", detail: "d", where: "§3", suggestion: "add one", lenses: ["lens-zoom-out", 7] }],
+        major: [{ detail: "no title: dropped" }],
+      },
+      summary: "Needs a rollback plan.",
+    }),
+  });
+  assert.ok(review);
+  assert.deepEqual(
+    review.lenses.map((l) => [l.lens, l.status, l.findings]),
+    [
+      ["lens-zoom-out", "ok", 2],
+      ["lens-x", "unavailable", 0],
+    ],
+  );
+  assert.deepEqual(
+    review.findings.map((f) => [f.severity, f.title, f.lenses]),
+    [
+      ["blocker", "no rollback", ["lens-zoom-out"]],
+      ["nit", "typo", ["lens-zoom-out"]],
+    ],
+  );
+  assert.deepEqual(review.counts, { blocker: 1, major: 0, nit: 1 });
+  assert.equal(review.summary, "Needs a rollback plan.");
+  assert.deepEqual(goldfishReview({ error: "not signed in" })?.error, "not signed in");
+  assert.equal(goldfishReview({ something: 1 }), null);
 });
