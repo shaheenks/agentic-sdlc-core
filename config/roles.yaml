@@ -17,7 +17,7 @@ roles:
     # knowledge tools: what they return is limited to the caller's sources (Source.access + RLS)
     tools:  { allow: [ping, whoami, list_skills, load_skill, get_agent_context, search_knowledge, graph_query,
                       save_artifact, list_artifacts, read_artifact, delete_artifact] }   # artifacts: owner only
-    skills: { allow: ["tag:general"] }
+    skills: { allow: ["tag:general", "tag:goldfish-lens"] }   # lenses: version-03 P10
     data:   { max_classification: internal }
   developer:
     inherits: [viewer]

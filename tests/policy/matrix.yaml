@@ -99,6 +99,16 @@ skill_rows:
   - { persona: direct-payments-dev, skill: pci-checklist,        expect: visible }
   - { persona: direct-payments-dev, skill: ledger-design-review, expect: hidden }
   - { persona: pending-user,        skill: infra-change-review,  expect: hidden }
+  # Goldfish document flow (version-03 P10): viewers and up; no groups = nothing
+  - { persona: nobody,         skill: egm-document-flow,             expect: hidden }
+  - { persona: nobody,         skill: lens-zoom-out,                 expect: hidden }
+  - { persona: viewer,         skill: egm-document-flow,             expect: visible }
+  - { persona: viewer,         skill: lens-zoom-out,                 expect: visible }
+  - { persona: viewer,         skill: lens-comprehension,            expect: visible }
+  - { persona: viewer,         skill: lens-design-critic,            expect: visible }
+  - { persona: viewer,         skill: lens-implementation-readiness, expect: visible }
+  - { persona: payments-dev,   skill: lens-design-critic,            expect: visible }
+  - { persona: pending-user,   skill: lens-zoom-out,                 expect: hidden }
 
 # Data access (Stage 5). readable = source granted by Source.access AND its classification is at
 # or below the persona's ceiling (both are enforced by Postgres RLS). Every source needs rows.

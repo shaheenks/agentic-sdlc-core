@@ -28,7 +28,13 @@ def test_skills_and_addons_load(config_dir):
         "pci-checklist",
         "ledger-design-review",
         "infra-change-review",
+        "egm-document-flow",
+        "lens-zoom-out",
+        "lens-comprehension",
+        "lens-design-critic",
+        "lens-implementation-readiness",
     }
+    assert snap.skills["lens-zoom-out"].tags == {"goldfish-lens"}
     assert snap.skills["pci-checklist"].team == "payments"
     assert snap.skills["design-review"].access_roles == {"lead"}
     assert snap.skills["write-user-story"].description.startswith("Turn a feature idea")

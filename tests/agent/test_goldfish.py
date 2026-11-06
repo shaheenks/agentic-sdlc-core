@@ -16,7 +16,7 @@ from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from sdlc_agent.goldfish import make_goldfish_review, synthesize
+from sdlc_agent.goldfish import DEFAULT_LENSES, make_goldfish_review, synthesize
 from sdlc_auth.adk import reset_request_token, set_request_token
 
 from tests.support.entra import G_ENG_ALL, G_PAYMENTS_DEVS
@@ -187,10 +187,17 @@ async def test_limits_and_bad_input(base_url, entra, model):
     assert not [s for s in model.seen if "Goldfish reviewer" in s["system"]]
 
 
-async def test_default_lenses_hidden_or_missing_are_unavailable(base_url, entra, model):
+async def test_default_lenses_need_a_viewer(base_url, entra, model):
     result = await run_elephant(base_url, model, payments_dev(entra))
+    assert [(lens["lens"], lens["status"]) for lens in result["lenses"]] == [
+        (name, "ok") for name in DEFAULT_LENSES
+    ]
+    # no sdlc groups: signed in, but no lens is visible, so no reviewer runs
+    model.seen.clear()
+    result = await run_elephant(base_url, model, entra.token(groups=[]))
     assert {lens["status"] for lens in result["lenses"]} == {"unavailable"}
-    assert len(result["lenses"]) == 4 and result["counts"] == {"blocker": 0, "major": 0, "nit": 0}
+    assert result["counts"] == {"blocker": 0, "major": 0, "nit": 0}
+    assert not [s for s in model.seen if "Goldfish reviewer" in s["system"]]
 
 
 async def test_a_reviewer_with_unusable_output_is_failed_not_fatal(base_url, entra, model):

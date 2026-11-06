@@ -19,11 +19,24 @@ async def skills_of(base_url, entra, groups) -> set[str]:
         return {s["name"] for s in (await c.call_tool("list_skills", {})).data}
 
 
+# every viewer: the Goldfish document flow and its lenses (version-03 P10)
+EGM = {
+    "egm-document-flow",
+    "lens-zoom-out",
+    "lens-comprehension",
+    "lens-design-critic",
+    "lens-implementation-readiness",
+}
+
+
 @pytest.mark.parametrize(
     ("groups", "expected"),
     [
-        ([G_ENG_ALL], {"write-user-story"}),
-        ([G_ENG_ALL, G_PAYMENTS_DEVS], {"write-user-story", "test-case-gen", "pci-checklist"}),
+        ([G_ENG_ALL], {"write-user-story"} | EGM),
+        (
+            [G_ENG_ALL, G_PAYMENTS_DEVS],
+            {"write-user-story", "test-case-gen", "pci-checklist"} | EGM,
+        ),
         (
             [G_ENG_ALL, G_PAYMENTS_LEADS],
             {
@@ -32,11 +45,12 @@ async def skills_of(base_url, entra, groups) -> set[str]:
                 "pci-checklist",
                 "design-review",
                 "ledger-design-review",
-            },
+            }
+            | EGM,
         ),
         (
             [G_ENG_ALL, G_PLATFORM_DEVS],
-            {"write-user-story", "test-case-gen", "infra-change-review"},
+            {"write-user-story", "test-case-gen", "infra-change-review"} | EGM,
         ),
         (
             [G_ENG_ALL, G_PLATFORM_ADMINS],
@@ -47,7 +61,8 @@ async def skills_of(base_url, entra, groups) -> set[str]:
                 "pci-checklist",
                 "ledger-design-review",
                 "infra-change-review",
-            },
+            }
+            | EGM,
         ),
     ],
 )

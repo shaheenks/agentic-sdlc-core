@@ -7,3 +7,10 @@ skills:
   write-user-story: { path: skills/core/write-user-story, tags: [general] }
   test-case-gen:    { path: skills/core/test-case-gen,    tags: [engineering] }
   design-review:    { path: skills/core/design-review,    tags: [engineering], access: { roles: [lead] } }
+  # Document flow with isolated Goldfish reviewers (version-03 P10). Lenses are loaded by the
+  # agent's goldfish_review tool as the user; teams can add their own lens with tag goldfish-lens.
+  egm-document-flow:             { path: skills/core/egm-document-flow,             tags: [general] }
+  lens-zoom-out:                 { path: skills/core/lens-zoom-out,                 tags: [goldfish-lens] }
+  lens-comprehension:            { path: skills/core/lens-comprehension,            tags: [goldfish-lens] }
+  lens-design-critic:            { path: skills/core/lens-design-critic,            tags: [goldfish-lens] }
+  lens-implementation-readiness: { path: skills/core/lens-implementation-readiness, tags: [goldfish-lens] }
