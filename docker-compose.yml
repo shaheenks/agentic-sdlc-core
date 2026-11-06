@@ -39,7 +39,13 @@ x-oauth2-proxy-env: &oauth2-proxy-env
   OAUTH2_PROXY_COOKIE_REFRESH: 30m      # refresh before the ~60-90 min access token expires
   OAUTH2_PROXY_COOKIE_EXPIRE: 8h
   # API calls from the dev UI get 401 instead of a login redirect when the session lapses.
-  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\b|threads\b)
+  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\b|threads\b|a2a\b)
+  # A2A clients (version-03 P4 C4) send `Authorization: Bearer <Entra token for sdlc-mcp>` instead
+  # of a session cookie. The proxy checks issuer, signature and audience (the API's client id);
+  # every upstream re-validates fully (scope, tenant). The agent card is public (no data in it).
+  OAUTH2_PROXY_SKIP_JWT_BEARER_TOKENS: "true"
+  OAUTH2_PROXY_EXTRA_JWT_ISSUERS: ${ENTRA_AUTHORITY_HOST:-https://login.microsoftonline.com}/${ENTRA_TENANT_ID:-}/v2.0=${ENTRA_API_CLIENT_ID:-}
+  OAUTH2_PROXY_SKIP_AUTH_ROUTES: GET=^/\.well-known/agent-card\.json$
 
 # Tracing (H8.3): off unless OTEL_EXPORTER_OTLP_ENDPOINT is set in .env (e.g. http://jaeger:4318 with
 # `docker compose --profile observability up -d`). Spans never carry prompts, responses, tokens or
@@ -146,6 +152,10 @@ services:
       SDLC_SESSION_RETENTION_DAYS: ${SDLC_SESSION_RETENTION_DAYS:-7}
       # AG-UI endpoint /agui for the CopilotKit app (version-01 M5); empty = off
       SDLC_AGUI_AGENT: ${SDLC_AGUI_AGENT-user_agent}
+      # A2A endpoint /a2a + agent card (version-03 P4); empty = off. The card advertises
+      # SDLC_A2A_URL, or else the URL it was requested on (localhost or the tunnel).
+      SDLC_A2A_AGENT: ${SDLC_A2A_AGENT-user_agent}
+      SDLC_A2A_URL: ${SDLC_A2A_URL:-}
       # never export prompts/responses (retrieved content can be confidential)
       ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS: "false"
       OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: "false"

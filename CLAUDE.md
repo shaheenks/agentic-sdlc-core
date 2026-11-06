@@ -215,6 +215,8 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
 - `SDLC_EVAL=1 uv run --env-file .env pytest tests/evals -s`   retrieval eval (vector vs hybrid) on the ingested dev DB, live Vertex
 - `uv run --env-file .env pytest tests/e2e`   exit-gate tests (DB + pgvector; the Stage 2 agent e2e needs `SDLC_E2E_USER_TOKEN`, see docs/misc/ENTRA_SETUP.md)
 - `uv run python scripts/mcp_whoami.py --token <entra token>`   manual identity check (see docs/misc/ENTRA_SETUP.md)
+- `uv run python scripts/a2a_client.py [--url <app>] [--context <id>] "question"`   A2A check (version-03 P4; token in `SDLC_TOKEN`);
+  `/a2a` (JSON-RPC, A2A 0.3) + public `/.well-known/agent-card.json` on the agent (`SDLC_A2A_AGENT`), bearer tokens through oauth2-proxy
 - `.\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> [-DryRun] [-WriteLocalFiles]`   idempotent Entra provisioning
   (Windows: `az` is az.cmd, so never pass inline JSON or parentheses as az args; use `--body @file`)
 - Tests never read the real `config/env/local/groups.yaml`; the `config_dir` fixture swaps in a fixed test GroupMap

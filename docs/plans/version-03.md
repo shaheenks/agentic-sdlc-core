@@ -32,6 +32,7 @@ Follows [version-02.md](version-02.md). Architecture: [../ARCHITECTURE.md](../AR
 | P8 | Connectors and sources: Atlassian Cloud live checks (incl. AG-UI gate 5 Jira part), Data Center editions (Bitbucket DC "who am I"), Cloud + DC side by side, URL elicitation, PDF OCR live check (a source with scanned PDFs), source secrets in Secret Manager (first private source), SharePoint / Office documents, GitHub App tokens, `inherit_from_source` | N2, N6 | Q3 (Atlassian site, DC instance, private sources) |
 | P9 | Quality and tooling: ADK evals in CI, retrieval ranking (re-ranker, query entities), `explain` by UPN, Antigravity OAuth sign-in + Stage 8 gate, OBO where providers support it, OPA/Cedar if rules outgrow YAML, admin UI over config | N6, version-00 Stage 8/9 | — |
 | P10 | EGM document flow: full-context agent drafts, isolated Goldfish reviewers critique, user approves (§P10) | user request 2026-11-05 | P5 F2 live check |
+| P11 | Keyword (full-text) search next to vector + graph retrieval: Postgres `tsvector` + GIN on `chunks`, fused with the vector ranking; kept only if the retrieval eval improves (§P11) | user request 2026-11-06 | Q7 |
 | — | Per-source Entra group `infra-readers` (or a real one) in the tenant | N9 | a source that needs its own group |
 | — | Gemini Enterprise registration (A2A agent + OAuth authorization) | version-02 §7 | org admin, workforce pool, licences; P4 |
 
@@ -61,8 +62,8 @@ scope (needs a GE app, workforce pool and licences; milestone row "—" above).
 | C1 | `libs/sdlc_agent/a2ui_cards.py`: tool result → v0.9 operations (`createSurface` + `updateComponents`); `after_tool_callback` attaches them for the transports, not the model | Unit tests: valid v0.9 for each covered tool (validated against the SDK's catalog models); non-`http(s)` links dropped; malformed or empty results give no surface; the model-visible tool result is unchanged | ✅ Built 2026-11-06: `a2ui_cards.py` (citations, whoami, 4 connected tools; strict validation with `STRICT_VALIDATION`, which also rejects unknown components/functions, missing fields, dangling refs and extra props; the default processor checks only the catalog id), `after_tool_callback` (drops forged `a2ui_operations` from any tool) + `before_model_callback` (copies, session keeps the cards), wired into `user_agent`; `tests/agent/test_a2ui_cards.py` 16 passed. Finding for C5: the chat renders A2UI `Text` as plain text; check how GE renders it (Markdown?) before exposing provider text there |
 | C2 | ~~Chat renders A2UI~~ → **chat keeps its compact renderers; A2UI cards made compact for A2A clients** (changed 2026-11-06) | The chat shows the collapsed identity line and the document chips with links as before; the A2UI surfaces are compact and strictly valid | ✅ 2026-11-06. Tried live: CopilotKit 1.79 knows the basic catalog only as `…/v0_9/basic_catalog.json` while `a2ui-agent-sdk` sends `…/v0_9/catalogs/basic/catalog.json` ("Catalog not found"; fixable by registering the id client-side), and the full cards were too big next to the chat's compact design, which the basic catalog cannot express (no collapsible, no chip). Decision (yours): the chat keeps its own renderers (no `a2ui` runtime option, no client catalog, no new dependency); the agent still attaches cards to tool results (ignored by the chat) for A2A clients (C3). Cards are now compact: search/graph = one caption "Sources · N docs" + a row of chips (title or file name, ×hits; a borderless `openUrl` button when linked, plain text otherwise; max 10, then "+k"); whoami = one line "Signed in as … · teams · roles · groups" + a `Modal` "Details"; connected tools keep a small card with a borderless Open |
 | C3 | A2A server: `google-adk[a2a]`, `to_a2a(...)` mounted at `/a2a` in `sdlc_web` behind the Entra middleware, a call-context builder from the verified `oid`, A2UI as `DataPart` (`application/json+a2ui`), agent card at `/.well-known/agent-card.json` | Tests (FakeEntra): no token → 401; a valid user gets an answer with the A2UI DataPart; another user's context id → refused; no token in persisted session events; client state stripped | ✅ 2026-11-06: `sdlc_web/a2a.py`, on when `SDLC_A2A_AGENT` names the agent (`SDLC_A2A_URL` = advertised URL; default the request's). **A2A 0.3** (`a2a-sdk` 0.3.x, JSON-RPC) for Gemini Enterprise; re-check in C5. Built on a2a-sdk's `A2AStarletteApplication` + ADK's `A2aAgentExecutor` (not `to_a2a`: its in-memory runner and sub-app lifespan don't fit), sharing the session store with /agui (A2A chats appear in the chat's history). Identity: call context = verified `oid`, no headers in it (the default builder would copy the token into state). Isolation: `OwnerTaskStore` (another user's task = not found, for get/cancel/resubscribe/continue), another user's or a malformed context id = "unknown context" (ids `[A-Za-z0-9_-]{1,128}`, Agent Engine's alphabet). Input: text parts only (forged function results, files, client metadata and state dropped); no push notifications. Output: A2UI cards as separate DataParts `mimeType: application/json+a2ui`, function result without them; failures answer a generic message (details logged). Card public at `/.well-known/agent-card.json` (bearer `entra` scheme, A2UI extension `https://a2ui.org/a2a-extension/a2ui/v0.9`, to re-check in C5). Tasks in memory (per instance, 5000 max). Tests `tests/web/test_a2a.py` (6, scripted agent `a2a_probe` with the real card callbacks) |
-| C4 | Local A2A access: oauth2-proxy route for `/a2a` with bearer tokens (both proxies), a small `scripts/a2a_client.py` | A local A2A client with your Entra token gets the same answer and cards as the chat; without a token 401 | waits for C3 |
-| C5 | GCP: deploy, decide exposure (U6), audit + trace checks | The same A2A call works against GCP dev; audit records carry the A2A context as `agent_session_id`; no prompt content in Cloud Trace | waits for C4 |
+| C4 | Local A2A access: oauth2-proxy route for `/a2a` with bearer tokens (both proxies), a small `scripts/a2a_client.py` | A local A2A client with your Entra token gets the same answer and cards as the chat; without a token 401 | ✅ 2026-11-06: both oauth2-proxies accept `Authorization: Bearer` (`SKIP_JWT_BEARER_TOKENS`, `EXTRA_JWT_ISSUERS` = the tenant v2 issuer with the sdlc-mcp client id as audience; the agent re-validates scope and tenant), `/a2a` is an API route (401, no login redirect), the card route skips auth; compose sets `SDLC_A2A_AGENT=user_agent` (card URL from the request: localhost and the tunnel each advertise their own). Checked: card 200 on both; no token / a bad token = 401 on both. `scripts/a2a_client.py` (answer, tools, A2UI card texts and links, contextId). Note: bearer tokens now pass the proxy for every upstream (all re-validate, as `/mcp` already accepts them directly). Live check (user, 2026-11-06): a test user's token gets the answer and cards on localhost and the tunnel; chat sign-in unchanged |
+| C5 | GCP: deploy, decide exposure (U6), audit + trace checks | The same A2A call works against GCP dev; audit records carry the A2A context as `agent_session_id`; no prompt content in Cloud Trace | next |
 
 ## P5 — Artifacts (from pending task 3)
 
@@ -145,6 +146,41 @@ scope (needs a GE app, workforce pool and licences; milestone row "—" above).
 | G2 | Flow + lens skills, `skills.yaml`, viewer grant, `skill_rows` | `sdlc-config validate` + `diff` reviewed; policy/config tests pass | waits for G1 |
 | G3 | `user_agent` tool + instruction; chat card for `goldfish_review` | Live on localhost and the tunnel: brainstorm → draft → gate → review card → resolve → both artifacts download; lens `skill_access` audit records carry the chat's `agent_session_id`; a user with no groups sees no flow or lenses | waits for G2 |
 
+## P11 — Keyword (full-text) search (proposal, asked 2026-11-06)
+
+**Why:** retrieval today is cosine similarity (pgvector HNSW, `search_knowledge`) plus the knowledge graph
+(recursive walk over `entities` / `edges`, `graph_query`). The eval's "hybrid" is vector + graph. Nothing matches
+exact tokens, and embeddings are weak on them: Jira keys (`PAY-1234`), error codes, config keys, function and file
+names. The only keyword-like step is matching entity names found in the question when picking graph starting points.
+Cloud SQL Postgres 17 has full-text search built in (no extension), so this needs no new infrastructure.
+
+**Design (to confirm, Q7):**
+- **Migration 007:** `chunks.content_tsv tsvector GENERATED ALWAYS AS (to_tsvector('simple', coalesce(heading, '') || ' ' || content)) STORED`
+  + GIN index. `simple` (no stemming, no stop words) keeps identifiers intact; `english` stemming is the
+  alternative for prose (Q7). Ingest needs no change (generated column); RLS policies and grants are unchanged
+  (same table, same rows). Adding the column rewrites `chunks` once (the dev indexes are small).
+- **Query:** `websearch_to_tsquery('simple', query)` ranked by `ts_rank_cd`, run under `sdlc_db.scoped()` like the
+  vector query. Identifier-friendly normalization of the query (keep `PAY-1234`, `snake_case`, dotted names as
+  whole tokens as well as their parts) lives in `sdlc_db`, with unit tests.
+- **Fusion:** reciprocal rank fusion (RRF, k = 60) of the vector and keyword rankings in `search_knowledge`;
+  `graph_query` uses the fused list as its candidate set (graph starting points then also come from keyword hits).
+  Results gain `via: "keyword"` / `"vector"` / `"both"` (and `"graph"` as today).
+- **Optional, only if the eval shows a need:** `pg_trgm` for fuzzy / partial identifier matches (allowed on Cloud SQL;
+  `sdlc-db bootstrap` creates the extension; no superuser needed).
+- **No new tool and no new argument** at first, so no `tools.yaml` or persona-matrix changes. A `mode` argument
+  (vector | keyword | hybrid) comes later only if users need to choose, and then with `tools.yaml` `args`.
+- **Eval:** add exact-token questions to `tests/evals/retrieval_questions.yaml` (keys, error codes, config
+  names from the sample sources) and variants `vector+fts` and `hybrid+fts` to `tests/evals/`; same metric as the
+  version-02 runs, local and GCP.
+
+**Milestones:**
+
+| # | Scope | Exit gate | Status |
+|---|---|---|---|
+| K1 | Migration 007 + keyword query + RRF in `sdlc_db`, wired into `search_knowledge` and `graph_query` | `tests/db`: keyword hits only from readable sources (RLS: another team's chunk never matches), exact-token query finds its chunk where vector-only misses, fusion order is deterministic; CI passes without `.env` (HashEmbedder) | proposed |
+| K2 | Eval: exact-token questions + `vector+fts` / `hybrid+fts` variants | On the ingested dev DB (local, then GCP after `-Step db`): fused ≥ the current best variant overall, and better on the exact-token questions; otherwise K1 is reverted or left off | proposed |
+| K3 | (only if K2 shows misses on partial identifiers) `pg_trgm` similarity as a third ranking | K2 eval improves again; bootstrap still passes on Cloud SQL | not planned |
+
 ## Open questions
 
 | # | Question | Needed for |
@@ -155,6 +191,7 @@ scope (needs a GE app, workforce pool and licences; milestone row "—" above).
 | Q4 | ~~Artifacts: first use cases, storage, retention, sharing scope~~ answered 2026-11-05 (§P5 A1–A5) | P5 |
 | Q5 | Agent runtimes: trigger sources (GitHub Actions, Bitbucket Pipelines, Cloud Monitoring, webhooks), report channels. Option raised 2026-11-05: try `ci_agent` / `ops_agent` first as dev-only folders in the existing ADK web app (they run as the signed-in user, so this tests prompts, skills and report format, not workload identity or triggers) | P6, P7 |
 | Q6 | Write tools: which first, and the approval model (per call, per session, per team policy) | P7 |
+| Q7 | Keyword search: priority against P4 / P1; text-search configuration (`simple` for identifiers vs `english` stemming, or both columns); does `graph_query` also take keyword hits as starting points | P11 |
 
 ## Rules that carry over
 
