@@ -33,6 +33,8 @@ def create_app(
     agui_agent: str | None = None,
     allow_origins: list[str] | None = None,
     trace_to_cloud: bool = False,
+    a2a_agent: str | None = None,
+    a2a_url: str | None = None,
 ):
     # Explicit session store: memory:// by default; docker compose persists conversations in
     # sqlite:////data/sessions.db on a volume only this container mounts (agents get no DB
@@ -67,14 +69,29 @@ def create_app(
         return RedirectResponse("/chat/", status_code=307)
 
     agui_path = None
+    sessions = None
+    public_paths = {"/healthz"}
+    if agui_agent or a2a_agent:
+        from sdlc_web.agui import session_service
+
+        sessions = session_service(agents_dir, session_service_uri)
     if agui_agent:  # version-01 M5: the CopilotKit web app talks AG-UI to this agent
         from sdlc_web.agui import AGUI_PATH, mount_agui
 
-        mount_agui(adk_app, agents_dir, agui_agent, session_service_uri)
+        mount_agui(adk_app, agents_dir, agui_agent, session_service_uri, sessions=sessions)
         agui_path = AGUI_PATH
+    if a2a_agent:  # version-03 P4 C3: the same agent over A2A (JSON-RPC at /a2a)
+        from google.adk.cli.utils.agent_loader import AgentLoader
+
+        from sdlc_web.a2a import CARD_PATH, mount_a2a
+
+        agent = AgentLoader(str(agents_dir)).load_agent(a2a_agent)
+        mount_a2a(adk_app, agent, a2a_agent, sessions, public_url=a2a_url)
+        public_paths.add(CARD_PATH)  # the card describes the agent; calls still need a token
     return EntraUserBindingMiddleware(
         adk_app,
         verifier,
+        public_paths=frozenset(public_paths),
         dev_tools=dev_tools,
         agui_path=agui_path,
         # with the chat app on, "/" (and so the landing page after sign-in) is the chat app
@@ -125,6 +142,10 @@ def main() -> None:
             o.strip() for o in os.environ.get("SDLC_ALLOWED_ORIGINS", "").split(",") if o.strip()
         ],
         trace_to_cloud=os.environ.get("SDLC_TRACE_TO_CLOUD", "").lower() == "true",
+        # A2A endpoint (/a2a) for A2A clients; off unless an agent is named. SDLC_A2A_URL is the
+        # advertised public /a2a URL (default: the URL the card was requested on).
+        a2a_agent=os.environ.get("SDLC_A2A_AGENT") or None,
+        a2a_url=os.environ.get("SDLC_A2A_URL") or None,
     )
     log.info("serving agents from %s on %s:%s (Entra user binding on)", agents_dir, host, port)
     uvicorn.run(app, host=host, port=port, proxy_headers=True, forwarded_allow_ips="*")

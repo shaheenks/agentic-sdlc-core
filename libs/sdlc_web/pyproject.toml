@@ -5,10 +5,12 @@ description = "Serves ADK agents (adk web) behind oauth2-proxy with Entra user b
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "ag-ui-adk>=0.11.0",
-    "google-adk[mcp]>=2.10",
+    "a2a-sdk[http-server]>=0.3.4,<0.4",  # A2A 0.3 (JSON-RPC), version-03 P4 C3
+    "google-adk[mcp,a2a]>=2.10",
     "google-cloud-aiplatform>=1.148.1,<2",  # Agent Engine sessions on GCP; same range as google-adk[gcp]
     "opentelemetry-exporter-gcp-trace>=1.9",  # Cloud Trace on GCP (SDLC_TRACE_TO_CLOUD, N4)
     "opentelemetry-exporter-otlp-proto-http>=1.42.1",
+    "sdlc-agent",  # A2UI cards leave A2A as DataParts (a2a.py)
     "sdlc-auth[server]",
     "uvicorn>=0.30",
 ]
