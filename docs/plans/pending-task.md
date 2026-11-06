@@ -5,14 +5,16 @@ current plan ([version-02.md](version-02.md)) or a new numbered plan.
 
 | # | Task | Waits for | Recorded |
 |---|---|---|---|
-| 1 | [Agent runtimes: user, CI and ops agents](#task-1--agent-runtimes-user-ci-and-ops-agents) | Trigger sources decided | 2026-11-03 |
+| 1 | [Agent runtimes: user, CI and ops agents](#task-1--agent-runtimes-user-ci-and-ops-agents) | **Moved to version-03 P6** (2026-11-06: trigger sources decided, event intake designed) | 2026-11-03 |
 | 2 | [Re-ingest and remove data of dropped sources](#task-2--re-ingest-and-remove-data-of-dropped-sources) | **Done 2026-11-05** (re-ingest local + GCP at `7a5e4df`, eval passed) | 2026-11-03 |
 | 3 | [Agent-generated artifacts: storage and access](#task-3--agent-generated-artifacts-storage-and-access) | **Moved to version-03 P5** (2026-11-05: decisions A1–A5, build started) | 2026-11-04 |
 
 ## Task 1 — Agent runtimes: user, CI and ops agents
 
-**Status:** pending, not scheduled (recorded 2026-11-03). Nothing here is built. Revisit when the trigger sources are
-decided; then move it into a numbered plan (version-03) with milestones and exit gates.
+**Status:** moved to [version-03.md §P6](version-03.md#p6--agent-runtimes-and-event-intake-from-pending-task-1-proposal-intake-designed-2026-11-06)
+(2026-11-06): trigger sources decided (Bitbucket Cloud + DC, GCP Cloud Monitoring), event intake designed (one
+gateway → Pub/Sub → per-runtime push subscriptions), milestones A1 + E1–E6 there. §5 (triggers) and §6 (execution
+model) below are superseded by §P6; the rest of this design still applies. Nothing is built.
 
 Related: [version-02.md](version-02.md) (current plan; write tools = decision D5), [../ARCHITECTURE.md](../ARCHITECTURE.md)
 §4–5 (request flow, identity model).

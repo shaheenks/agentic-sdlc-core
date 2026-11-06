@@ -27,7 +27,7 @@ Follows [version-02.md](version-02.md). Architecture: [../ARCHITECTURE.md](../AR
 | P3 | Operations: custom hostnames + managed certificates (drop the `*.run.app` exception), CI deploy stages (build → plan → apply with approval), Cloud SQL private IP, scale out `sdlc-app`, shared rate-limit store (if `sdlc-mcp` > 1 instance), log-based metrics + alerts on audit events, Secret Manager data-access logs | N5, N4, SECRETS_REVIEW §6 | P1 for staging parts |
 | P4 | A2UI citation cards in `/chat/` + A2A endpoint (§P4, ✅ done 2026-11-06: C1–C5, live on GCP dev) | N7 spike (version-02 §10 "Spike findings") | U1–U6 confirmed |
 | P5 | Artifacts: store, list and download agent-generated files under RBAC | pending task 3 | Q4 (use cases, storage) |
-| P6 | Agent runtimes: `ci_agent`, `ops_agent` with workload identity, read + report back | pending task 1, D7 | Q5 (trigger sources, report channels) |
+| P6 | Agent runtimes: `ci_agent`, `ops_agent` with workload identity, read + report back; event intake through one gateway + Pub/Sub (§P6, intake designed 2026-11-06) | pending task 1, D7 | Q5 (ops report channel; runtime layout), Q3 (Bitbucket DC instance) |
 | P7 | Write tools on behalf of the user (create issue, comment, PR) with UI confirmation | N6, D5 | P6 decisions (approval gates) |
 | P8 | Connectors and sources: Atlassian Cloud live checks (incl. AG-UI gate 5 Jira part), Data Center editions (Bitbucket DC "who am I"), Cloud + DC side by side, URL elicitation, PDF OCR live check (a source with scanned PDFs), source secrets in Secret Manager (first private source), SharePoint / Office documents, GitHub App tokens, `inherit_from_source` | N2, N6 | Q3 (Atlassian site, DC instance, private sources) |
 | P9 | Quality and tooling: ADK evals in CI, retrieval ranking (re-ranker, query entities), `explain` by UPN, Antigravity OAuth sign-in + Stage 8 gate, OBO where providers support it, OPA/Cedar if rules outgrow YAML, admin UI over config | N6, version-00 Stage 8/9 | — |
@@ -111,6 +111,112 @@ scope (needs a GE app, workforce pool and licences; milestone row "—" above).
 | F3 | Team sharing + classification inheritance | later (A3) | not planned |
 | F4 | GCP: MCP service account gets `objectUser` on the artifact bucket (the agent's grant is removed), `SDLC_ARTIFACT_STORE` on `sdlc-mcp`, proxy routes; Terraform run by the user | F1/F2 gates on GCP dev | 🔨 Built 2026-11-05 (not applied): bucket grant moved from `sdlc-app` to `sdlc-mcp` (`artifact_store_mcp`; the plan shows the old `artifact_store_agent` member destroyed), `SDLC_ARTIFACT_STORE` + `SDLC_ARTIFACT_RETENTION_DAYS` on `sdlc-mcp`, proxy upstream `/artifacts/`. Your steps: `-Step images`, `plan`, `apply`, then `-Step db` (migrations 005 + 006) right after, **and `-Step config`** (the artifact tools are new in `tools.yaml` / `roles.yaml`; without a new bundle the panel answers 403). 2026-11-06: images/plan/apply/db done and checked (005 + 006 applied, `artifacts on (gcs store, 7.0 days)`, bucket `objectUser` only for `sdlc-mcp`); first try failed with 403 because the bundle was still `44ba0b4` → `-Step config`. **Done 2026-11-06:** bundle `1a1df4a`, audit create v1 → download → read → update v2 → download (all `ok`), two objects under `artifacts/<oid>/` in the bucket, no MCP errors |
 
+## P6 — Agent runtimes and event intake (from pending task 1; proposal, intake designed 2026-11-06)
+
+Base design (runtimes, workload identity, read + report back, guardrails): [pending-task.md](pending-task.md) task 1,
+still valid. This section adds **how events reach the runtimes**: CI events (Bitbucket first), ops events (GCP alerts)
+and signals from other agents. Nothing is built.
+
+**Decisions (2026-11-06):**
+
+| # | Decision |
+|---|---|
+| R1 | First sources: **Bitbucket Cloud + Data Center** (webhooks) and **GCP Cloud Monitoring alerts**. GitHub and generic HMAC webhooks (Alertmanager, PagerDuty) come later as adapters on the same gateway |
+| R2 | **One common event gateway** for every source: the only public intake; verifies the caller, matches a `Trigger`, normalises, publishes |
+| R3 | **Event bus = Pub/Sub, envelope = CloudEvents 1.0.** One topic per env, one push subscription per runtime, routed by attribute filters |
+| R4 | Agent-to-agent: **notifications on the bus** (`sdlc.agent.*` events, fan-out), **requests over A2A** (needs an answer; the A2A endpoint is live from P4) |
+| R5 | Runtimes accept **only Pub/Sub push** from their own subscription, never raw webhooks; they have no DB credentials, so dedupe + run records go through the MCP server |
+
+**Flow:**
+
+```
+Bitbucket Cloud webhook       ┐
+Bitbucket DC webhook          ┤  POST /events/<adapter>
+(later: GitHub, generic HMAC) ┘        │
+                                       ▼
+                        event-gateway (Cloud Run, public)            GCP Cloud Monitoring
+                         1 verify caller (per adapter)                 └─ Pub/Sub notification channel
+                         2 match a Trigger (config/triggers/)               → topic alerts-raw-<env>
+                         3 normalise → CloudEvent (size-capped)              → push (OIDC) to gateway
+                         4 rate-limit, set routing attributes
+                         5 publish; 202 + event id
+                                       │
+                                       ▼
+                   Pub/Sub topic  sdlc-events-<env>   (CloudEvents 1.0; attributes: type, source,
+                   target_agent, team, dedupe_key, hop_count; ordering key = PR / incident)
+                    │                     │                          ▲
+        sub ci-agent (filter              sub ops-agent (filter       │ agents publish
+        target_agent="ci_agent")          target_agent="ops_agent")   │ sdlc.agent.* notifications
+                    │ push + OIDC          │ push + OIDC               │ (their own service account)
+                    ▼                      ▼                           │
+           ci runtime (Cloud Run)   ops runtime (Cloud Run) ───────────┘
+            verify push token → claim_event (MCP, dedupe) → agent run (app-only Entra token → MCP)
+            → report back → ack.  Failure: retry with backoff → dead-letter topic after N tries
+```
+
+**Design:**
+- **Gateway** (new component `event_gateway/`, Cloud Run, public; shared code in `libs/sdlc_events`): holds the adapter
+  secrets (references through `sdlc_secrets`), checks callers (table below), matches a `Trigger`, rate-limits per
+  Trigger, publishes, answers `202` + event id. It holds only `pubsub.publisher` on the events topic. Unknown or
+  disabled Triggers and bad signatures answer 401/404 and are audited (`event_intake`, no payload).
+- **Envelope:** CloudEvents 1.0. `type` e.g. `sdlc.ci.pull_request.opened`, `sdlc.ci.build.failed`,
+  `sdlc.ops.alert.opened` / `.closed`, `sdlc.agent.finding`; `source` (adapter + repo / service), `subject` (PR,
+  commit, incident), `data` = a size-capped summary + links, never the full payload. Payload text is **untrusted
+  data** (prompt injection): handed to the agent as data, never used verbatim as tool arguments.
+- **Routing is config:** new config kind `Trigger` (`config/triggers/<id>.yaml`, as sketched in pending task 1 §5):
+  adapter, accepted callers (workspace / project / repo; monitoring project), target agent, team, report channel,
+  rate limit, dedupe window, `enabled`. The gateway sets `target_agent` / `team` from the matched Trigger; Terraform
+  owns one subscription per runtime with a fixed filter. **New exception to "only MCP servers and ingest read config":**
+  the gateway reads the `Trigger` kind only, through `ConfigStore.current()`.
+- **Ordering and bursts:** ordering key per PR / incident (never two runs on the same PR at once); Pub/Sub retries with
+  backoff, a dead-letter topic after N attempts, replay by seek.
+- **Idempotency:** dedupe key = the adapter's delivery id (table) within the Trigger's window. The runtime calls a new
+  MCP tool `claim_event(event_id, dedupe_key)` (service roles only) → `sdlc.agent_runs` (RLS by service principal oid,
+  status / timings / outcome); a second delivery answers "already handled" and is acked without a run. Audited.
+- **Run bounds:** push ack deadline is ≤ 600 s, so each run has a timeout below it, a tool-call cap and a token budget.
+  Longer runs later: ack after the claim and hand off to a Cloud Run Job execution (not needed for read + report back).
+- **Agent signals:** an agent publishes `sdlc.agent.*` with its own service account (topic IAM decides who may
+  publish); `hop_count` is incremented and events above a limit are dropped; a runtime never consumes events whose
+  `source` is itself. Requests that need an answer use A2A with the caller's own app-only token.
+- **Identity** (unchanged from pending task 1 §4, milestone A1): app-only Entra tokens with an allowed app role, never
+  a user token; the reporter uses a **reporting-only service credential**.
+- **Local:** Pub/Sub emulator in docker compose (profile `autonomous`, not started by `up`), same client code; the
+  gateway reachable through the Cloudflare tunnel for Bitbucket Cloud webhooks (hostname
+  `events-sdlc-dev.shaheenks.co.in`, to be added in the Cloudflare dashboard).
+
+**First adapters:**
+
+| Adapter | Caller check | Dedupe key | First events | Report back |
+|---|---|---|---|---|
+| `bitbucket-cloud` | Webhook secret: `X-Hub-Signature` HMAC-SHA256 over the raw body (constant-time compare); workspace + repo matched against the Trigger. Later, optionally: Pipelines OIDC for pipeline-initiated calls | `X-Request-UUID` | `X-Event-Key` `pullrequest:created` / `pullrequest:updated`, `repo:commit_status_updated` (failed build) | Code Insights report on the commit (+ PR comment), via a repository access token (`pullrequest:write`) through `sdlc_secrets`; `api.bitbucket.org` in `allowed_hosts` |
+| `bitbucket-dc` | Webhook secret: `X-Hub-Signature` HMAC-SHA256; project + repo matched. The DC instance must reach the gateway's public URL | `X-Request-Id` | `pr:opened`, `pr:from_ref_updated`, build status | Code Insights report / PR comment via a project or repo HTTP access token (`sdlc_secrets`); DC host in `allowed_hosts` |
+| `gcp-monitoring` | No public webhook: alert policy → Pub/Sub notification channel → `alerts-raw-<env>` (publisher = Monitoring's notification service agent) → authenticated push to the gateway (Google-signed OIDC token of the push service account, audience checked) | `incident.incident_id` + `incident.state` | `open` / `closed` incidents (policy, resource, summary) | Open (Q5): the API has no incident annotation, so a channel message (Google Chat / Teams / email) |
+
+Both Bitbucket editions share one normaliser. `sdlc_connectors/providers.py` already knows the Cloud vs Data Center
+base URLs and auth styles (user connections); the reporter reuses that for its service credential, not the per-user
+PAT path. Remote calls go through `sdlc_connectors.http.HttpClient` (host allowlist). Live DC checks need the instance
+from Q3.
+
+**Alternatives not chosen:** direct webhook → runtime (no buffering or retries, every runtime public, secrets
+everywhere); Cloud Tasks (point-to-point: no fan-out or filters for agent notifications); Eventarc (no Bitbucket or
+GitHub sources; one more layer over Pub/Sub without benefit here).
+
+**Milestones:**
+
+| # | Scope | Exit gate | Status |
+|---|---|---|---|
+| A1 | Identity (pending task 1 §10 A1): MCP verifier accepts allowed app-only tokens, `Principal.kind`, app-role bindings, `service_header_provider`, personas `ci-agent` / `ops-agent` | An app-only test token gets exactly the ci-agent role's tools and sources; an app token without an allowed role gets 401 | proposed |
+| E1 | `libs/sdlc_events` (CloudEvent model, adapter verifiers, normaliser, publisher with emulator + Pub/Sub backends) + `Trigger` config kind (schema, `_KINDS`, CODEOWNERS rule, tests) | Unit tests: valid and forged Bitbucket Cloud / DC signatures, Trigger matching (wrong repo = rejected), size caps, `sdlc-config validate` on example Triggers; CI passes without `.env` | proposed |
+| E2 | `event_gateway` component + `bitbucket-cloud` / `bitbucket-dc` adapters; compose profile `autonomous` with the Pub/Sub emulator; tunnel hostname | A real Bitbucket Cloud webhook through the tunnel lands on the emulator topic as one CloudEvent; a forged signature gets 401 and is audited; a disabled Trigger publishes nothing | proposed |
+| E3 | Runtime consumer in `libs/sdlc_runner` (push verification, run bounds, dead-letter handling), MCP tool `claim_event` + migration `agent_runs` (RLS, `tests/db`, tools.yaml + persona rows), `ci_agent` with Code Insights / PR-comment report back | A PR on a test repo gets one report; a redelivered event produces no second report; an injected PR description does not change tool use; audit shows gateway → run → tool calls → report with one run id | proposed |
+| E4 | `gcp-monitoring` adapter (notification channel → `alerts-raw` → gateway) + `ops_agent`; report channel per Q5 | A test alert (open, then closed) produces one message per state; duplicates are dropped | proposed |
+| E5 | Agent notifications on the bus (`sdlc.agent.*`, hop limit, no self-consumption); agent requests over A2A with app-only tokens | An `ops_agent` finding reaches a subscribed agent once; a loop stops at the hop limit; an A2A request from `ci_agent` is authorized as `ci-agent`, not as a user | proposed |
+| E6 | GCP: topics, subscriptions (filters, ordering, dead letter), push service accounts, gateway + runtime services, notification channel; Terraform run by the user | E2–E5 gates on GCP dev | proposed |
+
+**Rules (proposed for CLAUDE.md when E1 starts):** the gateway is the only public intake for events; runtimes accept
+only Pub/Sub push from their own subscription; event payloads are untrusted data; the gateway reads only the
+`Trigger` config kind; runtimes never get DB credentials or user tokens.
+
 ## P10 — EGM document flow (Elephant-Goldfish Model, https://egm.dev/)
 
 **Decisions (2026-11-05):**
@@ -189,7 +295,7 @@ Cloud SQL Postgres 17 has full-text search built in (no extension), so this need
 | Q2 | Order of P1–P9; what "done" means for version-03 | all |
 | Q3 | Atlassian Cloud site and a Data Center instance for live checks? Which private repos / sources? | P8 |
 | Q4 | ~~Artifacts: first use cases, storage, retention, sharing scope~~ answered 2026-11-05 (§P5 A1–A5) | P5 |
-| Q5 | Agent runtimes: trigger sources (GitHub Actions, Bitbucket Pipelines, Cloud Monitoring, webhooks), report channels. Option raised 2026-11-05: try `ci_agent` / `ops_agent` first as dev-only folders in the existing ADK web app (they run as the signed-in user, so this tests prompts, skills and report format, not workload identity or triggers) | P6, P7 |
+| Q5 | Agent runtimes: ~~trigger sources~~ (answered 2026-11-06, §P6 R1: Bitbucket Cloud + DC, GCP Cloud Monitoring; GitHub later), report channels (CI: Code Insights + PR comment proposed; ops: Google Chat / Teams / email?), one runtime service or one per agent. Option raised 2026-11-05: try `ci_agent` / `ops_agent` first as dev-only folders in the existing ADK web app (they run as the signed-in user, so this tests prompts, skills and report format, not workload identity or triggers) | P6, P7 |
 | Q6 | Write tools: which first, and the approval model (per call, per session, per team policy) | P7 |
 | Q7 | Keyword search: priority against P4 / P1; text-search configuration (`simple` for identifiers vs `english` stemming, or both columns); does `graph_query` also take keyword hits as starting points | P11 |
 
