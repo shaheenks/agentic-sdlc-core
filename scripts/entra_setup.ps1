@@ -7,7 +7,9 @@
 .DESCRIPTION
   Creates or updates:
     - app sdlc-mcp (API): identifier URI, access_as_user scope, v2 tokens, groups claim,
-      Azure CLI pre-authorized (dev testing), assignment required
+      app roles ($AppRoles, version-03 P2 E1), Azure CLI pre-authorized (dev testing),
+      assignment required
+    - optional: app roles for -AppRoleUser (default SDLC.User + SDLC.Payments.Developer)
     - security groups sdlc-eng-all, sdlc-payments-devs, sdlc-payments-leads,
       sdlc-platform-devs, sdlc-platform-admins
     - memberships: user A = eng-all + payments-devs, user B = eng-all + platform-devs
@@ -23,6 +25,7 @@
   az login --tenant <tenant> --allow-no-subscriptions
   .\scripts\entra_setup.ps1 -TestUserA ad.paul@contoso.onmicrosoft.com -TestUserB ad.b@contoso.onmicrosoft.com -DryRun
   .\scripts\entra_setup.ps1 -TestUserA ... -TestUserB ... -AdminUser <upn> -NewClientSecret -WriteLocalFiles
+  .\scripts\entra_setup.ps1 -TestUserA ... -TestUserB ... -AppRoleUser <upn> -AppRoleUserRoles SDLC.User,SDLC.Platform.Developer
 #>
 [CmdletBinding()]
 param(
@@ -35,7 +38,10 @@ param(
     [switch]$NewClientSecret,   # create a new sdlc-client secret (printed once / written to .env)
     [switch]$WriteLocalFiles,   # update .env and config/env/local/groups.yaml with the real IDs
     [switch]$DryRun,            # read-only: print planned changes, modify nothing
-    [switch]$NoAzCliPreAuth     # prod/enterprise: no Azure CLI pre-authorization (removes it if present)
+    [switch]$NoAzCliPreAuth,    # prod/enterprise: no Azure CLI pre-authorization (removes it if present)
+    # app roles (version-03 P2 E1): optional user who gets app roles assigned (no groups needed)
+    [string]$AppRoleUser = '',
+    [string[]]$AppRoleUserRoles = @('SDLC.User', 'SDLC.Payments.Developer')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -55,6 +61,21 @@ $Memberships = @(
     @{ User = $TestUserB; Groups = @('eng-all', 'platform-devs') }
 )
 if ($AdminUser) { $Memberships += @{ User = $AdminUser; Groups = @('eng-all', 'platform-admins') } }
+# App roles on sdlc-mcp (version-03 P2 E1): value = description. They appear in the access
+# token's `roles` claim (never cut by group overage). config/ grants them as `app_role: <value>`;
+# tests/policy/test_app_roles.py checks that both lists match. Roles are only added or updated
+# here, never removed (Entra needs a role disabled before it can be deleted: do that by hand).
+$AppRoles = [ordered]@{
+    'SDLC.User'               = 'SDLC viewer: knowledge search, skills, own artifacts (as group eng-all)'
+    'SDLC.Admin'              = 'SDLC admin: every tool and skill (as group platform-admins)'
+    'SDLC.Payments.Developer' = 'Payments team developer (as group payments-devs)'
+    'SDLC.Payments.Lead'      = 'Payments team lead (as group payments-leads)'
+    'SDLC.Platform.Developer' = 'SDLC platform team developer'
+    'SDLC.Platform.Lead'      = 'SDLC platform team lead'
+}
+foreach ($r in $AppRoleUserRoles) {
+    if (-not $AppRoles.Contains($r)) { throw "unknown app role $r (defined: $($AppRoles.Keys -join ', '))" }
+}
 
 # ---------------------------------------------------------------- helpers
 function Invoke-Az {
@@ -183,7 +204,34 @@ Invoke-Change $preAuthDescription {
     Invoke-Graph PATCH "/applications/$($api.id)" @{ api = $apiSettings } | Out-Null
 } | Out-Null
 
-# 1d. service principal with assignment required
+# 1d. app roles (version-03 P2 E1): keep existing ids, add missing roles, leave other roles alone.
+#     allowedMemberTypes User = users and (P1/P2 tenants) groups can be assigned.
+$currentRoles = @(if ($api) { $api.appRoles } else { @() })
+$AppRoleIds = @{}
+$desiredRoles = @()
+$roleChanges = @()
+foreach ($value in $AppRoles.Keys) {
+    $existing = $currentRoles | Where-Object { $_.value -eq $value } | Select-Object -First 1
+    $id = if ($existing) { $existing.id } else { [guid]::NewGuid().ToString() }
+    $AppRoleIds[$value] = $id
+    $desiredRoles += @{
+        id = $id; value = $value; displayName = $value; description = $AppRoles[$value]
+        allowedMemberTypes = @('User'); isEnabled = $true
+    }
+    if (-not $existing) { $roleChanges += "add $value" }
+    elseif ($existing.description -ne $AppRoles[$value] -or -not $existing.isEnabled) { $roleChanges += "update $value" }
+}
+$otherRoles = @($currentRoles | Where-Object { -not $AppRoles.Contains([string]$_.value) })
+if ($roleChanges.Count -eq 0) {
+    Write-Host "  app roles ok: $($AppRoles.Keys -join ', ')"
+} else {
+    Invoke-Change "app roles on sdlc-mcp: $($roleChanges -join ', ')" {
+        Invoke-Graph PATCH "/applications/$($api.id)" @{ appRoles = @($otherRoles) + @($desiredRoles) } | Out-Null
+    } | Out-Null
+}
+if ($otherRoles.Count) { Write-Host "  other app roles kept: $(@($otherRoles | ForEach-Object { $_.value }) -join ', ')" }
+
+# 1e. service principal with assignment required
 $apiSp = if ($api) { Get-Single (Invoke-AzJson ad sp list --filter "appId eq '$apiAppId'") 'sdlc-mcp service principal' } else { $null }
 if (-not $apiSp) {
     $apiSp = Invoke-Change 'create service principal for sdlc-mcp' { Invoke-AzJson ad sp create --id $apiAppId }
@@ -235,6 +283,25 @@ foreach ($principalId in $toAssign) {
             principalId = $principalId; resourceId = $apiSp.id; appRoleId = $DefaultAccessRole
         } | Out-Null
     } | Out-Null
+}
+
+# 2b. app role assignments (version-03 P2 E1): a user with app roles only, no sdlc groups.
+#     Only adds; remove an assignment in the portal (Enterprise apps > sdlc-mcp > Users and groups).
+if ($AppRoleUser) {
+    $roleUser = Invoke-AzJson ad user show --id $AppRoleUser
+    $userAssignments = if ($apiSp) {
+        @((Invoke-Graph GET "/servicePrincipals/$($apiSp.id)/appRoleAssignedTo").value |
+            Where-Object { $_.principalId -eq $roleUser.id } | ForEach-Object { $_.appRoleId })
+    } else { @() }
+    foreach ($value in $AppRoleUserRoles) {
+        $roleId = $AppRoleIds[$value]
+        if ($userAssignments -contains $roleId) { Write-Host "  $AppRoleUser has $value : ok"; continue }
+        Invoke-Change "assign app role $value to $AppRoleUser" {
+            Invoke-Graph POST "/servicePrincipals/$($apiSp.id)/appRoleAssignedTo" @{
+                principalId = $roleUser.id; resourceId = $apiSp.id; appRoleId = $roleId
+            } | Out-Null
+        } | Out-Null
+    }
 }
 
 # ---------------------------------------------------------------- 3. client app: sdlc-client

@@ -9,6 +9,10 @@ membership:
     roles: [developer]
   - group: payments-leads
     roles: [lead]
+  - app_role: SDLC.Payments.Developer   # app roles: no group overage (version-03 P2 E1)
+    roles: [developer]
+  - app_role: SDLC.Payments.Lead
+    roles: [lead]
 policy:
   tools:
     deny: []                         # team-level denies (deny always wins)

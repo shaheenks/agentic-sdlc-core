@@ -3,7 +3,7 @@
 Fixture-only additions (see make_config_dir): the sdlc-platform team gets a group membership
 (`platform-devs` -> developer) and a local `platform-infra` source, so tests have a second
 group-based team with its own local data. The real sdlc-platform team has members only from
-users.yaml and reads its code from GitHub (tests/config/test_repo_teams.py pins that).
+app roles and users.yaml and reads its code from GitHub (tests/config/test_repo_teams.py pins that).
 The repo's gcs sources read their copies in tests/fixtures/sample_sources instead
 (use_sample_folders); make_config_dir copies that folder to <tmp>/sample_sources."""
 
@@ -45,7 +45,8 @@ users:
 # Fixture-only (not in the repo config): group members for sdlc-platform and its local source.
 TEST_PLATFORM_MEMBERSHIP = """membership:
   - group: platform-devs
-    roles: [developer]"""
+    roles: [developer]
+"""
 TEST_PLATFORM_INFRA = """apiVersion: sdlc/v1
 kind: Source
 metadata:
@@ -100,7 +101,7 @@ def make_config_dir(tmp_path: Path) -> Path:
     (dst / "env" / "local" / "users.yaml").write_text(TEST_USERS_YAML, encoding="utf-8")
     team = dst / "teams" / "sdlc-platform.yaml"
     team.write_text(
-        team.read_text(encoding="utf-8").replace("membership: []", TEST_PLATFORM_MEMBERSHIP),
+        team.read_text(encoding="utf-8").replace("membership:\n", TEST_PLATFORM_MEMBERSHIP, 1),
         encoding="utf-8",
     )
     (dst / "sources" / "platform-infra.yaml").write_text(TEST_PLATFORM_INFRA, encoding="utf-8")

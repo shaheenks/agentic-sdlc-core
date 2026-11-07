@@ -75,9 +75,12 @@ Add new components as siblings instead of growing a starter indefinitely. Shared
   the confirmed brief locks it (`set_active_team` → session state `sdlc_active_team`, checked with
   `get_agent_context(team=)` as the user; clients can never set `sdlc_` state keys). `resolve_team` sees only the
   caller's own teams; users.yaml `default_team` is a fallback, applied only while the user is a member.
-- Teams (version-02 N12): `payments` (example, group members) and `sdlc-platform` (repo `agentic-sdlc-core` on GitHub;
-  members only from users.yaml, `membership: []`). Tests add fixture-only group members and a local `platform-infra`
+- Teams (version-02 N12): `payments` (example, group + app-role members) and `sdlc-platform` (repo `agentic-sdlc-core`
+  on GitHub; members from app roles + users.yaml, no group). Tests add fixture-only group members and a local `platform-infra`
   source to sdlc-platform (`tests/support/config.py`); `tests/config/test_repo_teams.py` pins the real setup.
+- App roles (version-03 P2 E1): defined on `sdlc-mcp` by `entra_setup.ps1` (`$AppRoles`, `-AppRoleUser`), arrive in the
+  `roles` claim (no overage), combine with groups (union). A new `app_role:` value in config must be added to `$AppRoles`
+  (`tests/policy/test_app_roles.py`); each app-role persona must resolve exactly like its group twin.
 - **Skill naming** (validated at load):
   - lowercase kebab-case `^[a-z][a-z0-9-]*$`, **globally unique** across `skills.yaml` and every team's add-ons
     (a duplicate fails validation);
