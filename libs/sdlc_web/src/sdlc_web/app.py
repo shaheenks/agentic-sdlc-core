@@ -14,6 +14,7 @@ from fastmcp.server.auth import TokenVerifier
 from google.adk.cli.fast_api import get_fast_api_app
 from sdlc_auth.entra import DEFAULT_AUTHORITY_HOST, EntraTokenVerifier
 
+from sdlc_web.keepalive import DEFAULT_INTERVAL, SseKeepAliveMiddleware
 from sdlc_web.middleware import EntraUserBindingMiddleware
 from sdlc_web.retention import sqlite_path, start_retention
 from sdlc_web.sessions import SCHEME as AGENT_ENGINE
@@ -35,6 +36,7 @@ def create_app(
     trace_to_cloud: bool = False,
     a2a_agent: str | None = None,
     a2a_url: str | None = None,
+    keepalive_seconds: float = DEFAULT_INTERVAL,
 ):
     # Explicit session store: memory:// by default; docker compose persists conversations in
     # sqlite:////data/sessions.db on a volume only this container mounts (agents get no DB
@@ -88,7 +90,7 @@ def create_app(
         agent = AgentLoader(str(agents_dir)).load_agent(a2a_agent)
         mount_a2a(adk_app, agent, a2a_agent, sessions, public_url=a2a_url)
         public_paths.add(CARD_PATH)  # the card describes the agent; calls still need a token
-    return EntraUserBindingMiddleware(
+    bound = EntraUserBindingMiddleware(
         adk_app,
         verifier,
         public_paths=frozenset(public_paths),
@@ -97,6 +99,8 @@ def create_app(
         # with the chat app on, "/" (and so the landing page after sign-in) is the chat app
         home_path=CHAT_HOME if agui_agent else None,
     )
+    # quiet streams (long tools such as goldfish_review) would be dropped by proxies
+    return SseKeepAliveMiddleware(bound, interval=keepalive_seconds)
 
 
 def verifier_from_env() -> EntraTokenVerifier:

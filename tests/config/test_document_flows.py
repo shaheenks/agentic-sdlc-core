@@ -57,7 +57,7 @@ def test_team_caps_only_lower(config_dir):
     assert (flow["max_lenses"], flow["max_rereviews"], flow["max_llm_calls_per_reviewer"]) == (
         3,
         0,
-        8,
+        12,
     )
 
 

@@ -46,7 +46,7 @@ flows:
   document:
     lenses: [lens-zoom-out, lens-comprehension, lens-design-critic, lens-implementation-readiness]
     max_lenses: 6                     # reviewers per review
-    max_llm_calls_per_reviewer: 8
+    max_llm_calls_per_reviewer: 12    # code ceiling 12; the last call always answers (no tools)
     max_rereviews: 1
 skills:
   # Tags a team add-on skill may carry (version-03 P10 G6). They only tell the agent's flows what a

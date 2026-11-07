@@ -1,3 +1,4 @@
+import { withKeepAlive } from "@/lib/keepalive";
 import { BASE_PATH, copilotHandler, RUNTIME_PATH } from "@/lib/runtime";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,8 @@ function withBasePath(request: Request): Request {
   } as RequestInit);
 }
 
-const handle = (request: Request) => copilotHandler()(withBasePath(request));
+// streamed answers get keep-alive comments while a long tool runs (lib/keepalive.ts)
+const handle = async (request: Request) => withKeepAlive(await copilotHandler()(withBasePath(request)));
 
 export const GET = handle;
 export const POST = handle;

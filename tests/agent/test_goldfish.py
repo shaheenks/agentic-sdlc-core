@@ -269,10 +269,19 @@ async def test_a_reviewer_with_unusable_output_is_failed_not_fatal(base_url, ent
     assert result["lenses"] == [{"lens": "write-user-story", "status": "failed"}]
 
 
-async def test_reviewer_call_cap(base_url, entra, model):
+async def test_reviewer_call_cap_ends_with_an_answer(base_url, entra, model):
+    """The last allowed call has no tools and asks for the answer: findings, never
+    LlmCallsLimitExceededError (seen live with 8 calls, 2026-11-07)."""
     model.lenses = ["write-user-story"]
     result = await run_elephant(base_url, model, payments_dev(entra), max_llm_calls=1)
-    assert result["lenses"][0]["status"] == "failed"  # needed two model calls
+    assert result["lenses"][0]["status"] == "ok"  # would have needed a tool call first
+    [reviewer] = [s for s in model.seen if "Goldfish reviewer" in s["system"]]
+    assert reviewer["tools"] == [] and "tool budget is used up" in reviewer["system"]
+    # with room to spare the reviewer keeps its tools and checks a claim first
+    model.seen.clear()
+    result = await run_elephant(base_url, model, payments_dev(entra), max_llm_calls=3)
+    reviewers = [s for s in model.seen if "Goldfish reviewer" in s["system"]]
+    assert result["lenses"][0]["status"] == "ok" and reviewers[0]["tools"] == ["whoami"]
 
 
 async def test_no_token_no_review(base_url, model):
