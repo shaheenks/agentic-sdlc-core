@@ -9,12 +9,15 @@ def test_only_identifier_terms_are_searched():
     assert terms == ["pay-1234", "refund_manual_review", "config.yaml"]
     assert keyword_terms("how does the refund worker retry failed refunds") == []
     assert keyword_terms("getUserToken from E1042, SEV1 rules") == ["getusertoken", "e1042", "sev1"]
+    # plain acronyms are everywhere in this corpus (K2 on GCP dev): not searched
+    assert keyword_terms("Which Entra claims does the MCP server check on GCP for PCI?") == []
+    assert keyword_terms("MCP_PUBLIC_URL and OAuth2 on GCP") == ["mcp_public_url", "oauth2"]
 
 
 def test_terms_are_safe_for_to_tsquery():
     terms = keyword_terms(r"x'); DROP TABLE chunks; -- 'inc-2031' a:b c\d")
     text = tsquery_text(terms)
-    assert text == "'drop' | 'table' | 'inc-2031'"
+    assert text == "'inc-2031'"  # DROP / TABLE are plain acronym-like words: not searched
     assert not any(c in text.replace("' | '", "").strip("'") for c in "();:\\")
     assert tsquery_text([]) == "" and tsquery_text(["bad'quote"]) == ""
 

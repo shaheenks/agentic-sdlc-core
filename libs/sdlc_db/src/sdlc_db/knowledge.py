@@ -75,14 +75,16 @@ _SEARCH_COLUMNS = """c.id, c.source_id, d.path, c.start_line, c.end_line, c.head
 
 
 def keyword_terms(query: str) -> list[str]:
-    """Distinctive terms of a question: identifiers (digits, `_ . - /`, inner capitals) and words
-    of 4+ letters that are not common question words. Lower case, in order, at most MAX_TERMS."""
+    """Distinctive terms of a question: identifiers (digits, `_ . - /`, camelCase) and words
+    of 4+ letters that are not common question words. Lower case, in order, at most MAX_TERMS.
+    Plain acronyms (MCP, GCP, PCI) are not identifiers: they are everywhere in a corpus about
+    them, and as graph seeds they pushed the right files out (K2 on GCP dev, 2026-11-07)."""
     terms: list[str] = []
     for token in _TOKEN.findall(query or ""):
         identifier = (
             any(c in token for c in "_.-/")
             or any(c.isdigit() for c in token)
-            or token[1:] != token[1:].lower()
+            or (token[1:] != token[1:].lower() and token != token.upper())  # camelCase
         )
         word = token.lower()
         if identifier or (KEYWORD_PLAIN_WORDS and len(word) >= 4 and word not in _STOP):
