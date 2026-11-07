@@ -196,6 +196,10 @@ account only with explicit confirmation.
 
 ## 4. Optional: Graph fallback for users with too many groups
 
+> **Off by default** (version-03 P2, 2026-11-07): `config/platform.yaml` `identity.groups.overage_fallback: none`.
+> Use app roles (§2b) for users with many groups. To turn the fallback on, set it to
+> `graph_transitive_member_of` and follow the steps below.
+
 This is only needed when a user's token can overflow (>200 groups, e.g. with `SecurityGroup`).
 Without it, such users get **no groups** (fail closed) and `whoami` reports `group_source: overage_unresolved`.
 

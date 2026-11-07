@@ -117,7 +117,8 @@ See "Runtime Config Exposure" in docs/plans/version-00.md.
   `aud` = the sdlc-mcp client ID (v2) or `api://<client id>`, `scp` contains `access_as_user` (user tokens only),
   `tid` = our tenant, plus signature (JWKS) and exp. Implemented in `sdlc_auth.entra.EntraTokenVerifier`.
 - The MCP server refuses to start without valid config and `ENTRA_TENANT_ID` / `ENTRA_API_CLIENT_ID` (fail closed).
-- Users whose token omits groups (overage) get no groups unless the Graph fallback secret is set.
+- Users whose token omits groups (overage) get no groups (fail closed); app roles still apply. The Graph fallback is off
+  (`platform.yaml` `overage_fallback: none`, version-03 P2); turning it on needs the Graph fallback secret.
 - Block list (E3): `config/env/<env>/blocked.yaml` (kind `BlockList`, optional, git-ignored like groups.yaml) is checked by
   the MCP token verifier on every request (via `store.current()`); blocked users get 401, audited as reason `blocked`.
   On GCP it travels in the config bundle (`-Step config`, live in ~2 min). Review + rotation procedures: docs/SECRETS_REVIEW.md.

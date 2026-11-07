@@ -23,7 +23,7 @@ Follows [version-02.md](version-02.md). Architecture: [../ARCHITECTURE.md](../AR
 |---|---|---|---|
 | P0 | Carry-in: anything from version-02 §20 that failed and was moved here | version-02 §20 | version-02 close-out |
 | P1 | ~~Staging environment~~ dropped by the user 2026-11-07: no second GCP environment in version-03; P2 and P3 apply to GCP dev | N5, D4 | — |
-| P2 | Enterprise identity: app roles defined in the tenant (E1, §P2: ✅ done 2026-11-07, live on localhost and GCP dev), federated credentials instead of client secrets (E4, **parked** 2026-11-07), Entra apps in Terraform (E5), no Azure CLI pre-auth outside dev (E6), per-environment Entra client | N5, version-00 E1/E4–E6, SECRETS_REVIEW §6 | E1: Entra admin, confirmed per change; E4: parked |
+| P2 | Enterprise identity: app roles defined in the tenant (E1, §P2: ✅ done 2026-11-07, live on localhost and GCP dev), federated credentials instead of client secrets (E4), Entra apps in Terraform (E5), no Azure CLI pre-auth outside dev (E6), per-environment Entra client: E4–E6 **parked** 2026-11-07; Graph overage fallback off (2026-11-07) | N5, version-00 E1/E4–E6, SECRETS_REVIEW §6 | E4–E6: parked (un-park when needed) |
 | P3 | Operations: custom hostnames + managed certificates (drop the `*.run.app` exception), CI deploy stages (build → plan → apply with approval), Cloud SQL private IP, scale out `sdlc-app`, shared rate-limit store (if `sdlc-mcp` > 1 instance), log-based metrics + alerts on audit events, Secret Manager data-access logs | N5, N4, SECRETS_REVIEW §6 | — (GCP dev; P1 dropped) |
 | P4 | A2UI citation cards in `/chat/` + A2A endpoint (§P4, ✅ done 2026-11-06: C1–C5, live on GCP dev) | N7 spike (version-02 §10 "Spike findings") | U1–U6 confirmed |
 | P5 | Artifacts: store, list and download agent-generated files under RBAC | pending task 3 | Q4 (use cases, storage) |
@@ -54,8 +54,13 @@ proves they grant exactly what the groups grant. Groups and app roles combine (u
 | E1c | Tests: app-role personas (`approle-*`, `mixed-dev`, `unknown-app-role`) in `personas.yaml`, matrix + data rows, `tests/policy/test_app_roles.py` (each app-role persona resolves exactly like its group twin; config role values = `$AppRoles`), `test_app_roles_survive_group_overage` (MCP, overage token + roles) | tests pass | ✅ 2026-11-07 |
 | E1d | Tenant (user, admin account confirmed): run the script with `-AppRoleUser <a user without sdlc groups>`; live check `whoami(explain=true)`, a payments `review_code`, then unassign → access gone at the next token | live check on localhost + GCP dev (`-Step config` publishes the config) | ✅ 2026-11-07: roles created and assigned in the Entra admin center (user), live check passed; GCP dev: `-Step config` published, works (user, 2026-11-07) |
 
-Afterwards: once every user has app roles, the Graph overage fallback can be switched off (`platform.yaml`
-`groups_overage_fallback`), which removes the Graph client secret without E4.
+**Graph overage fallback off (2026-11-07):** `platform.yaml` `identity.groups.overage_fallback: none`. App roles
+are the overage path; a user whose token hits overage gets no groups (fail closed), only app roles. The Graph
+client secret was never set (not in `.env`, so not on GCP), so nothing to remove; the `GroupMember.Read.All`
+permission on `sdlc-mcp`, if ever granted, can be revoked (admin). `graph_transitive_member_of` turns it back on.
+
+**E5 Entra apps in Terraform, E6 no Azure CLI pre-auth outside dev: parked (2026-11-07).** `entra_setup.ps1`
+stays the provisioning path; GCP dev keeps sharing the dev Entra apps (Azure CLI pre-authorized).
 
 **E4 federated credentials: parked (2026-11-07).** Design kept for later: Entra trusts the Cloud Run service
 account's Google ID token (federated credential: issuer `https://accounts.google.com`, subject = SA unique id,

@@ -15,7 +15,10 @@ identity:
   required_scopes: [access_as_user]     # delegated (user) tokens only; app-only tokens have no scp
   groups:
     claim: groups
-    overage_fallback: graph_transitive_member_of
+    # Off (version-03 P2, 2026-11-07): app roles (`roles` claim, never cut by overage) are the
+    # enterprise path. Overage users get no groups (fail closed), only their app roles.
+    # graph_transitive_member_of re-enables the Graph lookup (needs ENTRA_GRAPH_CLIENT_SECRET).
+    overage_fallback: none
     cache_ttl_seconds: 600
 classification_levels: [public, internal, confidential, restricted]   # ascending
 knowledge:

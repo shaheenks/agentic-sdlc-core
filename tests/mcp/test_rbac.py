@@ -134,6 +134,22 @@ async def test_app_roles_survive_group_overage(base_url, entra):
             await c.call_tool("review_code", {"repo": "agentic-sdlc-core"})
 
 
+async def test_users_yaml_grants_access_after_group_overage_without_app_roles(base_url, entra):
+    """Overage drops the groups claim and the token has no roles: the users.yaml entry (matched
+    on oid alone) still gives the user their team."""
+    token = entra.token(oid=DIRECT_DEV_OID, omit=["groups"], _claim_names={"groups": "src1"})
+    async with client(base_url, token) as c:
+        me = (await c.call_tool("whoami", {"explain": True})).data
+        assert me["groups"] == [] and me["group_source"] == "overage_unresolved"
+        assert me["app_roles"] == [] and me["user"] == "direct-dev"
+        assert me["policy"]["teams"] == {
+            "payments": ["env/local/users.yaml#users/direct-dev/teams/payments"]
+        }
+        assert (await c.call_tool("review_code", {"repo": "payments-api"})).data
+        with pytest.raises(ToolError, match="not allowed"):
+            await c.call_tool("review_code", {"repo": "agentic-sdlc-core"})
+
+
 async def test_audit_records_decision_and_rule(base_url, entra, caplog):
     caplog.set_level("INFO", logger="sdlc.audit")
     token = entra.token(oid="aaaaaaaa-0000-0000-0000-00000000000a", groups=PERSONAS["payments_dev"])
