@@ -11,6 +11,7 @@ import { z } from "zod";
 import { ARTIFACTS_CHANGED } from "@/components/ArtifactsPanel";
 import { openArtifact } from "@/components/ArtifactViewer";
 import {
+  activeTeam,
   type Citation,
   citations,
   type DocumentChip,
@@ -319,6 +320,20 @@ function GoldfishCard({ result }: { result: unknown }) {
   );
 }
 
+// Active team (version-03 P10 G9): one line once the brief locks the document's team.
+function ActiveTeamLine({ result }: { result: unknown }) {
+  const team = activeTeam(result);
+  if (!team) return null;
+  if (team.status === "error") return <div className="tool compact">Team not set: {team.error}</div>;
+  if (team.status === "cleared") return <div className="tool compact">Team cleared: broad context</div>;
+  return (
+    <div className="tool compact" title={team.description}>
+      <span className="tool-label">Team</span> <span className="status-chip status-ok">{team.team}</span>{" "}
+      <span>locked for this document</span>
+    </div>
+  );
+}
+
 const connectedRenderer = (name: string, label: string) =>
   defineToolCallRenderer({
     name,
@@ -388,6 +403,12 @@ export const toolRenderers = [
       ) : (
         <Pending label={`Goldfish reviewers are reading the draft (${args.lenses?.length || "default"} lenses)`} />
       ),
+  }),
+  defineToolCallRenderer({
+    name: "set_active_team",
+    args: z.object({ team: z.string().optional() }).passthrough(),
+    render: ({ status, result }) =>
+      done(status) ? <ActiveTeamLine result={result} /> : <Pending label="Setting the team" />,
   }),
   defineToolCallRenderer({
     name: "list_artifacts",

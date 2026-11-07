@@ -10,6 +10,7 @@ tools:
   list_skills:       { server: core-mcp, risk: low }
   load_skill:        { server: core-mcp, risk: low }
   get_agent_context: { server: core-mcp, risk: low }
+  resolve_team:      { server: core-mcp, risk: low }    # version-03 P10 G9: the caller's own teams only
   search_knowledge:  { server: core-mcp, risk: low,    data_scoped: true }
   graph_query:       { server: core-mcp, risk: low,    data_scoped: true }
   generate_tests:    { server: core-mcp, risk: low,    args: { repo: { type: string } } }

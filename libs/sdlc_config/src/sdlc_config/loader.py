@@ -152,11 +152,12 @@ def load_snapshot(
     roles, bindings = _build_roles(docs["RoleSet"][0][1], tools, aliases, platform, problems)
     repo_root = config_dir.parent  # skill paths in config are relative to the repo root
     teams, addon_skills = _build_teams(
-        docs["Team"], roles, tools, aliases, repo_root, raw_files, problems
+        docs["Team"], roles, tools, aliases, repo_root, raw_files, problems, platform
     )
     skills = _build_skills(
         docs["SkillCatalog"][0][1], addon_skills, roles, teams, repo_root, raw_files, problems
     )
+    _check_document_flows(platform, teams, skills, problems)
     users, bindings, teams = _build_users(docs["UserMap"], env, roles, teams, bindings, problems)
     sources = _build_sources(docs["Source"], platform, teams, roles, aliases, problems)
     connections = _build_connections(docs["ConnectionCatalog"], platform, problems)
@@ -278,6 +279,8 @@ def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
         ocr_model=doc["knowledge"].get("ocr", {}).get("model", ""),
         ocr_thinking_level=doc["knowledge"].get("ocr", {}).get("thinking_level", ""),
         allowed_hosts=tuple(doc["knowledge"].get("allowed_hosts", [])),
+        team_skill_tags=frozenset(doc.get("skills", {}).get("team_tags", [])),
+        document_flow=MappingProxyType(dict(doc.get("flows", {}).get("document", {}))),
     )
 
 
@@ -416,7 +419,15 @@ def _build_users(user_docs, env, roles, teams, bindings, problems):
     pending: list[str] = []
     extra_bindings: list[RoleBinding] = []
     extra_members: dict[str, list[RoleBinding]] = {}
+    default_team: dict[str, str] = {}
     for alias, entry in doc["users"].items():
+        if "default_team" in entry:
+            if entry["default_team"] not in teams:
+                problems.append(
+                    f"{rel}: users/{alias}/default_team: unknown team '{entry['default_team']}'"
+                )
+            else:
+                default_team[alias] = entry["default_team"]
         email = entry["email"].lower()
         if email in alias_by_email:
             problems.append(f"{rel}: users/{alias}/email: also used by '{alias_by_email[email]}'")
@@ -452,6 +463,7 @@ def _build_users(user_docs, env, roles, teams, bindings, problems):
         alias_by_oid=MappingProxyType(alias_by_oid),
         email_by_alias=MappingProxyType(email_by_alias),
         pending=tuple(sorted(pending)),
+        default_team=MappingProxyType(default_team),
     )
     return users, bindings + tuple(extra_bindings), teams
 
@@ -475,7 +487,7 @@ def _inheritance_cycles(roles: dict[str, RoleDef]) -> list[list[str]]:
     return cycles
 
 
-def _build_teams(team_docs, roles, tools, aliases, repo_root, raw_files, problems):
+def _build_teams(team_docs, roles, tools, aliases, repo_root, raw_files, problems, platform):
     teams: dict[str, TeamDef] = {}
     addon_skills: list[SkillDef] = []
     for rel, doc in team_docs:
@@ -526,10 +538,26 @@ def _build_teams(team_docs, roles, tools, aliases, repo_root, raw_files, problem
             for role in access_roles:
                 if role not in roles:
                     problems.append(f"{rel}: addons/skills/{skill_name}: unknown role '{role}'")
+            # G6: typed team skills; only platform-listed tags (they grant nothing, see resolver)
+            tags = entry.get("tags", [])
+            for tag in tags:
+                if tag not in platform.team_skill_tags:
+                    problems.append(
+                        f"{rel}: addons/skills/{skill_name}/tags: '{tag}' is not allowed for team "
+                        f"skills (platform.yaml skills/team_tags: "
+                        f"{sorted(platform.team_skill_tags)})"
+                    )
             source = f"{rel}#addons/skills/{skill_name}"
             skill = _read_skill(repo_root, entry["path"], skill_name, source, raw_files, problems)
             if skill is not None:
-                addon_skills.append(replace(skill, team=name, access_roles=frozenset(access_roles)))
+                addon_skills.append(
+                    replace(
+                        skill,
+                        team=name,
+                        tags=frozenset(tags),
+                        access_roles=frozenset(access_roles),
+                    )
+                )
                 team_skill_names.append(skill_name)
         instructions = instructions_source = None
         if addons.get("instructions"):
@@ -548,6 +576,7 @@ def _build_teams(team_docs, roles, tools, aliases, repo_root, raw_files, problem
             name=name,
             source=rel,
             owners=tuple(doc["metadata"].get("owners", [])),
+            description=doc["metadata"].get("description", ""),
             membership=tuple(membership),
             tools_deny=frozenset(deny),
             constraints=MappingProxyType(constraints),
@@ -556,6 +585,7 @@ def _build_teams(team_docs, roles, tools, aliases, repo_root, raw_files, problem
             instructions_source=instructions_source,
             context=MappingProxyType(dict(addons.get("context", {}))),
             limits=MappingProxyType(limits),
+            document_flow=MappingProxyType(dict(addons.get("flows", {}).get("document", {}))),
         )
     return teams, addon_skills
 
@@ -635,6 +665,58 @@ def _build_skills(doc, addon_skills, roles, teams, repo_root, raw_files, problem
                     "(team add-ons are granted by team membership)"
                 )
     return skills
+
+
+# --- Document flow defaults (version-03 P10 G7) --------------------------------------------------
+
+FLOW_CAPS = ("max_lenses", "max_llm_calls_per_reviewer", "max_rereviews")
+_FLOW_REF_TAGS = {
+    "lenses": "goldfish-lens",
+    "required_lenses": "goldfish-lens",
+    "template": "doc-template",
+    "brief": "brief-questions",
+}
+
+
+def _check_document_flows(platform, teams, skills, problems) -> None:
+    """Flow defaults name skills of the right tag that the team's members can have (a global
+    skill or the team's own add-on); team caps may only lower the platform's."""
+
+    def check_ref(where: str, field: str, name: str, team: str | None) -> None:
+        skill, tag = skills.get(name), _FLOW_REF_TAGS[field]
+        if skill is None or (skill.team is not None and skill.team != team):
+            owner = "a global skill" if team is None else f"a global skill or a {team} add-on"
+            problems.append(f"{where}: unknown skill '{name}' (must be {owner})")
+        elif tag not in skill.tags:
+            problems.append(f"{where}: skill '{name}' is not tagged '{tag}'")
+
+    base = platform.document_flow
+    for name in base.get("lenses", ()):
+        check_ref("platform.yaml: flows/document/lenses", "lenses", name, None)
+    if base.get("lenses") and len(base["lenses"]) > base["max_lenses"]:
+        problems.append("platform.yaml: flows/document/lenses: more lenses than max_lenses")
+    for team in teams.values():
+        flow, rel = team.document_flow, f"{team.source}: addons/flows/document"
+        if not flow:
+            continue
+        for cap in FLOW_CAPS:
+            if cap in flow and (cap not in base or flow[cap] > base[cap]):
+                problems.append(
+                    f"{rel}/{cap}: {flow[cap]} is above the platform value {base.get(cap)} "
+                    "(teams may only lower it)"
+                )
+        for name in flow.get("lenses", ()):
+            check_ref(f"{rel}/lenses", "lenses", name, team.name)
+        for doc_type, entry in flow.get("types", {}).items():
+            for field in ("template", "brief"):
+                if field in entry:
+                    check_ref(f"{rel}/types/{doc_type}/{field}", field, entry[field], team.name)
+            for field in ("lenses", "required_lenses"):
+                for name in entry.get(field, ()):
+                    check_ref(f"{rel}/types/{doc_type}/{field}", field, name, team.name)
+            cap = flow.get("max_lenses", base.get("max_lenses"))
+            if cap and len(entry.get("required_lenses", ())) > cap:
+                problems.append(f"{rel}/types/{doc_type}/required_lenses: more than {cap} lenses")
 
 
 # --- Sources (Stage 5) --------------------------------------------------------------------------

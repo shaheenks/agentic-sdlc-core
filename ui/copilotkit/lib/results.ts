@@ -266,3 +266,18 @@ export function goldfishReview(raw: unknown): GoldfishReview | null {
   for (const f of findings) counts[f.severity] += 1;
   return { lenses, findings, counts, summary: str(payload.summary) };
 }
+
+// Active team (version-03 P10 G9): set_active_team locks one of the user's teams for the
+// conversation's document once the brief is confirmed. Display only; the team grants nothing.
+export type ActiveTeam = { status: "set" | "cleared" | "error"; team?: string; description?: string; error?: string };
+
+export function activeTeam(raw: unknown): ActiveTeam | null {
+  const payload = toolPayload(raw);
+  if (!payload) return null;
+  if (payload.status === "set" && str(payload.team)) {
+    return { status: "set", team: String(payload.team), description: str(payload.description) };
+  }
+  if (payload.status === "cleared") return { status: "cleared" };
+  if (payload.status === "error") return { status: "error", error: str(payload.error) ?? "failed" };
+  return null;
+}

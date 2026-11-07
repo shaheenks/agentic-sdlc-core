@@ -85,16 +85,19 @@ async def test_skills_list_is_recorded(base_url, entra, caplog):
         await c.call_tool("list_skills", {})
     [listing] = events(caplog, "skills_list")
     assert listing["visible"] == [
+        "egm-brainstorm",
         "egm-document-flow",
         "infra-change-review",
         "lens-comprehension",
         "lens-design-critic",
         "lens-implementation-readiness",
+        "lens-structure",
+        "lens-style",
         "lens-zoom-out",
         "test-case-gen",
         "write-user-story",
     ]
-    assert listing["hidden_count"] == 3
+    assert listing["hidden_count"] == 6  # design-review, payments add-ons (incl. G6 typed skills)
     assert "pci-checklist" not in json.dumps(listing)  # hidden names are not disclosed
 
 

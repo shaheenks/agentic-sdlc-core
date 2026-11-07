@@ -73,6 +73,7 @@ async def test_tool_calls_see_the_users_token_and_oid(web, entra):
             "temp:other": "x",
             "user:pref": "x",
             "app:flag": "x",
+            "sdlc_active_team": "payments",  # server-owned (set_active_team), never from clients
             "theme": "dark",
         },
         userId=OID_B,  # ignored: the user is the token's oid
@@ -85,7 +86,7 @@ async def test_tool_calls_see_the_users_token_and_oid(web, entra):
     assert seen["token"] == token  # ContextVar inherited by the run task
     assert seen["oid"] == OID_A and seen["session_user"] == OID_A
     assert "theme" in seen["state_keys"]
-    assert not any(k.startswith(("temp:", "user:", "app:")) for k in seen["state_keys"])
+    assert not any(k.startswith(("temp:", "user:", "app:", "sdlc_")) for k in seen["state_keys"])
 
 
 async def test_persisted_state_has_no_token_and_threads_are_per_user(web, entra):

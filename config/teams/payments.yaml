@@ -2,6 +2,7 @@ apiVersion: sdlc/v1
 kind: Team
 metadata:
   name: payments
+  description: Payment APIs and UI (payments-api, payments-ui); card data under PCI DSS.
   owners: [payments-leads]           # group aliases; also drive CODEOWNERS
 membership:
   - group: payments-devs
@@ -28,6 +29,21 @@ addons:                              # visible only to members of this team
   skills:
     pci-checklist:        { path: skills/teams/payments/pci-checklist }
     ledger-design-review: { path: skills/teams/payments/ledger-design-review, access: { roles: [lead] } }
+    # typed team skills (version-03 P10 G6): tags from platform.yaml skills/team_tags, team members only
+    payments-pci-lens:        { path: skills/teams/payments/payments-pci-lens,        tags: [goldfish-lens] }
+    payments-story-questions: { path: skills/teams/payments/payments-story-questions, tags: [brief-questions] }
+    payments-design-template: { path: skills/teams/payments/payments-design-template, tags: [doc-template] }
+  # document flow defaults (version-03 P10 G7), once payments is locked for a document (G9)
+  flows:
+    document:
+      types:
+        design:
+          template: payments-design-template
+          lenses: [lens-design-critic, lens-implementation-readiness, lens-zoom-out]
+          required_lenses: [payments-pci-lens]
+        user-story:
+          brief: payments-story-questions
+          lenses: [lens-comprehension, lens-implementation-readiness]
   instructions: skills/teams/payments/AGENT_ADDENDUM.md
   context:
     default_project: payments

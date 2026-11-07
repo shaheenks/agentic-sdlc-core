@@ -102,14 +102,14 @@ RUN_BODIES = {
         "app_name": "user_agent",
         "user_id": "victim",
         "session_id": "s1",
-        "state_delta": {USER_TOKEN_STATE_KEY: "stolen", "keep": 1},
+        "state_delta": {USER_TOKEN_STATE_KEY: "stolen", "sdlc_active_team": "payments", "keep": 1},
     },
     # what the ADK dev UI sends
     "camelCase": {
         "appName": "user_agent",
         "userId": "victim",
         "sessionId": "s1",
-        "stateDelta": {USER_TOKEN_STATE_KEY: "stolen", "keep": 1},
+        "stateDelta": {USER_TOKEN_STATE_KEY: "stolen", "sdlc_active_team": "payments", "keep": 1},
     },
     # both spellings: ADK's alias (camelCase) wins, so both must be rewritten
     "mixed": {
@@ -117,7 +117,7 @@ RUN_BODIES = {
         "user_id": OID_A,
         "userId": "victim",
         "sessionId": "s1",
-        "stateDelta": {USER_TOKEN_STATE_KEY: "stolen", "keep": 1},
+        "stateDelta": {USER_TOKEN_STATE_KEY: "stolen", "sdlc_active_team": "payments", "keep": 1},
     },
 }
 

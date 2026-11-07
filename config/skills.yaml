@@ -10,7 +10,11 @@ skills:
   # Document flow with isolated Goldfish reviewers (version-03 P10). Lenses are loaded by the
   # agent's goldfish_review tool as the user; teams can add their own lens with tag goldfish-lens.
   egm-document-flow:             { path: skills/core/egm-document-flow,             tags: [general] }
+  egm-brainstorm:                { path: skills/core/egm-brainstorm,                tags: [general] }
   lens-zoom-out:                 { path: skills/core/lens-zoom-out,                 tags: [goldfish-lens] }
   lens-comprehension:            { path: skills/core/lens-comprehension,            tags: [goldfish-lens] }
   lens-design-critic:            { path: skills/core/lens-design-critic,            tags: [goldfish-lens] }
   lens-implementation-readiness: { path: skills/core/lens-implementation-readiness, tags: [goldfish-lens] }
+  # opt-in lenses (not in goldfish.DEFAULT_LENSES): the flow proposes them for long or formal documents
+  lens-structure:                { path: skills/core/lens-structure,                tags: [goldfish-lens] }
+  lens-style:                    { path: skills/core/lens-style,                    tags: [goldfish-lens] }

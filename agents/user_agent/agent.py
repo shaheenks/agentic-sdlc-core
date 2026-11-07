@@ -12,7 +12,7 @@ import os
 
 from google.adk.agents import Agent
 from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
-from sdlc_agent import with_team_context
+from sdlc_agent import make_set_active_team, with_team_context
 from sdlc_agent.a2ui_cards import after_tool_callback, before_model_callback
 from sdlc_agent.goldfish import make_goldfish_review
 from sdlc_auth.adk import agent_header_provider
@@ -57,6 +57,17 @@ Saving documents (when you have the artifact tools):
   address each one, say briefly how, and keep the rest of the document unchanged unless asked.
   Save the text without the line-number prefixes, with `base_version=<n>`.
 
+Teams (when you have `set_active_team`):
+- Quick questions and brainstorming use all of the user's teams (broad context); no team is
+  locked.
+- For document work, settle the team in the brief (`egm-brainstorm`; `resolve_team` helps) and
+  call `set_active_team` only after the user confirmed the brief. Then apply that team's
+  context, template and lenses for the draft, the review and both saved documents. If the user
+  switches team later, say so and offer to redraft.
+- New work in the same conversation while a team is locked: ask whether to start in broad
+  context or keep the team, and call `set_active_team` with an empty string only after the
+  user chose broad context. Never unlock it on your own.
+
 Goldfish reviews (when you have `goldfish_review`):
 - For document work, follow the `egm-document-flow` skill if it is available.
 - Call `goldfish_review` only after the user agreed to a review, with the full current draft.
@@ -79,5 +90,7 @@ root_agent = Agent(
         ),
         # version-03 P10: isolated reviewers per lens, as the user (lenses and tools via MCP)
         make_goldfish_review(MCP_URL, MODEL),
+        # version-03 P10 G9: lock one of the user's teams once the brief is confirmed
+        make_set_active_team(MCP_URL),
     ],
 )

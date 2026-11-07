@@ -12,6 +12,7 @@ VIEWER_TOOLS = {
     "list_skills",
     "load_skill",
     "get_agent_context",
+    "resolve_team",  # version-03 P10 G9: the caller's own teams only
     "search_knowledge",
     "graph_query",  # version-02 N9: results limited to the caller's sources
     # version-03 P5: the caller's own artifacts

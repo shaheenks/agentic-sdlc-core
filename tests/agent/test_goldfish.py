@@ -200,6 +200,68 @@ async def test_default_lenses_need_a_viewer(base_url, entra, model):
     assert not [s for s in model.seen if "Goldfish reviewer" in s["system"]]
 
 
+def test_plan_lenses_precedence_and_required():
+    from sdlc_agent.goldfish import plan_lenses
+
+    flow = {
+        "lenses": ["lens-zoom-out", "lens-comprehension"],
+        "max_lenses": 3,
+        "types": {
+            "design": {"lenses": ["lens-design-critic"], "required_lenses": ["payments-pci-lens"]},
+            "story": {"required_lenses": ["a", "b", "c", "d"]},
+        },
+    }
+    # platform -> team document type -> the user's request; required ones are always added
+    assert plan_lenses(flow, None, None)["lenses"] == ["lens-zoom-out", "lens-comprehension"]
+    design = plan_lenses(flow, None, "design")
+    assert design["lenses"] == ["payments-pci-lens", "lens-design-critic"]
+    asked = plan_lenses(flow, ["lens-style"], "design")
+    assert asked["lenses"] == ["payments-pci-lens", "lens-style"]
+    assert asked["added_required"] == ["payments-pci-lens"]  # the user did not ask: say so
+    # the cap is the lower of code and flow; an over-cap required set is reported, not cut
+    assert "at most 3 lenses" in plan_lenses(flow, ["x", "y", "z"], "design")["error"]
+    assert "requires 4 lenses" in plan_lenses(flow, None, "story")["error"]
+    assert plan_lenses({}, None, None)["lenses"] == list(DEFAULT_LENSES)  # no flow: code defaults
+    assert "at most 2" in plan_lenses({"max_lenses": 9}, ["a", "b", "c"], None, hard_cap=2)["error"]
+
+
+async def test_locked_team_defaults_apply(base_url, entra, model):
+    """payments locked + doc_type design: the team's lenses plus its required PCI lens."""
+    from sdlc_agent import ACTIVE_TEAM_KEY
+
+    async def fetch(url, token, session_id=None, team=None):
+        from sdlc_agent.team_context import fetch_agent_context
+
+        assert team == "payments" and session_id == CONVERSATION
+        return await fetch_agent_context(url, token, session_id, team=team)
+
+    tool = make_goldfish_review(
+        f"{base_url}/mcp", model, reviewer_tools=("whoami",), fetch_context=fetch
+    )
+
+    class Ctx:
+        state = {ACTIVE_TEAM_KEY: "payments"}
+        user_id = "oid-a"
+
+        class session:
+            id = CONVERSATION
+
+    reset = set_request_token(payments_dev(entra))
+    try:
+        result = await tool.func(draft=DRAFT, tool_context=Ctx(), doc_type="design")
+    finally:
+        reset_request_token(reset)
+    assert result["team"] == "payments" and result["required_lenses"] == ["payments-pci-lens"]
+    assert [lens["lens"] for lens in result["lenses"]] == [
+        "payments-pci-lens",
+        "lens-design-critic",
+        "lens-implementation-readiness",
+        "lens-zoom-out",
+    ]
+    assert {lens["status"] for lens in result["lenses"]} == {"ok"}
+    assert result["max_rereviews"] == 1
+
+
 async def test_a_reviewer_with_unusable_output_is_failed_not_fatal(base_url, entra, model):
     model.lenses = ["write-user-story"]
     model.reviewer_reply = "I think it is fine."  # no JSON

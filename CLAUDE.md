@@ -67,6 +67,14 @@ Add new components as siblings instead of growing a starter indefinitely. Shared
   `knowledge.ocr`), cached as `ocr:` keys; chunks store PAGE ranges (`documents.media_type`), results return `pages`.
   PDFs are parsed only in ingest. Sample PDFs come from `scripts/make_sample_pdfs.py` (edit the script, not the PDFs).
 - A team add-on (skills, instructions, context) goes in `config/teams/<team>.yaml` + `skills/teams/<team>/`.
+- Team customization (version-03 P10 G6–G9) changes behaviour, never permissions: add-on `tags` only from
+  `platform.yaml` `skills.team_tags` (goldfish-lens, brief-questions, doc-template; they grant nothing, role
+  `tag:` grants match global skills only); `addons.flows.document` (per-type template / brief / lenses /
+  `required_lenses`) names a global skill or the team's own add-on with the matching tag, and its caps may only
+  lower `platform.yaml` `flows.document`. The team applies once **locked** for a document: brainstorming is broad,
+  the confirmed brief locks it (`set_active_team` → session state `sdlc_active_team`, checked with
+  `get_agent_context(team=)` as the user; clients can never set `sdlc_` state keys). `resolve_team` sees only the
+  caller's own teams; users.yaml `default_team` is a fallback, applied only while the user is a member.
 - Teams (version-02 N12): `payments` (example, group members) and `sdlc-platform` (repo `agentic-sdlc-core` on GitHub;
   members only from users.yaml, `membership: []`). Tests add fixture-only group members and a local `platform-infra`
   source to sdlc-platform (`tests/support/config.py`); `tests/config/test_repo_teams.py` pins the real setup.
@@ -242,7 +250,9 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
 - `uv run sdlc-config explain --persona payments-dev` | `--groups eng-all,payments-devs [--app-roles X]` | `--user <alias>` `[--json]` (`--dummy-env` works)
 - `uv run sdlc-config diff [--from HEAD] [--to WORKTREE] [--exit-code]`   per-persona permission changes (review on every config PR)
 - MCP tools: `whoami(explain=true)` (own view with source rules); `list_skills` / `load_skill` (per-user; hidden skills answer
-  "unknown skill"); `get_agent_context` (team instructions + context); `search_knowledge` (viewer+, vector) and
+  "unknown skill"; `list_skills` returns tags + team); `get_agent_context(team=)` (team instructions + context,
+  your teams, default team, document flow defaults; a team you are not in = "unknown team"); `resolve_team(hints)`
+  (viewer+, which of your teams); `search_knowledge` (viewer+, vector) and
   `graph_query` (viewer+, vector + knowledge graph), both under RLS; admin only: `config_info()`, `config_explain(groups, app_roles)`
 - Skills: a `"*"` skill grant (admin) covers every team's add-ons; team instructions are guidance, never authorization.
   `sdlc-config diff` cannot compare across the Stage 4 boundary (older revisions lack skills.yaml) or the Stage 6 boundary

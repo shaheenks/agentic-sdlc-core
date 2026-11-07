@@ -73,6 +73,142 @@ async def test_fetch_failure_falls_back_to_base(caplog):
     assert "team context unavailable" in caplog.text
 
 
+TEAMS = [
+    {"name": "payments", "description": "Payment APIs"},
+    {"name": "sdlc-platform", "description": "The platform"},
+]
+BROAD = {
+    "team": None,
+    "instructions": [
+        {"team": "payments", "source": "p.md", "text": "Mind PCI."},
+        {"team": "sdlc-platform", "source": "s.md", "text": "Terraform by the user."},
+    ],
+    "context": {"payments": {"default_project": "payments"}},
+    "teams": TEAMS,
+    "default_team": None,
+}
+FULL = {
+    "team": "payments",
+    "instructions": [{"team": "payments", "source": "p.md", "text": "Mind PCI."}],
+    "context": {"payments": {"default_project": "payments"}},
+    "teams": TEAMS,
+    "flows": {
+        "document": {
+            "lenses": ["lens-zoom-out"],
+            "max_lenses": 6,
+            "max_rereviews": 1,
+            "types": {
+                "design": {"template": "payments-design-template", "required_lenses": ["pci"]}
+            },
+        }
+    },
+}
+
+
+def test_broad_render_lists_teams_and_locks_none():
+    text = render_team_context(BROAD)
+    assert "No team is locked" in text and "set_active_team" in text
+    assert "- payments: Payment APIs" in text and "- sdlc-platform: The platform" in text
+    assert "Mind PCI." in text and "Terraform by the user." in text  # team guidance kept
+
+
+def test_full_render_applies_one_team_and_names_the_others():
+    text = render_team_context(FULL)
+    assert "Locked team for this conversation: **payments**" in text
+    assert "Mind PCI." in text and "Terraform" not in text
+    assert "also a member of (not applied here):\n- sdlc-platform: The platform" in text
+    assert "No team is locked" not in text
+    assert (
+        "- design: template: payments-design-template; required lenses (cannot be dropped): pci"
+        in text
+    )
+    assert "Limits: max_lenses 6, max_rereviews 1" in text
+    assert "Document flow defaults" not in render_team_context(BROAD | {"flows": FULL["flows"]})
+
+
+def scripted_fetch(calls, refuse=()):
+    from sdlc_agent.team_context import UnknownTeamError
+
+    async def fetch(url, token, session_id=None, team=None):
+        calls.append(team)
+        if team in refuse:
+            raise UnknownTeamError(team)
+        return FULL if team == "payments" else BROAD
+
+    return fetch
+
+
+async def test_provider_follows_the_active_team_in_state():
+    from sdlc_agent import ACTIVE_TEAM_KEY
+
+    calls = []
+    provider = with_team_context(BASE, "http://mcp/mcp", fetch=scripted_fetch(calls))
+    ctx = Ctx("s1")
+    reset = set_request_token("tok")
+    try:
+        before = await provider(ctx)
+        ctx.state[ACTIVE_TEAM_KEY] = "payments"  # what set_active_team writes
+        after = await provider(ctx)
+        again = await provider(ctx)
+    finally:
+        reset_request_token(reset)
+    assert "No team is locked" in before and "Locked team" in after and again == after
+    assert calls == [None, "payments"]  # the active team is part of the cache key
+
+
+async def test_a_team_the_user_left_falls_back_to_broad_and_says_so():
+    from sdlc_agent import ACTIVE_TEAM_KEY
+
+    calls = []
+    provider = with_team_context(
+        BASE, "http://mcp/mcp", fetch=scripted_fetch(calls, refuse={"payments"})
+    )
+    ctx = Ctx("s1")
+    ctx.state[ACTIVE_TEAM_KEY] = "payments"
+    reset = set_request_token("tok")
+    try:
+        text = await provider(ctx)
+    finally:
+        reset_request_token(reset)
+    assert "No team is locked" in text
+    assert "(payments) is no longer one of the user's teams" in text
+    assert calls == ["payments", None]
+
+
+async def test_set_active_team_checks_with_the_server_and_writes_state():
+    from sdlc_agent import ACTIVE_TEAM_KEY, make_set_active_team
+
+    calls = []
+    tool = make_set_active_team("http://mcp/mcp", fetch=scripted_fetch(calls, refuse={"hr"}))
+    ctx = Ctx("s1")
+    reset = set_request_token("tok")
+    try:
+        refused = await tool.func(team="hr", tool_context=ctx)
+        assert refused["status"] == "error" and ACTIVE_TEAM_KEY not in ctx.state
+        done = await tool.func(team=" payments ", tool_context=ctx)
+        assert done == {"status": "set", "team": "payments", "description": "Payment APIs"}
+        assert ctx.state[ACTIVE_TEAM_KEY] == "payments"
+        assert (await tool.func(team="", tool_context=ctx))["status"] == "cleared"
+        assert ctx.state[ACTIVE_TEAM_KEY] is None
+    finally:
+        reset_request_token(reset)
+    assert calls == ["hr", "payments"]
+    no_user = await tool.func(team="payments", tool_context=Ctx())
+    assert no_user["status"] == "error"
+
+
+async def test_real_fetch_of_one_team_as_the_user(base_url, entra):
+    import pytest
+    from sdlc_agent.team_context import UnknownTeamError
+
+    token = entra.token(groups=[G_ENG_ALL, G_PAYMENTS_DEVS, G_PLATFORM_DEVS])
+    full = await fetch_agent_context(f"{base_url}/mcp", token, team="sdlc-platform")
+    assert [i["team"] for i in full["instructions"]] == ["sdlc-platform"]
+    payments_only = entra.token(groups=[G_ENG_ALL, G_PAYMENTS_DEVS])
+    with pytest.raises(UnknownTeamError):
+        await fetch_agent_context(f"{base_url}/mcp", payments_only, team="sdlc-platform")
+
+
 async def test_real_fetch_as_the_user(base_url, entra):
     payments = await fetch_agent_context(
         f"{base_url}/mcp", entra.token(groups=[G_ENG_ALL, G_PAYMENTS_DEVS])

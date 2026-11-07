@@ -70,6 +70,8 @@ class EffectivePolicy:
     rate_limits: Mapping[str, tuple[int, str]] = field(default_factory=dict)
     # Allowed tools that read knowledge data (tools.yaml `data_scoped: true`).
     data_tools: tuple[str, ...] = ()
+    # users.yaml default_team, only while the user is a member of it (G9; guidance, grants nothing)
+    default_team: str | None = None
 
     @property
     def readable_sources(self) -> tuple[str, ...]:
@@ -145,6 +147,7 @@ class EffectivePolicy:
                     {"team": i.team, "source": i.source} for i in self.agent_instructions
                 ],
                 "context": {t: dict(c) for t, c in sorted(self.context.items())},
+                "default_team": self.default_team,
             },
         }
 
@@ -273,6 +276,11 @@ def resolve(
         ),
         rate_limits=MappingProxyType(_rate_limits(snapshot, team_rules)),
         data_tools=tuple(t for t in sorted(tools) if catalog[t].data_scoped),
+        default_team=(
+            snapshot.users.default_team.get(user)
+            if user and snapshot.users.default_team.get(user) in team_rules
+            else None
+        ),
     )
 
 

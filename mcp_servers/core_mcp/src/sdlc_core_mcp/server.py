@@ -41,6 +41,7 @@ from sdlc_core_mcp.connections_api import add_connection_routes
 from sdlc_core_mcp.identity import request_identity
 from sdlc_core_mcp.knowledge_tools import Knowledge, make_knowledge_tools
 from sdlc_core_mcp.sdlc_tools import SDLC_TOOLS
+from sdlc_core_mcp.team_tools import make_team_tools
 from sdlc_core_mcp.telemetry import setup_tracing
 
 log = logging.getLogger("sdlc.mcp")
@@ -108,13 +109,22 @@ def build_server(
             result["policy"] = ident.policy.explain()
         return result
 
-    async def list_skills() -> list[dict[str, str]]:
-        """List the SDLC skills available to you (name + description). Load one with load_skill."""
+    async def list_skills() -> list[dict]:
+        """List the SDLC skills available to you: name, description, tags (e.g. goldfish-lens,
+        brief-questions, doc-template) and, for a team add-on, its team. Load one with
+        load_skill."""
         ident = await request_identity()
         skills = ident.snapshot.skills
         visible = sorted(ident.policy.skills)
         audit_skills_list(ident, visible, len(skills) - len(visible))
-        return [{"name": name, "description": skills[name].description} for name in visible]
+        listed = []
+        for name in visible:
+            skill = skills[name]
+            item = {"name": name, "description": skill.description, "tags": sorted(skill.tags)}
+            if skill.team is not None:
+                item["team"] = skill.team
+            listed.append(item)
+        return listed
 
     async def load_skill(name: str) -> dict[str, str]:
         """Return the full instructions of a skill returned by list_skills."""
@@ -131,19 +141,7 @@ def build_server(
             "instructions": skill.instructions,
         }
 
-    async def get_agent_context() -> dict:
-        """Your team instructions and context, to apply for the whole session."""
-        policy = (await request_identity()).policy
-        return {
-            "instructions": [
-                {"team": item.team, "source": item.source, "text": item.text}
-                for item in policy.agent_instructions
-            ],
-            "context": {team: dict(values) for team, values in policy.context.items()},
-            "config_version": policy.config_version,
-        }
-
-    core = [ping, whoami, list_skills, load_skill, get_agent_context]
+    core = [ping, whoami, list_skills, load_skill, *make_team_tools()]
     knowledge_tools = make_knowledge_tools(knowledge) if knowledge else []
     connected = connected or Connected(service=None)  # tools answer "not configured"
     connected_tools = make_connected_tools(connected)

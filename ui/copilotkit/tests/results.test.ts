@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  activeTeam,
   citations,
   documentChips,
   goldfishReview,
@@ -164,4 +165,16 @@ test("goldfish review: lenses, findings by severity, plain text only", () => {
   assert.equal(review.summary, "Needs a rollback plan.");
   assert.deepEqual(goldfishReview({ error: "not signed in" })?.error, "not signed in");
   assert.equal(goldfishReview({ something: 1 }), null);
+});
+
+test("activeTeam reads set_active_team results", () => {
+  assert.deepEqual(activeTeam({ result: { status: "set", team: "payments", description: "Payment APIs" } }), {
+    status: "set",
+    team: "payments",
+    description: "Payment APIs",
+  });
+  assert.deepEqual(activeTeam({ status: "cleared" }), { status: "cleared" });
+  assert.deepEqual(activeTeam({ status: "error", error: "unknown team" }), { status: "error", error: "unknown team" });
+  assert.equal(activeTeam({ status: "set" }), null); // no team
+  assert.equal(activeTeam("not json"), null);
 });

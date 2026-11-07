@@ -49,6 +49,11 @@ rows:
   - { persona: admin,         tool: read_artifact,     expect: allow }
   - { persona: direct-viewer, tool: save_artifact,     expect: allow }
   - { persona: nobody,        tool: get_agent_context, expect: deny }
+  # version-03 P10 G9: which of the caller's own teams a document is for (viewer and up)
+  - { persona: nobody,        tool: resolve_team,      expect: deny }
+  - { persona: viewer,        tool: resolve_team,      expect: allow }
+  - { persona: multi-team-dev, tool: resolve_team,     expect: allow }
+  - { persona: pending-user,  tool: resolve_team,      expect: deny }
   - { persona: viewer,        tool: search_knowledge,  expect: allow }
   - { persona: viewer,        tool: graph_query,       expect: allow }   # data limited to granted sources
   - { persona: payments-dev,  tool: graph_query,       expect: allow }
@@ -109,6 +114,25 @@ skill_rows:
   - { persona: viewer,         skill: lens-implementation-readiness, expect: visible }
   - { persona: payments-dev,   skill: lens-design-critic,            expect: visible }
   - { persona: pending-user,   skill: lens-zoom-out,                 expect: hidden }
+  # G4 brainstorm + G5 opt-in lenses: same grants as the flow and the other lenses
+  - { persona: nobody,         skill: egm-brainstorm,                expect: hidden }
+  - { persona: nobody,         skill: lens-structure,                expect: hidden }
+  - { persona: viewer,         skill: egm-brainstorm,                expect: visible }
+  - { persona: viewer,         skill: lens-structure,                expect: visible }
+  - { persona: viewer,         skill: lens-style,                    expect: visible }
+  - { persona: pending-user,   skill: egm-brainstorm,                expect: hidden }
+  - { persona: pending-user,   skill: lens-style,                    expect: hidden }
+  # G6 typed team skills: payments members only; the viewer's tag:goldfish-lens does not reach them
+  - { persona: viewer,         skill: payments-pci-lens,        expect: hidden }
+  - { persona: payments-dev,   skill: payments-pci-lens,        expect: visible }
+  - { persona: payments-dev,   skill: payments-story-questions, expect: visible }
+  - { persona: payments-dev,   skill: payments-design-template, expect: visible }
+  - { persona: payments-lead,  skill: payments-pci-lens,        expect: visible }
+  - { persona: platform-dev,   skill: payments-pci-lens,        expect: hidden }
+  - { persona: platform-dev,   skill: payments-design-template, expect: hidden }
+  - { persona: multi-team-dev, skill: payments-pci-lens,        expect: visible }
+  - { persona: admin,          skill: payments-pci-lens,        expect: visible }  # "*"
+  - { persona: nobody,         skill: payments-story-questions, expect: hidden }
 
 # Data access (Stage 5). readable = source granted by Source.access AND its classification is at
 # or below the persona's ceiling (both are enforced by Postgres RLS). Every source needs rows.

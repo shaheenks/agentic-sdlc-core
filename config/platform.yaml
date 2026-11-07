@@ -39,6 +39,21 @@ knowledge:
   ocr:
     model: gemini-3.8-flash
     thinking_level: low
+flows:
+  # EGM document flow (version-03 P10 G7): default Goldfish lenses and caps. A team's
+  # addons.flows.document adds per-document-type defaults and may only lower the caps; it applies
+  # once the team is locked for a document (G9). Read by the agent via get_agent_context.
+  document:
+    lenses: [lens-zoom-out, lens-comprehension, lens-design-critic, lens-implementation-readiness]
+    max_lenses: 6                     # reviewers per review
+    max_llm_calls_per_reviewer: 8
+    max_rereviews: 1
+skills:
+  # Tags a team add-on skill may carry (version-03 P10 G6). They only tell the agent's flows what a
+  # skill is for, inside that team; visibility still comes from team membership (+ access), never a tag.
+  #   goldfish-lens: a reviewer lens for goldfish_review · brief-questions: extra brainstorm
+  #   questions for egm-brainstorm · doc-template: a document outline for egm-document-flow
+  team_tags: [goldfish-lens, brief-questions, doc-template]
 defaults:
   deny_by_default: true
   max_classification: public

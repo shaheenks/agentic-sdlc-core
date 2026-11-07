@@ -49,6 +49,8 @@ from sdlc_auth.adk import (
     set_request_token,
 )
 
+from sdlc_agent.team_context import UnknownTeamError, active_team, fetch_agent_context
+
 log = logging.getLogger("sdlc.agent")
 
 DEFAULT_LENSES = (
@@ -318,6 +320,38 @@ def report_markdown(lenses: list[dict], grouped: dict[str, list[dict]], summary:
     return "\n".join(lines) + "\n"
 
 
+def plan_lenses(
+    flow: dict,
+    requested: Sequence[str] | None,
+    doc_type: str | None,
+    fallback: Sequence[str] = DEFAULT_LENSES,
+    hard_cap: int = MAX_LENSES,
+) -> dict:
+    """Lenses for one review (G7). Precedence: platform defaults -> the locked team's defaults
+    for the document type (`flow`, from get_agent_context) -> the user's request. Required
+    lenses of the team's document type are always added; the cap is the lower of code and flow."""
+    cap = min(hard_cap, flow.get("max_lenses") or hard_cap)
+    per_type = (flow.get("types") or {}).get(doc_type or "", {})
+    defaults = per_type.get("lenses") or flow.get("lenses") or list(fallback)
+    required = list(dict.fromkeys(per_type.get("required_lenses") or []))
+    chosen = list(dict.fromkeys(requested or defaults))
+    names = list(dict.fromkeys(required + chosen))
+    if len(required) > cap:
+        return {"error": f"the team requires {len(required)} lenses, above the cap of {cap}"}
+    if len(names) > cap:
+        note = (
+            f" ({', '.join(required)} required for this document type: drop optional ones)"
+            if required
+            else ""
+        )
+        return {"error": f"at most {cap} lenses per review{note}"}
+    return {
+        "lenses": names,
+        "required": required,
+        "added_required": [n for n in required if n not in chosen],
+    }
+
+
 def make_goldfish_review(
     mcp_url: str,
     model: str | BaseLlm,
@@ -328,14 +362,23 @@ def make_goldfish_review(
     max_llm_calls: int = MAX_LLM_CALLS_PER_REVIEWER,
     max_draft_chars: int = MAX_DRAFT_CHARS,
     timeout_seconds: float = REVIEWER_TIMEOUT_SECONDS,
+    fetch_context: Callable[..., Any] = fetch_agent_context,
 ) -> FunctionTool:
+    """`max_lenses` / `max_llm_calls` are hard caps in code; platform.yaml and the locked team
+    (flows.document, via get_agent_context as the user) may only lower them (G7)."""
+
     async def goldfish_review(
-        draft: str, tool_context: ToolContext, lenses: list[str] | None = None
+        draft: str,
+        tool_context: ToolContext,
+        lenses: list[str] | None = None,
+        doc_type: str | None = None,
     ) -> dict:
         """Review a draft document with isolated Goldfish reviewers, one per lens. Call it only
         after the user agreed to a review. `draft` is the full Markdown text; `lenses` are
-        review-lens skill names (leave empty for the default set). Returns findings grouped as
-        blocker / major / nit, each with the lenses that raised it, and `report_markdown`."""
+        review-lens skill names (leave empty for the defaults); `doc_type` is the document type
+        from the brief (design, user-story, ...), which selects the locked team's defaults and
+        required lenses. Returns findings grouped as blocker / major / nit, each with the
+        lenses that raised it, and `report_markdown`."""
         token = get_user_token(tool_context)
         if not token:
             return {"error": "not signed in"}
@@ -343,15 +386,28 @@ def make_goldfish_review(
             return {"error": "the draft is empty"}
         if len(draft) > max_draft_chars:
             return {"error": f"the draft is too long (over {max_draft_chars} characters)"}
-        names = list(dict.fromkeys(lenses or default_lenses))
-        if len(names) > max_lenses:
-            return {"error": f"at most {max_lenses} lenses per review"}
-        bad = [n for n in names if not _LENS_NAME.fullmatch(n)]
+        bad = [n for n in (lenses or []) if not _LENS_NAME.fullmatch(str(n))]
         if bad:
             return {"error": "invalid lens names", "lenses": [_plain(n, 64) for n in bad]}
 
         parent = tool_context.session.id
         user_id = tool_context.user_id
+        team = active_team(tool_context)
+        try:
+            try:
+                context = await fetch_context(mcp_url, token, parent, team=team)
+            except UnknownTeamError:  # left the team since it was locked: platform defaults
+                team, context = None, await fetch_context(mcp_url, token, parent)
+        except Exception as e:  # e.g. no get_agent_context grant: the code defaults and caps
+            log.warning("goldfish flow defaults not loaded: %s", type(e).__name__)
+            team, context = None, {}
+        flow = (context.get("flows") or {}).get("document") or {}
+        plan = plan_lenses(flow, lenses, doc_type, default_lenses, max_lenses)
+        if "error" in plan:
+            return plan
+        names = plan["lenses"]
+        reviewer_calls = min(max_llm_calls, flow.get("max_llm_calls_per_reviewer") or max_llm_calls)
+
         token_reset = set_request_token(token)  # nested runs have empty state: token by context
         conversation_reset = set_conversation_id(parent)
         try:
@@ -371,7 +427,7 @@ def make_goldfish_review(
                         mcp_url=mcp_url,
                         user_id=user_id,
                         tools=reviewer_tools,
-                        max_llm_calls=max_llm_calls,
+                        max_llm_calls=reviewer_calls,
                     ),
                     timeout_seconds,
                 )
@@ -414,6 +470,11 @@ def make_goldfish_review(
         grouped = {s: [f for f in merged if f["severity"] == s] for s in SEVERITIES}
         return {
             "review_id": uuid.uuid4().hex[:12],
+            "team": team,  # the locked team whose defaults applied (None = platform defaults)
+            "doc_type": doc_type,
+            "required_lenses": plan["required"],
+            "added_required_lenses": plan["added_required"],  # tell the user they were added
+            "max_rereviews": flow.get("max_rereviews"),
             "lenses": report,
             "counts": {s: len(grouped[s]) for s in SEVERITIES},
             "findings": grouped,

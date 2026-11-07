@@ -22,11 +22,16 @@ async def skills_of(base_url, entra, groups) -> set[str]:
 # every viewer: the Goldfish document flow and its lenses (version-03 P10)
 EGM = {
     "egm-document-flow",
+    "egm-brainstorm",
     "lens-zoom-out",
     "lens-comprehension",
     "lens-design-critic",
     "lens-implementation-readiness",
+    "lens-structure",
+    "lens-style",
 }
+# payments typed team skills (version-03 P10 G6)
+PAYMENTS_TYPED = {"payments-pci-lens", "payments-story-questions", "payments-design-template"}
 
 
 @pytest.mark.parametrize(
@@ -35,7 +40,7 @@ EGM = {
         ([G_ENG_ALL], {"write-user-story"} | EGM),
         (
             [G_ENG_ALL, G_PAYMENTS_DEVS],
-            {"write-user-story", "test-case-gen", "pci-checklist"} | EGM,
+            {"write-user-story", "test-case-gen", "pci-checklist"} | EGM | PAYMENTS_TYPED,
         ),
         (
             [G_ENG_ALL, G_PAYMENTS_LEADS],
@@ -46,7 +51,8 @@ EGM = {
                 "design-review",
                 "ledger-design-review",
             }
-            | EGM,
+            | EGM
+            | PAYMENTS_TYPED,
         ),
         (
             [G_ENG_ALL, G_PLATFORM_DEVS],
@@ -62,12 +68,23 @@ EGM = {
                 "ledger-design-review",
                 "infra-change-review",
             }
-            | EGM,
+            | EGM
+            | PAYMENTS_TYPED,
         ),
     ],
 )
 async def test_list_skills_per_persona(base_url, entra, groups, expected):
     assert await skills_of(base_url, entra, groups) == expected
+
+
+async def test_list_skills_shows_tags_and_team(base_url, entra):
+    async with client(base_url, entra, [G_ENG_ALL, G_PAYMENTS_DEVS]) as c:
+        listed = {s["name"]: s for s in (await c.call_tool("list_skills", {})).data}
+    assert listed["payments-pci-lens"]["tags"] == ["goldfish-lens"]
+    assert listed["payments-pci-lens"]["team"] == "payments"
+    assert listed["lens-zoom-out"]["tags"] == ["goldfish-lens"]
+    assert "team" not in listed["lens-zoom-out"]  # global skill
+    assert listed["pci-checklist"]["tags"] == []
 
 
 async def test_hidden_skill_is_indistinguishable_from_unknown(base_url, entra):
