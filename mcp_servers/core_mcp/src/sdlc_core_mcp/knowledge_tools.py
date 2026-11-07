@@ -1,5 +1,6 @@
 """Knowledge tools: search_knowledge (Stage 5, vector) and graph_query (Stage 6, vector + knowledge
-graph). Data access is enforced twice: the caller's policy selects the
+graph); both fuse in keyword (full-text) matches when platform.yaml knowledge.keyword_search is on
+(version-03 P11). Data access is enforced twice: the caller's policy selects the
 sources and classification ceiling, and Postgres row-level security filters every row on them
 (sdlc_db.scoped). A bug here cannot widen access beyond what RLS allows.
 """
@@ -61,7 +62,9 @@ def make_knowledge_tools(knowledge: Knowledge) -> list:
         [vector] = await asyncio.to_thread(knowledge.embedder.embed, [query], "query")
         pool = await knowledge.open_pool()
         async with pool.connection() as conn:
-            hits = await search(conn, policy, vector, k)
+            hits = await search(
+                conn, policy, vector, k, query=query, keyword=ident.snapshot.platform.keyword_search
+            )
         result["results"] = [
             {
                 "source": h.source_id,
@@ -69,6 +72,7 @@ def make_knowledge_tools(knowledge: Knowledge) -> list:
                 **_location(h),
                 "heading": h.heading,
                 "score": round(h.score, 4),
+                "via": h.via,  # vector | keyword | both (P11)
                 "snippet": h.content,
             }
             for h in hits
@@ -99,7 +103,16 @@ def make_knowledge_tools(knowledge: Knowledge) -> list:
         [vector] = await asyncio.to_thread(knowledge.embedder.embed, [query], "query")
         pool = await knowledge.open_pool()
         async with pool.connection() as conn:
-            found = await graph_search(conn, policy, vector, query, k, hops, glossary)
+            found = await graph_search(
+                conn,
+                policy,
+                vector,
+                query,
+                k,
+                hops,
+                glossary,
+                keyword=ident.snapshot.platform.keyword_search,  # P11
+            )
         result["results"] = [
             {
                 "source": h.source_id,

@@ -15,7 +15,7 @@ export type Citation = {
   heading?: string;
   snippet: string;
   score?: number;
-  via?: string; // graph_query: "vector" | "graph"
+  via?: string; // "vector" | "keyword" | "both" (P11) | "graph" (graph_query)
 };
 
 export type GraphEntity = { name: string; type: string; source: string };

@@ -88,3 +88,29 @@ questions:
     expect:
       - sdlc-platform:libs/sdlc_config/src/sdlc_config/resolver.py
       - sdlc-platform:mcp_servers/core_mcp/src/sdlc_core_mcp/knowledge_tools.py
+  # version-03 P11 (K2): questions that hinge on one exact token (status, column, config key,
+  # incident id). `exact: true` groups them in the report.
+  - q: When does a refund go to refund_manual_review?
+    exact: true
+    expect: [payments-code:docs/refunds.md]
+  - q: What ends up in recon_exceptions?
+    exact: true
+    expect: [payments-code:docs/reconciliation.md]
+  - q: What is GLOSSARY_BOOST used for?
+    exact: true
+    expect: [sdlc-platform:libs/sdlc_db/src/sdlc_db/graph.py]
+  - q: How is next_retry_delay computed?
+    exact: true
+    expect: [payments-code:src/refunds.py]
+  - q: Where is merchant_balance updated?
+    exact: true
+    expect: [payments-code:src/ledger.py]
+  - q: What is INC-2044 about?
+    exact: true
+    expect: [payments-incidents:INC-2044-ledger-posting-lag.md]
+  - q: Which keys does _UNTRUSTED_STATE_PREFIXES block?
+    exact: true
+    expect: [sdlc-platform:libs/sdlc_web/src/sdlc_web/middleware.py]
+  - q: Which models are in SINGLE_INPUT_MODELS and why?
+    exact: true
+    expect: [sdlc-platform:libs/sdlc_db/src/sdlc_db/embedding.py]

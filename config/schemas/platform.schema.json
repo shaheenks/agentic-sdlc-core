@@ -57,6 +57,10 @@
             "dimensions": { "const": 768, "description": "must match the vector(768) column" }
           }
         },
+        "keyword_search": {
+          "description": "version-03 P11: fuse keyword (full-text, chunks.content_tsv) with vector ranking in search_knowledge and graph_query",
+          "type": "boolean"
+        },
         "graph": {
           "description": "knowledge-graph extraction (Stage 6)",
           "type": "object",

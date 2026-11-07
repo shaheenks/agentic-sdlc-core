@@ -45,6 +45,7 @@ function CitationCard({ c }: { c: Citation }) {
           <span>{heading}</span>
         )}
         {c.via === "graph" && <span className="badge">via graph</span>}
+        {(c.via === "keyword" || c.via === "both") && <span className="badge">exact match</span>}
       </div>
       <div className="citation-meta">
         <span>{c.source}</span>

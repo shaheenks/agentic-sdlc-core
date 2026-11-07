@@ -18,6 +18,7 @@ Definitions live in:
   - `005_artifacts.sql` (version-03 P5): `artifacts` (metadata of documents the agent saves for a user;
     owner-only RLS; the only table `sdlc_app` may write).
   - `006_artifact_versions.sql` (version-03 P5): `artifacts.document_id` + `version` (revisions of one document).
+  - `007_chunks_fulltext.sql` (version-03 P11): `chunks.content_tsv` (generated `simple` tsvector) + GIN index (keyword search).
 
 Related: [ARCHITECTURE.md](ARCHITECTURE.md) "Data access" and "Knowledge graph".
 
@@ -159,6 +160,7 @@ Retrievable pieces of a document, with their embedding.
 | `content` | `text` | The chunk text |
 | `embedding` | `vector(768)` | `gemini-embedding-2`, normalized (`platform.yaml` `knowledge.embedding`) |
 | `embedding_model` | `text` | Model that produced the vector |
+| `content_tsv` | `tsvector` (generated) | `to_tsvector('simple', heading + content)`, GIN index (007, version-03 P11): keyword search on identifiers |
 
 ### `entities` (002)
 Things named in a source (services, components, teams, incidents, …), extracted by Gemini at ingest.

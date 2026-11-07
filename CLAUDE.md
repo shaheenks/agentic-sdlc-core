@@ -252,7 +252,8 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
 - MCP tools: `whoami(explain=true)` (own view with source rules); `list_skills` / `load_skill` (per-user; hidden skills answer
   "unknown skill"; `list_skills` returns tags + team); `get_agent_context(team=)` (team instructions + context,
   your teams, default team, document flow defaults; a team you are not in = "unknown team"); `resolve_team(hints)`
-  (viewer+, which of your teams); `search_knowledge` (viewer+, vector) and
+  (viewer+, which of your teams); `search_knowledge` (viewer+, vector; + keyword matches on identifier terms when
+  `platform.yaml` `knowledge.keyword_search`, version-03 P11, needs migration 007) and
   `graph_query` (viewer+, vector + knowledge graph), both under RLS; admin only: `config_info()`, `config_explain(groups, app_roles)`
 - Skills: a `"*"` skill grant (admin) covers every team's add-ons; team instructions are guidance, never authorization.
   `sdlc-config diff` cannot compare across the Stage 4 boundary (older revisions lack skills.yaml) or the Stage 6 boundary

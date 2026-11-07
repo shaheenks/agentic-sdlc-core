@@ -27,5 +27,8 @@ an applied migration must never be edited: add a new file instead.
 - `006_artifact_versions.sql` (version-03 P5): `artifacts.document_id` + `version`; a revision adds a row
   (rows stay immutable). Backfill lifts `FORCE ROW LEVEL SECURITY` for its own transaction only.
 
+- `007_chunks_fulltext.sql` (version-03 P11): `chunks.content_tsv` (generated `simple`-config tsvector of
+  heading + content) + GIN index for keyword search. Same table and rows: RLS and grants unchanged.
+
 Every new data table needs `FORCE ROW LEVEL SECURITY`, a `source_id` + `classification_rank` column,
 and policies for both roles, plus rows in `tests/db`.

@@ -279,6 +279,7 @@ def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
         ocr_model=doc["knowledge"].get("ocr", {}).get("model", ""),
         ocr_thinking_level=doc["knowledge"].get("ocr", {}).get("thinking_level", ""),
         allowed_hosts=tuple(doc["knowledge"].get("allowed_hosts", [])),
+        keyword_search=bool(doc["knowledge"].get("keyword_search", False)),
         team_skill_tags=frozenset(doc.get("skills", {}).get("team_tags", [])),
         document_flow=MappingProxyType(dict(doc.get("flows", {}).get("document", {}))),
     )

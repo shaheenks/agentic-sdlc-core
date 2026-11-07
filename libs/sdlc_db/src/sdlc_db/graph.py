@@ -7,6 +7,8 @@ read both sides: RLS hides the other rows, and with them the connection.
 graph_search: vector seed -> entities in the best chunks + entities named in the question ->
 1-2 hops over edges (recursive CTE, by key) -> chunks mentioning the reached entities, ranked by
 vector similarity plus a graph bonus (closer = larger) and a small team-glossary boost.
+With keyword search on (version-03 P11), keyword matches join the candidates with a rank bonus,
+and the walk starts from the best chunks of the fused (vector + keyword) list.
 """
 
 import json
@@ -18,7 +20,16 @@ from psycopg import AsyncConnection
 from psycopg.types.json import Jsonb
 from sdlc_config import EffectivePolicy
 
-from sdlc_db.knowledge import SearchHit, vector_literal
+from sdlc_db.knowledge import (
+    KEYWORD_CANDIDATES,
+    SearchHit,
+    fuse,
+    keyword_bonus,
+    keyword_rows,
+    keyword_terms,
+    vector_literal,
+    via_label,
+)
 from sdlc_db.scoped import scoped
 
 MAX_HOPS = 2
@@ -269,12 +280,17 @@ async def graph_search(
     k: int = 5,
     hops: int = 1,
     boost_sources: Iterable[str] = (),
+    keyword: bool = False,
 ) -> GraphResult:
+    """Vector (+ keyword, P11) candidates, then the knowledge graph from the best of them."""
     k = max(1, min(int(k), 20))
     hops = max(0, min(int(hops), MAX_HOPS))
     boost = set(boost_sources)
     params = {"vec": vector_literal(embedding), "n": VECTOR_CANDIDATES}
+    terms = keyword_terms(query) if keyword else []
     result = GraphResult()
+    keyword_rank: dict[int, int] = {}  # chunk id -> rank in the keyword ranking (1 = best)
+    found_in: dict[int, tuple[int, ...]] = {}
     async with scoped(conn, policy):
         await conn.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
         await conn.execute("SET LOCAL hnsw.ef_search = 100")
@@ -283,10 +299,20 @@ async def graph_search(
                 ORDER BY c.embedding <=> %(vec)s::vector LIMIT %(n)s""",  # noqa: S608
             params,
         )
-        candidates = {row[0]: (row, None) for row in await cur.fetchall()}
+        vector = await cur.fetchall()
+        candidates = {row[0]: (row, None) for row in vector}
+        best = [row[0] for row in vector[:SEED_CHUNKS]]
+        if terms:
+            matches = await keyword_rows(conn, params["vec"], terms, KEYWORD_CANDIDATES)
+            keyword_rank = {row[0]: rank for rank, row in enumerate(matches, start=1)}
+            for row in matches:
+                candidates.setdefault(row[0], (row, None))
+            # graph starting points from the fused list (an exact key in the question counts)
+            fused = fuse([r[0] for r in vector], [r[0] for r in matches])
+            found_in = {i: seen for i, _, seen in fused}
+            best = [i for i, _, _ in fused[:SEED_CHUNKS]]
 
         # seeds: entities in the best chunks + entities named in the question
-        best = [cid for cid in list(candidates)[:SEED_CHUNKS]]
         cur = await conn.execute(
             """
             SELECT DISTINCT e.key FROM mentions m JOIN entities e ON e.id = m.entity_id
@@ -342,7 +368,13 @@ async def graph_search(
     def ranked(item):
         row, depth = item
         bonus = GRAPH_BONUS.get(depth, 0.0) if depth is not None else 0.0
+        bonus += keyword_bonus(keyword_rank.get(row[0]))  # P11: exact-term matches
         return float(row[7]) + bonus + (GLOSSARY_BOOST if row[1] in boost else 0.0)
+
+    def via(row, depth) -> str:
+        if depth is not None:
+            return "graph"
+        return via_label(found_in[row[0]]) if row[0] in found_in else "vector"
 
     top, per_doc = [], {}
     for item in sorted(candidates.values(), key=ranked, reverse=True):
@@ -356,7 +388,7 @@ async def graph_search(
         SearchHit(
             *row[1:7],
             score=ranked((row, depth)),
-            via="graph" if depth is not None else "vector",
+            via=via(row, depth),
             media_type=row[8],
             title=row[9],
             url=row[10],

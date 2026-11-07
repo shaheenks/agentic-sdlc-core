@@ -28,6 +28,7 @@ class PlatformConfig:
     ocr_thinking_level: str = ""
     default_calls_per_minute: int | None = None  # defaults/rate_limit (None = no baseline)
     allowed_hosts: tuple[str, ...] = ()  # knowledge.allowed_hosts: remote source hosts (SSRF guard)
+    keyword_search: bool = False  # knowledge.keyword_search: fuse full-text with vector (P11)
     team_skill_tags: frozenset[str] = frozenset()  # skills.team_tags: tags team add-ons may carry
     # flows.document (G7): lenses, max_lenses, max_llm_calls_per_reviewer, max_rereviews
     document_flow: Mapping[str, Any] = field(default_factory=dict)
