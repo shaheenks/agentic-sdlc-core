@@ -76,8 +76,9 @@ Add new components as siblings instead of growing a starter indefinitely. Shared
   the confirmed brief locks it (`set_active_team` → session state `sdlc_active_team`, checked with
   `get_agent_context(team=)` as the user; clients can never set `sdlc_` state keys). `resolve_team` sees only the
   caller's own teams; users.yaml `default_team` is a fallback, applied only while the user is a member.
-- Teams (version-02 N12): `payments` (example, group + app-role members) and `sdlc-platform` (repo `agentic-sdlc-core`
-  on GitHub; members from app roles + users.yaml, no group). Tests add fixture-only group members and a local `platform-infra`
+- Teams (version-02 N12): `payments` (example, group + app-role members), `sdlc-platform` (repo `agentic-sdlc-core`
+  on GitHub; members from app roles + users.yaml, no group) and `webapp` (2026-11-09: repo `full-stack-fastapi-template`,
+  source `webapp-code` tracks `master`; app roles `SDLC.Webapp.*` + users.yaml, no group). Adding a team: docs/TEAM_ONBOARDING.md. Tests add fixture-only group members and a local `platform-infra`
   source to sdlc-platform (`tests/support/config.py`); `tests/config/test_repo_teams.py` pins the real setup.
 - App roles (version-03 P2 E1): defined on `sdlc-mcp` by `entra_setup.ps1` (`$AppRoles`, `-AppRoleUser`), arrive in the
   `roles` claim (no overage), combine with groups (union). A new `app_role:` value in config must be added to `$AppRoles`

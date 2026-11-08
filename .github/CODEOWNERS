@@ -37,9 +37,12 @@
 /skills/teams/payments/             @shaheenks
 /config/teams/sdlc-platform.yaml    @shaheenks
 /skills/teams/sdlc-platform/        @shaheenks
+/config/teams/webapp.yaml           @shaheenks
+/skills/teams/webapp/               @shaheenks
 
 # --- sources: owners = the owner team's leads (Source metadata.owner_team) ----------------------
 /config/sources/payments-code.yaml       @shaheenks
 /config/sources/payments-incidents.yaml  @shaheenks
 /config/sources/eng-standards.yaml       @shaheenks
 /config/sources/sdlc-platform.yaml       @shaheenks
+/config/sources/webapp-code.yaml         @shaheenks

@@ -39,6 +39,11 @@ def test_skills_and_addons_load(config_dir):
         "payments-pci-lens",
         "payments-story-questions",
         "payments-design-template",
+        "webapp-coding-standards",
+        "webapp-code-review",
+        "webapp-api-lens",
+        "webapp-design-template",
+        "webapp-story-template",
     }
     assert snap.skills["lens-zoom-out"].tags == {"goldfish-lens"}
     assert snap.skills["pci-checklist"].team == "payments"

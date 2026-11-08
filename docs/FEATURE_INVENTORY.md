@@ -160,6 +160,7 @@ Plan references in brackets: Stage N (version-00), M/H (version-01 / version-00 
 | Lenses `lens-zoom-out`, `lens-comprehension`, `lens-design-critic`, `lens-implementation-readiness` (default) + `lens-structure`, `lens-style` (opt-in) | global, `tag:goldfish-lens` | ✅ Live |
 | payments: `pci-checklist`, `ledger-design-review` (lead), `payments-pci-lens`, `payments-story-questions`, `payments-design-template`, `AGENT_ADDENDUM.md`, flow defaults | team | ✅ Live |
 | sdlc-platform: `infra-change-review`, `AGENT_ADDENDUM.md` | team | ✅ Live |
+| webapp (2026-11-09): `webapp-coding-standards`, `webapp-code-review`, `webapp-api-lens`, `webapp-design-template`, `webapp-story-template`, `AGENT_ADDENDUM.md`, flow defaults; source `webapp-code` (GitHub, `master`); guide `docs/TEAM_ONBOARDING.md` | team | 📝 In repo (needs app roles in Entra, ingest, `-Step config` on GCP) |
 | Team lens eval (`tests/evals/teams/payments`) | eval | ✅ Run live once (G8) |
 
 ### 2.8 Configuration — `config/`

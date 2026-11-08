@@ -72,6 +72,8 @@ $AppRoles = [ordered]@{
     'SDLC.Payments.Lead'      = 'Payments team lead (as group payments-leads)'
     'SDLC.Platform.Developer' = 'SDLC platform team developer'
     'SDLC.Platform.Lead'      = 'SDLC platform team lead'
+    'SDLC.Webapp.Developer'   = 'Webapp team developer'
+    'SDLC.Webapp.Lead'        = 'Webapp team lead'
 }
 foreach ($r in $AppRoleUserRoles) {
     if (-not $AppRoles.Contains($r)) { throw "unknown app role $r (defined: $($AppRoles.Keys -join ', '))" }

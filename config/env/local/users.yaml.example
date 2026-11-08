@@ -11,3 +11,4 @@ users:
   paul: {email: paul@example.com, oid: "00000000-0000-0000-0000-000000000101", teams: {sdlc-platform: [developer]}}
   ana: {email: ana@example.com, teams: {sdlc-platform: [lead], payments: [developer]}}
   ben: {email: ben@example.com, roles: [viewer]}
+  wendy: {email: wendy@example.com, teams: {webapp: [developer]}}
