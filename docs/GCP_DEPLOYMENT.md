@@ -3,8 +3,9 @@
 How agentic-sdlc runs on Google Cloud: the design, the resources Terraform creates, how identity and
 secrets flow, and how to deploy, update and tear down an environment.
 Related: [ARCHITECTURE.md](ARCHITECTURE.md) §7–8 (environments), [infra/README.md](../infra/README.md)
-(files), [version-01.md](plans/version-01.md) §5 and §10 (M7–M8 progress), [version-00.md](plans/version-00.md)
-Stage 7 (original decisions).
+(files), [version-03.md](plans/version-03.md) (current: P2 identity, P3 operations, P4 A2A, P5 artifacts),
+[version-02.md](plans/version-02.md) §19–20 (sources, bundles, trace, reconcile on GCP), [version-01.md](plans/version-01.md)
+§5 and §10 (M7–M8), [version-00.md](plans/version-00.md) Stage 7 (original decisions).
 
 ## 1. Status
 
@@ -12,21 +13,23 @@ Stage 7 (original decisions).
 **`asia-southeast1`** (`infra/gcp/dev.tfvars`, state `gs://sdlc-demo-env01-tf-state` prefix `dev`,
 `config/env/dev/groups.yaml`). **The user runs Terraform and `gcp_deploy.ps1`.**
 
-| Item | State |
+| Item | State (2026-11-08) |
 |---|---|
-| Services `sdlc-app-dev` (oauth2-proxy + agent + CopilotKit chat app) and `sdlc-mcp-dev` | Deployed 2026-10-28 (images `d3c13dbd3493`, Terraform at `bffe7d8`); sign-in, `/chat/` and `/dev-ui/` checked in the browser |
-| Job `sdlc-db-setup-dev` (schema + RLS) | Ran successfully |
-| Job `sdlc-ingest-dev` | **Not run**: the dev sources are updated first (version-01 §10.3) |
-| Entra dev callback on `sdlc-client` | Registered |
-| Agent Engine sessions (`sessions.tf`, version-01 M8) | Applied 2026-10-30 (images `8982da8`); conversations checked in the browser |
+| Services `sdlc-app-dev` (oauth2-proxy + agent + CopilotKit chat app) and `sdlc-mcp-dev` | Deployed (first 2026-10-28); last images + apply for version-03 P11 (2026-11-07). `/chat/`, `/dev-ui/`, `/a2a` (Gemini Enterprise registered, 2026-11-07) checked |
+| Job `sdlc-db-setup-dev` (schema + RLS) | Ran; migrations 001–007 applied (005–006 artifacts, 007 keyword search) |
+| Job `sdlc-ingest-dev` + Cloud Scheduler | Runs on `ingest_schedule` (first scheduled run 2026-11-06); sources from the config store bucket and GitHub `main` |
+| Job `sdlc-reconcile-dev` + Cloud Scheduler | Built (version-02 N3); dry run checked 2026-11-05 |
+| Config bundles | Read from `gs://sdlc-config-store-a7484d8b/bundles/dev/`, `current` polled every 60 s; published with `-Step config` (block list, users.yaml and app-role grants travel in it) |
+| Artifact store | Bucket `sdlc-artifact-store-a7484d8b`, `objectUser` for `sdlc-mcp` only (version-03 P5 F4, 2026-11-06) |
+| Agent Engine sessions (`sessions.tf`, version-01 M8) | Applied 2026-10-30; conversations checked in the browser |
+| Cloud Trace (`cloud_trace = true`, version-02 N4) | On; one chat turn = one trace, no prompt or argument values (2026-11-05) |
+| Entra | Dev callback on `sdlc-client`; app roles on `sdlc-mcp` (version-03 P2 E1, 2026-11-07); Graph overage fallback off |
 
-**Added in version-02 N3 / N1 (not yet applied):** the block list travels in the config bundle (no Terraform
-needed); job `sdlc-reconcile-<env>` with its own service account; Cloud Scheduler for ingest and reconcile
-(`ingest_schedule`, `reconcile_schedule`; off by default). **Not yet in Terraform:** source credentials as Secret
-Manager secrets (no private source today, D1), OTLP export to Cloud Trace (N4).
+**Not yet in Terraform:** source credentials as Secret Manager secrets (no private source today), custom hostnames,
+CI deploy stages, Cloud SQL private IP (version-03 P3).
 
 An earlier staging attempt in `cloud-migration-agent` / `asia-south1` (2026-09) is abandoned: ignore its state bucket,
-registry and images. The `staging.*` files stay for a later staging environment.
+registry and images. The `staging.*` files stay, but staging was dropped for version-03 (P1, 2026-11-07).
 
 ## 2. Decisions
 
@@ -123,7 +126,7 @@ sequenceDiagram
     P->>A: request + X-Forwarded-Access-Token (via the chat app for /chat/)
     A->>A: validate token (JWKS, aud, tid, scp), bind session to oid
     A->>M: MCP call, Authorization: Bearer <user token>
-    M->>M: validate token, resolve policy (config baked in image, groups.yaml from Secret Manager)
+    M->>M: validate token (+ block list), resolve policy (config bundle from the config store bucket)
     M->>D: SET LOCAL app.allowed_sources / max_classification_rank, then query
     D-->>M: only rows the user may read
     M-->>A: tool result (audited to Cloud Logging)
@@ -140,7 +143,7 @@ sequenceDiagram
 | `run.tf` | Services `sdlc-mcp-<env>`, `sdlc-app-<env>`; jobs `sdlc-db-setup-<env>`, `sdlc-ingest-<env>` | Secrets as env vars (`version = latest`); `groups.yaml` as a file at `/app/config/env/<env>/`; Cloud SQL socket at `/cloudsql` |
 | `sessions.tf` | Agent Engine `sdlc-sessions-<env>` (`google_vertex_ai_reasoning_engine`, version-01 M8) | Session store only (no deployed code, no memory bank); the agent gets its full resource name in `SDLC_SESSION_SERVICE_URI` |
 | `storage.tf` | Bucket `config_store_bucket` (dev: `sdlc-config-store-a7484d8b`, region, uniform access, public access prevention enforced, versioning, last 5 old versions kept); `objectViewer` for `sdlc-<env>-jobs` | Content for `gcs` sources (former `samples/`); created only when the variable is set; uploads by people with `gcloud storage cp`; `force_destroy` follows `deletion_protection` |
-| `storage.tf` | Bucket `artifact_store_bucket` (dev: `sdlc-artifact-store-a7484d8b`): no versioning, no soft delete, objects deleted after `artifact_retention_days` (7); `objectUser` for `sdlc-<env>-app` | Temporary files and agent artefacts; not yet wired into the agent (`artifact_service_uri` is still `memory://`) |
+| `storage.tf` | Bucket `artifact_store_bucket` (dev: `sdlc-artifact-store-a7484d8b`): no versioning, no soft delete, objects deleted after `artifact_retention_days` (7); `objectUser` for `sdlc-<env>-mcp` only (`artifact_store_mcp`) | Artifact content (version-03 P5) under `artifacts/<oid>/<id>`, written and read only by the MCP server (`SDLC_ARTIFACT_STORE`); ADK's artifact service stays `memory://` |
 | `outputs.tf` | `app_url`, `oauth_callback`, `mcp_url`, `session_engine`, `registry`, `sql_connection_name`, `jobs` | |
 | `<env>.tfvars`, `<env>.gcs.tfbackend` | Project, region, env, tier, deletion protection; state bucket + prefix | No tenant IDs in either |
 
@@ -159,7 +162,8 @@ by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on 
 
 - **No key files**: Vertex AI, Agent Engine, Secret Manager and Cloud SQL use each workload's service identity.
   The local ADC file mount does not exist on GCP.
-- **Database roles** are the same as locally: `sdlc_owner` (migrations), `sdlc_app` (MCP, read-only),
+- **Database roles** are the same as locally: `sdlc_owner` (migrations), `sdlc_app` (MCP, read-only except its own
+  rows in `artifacts`),
   `sdlc_ingest` (writes); none can bypass RLS, and every data table uses FORCE ROW LEVEL SECURITY. Cloud SQL's
   `postgres` is `cloudsqlsuperuser`, not a real superuser: `sdlc-db bootstrap` handles that (it grants itself
   membership of `sdlc_owner` to create the schema, only re-sets passwords on existing roles) and **fails if any
@@ -288,14 +292,16 @@ cd infra/gcp; terraform destroy -var-file=dev.tfvars   # needs the same TF_VAR_*
 
 ## 10. Next
 
-- Pending items of version-01 §10.3: Cloud Trace (N4); source secrets once a private source exists. Block list,
-  reconcile job and Cloud Scheduler: built in version-02 N3/N1 (docs/SECRETS_REVIEW.md).
-- Scale `sdlc-app` out: check conversations survive a new revision and that cookie sessions in oauth2-proxy are
+All items below are version-03 P3 unless noted (see [version-03.md](plans/version-03.md)).
+
+- Source secrets in Secret Manager once a private source exists (P8).
+- Scale `sdlc-app` out (note: A2A task / context owner maps are per instance): check conversations survive a new revision and that cookie sessions in oauth2-proxy are
   enough, then raise `app_max_instances`.
 - Custom hostnames (`<service>-sdlc-<env>.shaheenks.co.in`): CNAME + Google-managed certificate (load balancer or
   domain mapping), then drop the `*.run.app` exception.
-- GCS config bundles + Pub/Sub reload, CI deploy stages (validate, diff and tests already run on GitHub Actions;
-  add build → plan → apply).
+- CI deploy stages (validate, diff and tests already run on GitHub Actions; add build → plan → apply). GCS config
+  bundles are done (version-02 N13, polling); Pub/Sub reload is optional.
+- Agent runtimes and the event gateway (P6): Pub/Sub topics, subscriptions, push service accounts.
 - A shared rate-limit store when `sdlc-mcp` runs more than one instance (limits are per instance today).
-- Per-environment Entra client app, certificates or federated credentials instead of client secrets (plan gaps E4,
-  E5, E8); Cloud SQL private IP.
+- Per-environment Entra client app, federated credentials instead of client secrets, Entra apps in Terraform
+  (P2 E4–E6, parked 2026-11-07); Cloud SQL private IP.

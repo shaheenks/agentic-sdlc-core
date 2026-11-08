@@ -1,7 +1,8 @@
 # Agentic SDLC — System Architecture
 
 High-level view of the platform. For staged delivery, config syntax and exit gates, see
-[version-00.md](plans/version-00.md).
+[version-00.md](plans/version-00.md); current plan: [version-03.md](plans/version-03.md); what is built, per
+component and with its status: [FEATURE_INVENTORY.md](FEATURE_INVENTORY.md).
 
 ## 1. What the system does
 
@@ -24,8 +25,8 @@ flowchart TB
     end
 
     subgraph Surfaces["User surfaces"]
-        S1[adk web<br/>behind oauth2-proxy]
-        S2[Gemini Enterprise]
+        S1[CopilotKit chat /chat/ · AG-UI<br/>adk dev UI /dev-ui/<br/>behind oauth2-proxy]
+        S2[Gemini Enterprise<br/>A2A /a2a]
         S3[Antigravity IDE<br/>direct MCP client]
     end
 
@@ -42,7 +43,7 @@ flowchart TB
         AUTH[AuthN<br/>Entra JWT validation<br/>libs/sdlc_auth]
         RES[Resolver<br/>groups → teams → roles<br/>→ EffectivePolicy<br/>libs/sdlc_config]
         ENF[Enforcement<br/>tools/list filter · call authz<br/>arg constraints<br/>libs/sdlc_policy]
-        TOOLS[Tools<br/>whoami · skills · search_knowledge<br/>graph_query · review_code …]
+        TOOLS[Tools<br/>whoami · skills · team context<br/>search_knowledge · graph_query<br/>artifacts · connected tools<br/>review_code … stubs]
         AUD[(Audit log<br/>sdlc.audit JSON)]
         AUTH --> RES --> ENF --> TOOLS
         ENF -. every decision .-> AUD
@@ -54,7 +55,7 @@ flowchart TB
 
     subgraph Ingest["Ingest pipeline"]
         I1[Loaders → Chunkers →<br/>Embedders → Graph extractors]
-        SRC[/Source artefacts<br/>local folders · git (pinned commit or tracked branch)<br/>later: Jira, wiki/]
+        SRC[/Source artefacts<br/>local folders · git (GitHub, Bitbucket) · GCS<br/>Confluence · Jira (Cloud + DC)/]
     end
 
     subgraph Config["Config (git → versioned bundle)"]
@@ -62,7 +63,8 @@ flowchart TB
         SK[/skills/*/SKILL.md/]
     end
 
-    DS[[Downstream systems<br/>GitHub · Jira · …]]
+    DS[[Downstream systems<br/>GitHub · Bitbucket · Jira · Confluence<br/>as the user, with their own PAT]]
+    ART[(Artifact store<br/>file:// volume / gs:// bucket)]
     OTEL[(Traces<br/>OTLP → Jaeger locally)]
 
     U1 --> Surfaces
@@ -75,7 +77,8 @@ flowchart TB
     A2 -. later .-> AUTH
     AUTH -. JWKS / Graph .-> Entra
     TOOLS -- "SQL with RLS context" --> PG
-    TOOLS -- "service credential<br/>after RBAC check" --> DS
+    TOOLS -- "user's connection<br/>after RBAC check" --> DS
+    TOOLS -- "owner only" --> ART
     SRC --> I1 --> PG
     CFG -- bundle --> RES
     SK -- bundle --> TOOLS
@@ -89,14 +92,14 @@ flowchart TB
 
 | Component | Location | Responsibility |
 |---|---|---|
-| **Surfaces** | external | Where users talk to the agent. adk web (dev), AG-UI web app with CopilotKit (business users, version-01), Gemini Enterprise (deferred, needs GCP), Antigravity (IDE; connects straight to MCP; verified with a dev token). |
-| **Entra ID** | external | The single identity provider. Tokens carry `oid`, `upn` and `groups`. |
-| **ADK agents** | `agents/` | Conversation and reasoning with Gemini. They discover skills and call tools through MCP, forwarding the **user's** token. They make **no** authorization decisions, never read `config/` and hold no DB credentials. Conversations are stored per user (see "Conversation storage"). |
-| **MCP server(s)** | `mcp_servers/` | The single enforcement point. Validates tokens (and the block list), resolves the user's `EffectivePolicy`, filters what the user can see, authorizes and rate-limits every call, and audits it (with a `trace_id` when tracing is on). |
-| **Shared libs** | `libs/` | `sdlc_auth` (identity), `sdlc_config` (config, resolver, bundles), `sdlc_policy` (authorization, rate limits), `sdlc_db` (RLS-scoped DB access, graph), `sdlc_web` (agent web app: user binding, conversation retention), `sdlc_agent` (per-session team context). |
+| **Surfaces** | `ui/copilotkit`, external | Where users talk to the agent. The **CopilotKit chat** at `/chat/` (AG-UI to `/agui`; history, artifacts panel and viewer, Connections page) is the main surface; the ADK dev UI at `/dev-ui/`; **A2A** at `/a2a` (A2A 0.3, used by Gemini Enterprise since 2026-11-07); Antigravity (IDE; connects straight to MCP; verified with a dev token). |
+| **Entra ID** | external | The single identity provider. Tokens carry `oid`, `upn`, `groups` and app `roles`. |
+| **ADK agents** | `agents/` | Conversation and reasoning with Gemini. They discover skills and call tools through MCP, forwarding the **user's** token. They make **no** authorization decisions, never read `config/` and hold no DB credentials. Local agent tools: `goldfish_review` (isolated reviewers for the EGM document flow) and `set_active_team`. Tool results carry A2UI cards for A2A clients (built from the result, never by the model). Conversations are stored per user (see "Conversation storage"). |
+| **MCP server(s)** | `mcp_servers/` | The single enforcement point. Validates tokens (and the block list), resolves the user's `EffectivePolicy`, filters what the user can see, authorizes and rate-limits every call, and audits it (with a `trace_id` when tracing is on). Also serves the `/connections/` and `/artifacts/` HTTP APIs behind the same checks. |
+| **Shared libs** | `libs/` | `sdlc_auth` (identity), `sdlc_config` (config, resolver, bundles, document-flow defaults), `sdlc_policy` (authorization, rate limits), `sdlc_db` (RLS-scoped DB access, vector + keyword search, graph), `sdlc_web` (agent web app: user binding, AG-UI, A2A, threads, conversation retention), `sdlc_agent` (team context, Goldfish reviewers, A2UI cards), `sdlc_connectors` (host-allowlisted HTTP, providers, per-user secret store), `sdlc_secrets` (secret references), `sdlc_artifacts` (artifact content store + limits). |
 | **Skills** | `skills/` | SKILL.md instruction packages. They hold content only; access is declared in `config/`. Naming: lowercase kebab-case, globally unique (global `skills/core/<name>/`, team add-ons `skills/teams/<team>/<name>/`, team instructions `skills/teams/<team>/AGENT_ADDENDUM.md`); folder = frontmatter `name` = config key. |
 | **Config** | `config/` | YAML that declares groups, roles, teams, tools, skills, sources, rate limits and the block list. Served from the watched folder in dev, or from immutable, verified bundles (`sdlc-config compile`). |
-| **Ingest** | `ingest/` | Reads source artefacts declared in `config/sources/` (local folders, git repositories at a pinned commit or tracked branch), chunks and embeds them, extracts a knowledge graph, and tags every row with `source_id` + `classification`. |
+| **Ingest** | `ingest/` | Reads source artefacts declared in `config/sources/` (local folders, git repositories on GitHub or Bitbucket at a pinned commit or tracked branch, GCS buckets, Confluence and Jira in Cloud and Data Center editions), chunks and embeds them, extracts a knowledge graph, and tags every row with `source_id` + `classification`. |
 | **Postgres + pgvector** | `db/` | Vector search plus the knowledge graph (as edge tables). Row-level security is the last line of defense for data access. |
 | **Observability** | compose profile `observability` | OpenTelemetry traces (agent, MCP server, Postgres) to Jaeger when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; no prompts, responses, tokens or argument values in spans. |
 | **CI** | `.github/workflows/ci.yml` | Lint, config validation + PR permission diff, tests on a pgvector service, Terraform checks. No secrets or cloud access. |
@@ -196,6 +199,10 @@ flowchart LR
 - **Identity** is the Entra `oid` plus group membership and, for enterprise tenants, Entra **app roles**
   (`roles` claim). Entra is the only trusted issuer. Every signed-in user also matches `everyone: true`
   bindings, which grant only the `signed-in` basics (`ping`, `whoami`).
+- **App roles** (version-03 P2 E1): `SDLC.User`, `SDLC.Admin`, `SDLC.Payments.Developer|Lead`,
+  `SDLC.Platform.Developer|Lead` on `sdlc-mcp` (`entra_setup.ps1`); each grants exactly what its group twin grants
+  and combines with groups (union). **Group overage** (token without `groups`) means no groups, only app roles
+  (fail closed); the Graph fallback is off (`platform.yaml` `overage_fallback: none`).
 - **Direct members** (version-02 N10): where the tenant has no group per team, `config/env/<env>/users.yaml`
   (git-ignored) adds users to teams (with team roles) and global roles. Admins list emails; `sdlc-config users sync`
   looks up each `oid` (read-only); the server matches tokens on `oid` only, never on an email claim, and an entry
@@ -246,8 +253,16 @@ flowchart LR
   RETRIEVAL_DOCUMENT for chunks and RETRIEVAL_QUERY for questions; HNSW cosine index with iterative scan so
   RLS filtering still returns k results.
 - Ingest runs on demand (`docker compose run --rm ingest run --all`) and skips unchanged files by content hash.
-  Sources are local folders or git repositories read at a pinned commit or a tracked branch (never the working tree), e.g.
-  `sdlc-platform` = this repository.
+  Sources: local folders, git repositories read at a pinned commit or a tracked branch (never the working tree; e.g.
+  `sdlc-platform` = this repository on GitHub, tracking `main`), GCS buckets (the sample sources), Confluence and Jira
+  (natively restricted items are never ingested). Remote calls go through the host allowlist; on GCP the ingest job
+  runs on a Cloud Scheduler schedule.
+- **Keyword search (version-03 P11):** `chunks.content_tsv` (`simple` configuration, GIN index) finds exact
+  identifiers that embeddings miss (Jira keys, error codes, config keys, file and function names). Only
+  identifier-like terms are searched (digits, `_ . - /` or camelCase; plain words and all-caps acronyms are not).
+  `search_knowledge` ranks by cosine similarity plus a keyword rank bonus; `graph_query` fuses the vector and
+  keyword lists (RRF) to pick its starting entities. Results say `via: vector | keyword | both`. Switch:
+  `platform.yaml` `knowledge.keyword_search`. Runs under the same RLS context as the vector query.
 - **Document types:** UTF-8 text files (Markdown by headings, Python/Terraform by definitions, everything else by
   line windows) and **PDFs** (H10): the text layer is read locally; pages without text (scans) are read by Gemini
   only for sources that set `pdf.ocr: gemini`. PDF chunks follow the bookmarks and record **page** ranges, so
@@ -270,10 +285,62 @@ flowchart LR
   is untrusted: only allowed types and relations between extracted entities are stored. Results are cached by chunk
   content, so re-ingesting costs model calls only for changed text.
 - **`graph_query`** (viewers and up) returns documents plus the entities and relations it walked; `search_knowledge`
-  (viewers and up) stays vector-only. Both run entirely under the caller's RLS context.
+  (viewers and up) has no graph step (vector + keyword only). Both run entirely under the caller's RLS context.
 - **Measured value:** on the sample corpus and on this repository (`tests/evals`), `graph_query` beats
   `search_knowledge` only through returning one result per document; its graph re-ranking adds nothing measurable
   yet. Its value today is the structured entities/relations in the answer.
+
+### Artifacts (version-03 P5)
+
+Documents the agent saves for a user (designs, reviews, user stories, reports; text only, 1 MiB, 50 per user).
+**Owner only:** the owner is the token `oid`, never a tool argument, and anyone else (admins included) gets
+"artifact not found". Metadata in `sdlc.artifacts` under owner RLS (`sdlc_db.owner_scoped`; the only table `sdlc_app`
+may write, no UPDATE); content in `SDLC_ARTIFACT_STORE` (`file://` volume locally, `gs://` bucket on GCP) under
+`artifacts/<oid>/<id>`, deleted after `SDLC_ARTIFACT_RETENTION_DAYS` (7). Tools `save/list/read/delete_artifact`;
+browser downloads through the MCP `/artifacts/` API (attachment, `nosniff`, CSP sandbox). **Versions:**
+`save_artifact(replaces=<id>, base_version=<n>)` adds the next version of the same document and refuses when `n` is not
+the latest; rows are immutable, the id and link stay stable, older versions stay readable. The chat's artifact viewer
+shows numbered lines and a Markdown preview; line comments are sent to the agent with "Attach to chat". Team sharing
+(F3) is not built.
+
+### EGM document flow (version-03 P10)
+
+For document work only, after the [Elephant-Goldfish Model](https://egm.dev/): the agent (Elephant) runs the
+`egm-brainstorm` skill (questions → options → a **brief** the user confirms) and then `egm-document-flow` (draft →
+"review with Goldfish?" → review → resolve → save `<name>.md` + `<name>-review.md` as artifacts).
+
+```mermaid
+flowchart LR
+    B[Brainstorm<br/>broad context, all teams] -- "user confirms brief" --> L[set_active_team<br/>team locked]
+    L --> D[Draft<br/>team template + context]
+    D -- "user says go" --> G[goldfish_review]
+    G --> R1[Reviewer per lens<br/>fresh session, draft only]
+    G --> R2[…up to 6 lenses]
+    R1 & R2 --> S[Synthesizer<br/>Blocker / Major / Nit]
+    S --> X[Resolve with the user<br/>PROPOSE FIX / CONTEST]
+    X --> A[(Artifacts:<br/>doc + review)]
+```
+
+- **Reviewers are isolated:** one nested ADK run per lens with an empty state and only the draft; each loads its lens
+  with `load_skill` and may check claims with `search_knowledge` / `graph_query`, all through MCP **as the user**
+  (a lens the user can't see is reported `unavailable`). Audit records keep the chat's `agent_session_id`.
+- **Lenses are skills** tagged `goldfish-lens`: four defaults plus `lens-structure` / `lens-style` opt-in; teams add
+  their own (e.g. `payments-pci-lens`).
+- **Team customization changes behaviour, never permissions:** typed team skills (tags `goldfish-lens`,
+  `brief-questions`, `doc-template`), `addons.flows.document` defaults per document type (lenses, required lenses,
+  template, brief), and caps that may only lower `platform.yaml` `flows.document`. `get_agent_context` serves them as
+  data; they apply once the team is **locked** by the confirmed brief (`resolve_team` suggests it from hints).
+
+### A2A and A2UI (version-03 P4)
+
+- **A2A** (`/a2a`, A2A 0.3 JSON-RPC, public card at `/.well-known/agent-card.json`): callers send
+  `Authorization: Bearer <Entra token>` through oauth2-proxy (an API route: 401, no login redirect). The user id is the
+  token `oid`, the token stays request-scoped, client state and non-text parts are dropped, and another user's task or
+  context answers "not found" / "unknown context". One A2A context = one session in the same store as the chat.
+  Gemini Enterprise is registered against GCP dev (Entra authorization-code flow).
+- **A2UI cards** (v0.9 standard catalog) are built deterministically from tool results (citations, `whoami`,
+  connected tools) by `sdlc_agent.a2ui_cards` and sent to A2A clients as `application/json+a2ui` DataParts. The model
+  never writes or sees them. The CopilotKit chat keeps its own compact renderers.
 
 ### Conversation storage (agent sessions)
 
@@ -317,7 +384,7 @@ flowchart LR
     PR --> CI[CI: validate · persona diff · tests]
     CI --> BUILD[sdlc-config compile<br/>bundle + manifest<br/>version = git SHA + hash]
     BUILD --> STORE[(Bundle store<br/>local folder / GCS)]
-    STORE -- "current pointer<br/>Pub/Sub reload" --> MCP[MCP servers<br/>ConfigStore]
+    STORE -- "current pointer<br/>polled every 60 s" --> MCP[MCP servers<br/>ConfigStore]
     STORE --> ING[Ingest jobs]
     MCP -- "per-user view only" --> AG[Agents / surfaces]
 ```
@@ -327,10 +394,12 @@ already-resolved, per-user view through MCP tools. A service with no valid confi
 refuses to serve. A bad reload keeps the last good version. Rollback means moving the
 `current` pointer back.
 
-Today: development serves the watched `config/` folder; bundles work locally
-(`sdlc-config compile --activate`, `SDLC_CONFIG_BUNDLES`, verified on every load); CI validates
-config and shows the permission diff on pull requests. The GCS store, Pub/Sub reload and CI
-promotion arrive with GCP (Stage 7b).
+Today: local development serves the watched `config/` folder (bundles optional:
+`sdlc-config compile --activate`, `SDLC_CONFIG_BUNDLES`, verified on every load). On GCP (version-02 N13) the
+MCP service and the ingest job read bundles from `gs://<config store bucket>/bundles/<env>/` (mounted
+read-only) and the MCP server polls `current` every `SDLC_CONFIG_POLL_SECONDS` (60); the user publishes with
+`gcp_deploy.ps1 -Step config` and rolls back with `-ConfigVersion <v>`. CI validates config and shows the
+permission diff on pull requests. Pub/Sub reload and CI promotion are not built (version-03 P3).
 
 ## 7. Environments and endpoint exposure
 
@@ -339,7 +408,7 @@ promotion arrive with GCP (Stage 7b).
 | **Development, local** (config env `local`) — **the current phase** | Docker Compose on a developer machine | **Both**: `localhost` (4180 UI, 8080 MCP) for the developer, and a **Cloudflare Tunnel** for testers: `app-sdlc-dev.shaheenks.co.in`, `mcp-sdlc-dev.shaheenks.co.in` | Localhost: plain HTTP (Entra allows `http://localhost` callbacks). Tunnel: TLS ends at Cloudflare's edge (Universal SSL); outbound-only connector, no inbound ports |
 | **Higher environments** (staging, prod) | GCP (Stage 7): Cloud Run / load balancer | **Hosted directly** on their own public hostnames. **No tunnel and no localhost access** | DNS **CNAME** to the platform endpoint (Cloud Run domain mapping or load balancer) and a **managed certificate** (Google-managed or Cloudflare edge + origin certificate) |
 | **Development on GCP** (config env `dev`; version-01 M7, deployed 2026-10-28) | GCP `sdlc-demo-env01` / `asia-southeast1`, Cloud Run | Cloud Run's own `https://sdlc-app-dev-<project number>.asia-southeast1.run.app` and `sdlc-mcp-dev-…` URLs (temporary exception: custom hostnames later) | Google-managed TLS on `*.run.app`; no DNS records |
-| **Staging, prod** | Designed (Stage 7), not deployed | — | — |
+| **Staging, prod** | Designed (Stage 7), not deployed; staging dropped for version-03 (P1, 2026-11-07) | — | — |
 
 Rules that follow from this:
 - **Dev needs both paths.** Two oauth2-proxy instances share one Entra client: `oauth2-proxy`
@@ -363,22 +432,24 @@ Details for dev exposure: [CLOUDFLARE_TUNNEL.md](misc/CLOUDFLARE_TUNNEL.md). GCP
 
 | Aspect | Development: local + Cloudflare Tunnel (current phase) | GCP (dev since version-01 M7; staging/prod later) |
 |---|---|---|
-| Agent | `user-agent` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` or publicly via Cloudflare Tunnel (host connector) → `oauth2-proxy-public` (localhost:4181) at `https://app-sdlc-dev.shaheenks.co.in` | Cloud Run service `sdlc-app-<env>`: oauth2-proxy ingress container + agent sidecar (`:8000`, `/agui`) + CopilotKit chat app sidecar (`:3000`, `/chat/`), 1 instance; later Agent Runtime (Gemini Enterprise) |
+| Agent | `user-agent` container (`sdlc-agent-web`: ADK web app + Entra user binding), reached via `oauth2-proxy` on `localhost:4180` or publicly via Cloudflare Tunnel (host connector) → `oauth2-proxy-public` (localhost:4181) at `https://app-sdlc-dev.shaheenks.co.in` | Cloud Run service `sdlc-app-<env>`: oauth2-proxy ingress container + agent sidecar (`:8000`, `/agui`, `/a2a`) + CopilotKit chat app sidecar (`:3000`, `/chat/`), 1 instance; Gemini Enterprise reaches `/a2a` with bearer tokens |
 | MCP server | `core-mcp` container (`localhost:8080`; public `https://mcp-sdlc-dev.shaheenks.co.in/mcp` via Cloudflare Tunnel) | Cloud Run service `sdlc-mcp-<env>` (public, stateless, scales out; Entra token is the gate) |
 | Database | `postgres` container (pgvector, `127.0.0.1:5432`) | Cloud SQL for PostgreSQL 17 + pgvector via the Cloud SQL connector only (no authorized networks; private IP later); roles/RLS by the `sdlc-db-setup` job |
-| Ingest | CLI in container (on demand, profile `ingest`; `.git` mounted read-only for git sources) | Cloud Run Job `sdlc-ingest-<env>` |
-| Config | bind-mounted `config/`, file-watch reload (local bundles optional) | 7a: baked into the image per release, tenant `groups.yaml` from Secret Manager; 7b: GCS bundle + `current` pointer, Pub/Sub reload |
+| Ingest | CLI in container (on demand, profile `ingest`; `.git` mounted read-only for git sources) | Cloud Run Job `sdlc-ingest-<env>`, optionally on a Cloud Scheduler schedule; reconcile job `sdlc-reconcile-<env>` for stored PATs |
+| Config | bind-mounted `config/`, file-watch reload (local bundles optional) | GCS bundle + `current` pointer in the config store bucket, polled every 60 s (version-02 N13); published with `-Step config` |
+| Artifacts | `file://` volume on `core-mcp` | GCS artifact bucket (lifecycle 7 days), `objectUser` for the MCP service account only |
 | Conversations | SQLite on the agent-only `agent-sessions` volume, 7-day retention | Vertex AI Agent Engine sessions (version-01 M8), retention from conversation start (see "Conversation storage") |
-| Tracing | Jaeger (profile `observability`, UI on `localhost:16686`) | Cloud Trace via OTLP (planned) |
+| Tracing | Jaeger (profile `observability`, UI on `localhost:16686`) | Cloud Trace exporter (`cloud_trace = true`, version-02 N4) |
 | Secrets | `.env` | Secret Manager |
 | Model | Gemini API key or ADC | Vertex AI via each workload's service account (no key files) |
-| Identity | Entra test tenant/groups | Entra + Workforce Identity Federation |
+| Identity | Entra test tenant: groups, app roles, users.yaml | Same Entra apps and tenant as local dev (groups, app roles, users.yaml in the bundle); federated credentials and Entra apps in Terraform are parked (version-03 P2 E4–E6) |
 | Endpoints | `localhost:4180` / `:8080` + tunnel `app-/mcp-sdlc-dev.shaheenks.co.in` | Direct public hostnames per environment: DNS CNAME + managed certificate; no tunnel |
 
 ## 9. Growth path
 
 The platform starts as one agent, one MCP server, one ingest CLI and one database; that is
 a starter component in each area (`agents/user_agent`, `mcp_servers/core_mcp`, `ingest/bootstrap`). It grows by adding **sibling components**: more
-SDLC agents, specialised MCP servers (e.g. a knowledge server), and ingest loaders for Jira
-and wikis (local folders and git repositories exist today). All of them share `libs/` and the same `config/` policy, so identity and
+SDLC agents (next: `ci_agent` / `ops_agent` with workload identity and an event gateway, version-03 P6),
+specialised MCP servers (e.g. a knowledge server), write tools with UI confirmation (P7) and more ingest
+loaders (SharePoint, P8; local folders, git, GCS, Confluence and Jira exist today). All of them share `libs/` and the same `config/` policy, so identity and
 selective disclosure stay consistent as the system expands.

@@ -9,9 +9,9 @@ Design, diagrams, IAM/secrets, cost and runbook: [docs/GCP_DEPLOYMENT.md](../doc
 | `gcp/main.tf` | APIs, Artifact Registry, locals (deterministic `*.run.app` URLs, image names) |
 | `gcp/sql.tf` | Cloud SQL PostgreSQL 17 (Enterprise, connector only, no authorized networks), database, admin user |
 | `gcp/secrets.tf` | Generated DB passwords + oauth2-proxy cookie secret; Entra secrets from local files; `groups.yaml` / `users.yaml` only without a config store bucket |
-| `gcp/storage.tf` | Buckets: config store (config bundles `bundles/<env>/`, source docs `source_docs/<source id>/`; read-only for MCP + ingest) and artifact store (temporary files and agent artefacts, deleted after `artifact_retention_days`) |
+| `gcp/storage.tf` | Buckets: config store (config bundles `bundles/<env>/`, source docs `source_docs/<source id>/`; read-only for MCP + ingest) and artifact store (users' saved artifacts under `artifacts/<oid>/<id>`, read/write for the MCP service only, deleted after `artifact_retention_days`) |
 | `gcp/iam.tf` | One service account per workload (`mcp`, `app`, `jobs`): Cloud SQL client, Vertex AI user, own secrets only; MCP: custom role on the `sdlc-<env>-user-` secret prefix (user connections) |
-| `gcp/run.tf` | Cloud Run `sdlc-mcp-<env>`, `sdlc-app-<env>` (oauth2-proxy + agent + CopilotKit chat app sidecars; `/chat/` → app, `/connections/` → MCP), jobs `sdlc-db-setup-<env>`, `sdlc-ingest-<env>` |
+| `gcp/run.tf` | Cloud Run `sdlc-mcp-<env>`, `sdlc-app-<env>` (oauth2-proxy + agent + CopilotKit chat app sidecars; `/chat/` → app, `/connections/` and `/artifacts/` → MCP, `/a2a` with bearer tokens), jobs `sdlc-db-setup-<env>`, `sdlc-ingest-<env>` |
 | `gcp/sessions.tf` | Agent Engine `sdlc-sessions-<env>`: the agent's conversation store (sessions only, TTL `session_retention_days`; version-01 M8) |
 | `gcp/<env>.tfvars`, `gcp/<env>.gcs.tfbackend` | Per-environment values (no tenant IDs) and state location |
 

@@ -15,7 +15,16 @@ checks; `resolve()` -> `EffectivePolicy` (source rules for every grant, deny and
 
 **Implemented (H4, local part of Stage 7b):** config bundles (`bundles.py`): `sdlc-config compile`,
 `activate`, `bundles`; `ConfigStore.from_bundles()` (and `SDLC_CONFIG_BUNDLES` in `from_env`).
-GCS + Pub/Sub delivery is still planned (Stage 7b on GCP).
+
+**Implemented (version-02):** `BlockList` (E3), `ConnectionCatalog`, per-source Entra groups (N9),
+`UserMap` direct members by oid + `sdlc-config users sync` (N10), `explain --user`; GCP bundles from the
+config store bucket, polled by `ConfigStore.start_updates()` (`SDLC_CONFIG_POLL_SECONDS`, N13).
+Pub/Sub delivery is not built.
+
+**Implemented (version-03):** `app_role:` identities (P2 E1); skill `tags`, team add-on tags limited to
+`platform.yaml` `skills.team_tags`, `addons.flows.document` + `platform.yaml` `flows.document` caps,
+`document_flow(snapshot, policy, team)` (`flows.py`), users.yaml `default_team`, team `metadata.description`
+(P10 G6–G9).
 Design: docs/plans/version-00.md → "Configuration Model" and "Runtime Config Exposure".
 
 ## Components
@@ -32,14 +41,17 @@ Design: docs/plans/version-00.md → "Configuration Model" and "Runtime Config E
 - **ConfigStore** - `ConfigStore.from_env()`: `SDLC_CONFIG_BUNDLES` (bundle root) if set, else the local
   folder `SDLC_CONFIG_DIR` (dev, file watch). Bundles are verified on every load (every file against
   the manifest, no extra files, recomputed version = bundle version, env matches). Fail-closed
-  startup, last-known-good on a bad reload; a pointer move triggers the reload. GCS: Stage 7b.
+  startup, last-known-good on a bad reload; a pointer move triggers the reload. On GCP the bundle root is
+  the mounted config store bucket and `current` is polled.
   - `store.current()` → immutable `Snapshot` (one per request)
   - `snap.resolve(principal)` → `EffectivePolicy` (cached per oid + groups hash + version)
   - `snap.version`, `store.subscribe(on_change)`
-- **Resolver** - groups → teams → roles → tools/skills/sources/agent context; deny wins.
+- **Resolver** - groups + app roles + users.yaml → teams → roles → tools/skills/sources/agent context; deny wins.
 
 ## Exposure
-- CLI: `validate`, `compile`, `activate`, `bundles`, `explain --persona|--groups`, `diff`
+- CLI: `validate [--dummy-env] [--check-secrets]`, `compile`, `activate`, `bundles`,
+  `explain --persona|--groups|--app-roles|--user`, `diff`, `users sync`
 - MCP tools (served by MCP servers, RBAC-gated): `whoami(explain=true)` (own view),
-  `config_explain(upn)` and `config_info()` (admin only)
+  `get_agent_context(team=)` (team context + document-flow defaults), `config_explain(groups, app_roles)`
+  and `config_info()` (admin only)
 - HTTP: `/healthz`, `/readyz` report `config_version`
