@@ -15,6 +15,10 @@ Definitions live in:
     hold page numbers.
   - `004_item_metadata.sql` (version-01 M0): `documents.title`, `documents.url` (citations), `sync_state`
     (incremental loader cursors, ingest only).
+  - `005_artifacts.sql` (version-03 P5): `artifacts` (metadata of documents the agent saves for a user;
+    owner-only RLS; the only table `sdlc_app` may write).
+  - `006_artifact_versions.sql` (version-03 P5): `artifacts.document_id` + `version` (revisions of one document).
+  - `007_chunks_fulltext.sql` (version-03 P11): `chunks.content_tsv` (generated `simple` tsvector) + GIN index (keyword search).
 
 Related: [ARCHITECTURE.md](ARCHITECTURE.md) "Data access" and "Knowledge graph".
 
@@ -26,7 +30,7 @@ can create objects there). Every role has `search_path = sdlc, public`.
 | Role | Used by | Can do | Bypasses RLS? |
 |---|---|---|---|
 | `sdlc_owner` | `sdlc-db migrate` | Owns schema `sdlc` and every table; runs migrations | No: tables use `FORCE ROW LEVEL SECURITY`, so even the owner sees no rows without context |
-| `sdlc_app` (`PGUSER`) | MCP server | `SELECT` only, on the six knowledge tables | No: reads only rows matching the caller's RLS context |
+| `sdlc_app` (`PGUSER`) | MCP server | `SELECT` only on the six knowledge tables; `SELECT, INSERT, DELETE` on `artifacts` (own rows only) | No: reads only rows matching the caller's RLS context |
 | `sdlc_ingest` | `sdlc-ingest` | Read and write knowledge tables, `extraction_cache` and `sync_state` | No: its policies allow every row, but it is still subject to RLS |
 | `postgres` (admin) | `sdlc-db bootstrap`, local inspection | Creates the extension, roles and schema | Locally yes (superuser). On Cloud SQL it is `cloudsqlsuperuser`, not a real superuser |
 
@@ -156,6 +160,7 @@ Retrievable pieces of a document, with their embedding.
 | `content` | `text` | The chunk text |
 | `embedding` | `vector(768)` | `gemini-embedding-2`, normalized (`platform.yaml` `knowledge.embedding`) |
 | `embedding_model` | `text` | Model that produced the vector |
+| `content_tsv` | `tsvector` (generated) | `to_tsvector('simple', heading + content)`, GIN index (007, version-03 P11): keyword search on identifiers |
 
 ### `entities` (002)
 Things named in a source (services, components, teams, incidents, …), extracted by Gemini at ingest.
@@ -220,6 +225,27 @@ Where an incremental loader resumes (version-01 M0).
 Ingest only: RLS enabled and forced, a policy for `sdlc_ingest` only, no grant to `sdlc_app`. The cursor is
 saved only after a run without errors, so failed items are retried; `--force` ignores it.
 
+### `artifacts` (005)
+Documents the agent saved for a user (version-03 P5). Metadata only: the content is in the artifact store
+(`SDLC_ARTIFACT_STORE`: a volume locally, the GCS artifact bucket on GCP) under `artifacts/<owner_oid>/<id>`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `uuid` PK | Made by the MCP server; this version's own id (the content's object key) |
+| `document_id` | `uuid` | Stable id of the document (= `id` of version 1); the public id and link (006) |
+| `version` | `integer` | 1, 2, … per document, unique with `document_id` (`artifacts_document_version`); the highest live one is current (006) |
+| `owner_oid` | `text` | Entra `oid` of the caller, from the verified token; lowercase GUID (checked) |
+| `name` | `text` | File name, 1–100 characters (checked again in `sdlc_artifacts.limits`) |
+| `media_type` | `text` | `text/markdown`, `text/plain`, `text/csv` or `application/json` |
+| `size_bytes`, `sha256` | `integer`, `text` | Of the stored content |
+| `agent_session_id` | `text` | Conversation id (client-supplied): correlation only |
+| `created_at`, `expires_at` | `timestamptz` | `expires_at` = creation + `SDLC_ARTIFACT_RETENTION_DAYS` (7, like the bucket lifecycle) |
+
+Owner only: RLS enabled and forced, policy `app_owner` for `sdlc_app` on `owner_oid = sdlc.current_user_oid()`
+(`USING` and `WITH CHECK`), set per transaction by `sdlc_db.owner_scoped(conn, oid)`. No `UPDATE` grant (a
+revision is a new row: the next `version` of the same `document_id`) and no grant to `sdlc_ingest`. Not knowledge data, so no `source_id` /
+`classification_rank` (sharing, version-03 F3, would add classification). Index `artifacts_owner_created`.
+
 ### `schema_migrations` (created by `sdlc-db migrate`)
 | Column | Type | Notes |
 |---|---|---|
@@ -264,6 +290,9 @@ transaction.
 
 \* On `sources` the check uses `id` instead of `source_id`.
 
+`artifacts` has its own policy, `app_owner` (`sdlc_app`, all commands): `owner_oid = sdlc.current_user_oid()`,
+from `app.user_oid` set by `sdlc_db.owner_scoped()`. Without it no row is visible or writable.
+
 All tables have **RLS enabled and forced**, so the rules apply to the table owner too. Two checks protect
 every read: the MCP server only asks for the user's readable sources, and the database filters every row on
 the same values plus the row's own classification stamp. A bug in tool code cannot widen access beyond RLS.
@@ -280,6 +309,9 @@ updates `classification_rank` on all six tables); until then the stricter stamp 
 | `sdlc_ingest` | `SELECT, INSERT, UPDATE, DELETE` | `SELECT, INSERT, UPDATE, DELETE` | `USAGE, SELECT` | `EXECUTE` |
 | `sdlc_owner` | owner | owner | owner | owner |
 
+`artifacts`: `sdlc_app` has `SELECT, INSERT, DELETE` (no `UPDATE`) and `EXECUTE` on `sdlc.current_user_oid()`;
+`sdlc_ingest` has nothing.
+
 ## 7. Data lifecycle
 
 | Step | Who | What happens in the database |
@@ -291,6 +323,8 @@ updates `classification_rank` on all six tables); until then the stricter stamp 
 | File without text | `sdlc-ingest` | Empty files and scans with OCR off are recorded with **no chunks**, so their hash is stored and they are not re-read every run (`--force` re-reads them) |
 | File deleted | `sdlc-ingest` | Delete the document (cascade) and orphaned entities |
 | Search | MCP `search_knowledge` | Nearest chunks by cosine distance, under RLS |
+| Artifact saved | MCP `save_artifact` | One transaction as the owner: delete their expired rows, check the 50-artifact limit, insert the row, upload the content (a failed upload rolls the row back) |
+| Artifact expired | MCP (`save_artifact` / `list_artifacts` by the owner) | Expired rows are deleted; content best effort, the bucket lifecycle removes the rest |
 | Graph query | MCP `graph_query` | Vector seed → entities of the best chunks + entities named in the question → 1–2 hops over `edges` by `key` (recursive CTE) → chunks mentioning the reached entities; every step under RLS |
 
 ## 8. Migrations and setup

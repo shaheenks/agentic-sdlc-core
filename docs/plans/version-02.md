@@ -25,10 +25,10 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 | Milestone | Status | Notes |
 |---|---|---|
 | N0 — Carry-over checks | ✅ Done (2026-11-04) | version-01 G1, G2, G5, G7 passed on localhost / the tunnel (§19 R1) |
-| N1 — Dev sources on GCP + ingest | 🔨 Built (2026-11-05); not applied | D1: the current four sources (already ingested on GCP in R2, no secrets needed). Added: Cloud Scheduler for the ingest job (`ingest_schedule`, off by default). Open: set the schedule, `plan` + `apply` (§19 R7) |
-| N2 — Live connector checks + retrieval eval | ⏳ Checks C3–C7 open (§19 R8) | GitHub and GCS ingest live on GCP (R2). Atlassian (D2: no site), Data Center and the PDF OCR live check → version-03. Open: GitHub/Bitbucket Cloud user connections on GCP, AG-UI gates 3 and 5, retrieval eval after the merge |
-| N3 — Block list and secret management review | 🔨 Built (2026-11-05); not applied | Review: [docs/SECRETS_REVIEW.md](../SECRETS_REVIEW.md). Block list via bundles (tested), reconcile job + CLI, `validate --check-secrets`, rotation procedures, E3 decision (no lifetime policy / CAE now). Open: `images` + `plan` + `apply`, GCP checks (§19 R5) |
-| N4 — Observability on GCP | 🔨 Built (2026-11-05); not applied | Cloud Trace exporter for agent (ADK `trace_to_cloud`) and MCP (`SDLC_TRACE_TO_CLOUD`), `cloud_trace = true` in dev.tfvars, audit views as Logs Explorer queries (GCP_DEPLOYMENT §8). Open: `images` + `plan` + `apply`, gate check (§19 R6) |
+| N1 — Dev sources on GCP + ingest | 🔨 Built; deployed on GCP dev 2026-11-05 (image `98f327f`) | D1: the current four sources (already ingested on GCP in R2, no secrets needed). Added: Cloud Scheduler for the ingest job (`ingest_schedule`, off by default). Open: set the schedule, `plan` + `apply` (§19 R7) |
+| N2 — Live connector checks + retrieval eval | ✅ Done (2026-11-05, §19 R8 C1–C7) | GitHub and GCS ingest live on GCP (R2); GitHub/Bitbucket Cloud user connections on GCP and AG-UI gates 3 and 5 verified by the user; retrieval eval passed (C7). Atlassian (D2: no site), Data Center and the PDF OCR live check → version-03 |
+| N3 — Block list and secret management review | 🔨 Built; deployed on GCP dev 2026-11-05 (image `98f327f`) | Review: [docs/SECRETS_REVIEW.md](../SECRETS_REVIEW.md). Block list via bundles (tested), reconcile job + CLI, `validate --check-secrets`, rotation procedures, E3 decision (no lifetime policy / CAE now). Open: `images` + `plan` + `apply`, GCP checks (§19 R5) |
+| N4 — Observability on GCP | 🔨 Built; deployed on GCP dev 2026-11-05 (image `98f327f`) | Cloud Trace exporter for agent (ADK `trace_to_cloud`) and MCP (`SDLC_TRACE_TO_CLOUD`), `cloud_trace = true` in dev.tfvars, audit views as Logs Explorer queries (GCP_DEPLOYMENT §8). Open: `images` + `plan` + `apply`, gate check (§19 R6) |
 | N5 — GCP operations (Stage 7b) | ➡️ Moved to version-03 (2026-11-04) | Bundles + reload done by N13; its Stage 7b gate is checked in §19 R2. Scale-out, CI deploy, hostnames, private IP, staging, E1/E4–E6 → version-03 (§5) |
 | N6 — Product backlog | ➡️ Moved to version-03 (2026-11-04) | Chat history done by N15; the rest of §6 (incl. write tools) → version-03 |
 | N7 — Agent-generated UI (A2UI) + A2A path for Gemini Enterprise | ✅ Spike done (2026-11-05): GO, build in version-03 | Citation cards from the standard catalog without the model (Google's builder, validated); `/chat/` renders them with the CopilotKit 1.79 we have (`a2ui: { injectA2UITool: false }`); A2A needs `google-adk[a2a]` and an `oid`-bound call context (§10 spike findings) |
@@ -46,9 +46,8 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 **Scope (narrowed 2026-11-04):** version-02 = close out N8–N15 (checks, GCP deploy, merge to `main`), N0, N1, N2
 (Cloud editions), N3, N4 and the N7 spike. No new features until R1 and R2 are done.
 
-**Status (2026-11-05): build complete, user checks open.** Everything in scope is built and committed; what is
-left is the merge, one GCP deploy and checks, all run by the user: the handover checklist in §20. Version-02 closes
-when §20 is ticked; [version-03.md](version-03.md) (draft) then becomes the current plan.
+**Status: closed (2026-11-06).** Everything in scope is built, deployed to GCP dev and checked; the §20 handover
+checklist is complete (H6, the first scheduled runs, on 2026-11-06). Current plan: [version-03.md](version-03.md).
 
 ## Open decisions
 
@@ -776,11 +775,11 @@ eval with `platform-infra`). What stays, as a checklist (run by you; GCP dev unl
 |---|---|---|
 | C1 | GitHub **ingest** (https, tracked `main`): `sdlc-platform` ingested on GCP | ✅ R2 (2026-11-05) |
 | C2 | GCS **ingest**: the three sample sources from the config store bucket | ✅ R2 (2026-11-05) |
-| C3 | GitHub **user connection** on GCP: connect a fine-grained PAT on `/chat/connections` (first save on GCP also proves the IAM condition covers `secrets.create`), ask the chat to read a file of `agentic-sdlc-core` with `github_get_file`, disconnect, ask again → "not connected" | open |
-| C4 | Bitbucket Cloud **user connection**: an Atlassian API token *with scopes* (`read:user:bitbucket`, `read:repository:bitbucket`) + your Atlassian email on `/chat/connections`; read a file of `agentic-sdlc-demo/agentic-sdlc-core` with `bitbucket_get_file` | open |
-| C5 | AG-UI gate 5 (GitHub part): a second user whose GitHub account has no access to a private repo connects their own PAT and asks for a file there → the provider's 404/403 comes back as "no access", never another user's token | open (needs a private repo) |
-| C6 | AG-UI gate 3: an answer from `search_knowledge` shows citations with links (GitHub blob URL for `sdlc-platform`, bucket object for the samples); Isha (no knowledge tool) and Ana (viewer, no team) never see `payments-code` / `sdlc-platform` citations | open |
-| C7 | Retrieval eval: after the merge to `main` (R3) and a `sdlc-platform` re-ingest, `SDLC_EVAL=1 uv run --env-file .env pytest tests/evals -s` (local, live Vertex); record vector vs hybrid hit rates here | open (after R3) |
+| C3 | GitHub **user connection** on GCP: connect a fine-grained PAT on `/chat/connections` (first save on GCP also proves the IAM condition covers `secrets.create`), ask the chat to read a file of `agentic-sdlc-core` with `github_get_file`, disconnect, ask again → "not connected" | ✅ verified by the user (2026-11-05) |
+| C4 | Bitbucket Cloud **user connection**: an Atlassian API token *with scopes* (`read:user:bitbucket`, `read:repository:bitbucket`) + your Atlassian email on `/chat/connections`; read a file of `agentic-sdlc-demo/agentic-sdlc-core` with `bitbucket_get_file` | ✅ verified by the user (2026-11-05) |
+| C5 | AG-UI gate 5 (GitHub part): a second user whose GitHub account has no access to a private repo connects their own PAT and asks for a file there → the provider's 404/403 comes back as "no access", never another user's token | ✅ verified by the user (2026-11-05) |
+| C6 | AG-UI gate 3: an answer from `search_knowledge` shows citations with links (GitHub blob URL for `sdlc-platform`, bucket object for the samples); Isha (no knowledge tool) and Ana (viewer, no team) never see `payments-code` / `sdlc-platform` citations | ✅ verified by the user (2026-11-05) |
+| C7 | Retrieval eval: after the merge to `main` (R3) and a `sdlc-platform` re-ingest, `SDLC_EVAL=1 uv run --env-file .env pytest tests/evals -s` (local, live Vertex); record vector vs hybrid hit rates here | **Done 2026-11-05** (local, `7a5e4df`, 33 questions, passed). recall@5 / recall@3 / MRR: vector 0.939 / 0.864 / 0.698; vector+dedup 0.970 / 0.879 / 0.708; hybrid h1 = h2 0.955 / 0.879 / 0.707. Single-hop and sample-source questions 1.000 recall@5 in every variant; multi-hop recall@5 0.778 (vector) to 0.889 (dedup). Misses (0.50 everywhere): token forwarding agent -> MCP, how the MCP server picks searchable sources; hybrid drops one source for the rate-limit refusal question |
 
 ### R9 — N7 A2UI spike (§10)
 Spike only, no product code until it passes: A2UI over AG-UI and A2A from one code path, citation cards from the
@@ -821,13 +820,13 @@ pending tasks 1 (agent runtimes) and 3 (artifacts). Drafted as [version-03.md](v
 
 | # | Step | Closes |
 |---|---|---|
-| H1 | Push the last commit (`git push origin version-02`) and merge the version-02 PR into GitHub `main` (mirror to Bitbucket if wanted) | R3 |
+| H1 | Push the last commit (`git push origin version-02`) and merge the version-02 PR into GitHub `main` (mirror to Bitbucket if wanted). **Done 2026-11-05** (PR #2, `7a5e4df`) | R3 |
 | H2 | `-Step config` (Przemek in the dev bundle); Przemek checks "who am I? explain" → team `sdlc-platform`, role `developer` | N10 (dev user) |
-| H3 | `-Step images`, set `ingest_schedule` / `reconcile_schedule` in `dev.tfvars` if wanted, `-Step plan` (expect: reconcile job + SA, 2 custom roles, Cloud Trace role + env, scheduler only if scheduled; **no destroys**), `-Step apply` | N1, N3, N4 deploy |
-| H4 | Reconcile dry run on GCP; block/unblock a test user via `blocked.yaml` + `-Step config` (§19 R5 steps 2–3) | N3 |
-| H5 | One chat turn = one trace in Cloud Trace, no prompt text or argument values; its audit records by `trace_id` (§19 R6) | N4 |
-| H6 | Next scheduled ingest run visible, if `ingest_schedule` was set (§19 R7) | N1 |
-| H7 | R8 checklist C3–C7: GitHub + Bitbucket Cloud connections on GCP, AG-UI gates 3 and 5, retrieval eval after H1 + a `sdlc-platform` re-ingest (record the hit rates in R8) | N2 |
+| H3 | `-Step images`, set `ingest_schedule` / `reconcile_schedule` in `dev.tfvars` if wanted, `-Step plan` (expect: reconcile job + SA, 2 custom roles, Cloud Trace role + env, scheduler only if scheduled; **no destroys**), `-Step apply`. **Done 2026-11-05:** apply without errors; scheduler jobs `sdlc-ingest-dev` 02:00 and `sdlc-reconcile-dev` 03:30 (Asia/Kolkata), MCP `SDLC_TRACE_TO_CLOUD=true` | N1, N3, N4 deploy |
+| H4 | Reconcile dry run on GCP; block/unblock a test user via `blocked.yaml` + `-Step config` (§19 R5 steps 2–3). Dry run **done 2026-11-05** (execution `hkfgd`: secrets list 200, 0 users, 0 changes; no PATs on GCP yet). Block **passed 2026-11-05**: Ana in `blocked.yaml`, `-Step config` (bundle `1fe0d66`), her MCP requests got 401, audit `auth_failure` reason `blocked` with her oid; unblock **passed** (empty `blocked: []`, bundle `44ba0b4`, her tool calls ok again). **H4 done** | N3 |
+| H5 | One chat turn = one trace in Cloud Trace, no prompt text or argument values; its audit records by `trace_id` (§19 R6). **Done 2026-11-05 after a fix** (first check failed; redeployed `1fe0d66`, recheck: traces of 74 and 23 spans, every content field `{}`). One trace (28 spans: agent, LLM, MCP, Postgres; audit `tool_call` records carry its `trace_id`), but ADK spans held the prompt, model response, tool response and tool args: Cloud Run lacked the compose vars `ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS` / `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`. Now forced off in `sdlc_web/__init__.py` (test `tests/web/test_span_content.py`) and set in `run.tf`. SQL spans hold placeholders only. Traces already exported keep content until Cloud Trace retention (30 days) ends | N4 |
+| H6 | Next scheduled ingest run visible, if `ingest_schedule` was set (§19 R7). **Done 2026-11-06:** started by `sdlc-dev-scheduler` on time, both succeeded: ingest `f6s8r` at 02:00 IST (no changes, `main` still `7a5e4df`), reconcile `5dpwc` at 03:30 IST with `--apply` (1 user scanned, 0 changes) | N1 |
+| H7 | R8 checklist C3–C7: GitHub + Bitbucket Cloud connections on GCP, AG-UI gates 3 and 5, retrieval eval after H1 + a `sdlc-platform` re-ingest (record the hit rates in R8). **H7 done 2026-11-05:** C3–C6 verified by the user, eval (C7) passed. Re-ingest **done 2026-11-05** at `7a5e4df`, local and GCP (80 changed, 25 deleted, 683 chunks, 408 LLM calls each) | N2 |
 
 A failing step stays in version-02 until fixed (or is moved to version-03 with a reason written here); then mark the
 milestone ✅ in Progress, switch CLAUDE.md's "Current plan" to version-03, and start version-03 at its P0.

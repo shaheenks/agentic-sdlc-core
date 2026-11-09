@@ -35,6 +35,19 @@ def test_users_load_and_match_by_oid_only(config_dir):
     assert users.pending == ("pending",)
 
 
+def test_default_team_applies_only_to_a_member(config_dir):
+    """version-03 P10 G9: guidance for the agent, ignored while the user is not in the team."""
+    edit_users(config_dir, lambda u: u["direct-dev"].update(default_team="payments"))
+    snap = load(config_dir)
+    assert snap.users.default_team["direct-dev"] == "payments"
+    assert resolve(snap, [], user="direct-dev").default_team == "payments"
+    edit_users(config_dir, lambda u: u["direct-dev"].update(default_team="sdlc-platform"))
+    assert resolve(load(config_dir), [], user="direct-dev").default_team is None  # not a member
+    edit_users(config_dir, lambda u: u["direct-dev"].update(default_team="marketing"))
+    with pytest.raises(ConfigError, match="default_team: unknown team 'marketing'"):
+        load(config_dir)
+
+
 def test_users_file_is_optional(config_dir):
     users_file(config_dir).unlink()
     snap = load(config_dir)

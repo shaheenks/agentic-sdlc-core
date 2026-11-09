@@ -1,9 +1,10 @@
 [project]
 name = "sdlc-agent"
 version = "0.1.0"
-description = "Shared helpers for ADK agents: per-user team context from the MCP server"
+description = "Shared helpers for ADK agents: per-user team context from the MCP server, A2UI cards"
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "a2ui-agent-sdk>=0.9,<0.10",  # A2UI v0.9 builder + basic catalog (version-03 P4)
     "google-adk[mcp]>=2.10",
     "sdlc-auth",
 ]

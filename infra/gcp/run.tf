@@ -32,6 +32,11 @@ locals {
     },
     local.bundles_env,
     local.trace_env,
+    # artifacts (version-03 P5): content in the artifact bucket, expiry = the bucket lifecycle
+    var.artifact_store_bucket == "" ? {} : {
+      SDLC_ARTIFACT_STORE          = "gs://${google_storage_bucket.artifact_store[0].name}"
+      SDLC_ARTIFACT_RETENTION_DAYS = tostring(var.artifact_retention_days)
+    },
     # direct members (version-02 N10) without bundles: read from the secret mount
     local.users_secret ? { SDLC_USERS_FILE = "${local.users_dir}/users.yaml" } : {},
   )
@@ -49,9 +54,9 @@ locals {
     OAUTH2_PROXY_SCOPE                 = "openid profile email offline_access api://${var.entra_api_client_id}/access_as_user"
     OAUTH2_PROXY_CODE_CHALLENGE_METHOD = "S256"
     OAUTH2_PROXY_PROMPT                = "select_account" # account picker at sign-in (after Sign out)
-    # /chat/ -> CopilotKit app (sidecar), /connections/ -> MCP service (users' own connections),
-    # everything else -> the agent (adk web, /agui). As in docker-compose.yml.
-    OAUTH2_PROXY_UPSTREAMS = "http://127.0.0.1:8000/,http://127.0.0.1:3000/chat/,https://${local.mcp_host}/connections/"
+    # /chat/ -> CopilotKit app (sidecar), /connections/ and /artifacts/ -> MCP service (users' own
+    # connections, saved documents), everything else -> the agent (adk web, /agui). As in compose.
+    OAUTH2_PROXY_UPSTREAMS = "http://127.0.0.1:8000/,http://127.0.0.1:3000/chat/,https://${local.mcp_host}/connections/,https://${local.mcp_host}/artifacts/"
     # Cloud Run routes by Host: the MCP upstream must get its own host, not the app's.
     OAUTH2_PROXY_PASS_HOST_HEADER                     = "false"
     OAUTH2_PROXY_HTTP_ADDRESS                         = "0.0.0.0:4180"
@@ -63,11 +68,17 @@ locals {
     OAUTH2_PROXY_EMAIL_DOMAINS                        = "*"
     OAUTH2_PROXY_COOKIE_REFRESH                       = "30m"
     OAUTH2_PROXY_COOKIE_EXPIRE                        = "8h"
-    OAUTH2_PROXY_API_ROUTES                           = "^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\\b|threads\\b)"
+    OAUTH2_PROXY_API_ROUTES                           = "^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\\b|threads\\b|a2a\\b)"
     OAUTH2_PROXY_REDIRECT_URL                         = "https://${local.app_host}/oauth2/callback"
     OAUTH2_PROXY_COOKIE_SECURE                        = "true"
     OAUTH2_PROXY_REVERSE_PROXY                        = "true" # Cloud Run's front end sets X-Forwarded-*
     OAUTH2_PROXY_WHITELIST_DOMAINS                    = local.app_host
+    # A2A clients (version-03 P4) send `Authorization: Bearer <Entra token>` instead of a session
+    # cookie: the proxy checks issuer, signature and audience (the API's client id); every upstream
+    # re-validates fully (scope, tenant). The agent card is public (no data in it). As in compose.
+    OAUTH2_PROXY_SKIP_JWT_BEARER_TOKENS = "true"
+    OAUTH2_PROXY_EXTRA_JWT_ISSUERS      = "${var.entra_authority_host}/${var.entra_tenant_id}/v2.0=${var.entra_api_client_id}"
+    OAUTH2_PROXY_SKIP_AUTH_ROUTES       = "GET=^/\\.well-known/agent-card\\.json$"
   }
 
   agent_env = merge(local.vertex_env, local.agent_entra_env, local.trace_env, {
@@ -77,12 +88,19 @@ locals {
     # only the ingress container's port (oauth2-proxy, 4180) is exposed by a multi-container service.
     HOST            = "0.0.0.0"
     SDLC_AGUI_AGENT = "user_agent" # AG-UI endpoint /agui for the CopilotKit app (version-01 M5)
+    # A2A endpoint /a2a (version-03 P4). The card advertises the public URL: the agent sees
+    # 127.0.0.1 as its host (PASS_HOST_HEADER=false).
+    SDLC_A2A_AGENT = "user_agent"
+    SDLC_A2A_URL   = "https://${local.app_host}/a2a"
     # oauth2-proxy does not pass the browser's Host (PASS_HOST_HEADER=false), so ADK's cross-origin
     # guard needs the public origin explicitly, or the dev UI's scripts get 403.
     SDLC_ALLOWED_ORIGINS = "https://${local.app_host}"
     # Conversations in Agent Engine sessions (sessions.tf), deleted this many days after they start.
     SDLC_SESSION_SERVICE_URI    = "agentengine://${google_vertex_ai_reasoning_engine.sessions.id}"
     SDLC_SESSION_RETENTION_DAYS = tostring(var.session_retention_days)
+    # never export prompts/responses (as in compose; sdlc_web also forces these)
+    ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS               = "false"
+    OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = "false"
   })
 
   # CopilotKit chat app sidecar (version-01 M5): forwards only the proxy's token header to /agui.

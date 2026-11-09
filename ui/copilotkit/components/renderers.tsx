@@ -5,18 +5,24 @@
 // escapes text, and links are limited to http(s) (lib/results.ts safeUrl).
 
 import { defineToolCallRenderer } from "@copilotkit/react-core/v2";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { z } from "zod";
 
+import { ARTIFACTS_CHANGED } from "@/components/ArtifactsPanel";
+import { openArtifact } from "@/components/ArtifactViewer";
 import {
+  activeTeam,
   type Citation,
   citations,
   type DocumentChip,
   documentChips,
+  goldfishReview,
   graphEntities,
   identity,
   location,
   safeUrl,
+  savedArtifacts,
+  SEVERITIES,
   toolPayload,
 } from "@/lib/results";
 
@@ -39,6 +45,7 @@ function CitationCard({ c }: { c: Citation }) {
           <span>{heading}</span>
         )}
         {c.via === "graph" && <span className="badge">via graph</span>}
+        {(c.via === "keyword" || c.via === "both") && <span className="badge">exact match</span>}
       </div>
       <div className="citation-meta">
         <span>{c.source}</span>
@@ -227,6 +234,107 @@ function ConnectedResult({ result, label }: { result: unknown; label: string }) 
   );
 }
 
+// Documents the agent saved for the user (version-03 P5). Links point only at /artifacts/<uuid>.
+function ArtifactsResult({ result, label, saved }: { result: unknown; label: string; saved?: boolean }) {
+  const items = savedArtifacts(result);
+  const first = items[0]?.id;
+  useEffect(() => {
+    if (saved && first) window.dispatchEvent(new Event(ARTIFACTS_CHANGED)); // the panel refreshes
+  }, [saved, first]);
+  if (items.length === 0) return <div className="tool">{label}: none</div>;
+  return (
+    <div className="tool">
+      <div className="tool-title">{label}</div>
+      {items.map((a) => (
+        <div key={a.id}>
+          <a href={a.href} download={a.name}>
+            {a.name}
+          </a>{" "}
+          <button type="button" className="link-button" onClick={() => openArtifact(a)}>
+            Review
+          </button>
+          <div className="citation-meta">
+            <span>v{a.version}{a.versions > 1 ? ` · ${a.versions} versions` : ""}</span>
+            <span>{a.sizeBytes < 1024 ? `${a.sizeBytes} B` : `${Math.ceil(a.sizeBytes / 1024)} KB`}</span>
+            {a.expiresAt && <span>kept until {a.expiresAt.slice(0, 10)}</span>}
+            <span>only you can open it</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Goldfish review (version-03 P10): one line with the counts and the lens outcomes; the findings
+// in the body. Reviewer text is plain text. The agent presents and resolves them in its answer.
+const SEVERITY_CLASS = { blocker: "status-bad", major: "status-warn", nit: "status-off" } as const;
+const LENS_CLASS = { ok: "status-ok", unavailable: "status-off", failed: "status-warn" } as const;
+
+function GoldfishCard({ result }: { result: unknown }) {
+  const review = goldfishReview(result);
+  if (!review) return null;
+  if (review.error) return <div className="tool compact">Goldfish review: {review.error}</div>;
+  const ran = review.lenses.filter((l) => l.status === "ok").length;
+  return (
+    <CompactCard
+      line={
+        <>
+          <span className="tool-label">
+            Goldfish review · {ran}/{count(review.lenses.length, "lens")}
+          </span>
+          {SEVERITIES.map((s) => (
+            <span key={s} className={`status-chip ${review.counts[s] ? SEVERITY_CLASS[s] : "status-off"}`}>
+              {review.counts[s]} {s}
+            </span>
+          ))}
+        </>
+      }
+    >
+      <div className="identity-row">
+        {review.lenses.map((l) => (
+          <span key={l.lens} className={`status-chip ${LENS_CLASS[l.status]}`} title={l.status}>
+            {l.lens.replace(/^lens-/, "")}
+            {l.status === "ok" ? ` · ${l.findings}` : ` · ${l.status}`}
+          </span>
+        ))}
+      </div>
+      {review.summary && <p className="citation-snippet">{review.summary}</p>}
+      <ol className="citations">
+        {review.findings.map((f, i) => (
+          <li key={`${f.severity}-${i}`} className="citation">
+            <div className="citation-head">
+              <span className={`status-chip ${SEVERITY_CLASS[f.severity]}`}>{f.severity}</span>
+              <span>{f.title}</span>
+            </div>
+            <div className="citation-meta">
+              {f.lenses.map((l) => (
+                <span key={l}>{l.replace(/^lens-/, "")}</span>
+              ))}
+              {f.where && <span>§ {f.where}</span>}
+            </div>
+            {f.detail && <p className="citation-snippet">{f.detail}</p>}
+            {f.suggestion && <p className="citation-snippet">Fix: {f.suggestion}</p>}
+          </li>
+        ))}
+      </ol>
+    </CompactCard>
+  );
+}
+
+// Active team (version-03 P10 G9): one line once the brief locks the document's team.
+function ActiveTeamLine({ result }: { result: unknown }) {
+  const team = activeTeam(result);
+  if (!team) return null;
+  if (team.status === "error") return <div className="tool compact">Team not set: {team.error}</div>;
+  if (team.status === "cleared") return <div className="tool compact">Team cleared: broad context</div>;
+  return (
+    <div className="tool compact" title={team.description}>
+      <span className="tool-label">Team</span> <span className="status-chip status-ok">{team.team}</span>{" "}
+      <span>locked for this document</span>
+    </div>
+  );
+}
+
 const connectedRenderer = (name: string, label: string) =>
   defineToolCallRenderer({
     name,
@@ -280,5 +388,33 @@ export const toolRenderers = [
     args: whoamiArgs,
     render: ({ status, result }) =>
       done(status) ? <IdentityCard result={result} /> : <Pending label="Checking who you are" />,
+  }),
+  defineToolCallRenderer({
+    name: "save_artifact",
+    args: z.object({ name: z.string().optional() }).passthrough(),
+    render: ({ status, result }) =>
+      done(status) ? <ArtifactsResult result={result} label="Saved document" saved /> : <Pending label="Saving document" />,
+  }),
+  defineToolCallRenderer({
+    name: "goldfish_review",
+    args: z.object({ lenses: z.array(z.string()).optional() }).passthrough(),
+    render: ({ status, args, result }) =>
+      done(status) ? (
+        <GoldfishCard result={result} />
+      ) : (
+        <Pending label={`Goldfish reviewers are reading the draft (${args.lenses?.length || "default"} lenses)`} />
+      ),
+  }),
+  defineToolCallRenderer({
+    name: "set_active_team",
+    args: z.object({ team: z.string().optional() }).passthrough(),
+    render: ({ status, result }) =>
+      done(status) ? <ActiveTeamLine result={result} /> : <Pending label="Setting the team" />,
+  }),
+  defineToolCallRenderer({
+    name: "list_artifacts",
+    args: z.object({}).passthrough(),
+    render: ({ status, result }) =>
+      done(status) ? <ArtifactsResult result={result} label="Your saved documents" /> : <Pending label="Listing documents" />,
   }),
 ];

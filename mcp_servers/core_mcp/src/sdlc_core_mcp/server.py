@@ -27,6 +27,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from sdlc_core_mcp.admin_tools import make_admin_tools
+from sdlc_core_mcp.artifact_tools import Artifacts, make_artifact_tools
+from sdlc_core_mcp.artifacts_api import add_artifact_routes
 from sdlc_core_mcp.audit import (
     HiddenSkillError,
     PolicyMiddleware,
@@ -39,6 +41,7 @@ from sdlc_core_mcp.connections_api import add_connection_routes
 from sdlc_core_mcp.identity import request_identity
 from sdlc_core_mcp.knowledge_tools import Knowledge, make_knowledge_tools
 from sdlc_core_mcp.sdlc_tools import SDLC_TOOLS
+from sdlc_core_mcp.team_tools import make_team_tools
 from sdlc_core_mcp.telemetry import setup_tracing
 
 log = logging.getLogger("sdlc.mcp")
@@ -65,6 +68,7 @@ def build_server(
     group_resolver: GroupResolver | None = None,
     knowledge: Knowledge | None = None,
     connected: Connected | None = None,
+    artifacts: Artifacts | None = None,
 ) -> FastMCP:
     cache = PolicyCache()
     mcp = FastMCP(
@@ -105,13 +109,22 @@ def build_server(
             result["policy"] = ident.policy.explain()
         return result
 
-    async def list_skills() -> list[dict[str, str]]:
-        """List the SDLC skills available to you (name + description). Load one with load_skill."""
+    async def list_skills() -> list[dict]:
+        """List the SDLC skills available to you: name, description, tags (e.g. goldfish-lens,
+        brief-questions, doc-template) and, for a team add-on, its team. Load one with
+        load_skill."""
         ident = await request_identity()
         skills = ident.snapshot.skills
         visible = sorted(ident.policy.skills)
         audit_skills_list(ident, visible, len(skills) - len(visible))
-        return [{"name": name, "description": skills[name].description} for name in visible]
+        listed = []
+        for name in visible:
+            skill = skills[name]
+            item = {"name": name, "description": skill.description, "tags": sorted(skill.tags)}
+            if skill.team is not None:
+                item["team"] = skill.team
+            listed.append(item)
+        return listed
 
     async def load_skill(name: str) -> dict[str, str]:
         """Return the full instructions of a skill returned by list_skills."""
@@ -128,33 +141,24 @@ def build_server(
             "instructions": skill.instructions,
         }
 
-    async def get_agent_context() -> dict:
-        """Your team instructions and context, to apply for the whole session."""
-        policy = (await request_identity()).policy
-        return {
-            "instructions": [
-                {"team": item.team, "source": item.source, "text": item.text}
-                for item in policy.agent_instructions
-            ],
-            "context": {team: dict(values) for team, values in policy.context.items()},
-            "config_version": policy.config_version,
-        }
-
-    core = [ping, whoami, list_skills, load_skill, get_agent_context]
+    core = [ping, whoami, list_skills, load_skill, *make_team_tools()]
     knowledge_tools = make_knowledge_tools(knowledge) if knowledge else []
     connected = connected or Connected(service=None)  # tools answer "not configured"
     connected_tools = make_connected_tools(connected)
+    artifacts = artifacts or Artifacts(store=None, knowledge=None)  # tools answer "not configured"
     for fn in [
         *core,
         *SDLC_TOOLS,
         *make_admin_tools(store, cache),
         *knowledge_tools,
         *connected_tools,
+        *make_artifact_tools(artifacts),
     ]:
         register(fn)
     verifier = getattr(auth, "token_verifier", None)
-    if verifier is not None:  # the Connections API uses the same token checks as MCP
+    if verifier is not None:  # the Connections and Artifacts APIs use the same token checks as MCP
         add_connection_routes(mcp, connected, verifier)
+        add_artifact_routes(mcp, artifacts, verifier, store, group_resolver, cache)
 
     # Catalog vs code: fail startup on bad constraint args; re-check (log) on every reload.
     problems = catalog_problems(store.current(), registered)
@@ -283,6 +287,20 @@ def build_connected(store: ConfigStore, knowledge: Knowledge | None) -> Connecte
     return Connected(ConnectionService(user_store, store.current, lock), page_url=page)
 
 
+def build_artifacts(knowledge: Knowledge | None) -> Artifacts:
+    """Artifacts (version-03 P5): off unless SDLC_ARTIFACT_STORE is set (file:// or gs://).
+    Retention should match the GCS bucket lifecycle (artifact_retention_days)."""
+    from sdlc_artifacts import store_from_env
+
+    store = store_from_env()
+    days = float(os.environ.get("SDLC_ARTIFACT_RETENTION_DAYS", "7"))
+    if store is None:
+        log.info("artifacts off (SDLC_ARTIFACT_STORE not set)")
+    else:
+        log.info("artifacts on (%s store, %s days)", store.name, days)
+    return Artifacts(store, knowledge, days)
+
+
 def main() -> None:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(message)s")
     setup_tracing()  # no-op unless OTEL_EXPORTER_OTLP_(TRACES_)ENDPOINT is set
@@ -298,6 +316,7 @@ def main() -> None:
         build_group_resolver(snapshot),
         knowledge,
         build_connected(store, knowledge),
+        build_artifacts(knowledge),
     )
     uvicorn.run(build_http_app(server, store), host=host, port=port, log_level="info")
 

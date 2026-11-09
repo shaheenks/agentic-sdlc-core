@@ -57,6 +57,10 @@
             "dimensions": { "const": 768, "description": "must match the vector(768) column" }
           }
         },
+        "keyword_search": {
+          "description": "version-03 P11: fuse keyword (full-text, chunks.content_tsv) with vector ranking in search_knowledge and graph_query",
+          "type": "boolean"
+        },
         "graph": {
           "description": "knowledge-graph extraction (Stage 6)",
           "type": "object",
@@ -85,6 +89,35 @@
             "model": { "type": "string", "minLength": 1 },
             "thinking_level": { "enum": ["low", "medium", "high"] }
           }
+        }
+      }
+    },
+    "flows": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "document": {
+          "description": "Document flow defaults and caps (version-03 P10 G7). Teams may only lower the caps.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lenses", "max_lenses", "max_llm_calls_per_reviewer", "max_rereviews"],
+          "properties": {
+            "lenses": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" } },
+            "max_lenses": { "type": "integer", "minimum": 1, "maximum": 12 },
+            "max_llm_calls_per_reviewer": { "type": "integer", "minimum": 1, "maximum": 50 },
+            "max_rereviews": { "type": "integer", "minimum": 0, "maximum": 5 }
+          }
+        }
+      }
+    },
+    "skills": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "team_tags": {
+          "description": "Tags a team add-on skill may carry (version-03 P10 G6). They apply only inside the team and grant nothing.",
+          "type": "array", "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
         }
       }
     },

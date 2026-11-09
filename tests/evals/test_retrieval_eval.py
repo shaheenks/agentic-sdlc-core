@@ -33,7 +33,8 @@ DEPTH = 10  # results fetched per variant (MRR is computed over these)
 QUESTIONS = yaml.safe_load(
     (Path(__file__).parent / "retrieval_questions.yaml").read_text(encoding="utf-8")
 )["questions"]
-VARIANTS = ("vector", "vector+dedup", "hybrid h1", "hybrid h2")
+# +fts: keyword (full-text) ranking fused in (version-03 P11 K2)
+VARIANTS = ("vector", "vector+dedup", "hybrid h1", "hybrid h2", "vector+fts", "hybrid h1+fts")
 METRICS = ("recall@5", "recall@3", "mrr")
 
 
@@ -75,11 +76,16 @@ async def evaluate(policy, embedder):
                 "vector+dedup": dedup(await search(conn, policy, vec, 20))[:DEPTH],
                 "hybrid h1": (await graph_search(conn, policy, vec, question, DEPTH, 1)).hits,
                 "hybrid h2": (await graph_search(conn, policy, vec, question, DEPTH, 2)).hits,
+                "vector+fts": await search(conn, policy, vec, K, query=question, keyword=True),
+                "hybrid h1+fts": (
+                    await graph_search(conn, policy, vec, question, DEPTH, 1, keyword=True)
+                ).hits,
             }
             rows.append(
                 {
                     "q": question,
                     "multi": item.get("hops") == "multi",
+                    "exact": bool(item.get("exact")),
                     "repo": all(e.startswith("sdlc-platform:") for e in item["expect"]),
                     **{v: scores(item["expect"], hits) for v, hits in variants.items()},
                 }
@@ -90,11 +96,13 @@ async def evaluate(policy, embedder):
 def report(rows) -> dict[str, dict[str, dict[str, float]]]:
     groups = {
         "all": rows,
+        "stage6": [r for r in rows if not r["exact"]],  # the Stage 6 question set
         "multi-hop": [r for r in rows if r["multi"]],
         "single": [r for r in rows if not r["multi"]],
         "samples": [r for r in rows if not r["repo"]],
         "repo": [r for r in rows if r["repo"]],  # sdlc-platform: the real (git) corpus
         "repo multi": [r for r in rows if r["repo"] and r["multi"]],
+        "exact token": [r for r in rows if r["exact"]],  # P11: one exact identifier
     }
     summary = {
         g: {v: {m: sum(r[v][m] for r in subset) / len(subset) for m in METRICS} for v in VARIANTS}
@@ -102,22 +110,38 @@ def report(rows) -> dict[str, dict[str, dict[str, float]]]:
         if subset
     }
     print(f"\nretrieval eval: {len(rows)} questions, metric per variant")
-    print(f"{'':22}" + "".join(f"{v:>14}" for v in VARIANTS))
+    print(f"{'':22}" + "".join(f"{v:>15}" for v in VARIANTS))
     for g, values in summary.items():
         for m in METRICS:
-            print(f"{g + ' ' + m:22}" + "".join(f"{values[v][m]:>14.3f}" for v in VARIANTS))
-    print("\nper question, recall@5 (vector / vector+dedup / hybrid h1 / hybrid h2):")
+            print(f"{g + ' ' + m:22}" + "".join(f"{values[v][m]:>15.3f}" for v in VARIANTS))
+    print("\nper question, recall@5 (" + " / ".join(VARIANTS) + "):")
     for r in rows:
         marks = " ".join(f"{r[v]['recall@5']:.2f}" for v in VARIANTS)
         print(f"  {'M' if r['multi'] else ' '} {marks}  {r['q'][:80]}")
     return summary
 
 
-def test_hybrid_retrieval_is_at_least_as_good_as_vector_only(config_dir):
+@pytest.fixture(scope="module")
+def summary(tmp_path_factory):
+    from tests.support.config import make_config_dir
+
+    config_dir = make_config_dir(tmp_path_factory.mktemp("repo"))
     snap = load_snapshot(config_dir, "local", TEST_ENV)
     policy = resolve(snap, ["platform-admins"])
     embedder = GeminiEmbedder(snap.platform.embedding_model, snap.platform.embedding_dimensions)
-    summary = report(run(evaluate(policy, embedder)))
+    return report(run(evaluate(policy, embedder)))
+
+
+def test_hybrid_retrieval_is_at_least_as_good_as_vector_only(summary):
     # Gate (docs/plans/version-00.md Stage 6): hybrid >= vector-only on recall@5.
-    for group in ("all", "multi-hop"):
+    for group in ("stage6", "multi-hop"):
         assert summary[group]["hybrid h1"]["recall@5"] >= summary[group]["vector"]["recall@5"]
+
+
+def test_keyword_fusion_gate(summary):
+    """P11 K2: fused retrieval >= the best current variant overall, and better on exact tokens.
+    Decides platform.yaml knowledge.keyword_search."""
+    best = max(("vector", "hybrid h1"), key=lambda v: summary["all"][v]["recall@5"])
+    fused = "hybrid h1+fts" if best == "hybrid h1" else "vector+fts"
+    assert summary["all"][fused]["recall@5"] >= summary["all"][best]["recall@5"]
+    assert summary["exact token"][fused]["mrr"] > summary["exact token"][best]["mrr"]

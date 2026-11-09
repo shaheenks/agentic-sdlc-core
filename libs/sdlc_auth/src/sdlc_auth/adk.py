@@ -53,7 +53,25 @@ def bearer_header_provider(context: Any = None) -> dict[str, str]:
 AGENT_SESSION_HEADER = "X-SDLC-Agent-Session"
 
 
+# Nested agent runs (Goldfish reviewers, version-03 P10) have their own throwaway sessions; the
+# tool that starts them binds the parent conversation id here, so their MCP calls are audited
+# under the user's conversation.
+_conversation_id: ContextVar[str | None] = ContextVar("sdlc_conversation_id", default=None)
+
+
+def set_conversation_id(conversation_id: str | None) -> Token:
+    """Use `conversation_id` as the agent session id in this context. Pair with reset."""
+    return _conversation_id.set(conversation_id)
+
+
+def reset_conversation_id(reset_token: Token) -> None:
+    _conversation_id.reset(reset_token)
+
+
 def agent_session_id(context: Any = None) -> str | None:
+    bound = _conversation_id.get()
+    if bound:
+        return bound
     session = getattr(context, "session", None)
     session_id = getattr(session, "id", None)
     return str(session_id) if session_id else None

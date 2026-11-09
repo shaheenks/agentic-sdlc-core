@@ -28,13 +28,35 @@ def test_skills_and_addons_load(config_dir):
         "pci-checklist",
         "ledger-design-review",
         "infra-change-review",
+        "egm-document-flow",
+        "egm-brainstorm",
+        "lens-zoom-out",
+        "lens-comprehension",
+        "lens-design-critic",
+        "lens-implementation-readiness",
+        "lens-structure",
+        "lens-style",
+        "payments-pci-lens",
+        "payments-story-questions",
+        "payments-design-template",
     }
+    assert snap.skills["lens-zoom-out"].tags == {"goldfish-lens"}
     assert snap.skills["pci-checklist"].team == "payments"
+    # G6: typed team skills carry their tag inside the team
+    assert snap.skills["payments-pci-lens"].tags == {"goldfish-lens"}
+    assert snap.skills["payments-pci-lens"].team == "payments"
+    assert snap.skills["pci-checklist"].tags == frozenset()
     assert snap.skills["design-review"].access_roles == {"lead"}
     assert snap.skills["write-user-story"].description.startswith("Turn a feature idea")
     assert "Given" in snap.skills["write-user-story"].instructions
     payments = snap.teams["payments"]
-    assert payments.addon_skills == ("pci-checklist", "ledger-design-review")
+    assert payments.addon_skills == (
+        "pci-checklist",
+        "ledger-design-review",
+        "payments-pci-lens",
+        "payments-story-questions",
+        "payments-design-template",
+    )
     assert payments.instructions_source == "skills/teams/payments/AGENT_ADDENDUM.md"
     assert "pci-checklist" in payments.instructions
     assert payments.context["default_project"] == "payments"
@@ -158,6 +180,14 @@ def rename_frontmatter(config_dir, rel, new_name):
             ),
             "unknown role 'cfo'",
         ),
+        # G6: team skills take only platform-listed tags
+        (
+            lambda d: edit_yaml(
+                d / "teams/payments.yaml",
+                lambda t: t["addons"]["skills"]["pci-checklist"].update(tags=["admin-tools"]),
+            ),
+            "'admin-tools' is not allowed for team skills",
+        ),
         (
             lambda d: (d.parent / "skills/core/design-review/SKILL.md").write_text(
                 "no frontmatter"
@@ -188,6 +218,19 @@ def test_skills_folder_symlink_escape_is_refused(config_dir, tmp_path):
     )
     with pytest.raises(ConfigError, match="must stay inside skills/"):
         load(config_dir)
+
+
+def test_a_team_tag_grants_nothing_outside_the_team(config_dir):
+    """viewer has `tag:goldfish-lens`, but the payments lens stays payments-only."""
+    from sdlc_config import resolve
+
+    snap = load(config_dir)
+    viewer = resolve(snap, ["eng-all"])
+    assert "lens-zoom-out" in viewer.skills and "payments-pci-lens" not in viewer.skills
+    member = resolve(snap, ["eng-all", "payments-devs"])
+    assert {"payments-pci-lens", "payments-story-questions"} <= set(member.skills)
+    platform = resolve(snap, ["eng-all", "platform-devs"])
+    assert "payments-pci-lens" not in platform.skills
 
 
 def test_team_without_addons_is_fine(config_dir):

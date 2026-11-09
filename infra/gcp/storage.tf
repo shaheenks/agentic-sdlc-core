@@ -2,8 +2,8 @@
 # - config store: config bundles (bundles/<env>/, read by the MCP service and the ingest job,
 #   run.tf) and source content for `gcs` sources under source_docs/<source id>/ (the former
 #   repo samples/ corpus, read by the ingest job).
-# - artifact store: temporary files and agent artefacts, written by the agent, deleted after
-#   artifact_retention_days.
+# - artifact store: documents the agent saves for users (version-03 P5), written only by the MCP
+#   server, deleted after artifact_retention_days.
 
 resource "google_storage_bucket" "config_store" {
   count    = var.config_store_bucket == "" ? 0 : 1
@@ -91,12 +91,12 @@ resource "google_storage_bucket" "artifact_store" {
   depends_on = [google_project_service.apis]
 }
 
-# The agent (sdlc-app service account) creates, reads and deletes its artefacts; nothing else
-# gets access. Per-user separation is the agent web app's job (artefacts are keyed by app, user
-# and session), as for conversations.
-resource "google_storage_bucket_iam_member" "artifact_store_agent" {
+# Artifacts (version-03 P5): only the MCP server (sdlc-mcp service account) creates, reads and
+# deletes them, under artifacts/<owner oid>/<id>; per-user access is enforced there (owner-only
+# RLS on the metadata). The agent has no access: it saves through the MCP tools (decision A5).
+resource "google_storage_bucket_iam_member" "artifact_store_mcp" {
   count  = var.artifact_store_bucket == "" ? 0 : 1
   bucket = google_storage_bucket.artifact_store[0].name
   role   = "roles/storage.objectUser"
-  member = google_service_account.w["app"].member
+  member = google_service_account.w["mcp"].member
 }

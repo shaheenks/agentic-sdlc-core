@@ -18,9 +18,13 @@ def test_teams():
     assert {p.stem for p in (CONFIG / "teams").glob("*.yaml")} == {"payments", "sdlc-platform"}
 
 
-def test_sdlc_platform_members_come_only_from_users_yaml():
+def test_sdlc_platform_members_come_from_app_roles_and_users_yaml():
     team = doc("teams/sdlc-platform.yaml")
-    assert team["membership"] == []  # no Entra group per role: env/<env>/users.yaml
+    # no Entra group per role: app roles (version-03 P2 E1) + env/<env>/users.yaml
+    assert team["membership"] == [
+        {"app_role": "SDLC.Platform.Developer", "roles": ["developer"]},
+        {"app_role": "SDLC.Platform.Lead", "roles": ["lead"]},
+    ]
     assert team["addons"]["skills"] == {
         "infra-change-review": {"path": "skills/teams/sdlc-platform/infra-change-review"}
     }

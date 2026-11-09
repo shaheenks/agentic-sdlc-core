@@ -24,11 +24,19 @@ from ag_ui_adk import ADKAgent, add_adk_fastapi_endpoint
 from fastapi import FastAPI
 from google.adk.cli.utils.agent_loader import AgentLoader
 from google.adk.cli.utils.service_factory import create_session_service_from_options
+from google.adk.sessions import BaseSessionService
 
 from sdlc_web.middleware import current_oid
 from sdlc_web.threads import mount_threads
 
 AGUI_PATH = "/agui"
+
+
+def session_service(agents_dir: Path, session_service_uri: str) -> BaseSessionService:
+    """The configured conversation store (shared by /agui and /a2a)."""
+    return create_session_service_from_options(
+        base_dir=agents_dir, session_service_uri=session_service_uri, use_local_storage=False
+    )
 
 
 def mount_agui(
@@ -37,11 +45,10 @@ def mount_agui(
     agent_name: str,
     session_service_uri: str,
     path: str = AGUI_PATH,
+    sessions: BaseSessionService | None = None,
 ) -> ADKAgent:
     root_agent = AgentLoader(str(agents_dir)).load_agent(agent_name)
-    sessions = create_session_service_from_options(
-        base_dir=agents_dir, session_service_uri=session_service_uri, use_local_storage=False
-    )
+    sessions = sessions or session_service(agents_dir, session_service_uri)
     agent = ADKAgent(
         adk_agent=root_agent,
         app_name=agent_name,  # same app name as adk web, so both see the same store layout

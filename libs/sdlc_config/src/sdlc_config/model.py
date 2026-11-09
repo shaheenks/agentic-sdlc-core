@@ -3,6 +3,7 @@
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,10 @@ class PlatformConfig:
     ocr_thinking_level: str = ""
     default_calls_per_minute: int | None = None  # defaults/rate_limit (None = no baseline)
     allowed_hosts: tuple[str, ...] = ()  # knowledge.allowed_hosts: remote source hosts (SSRF guard)
+    keyword_search: bool = False  # knowledge.keyword_search: fuse full-text with vector (P11)
+    team_skill_tags: frozenset[str] = frozenset()  # skills.team_tags: tags team add-ons may carry
+    # flows.document (G7): lenses, max_lenses, max_llm_calls_per_reviewer, max_rereviews
+    document_flow: Mapping[str, Any] = field(default_factory=dict)
 
     def classification_rank(self, level: str) -> int:
         """Position of a level in classification_levels (0 = least sensitive)."""
@@ -62,6 +67,7 @@ class UserMap:
     alias_by_oid: Mapping[str, str] = field(default_factory=dict)  # lower-cased oid -> alias
     email_by_alias: Mapping[str, str] = field(default_factory=dict)
     pending: tuple[str, ...] = ()  # aliases without an oid yet: they grant nothing
+    default_team: Mapping[str, str] = field(default_factory=dict)  # alias -> team (G9, guidance)
 
     def alias_for(self, oid: str | None) -> str | None:
         return self.alias_by_oid.get(oid.lower()) if oid else None
@@ -166,6 +172,8 @@ class TeamDef:
     context: Mapping[str, str] = field(default_factory=dict)
     # per-user calls per minute: "*" = all tools, otherwise a tool name (policy/limits)
     limits: Mapping[str, int] = field(default_factory=dict)
+    description: str = ""  # metadata.description: one line for the agent (G9)
+    document_flow: Mapping[str, Any] = field(default_factory=dict)  # addons.flows.document (G7)
 
 
 @dataclass(frozen=True)

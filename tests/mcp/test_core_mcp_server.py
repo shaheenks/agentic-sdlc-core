@@ -86,6 +86,12 @@ async def test_stage2_tools(base_url, entra):
             "list_skills",
             "load_skill",
             "get_agent_context",
+            "resolve_team",  # version-03 P10 G9
+            # version-03 P5: always registered (they answer "not configured" without a store)
+            "save_artifact",
+            "list_artifacts",
+            "read_artifact",
+            "delete_artifact",
         }
         assert (await c.call_tool("ping", {})).data == "pong"
         listed = (await c.call_tool("list_skills", {})).data

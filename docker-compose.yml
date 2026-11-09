@@ -21,7 +21,9 @@ x-oauth2-proxy-env: &oauth2-proxy-env
   OAUTH2_PROXY_PROMPT: select_account
   # /chat/ -> CopilotKit app (version-01 M5); everything else -> the agent (adk web, /agui)
   # /connections/ -> MCP server (users' own connections, version-01 M6; holds the user secrets)
-  OAUTH2_PROXY_UPSTREAMS: http://user-agent:8000/,http://ui-copilotkit:3000/chat/,http://core-mcp:8080/connections/
+  # /artifacts/ -> MCP server (downloads of the user's saved documents, version-03 P5). Not an API
+  # route: a download link opened after the session lapsed signs in first, then downloads.
+  OAUTH2_PROXY_UPSTREAMS: http://user-agent:8000/,http://ui-copilotkit:3000/chat/,http://core-mcp:8080/connections/,http://core-mcp:8080/artifacts/
   OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
   OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
   OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
@@ -37,7 +39,13 @@ x-oauth2-proxy-env: &oauth2-proxy-env
   OAUTH2_PROXY_COOKIE_REFRESH: 30m      # refresh before the ~60-90 min access token expires
   OAUTH2_PROXY_COOKIE_EXPIRE: 8h
   # API calls from the dev UI get 401 instead of a login redirect when the session lapses.
-  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\b|threads\b)
+  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps|agui|agents/state|chat/api/|connections/|me\b|threads\b|a2a\b)
+  # A2A clients (version-03 P4 C4) send `Authorization: Bearer <Entra token for sdlc-mcp>` instead
+  # of a session cookie. The proxy checks issuer, signature and audience (the API's client id);
+  # every upstream re-validates fully (scope, tenant). The agent card is public (no data in it).
+  OAUTH2_PROXY_SKIP_JWT_BEARER_TOKENS: "true"
+  OAUTH2_PROXY_EXTRA_JWT_ISSUERS: ${ENTRA_AUTHORITY_HOST:-https://login.microsoftonline.com}/${ENTRA_TENANT_ID:-}/v2.0=${ENTRA_API_CLIENT_ID:-}
+  OAUTH2_PROXY_SKIP_AUTH_ROUTES: GET=^/\.well-known/agent-card\.json$
 
 # Tracing (H8.3): off unless OTEL_EXPORTER_OTLP_ENDPOINT is set in .env (e.g. http://jaeger:4318 with
 # `docker compose --profile observability up -d`). Spans never carry prompts, responses, tokens or
@@ -109,11 +117,16 @@ services:
       SDLC_USER_SECRETS_BACKEND: ${SDLC_USER_SECRETS_KEY:+file}
       SDLC_USER_SECRETS_KEY: ${SDLC_USER_SECRETS_KEY:-}
       SDLC_USER_SECRETS_DIR: /data/user-secrets
+      # Artifacts (version-03 P5): documents the agent saves for a user (owner only), on a volume only
+      # this container mounts; metadata in Postgres. Empty = off. Retention as the GCS bucket.
+      SDLC_ARTIFACT_STORE: ${SDLC_ARTIFACT_STORE-file:///data/artifacts}
+      SDLC_ARTIFACT_RETENTION_DAYS: ${SDLC_ARTIFACT_RETENTION_DAYS:-7}
     volumes:
       - ./skills:/app/skills:ro
       - ./config:/app/config:ro
       - *adc-mount
       - mcp-user-secrets:/data/user-secrets
+      - mcp-artifacts:/data/artifacts
     depends_on:
       postgres:
         condition: service_healthy
@@ -139,6 +152,10 @@ services:
       SDLC_SESSION_RETENTION_DAYS: ${SDLC_SESSION_RETENTION_DAYS:-7}
       # AG-UI endpoint /agui for the CopilotKit app (version-01 M5); empty = off
       SDLC_AGUI_AGENT: ${SDLC_AGUI_AGENT-user_agent}
+      # A2A endpoint /a2a + agent card (version-03 P4); empty = off. The card advertises
+      # SDLC_A2A_URL, or else the URL it was requested on (localhost or the tunnel).
+      SDLC_A2A_AGENT: ${SDLC_A2A_AGENT-user_agent}
+      SDLC_A2A_URL: ${SDLC_A2A_URL:-}
       # never export prompts/responses (retrieved content can be confidential)
       ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS: "false"
       OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: "false"
@@ -263,3 +280,4 @@ volumes:
   pgdata:
   agent-sessions:   # agent conversations (SQLite); purged after SDLC_SESSION_RETENTION_DAYS idle
   mcp-user-secrets: # users' connection tokens (encrypted files, MCP server only; version-01 M6)
+  mcp-artifacts:    # agent-generated documents (MCP server only; version-03 P5)

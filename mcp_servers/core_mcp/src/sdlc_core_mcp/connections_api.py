@@ -35,7 +35,8 @@ MAX_BODY = 8 * 1024
 CSRF_HEADER = "x-sdlc-connections"
 
 
-def _token(request: Request) -> str | None:
+def access_token_from(request: Request) -> str | None:
+    """The caller's Entra token: from oauth2-proxy (X-Forwarded-Access-Token) or a bearer header."""
     forwarded = request.headers.get("x-forwarded-access-token", "").strip()
     if forwarded:
         return forwarded
@@ -45,7 +46,7 @@ def _token(request: Request) -> str | None:
 
 def add_connection_routes(mcp: FastMCP, connected: Connected, verifier: TokenVerifier) -> None:
     async def caller(request: Request) -> str | Response:
-        token = _token(request)
+        token = access_token_from(request)
         access = await verifier.load_access_token(token) if token else None
         if access is None:
             return JSONResponse({"detail": "sign-in required"}, status_code=401)

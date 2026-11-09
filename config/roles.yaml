@@ -3,20 +3,27 @@ kind: RoleSet
 # Global bindings apply regardless of team. Identify principals by group alias (groups.yaml)
 # or by Entra app role value (`app_role: SDLC.Admin`), for tenants that use app roles, or
 # `everyone: true` for every signed-in user.
+# Groups and app roles combine: a user gets the union of both (version-03 P2 E1). App role
+# values are defined on the sdlc-mcp app (scripts/entra_setup.ps1 $AppRoles) and are no secret.
 bindings:
   - everyone: true              # every signed-in user: identity basics only
     roles: [signed-in]
   - group: eng-all
     roles: [viewer]
+  - app_role: SDLC.User         # app-role equivalent of eng-all
+    roles: [viewer]
   - group: platform-admins
+    roles: [admin]
+  - app_role: SDLC.Admin
     roles: [admin]
 roles:
   signed-in:
     tools:  { allow: [ping, whoami] }   # lets anyone see who they are and why they lack access
   viewer:
     # knowledge tools: what they return is limited to the caller's sources (Source.access + RLS)
-    tools:  { allow: [ping, whoami, list_skills, load_skill, get_agent_context, search_knowledge, graph_query] }
-    skills: { allow: ["tag:general"] }
+    tools:  { allow: [ping, whoami, list_skills, load_skill, get_agent_context, resolve_team, search_knowledge, graph_query,
+                      save_artifact, list_artifacts, read_artifact, delete_artifact] }   # artifacts: owner only
+    skills: { allow: ["tag:general", "tag:goldfish-lens"] }   # lenses: version-03 P10
     data:   { max_classification: internal }
   developer:
     inherits: [viewer]

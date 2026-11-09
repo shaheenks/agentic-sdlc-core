@@ -56,9 +56,10 @@ _DEV_EMPTY_LISTINGS = re.compile(
 _RUN_PATHS = {"/run", "/run_sse"}
 AGUI_STATE_PATH = "/agents/state"  # registered by ag_ui_adk next to the run endpoint
 ME_PATH = "/me"  # the caller's display name + sign-in name (chat app navbar)
-# State keys a client may never set: per-invocation (temp:, where a token could live) and
-# shared scopes (app:, user:), plus the user-token key itself.
-_UNTRUSTED_STATE_PREFIXES = ("temp:", "app:", "user:")
+# State keys a client may never set: per-invocation (temp:, where a token could live), shared
+# scopes (app:, user:), server-owned keys (sdlc_, e.g. the active team, version-03 G9), plus the
+# user-token key itself.
+_UNTRUSTED_STATE_PREFIXES = ("temp:", "app:", "user:", "sdlc_")
 
 _request_oid: ContextVar[str | None] = ContextVar("sdlc_request_oid", default=None)
 
@@ -264,9 +265,11 @@ def _bind_run_body(body: bytes, oid: str) -> bytes:
     for key in ("state_delta", "stateDelta"):
         state_delta = payload.get(key)
         if isinstance(state_delta, dict):
-            state_delta.pop(
-                USER_TOKEN_STATE_KEY, None
-            )  # tokens only come from the validated header
+            # tokens only come from the validated header; sdlc_ keys only from server-side tools
+            for name in [
+                k for k in state_delta if k == USER_TOKEN_STATE_KEY or k.startswith("sdlc_")
+            ]:
+                state_delta.pop(name)
     return json.dumps(payload).encode()
 
 

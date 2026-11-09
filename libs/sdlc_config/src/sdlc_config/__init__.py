@@ -1,6 +1,7 @@
 """Config loading, validation and runtime delivery. See libs/sdlc_config/README.md."""
 
 from sdlc_config.errors import ConfigError
+from sdlc_config.flows import document_flow
 from sdlc_config.loader import load_snapshot
 from sdlc_config.model import GroupMap, PlatformConfig, Snapshot
 from sdlc_config.resolver import (
@@ -20,6 +21,7 @@ __all__ = [
     "PolicyCache",
     "SkillDecision",
     "ToolPermission",
+    "document_flow",
     "resolve",
     "skill_decision",
     "GroupMap",

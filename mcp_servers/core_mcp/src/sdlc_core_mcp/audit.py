@@ -126,6 +126,24 @@ def audit_skill_access(identity: Identity, skill: str, decision: SkillDecision) 
     )
 
 
+def audit_artifact(
+    identity: Identity, event: str, action: str, artifact_id: str | None, outcome: str, **extra
+) -> None:
+    """artifact_change (create/delete) or artifact_access (read/download), version-03 P5.
+    Never the content or the file name (user data); ids, type and size only."""
+    emit(
+        {
+            "event": event,
+            "ts": datetime.now(UTC).isoformat(),
+            **_who(identity),
+            "action": action,
+            "artifact_id": artifact_id,
+            "outcome": outcome,
+            **extra,
+        }
+    )
+
+
 def audit_skills_list(identity: Identity, visible: Iterable[str], hidden_count: int) -> None:
     emit(
         {

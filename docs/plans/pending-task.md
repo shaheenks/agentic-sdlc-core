@@ -5,14 +5,16 @@ current plan ([version-02.md](version-02.md)) or a new numbered plan.
 
 | # | Task | Waits for | Recorded |
 |---|---|---|---|
-| 1 | [Agent runtimes: user, CI and ops agents](#task-1--agent-runtimes-user-ci-and-ops-agents) | Trigger sources decided | 2026-11-03 |
-| 2 | [Re-ingest and remove data of dropped sources](#task-2--re-ingest-and-remove-data-of-dropped-sources) | Done except the eval run after the merge (version-02 §20 H7) | 2026-11-03 |
-| 3 | [Agent-generated artifacts: storage and access](#task-3--agent-generated-artifacts-storage-and-access) | Version-03 (decided 2026-11-05); use cases and storage still open | 2026-11-04 |
+| 1 | [Agent runtimes: user, CI and ops agents](#task-1--agent-runtimes-user-ci-and-ops-agents) | **Moved to version-03 P6** (2026-11-06: trigger sources decided, event intake designed) | 2026-11-03 |
+| 2 | [Re-ingest and remove data of dropped sources](#task-2--re-ingest-and-remove-data-of-dropped-sources) | **Done 2026-11-05** (re-ingest local + GCP at `7a5e4df`, eval passed) | 2026-11-03 |
+| 3 | [Agent-generated artifacts: storage and access](#task-3--agent-generated-artifacts-storage-and-access) | **Moved to version-03 P5** (2026-11-05: decisions A1–A5, build started) | 2026-11-04 |
 
 ## Task 1 — Agent runtimes: user, CI and ops agents
 
-**Status:** pending, not scheduled (recorded 2026-11-03). Nothing here is built. Revisit when the trigger sources are
-decided; then move it into a numbered plan (version-03) with milestones and exit gates.
+**Status:** moved to [version-03.md §P6](version-03.md#p6--agent-runtimes-and-event-intake-from-pending-task-1-proposal-intake-designed-2026-11-06)
+(2026-11-06): trigger sources decided (Bitbucket Cloud + DC, GCP Cloud Monitoring), event intake designed (one
+gateway → Pub/Sub → per-runtime push subscriptions), milestones A1 + E1–E6 there. §5 (triggers) and §6 (execution
+model) below are superseded by §P6; the rest of this design still applies. Nothing is built.
 
 Related: [version-02.md](version-02.md) (current plan; write tools = decision D5), [../ARCHITECTURE.md](../ARCHITECTURE.md)
 §4–5 (request flow, identity model).
@@ -167,7 +169,7 @@ caller ──► POST /triggers/<adapter> ──► verify caller ──► Trig
 ## Task 2 — Re-ingest and remove data of dropped sources
 
 **Status:** local dev DB done (2026-11-03, after N14); GCP dev ingested in version-02 R2 (2026-11-05, step 5); eval paths
-updated on the version-02 branch (step 6); the eval run waits for the merge (version-02 §20 H1, H7). Recorded 2026-11-03.
+updated on the version-02 branch (step 6). **Done 2026-11-05:** after the merge (`7a5e4df`) local and GCP re-ingested `sdlc-platform` (80 changed, 25 deleted, 683 chunks each) and the retrieval eval passed (recall@5 0.97 with dedup; version-02 §19 R8 C7). Recorded 2026-11-03.
 
 **Local run (2026-11-03):** `docker compose --profile ingest build ingest` (the compose image predated the gcs
 loader: `no loader for source type 'gcs'`), then `docker compose run --rm ingest run --all --force`:

@@ -15,7 +15,7 @@ export type Citation = {
   heading?: string;
   snippet: string;
   score?: number;
-  via?: string; // graph_query: "vector" | "graph"
+  via?: string; // "vector" | "keyword" | "both" (P11) | "graph" (graph_query)
 };
 
 export type GraphEntity = { name: string; type: string; source: string };
@@ -172,4 +172,112 @@ export function documentChips(items: Citation[]): DocumentChip[] {
       .join(" · ");
     return { key, label, url: doc.url, tooltip, hits: doc.hits };
   });
+}
+
+// Saved documents (version-03 P5): save_artifact returns one, list_artifacts a list. The download
+// link is built here from the id alone (a UUID), never taken from the result, so a tool result
+// cannot point the link anywhere but this app's own /artifacts/ API (oauth2-proxy -> MCP server).
+export type SavedArtifact = {
+  id: string; // the document's stable id (all versions)
+  name: string;
+  version: number;
+  versions: number;
+  sizeBytes: number;
+  expiresAt: string;
+  href: string; // latest version
+};
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function artifact(value: unknown): SavedArtifact | null {
+  if (!isObject(value) || typeof value.id !== "string" || !UUID.test(value.id)) return null;
+  return {
+    id: value.id,
+    name: typeof value.name === "string" ? value.name : "document",
+    version: typeof value.version === "number" && value.version >= 1 ? value.version : 1,
+    versions: typeof value.versions === "number" && value.versions >= 1 ? value.versions : 1,
+    sizeBytes: typeof value.size_bytes === "number" ? value.size_bytes : 0,
+    expiresAt: typeof value.expires_at === "string" ? value.expires_at : "",
+    href: `/artifacts/${value.id}`,
+  };
+}
+
+export function savedArtifacts(raw: unknown): SavedArtifact[] {
+  const payload = toolPayload(raw);
+  if (!payload) return [];
+  const items = Array.isArray(payload.artifacts) ? payload.artifacts : [payload];
+  return items.map(artifact).filter((a): a is SavedArtifact => a !== null);
+}
+
+// Goldfish reviews (version-03 P10): goldfish_review returns lens outcomes and findings grouped by
+// severity. All text is reviewer model output (untrusted): shown as plain text only, never linked.
+export type Severity = "blocker" | "major" | "nit";
+export const SEVERITIES: Severity[] = ["blocker", "major", "nit"];
+
+export type ReviewFinding = {
+  severity: Severity;
+  title: string;
+  detail?: string;
+  where?: string;
+  suggestion?: string;
+  lenses: string[];
+};
+
+export type LensOutcome = { lens: string; status: "ok" | "unavailable" | "failed"; findings: number };
+
+export type GoldfishReview = {
+  lenses: LensOutcome[];
+  findings: ReviewFinding[]; // blockers first, then major, then nits
+  counts: Record<Severity, number>;
+  summary?: string;
+  error?: string;
+};
+
+const LENS_STATUS = new Set(["ok", "unavailable", "failed"]);
+
+export function goldfishReview(raw: unknown): GoldfishReview | null {
+  const payload = toolPayload(raw);
+  if (!payload) return null;
+  const counts = { blocker: 0, major: 0, nit: 0 };
+  if (typeof payload.error === "string") return { lenses: [], findings: [], counts, error: payload.error };
+  if (!Array.isArray(payload.lenses)) return null;
+  const lenses = payload.lenses.flatMap((l): LensOutcome[] =>
+    isObject(l) && typeof l.lens === "string" && LENS_STATUS.has(String(l.status))
+      ? [{ lens: l.lens, status: l.status as LensOutcome["status"], findings: typeof l.findings === "number" ? l.findings : 0 }]
+      : [],
+  );
+  const grouped = isObject(payload.findings) ? payload.findings : {};
+  const findings = SEVERITIES.flatMap((severity) =>
+    (Array.isArray(grouped[severity]) ? grouped[severity] : []).flatMap((f): ReviewFinding[] =>
+      isObject(f) && str(f.title)
+        ? [
+            {
+              severity,
+              title: String(f.title),
+              detail: str(f.detail),
+              where: str(f.where),
+              suggestion: str(f.suggestion),
+              lenses: strings(f.lenses),
+            },
+          ]
+        : [],
+    ),
+  );
+  for (const f of findings) counts[f.severity] += 1;
+  return { lenses, findings, counts, summary: str(payload.summary) };
+}
+
+// Active team (version-03 P10 G9): set_active_team locks one of the user's teams for the
+// conversation's document once the brief is confirmed. Display only; the team grants nothing.
+export type ActiveTeam = { status: "set" | "cleared" | "error"; team?: string; description?: string; error?: string };
+
+export function activeTeam(raw: unknown): ActiveTeam | null {
+  const payload = toolPayload(raw);
+  if (!payload) return null;
+  if (payload.status === "set" && str(payload.team)) {
+    return { status: "set", team: String(payload.team), description: str(payload.description) };
+  }
+  if (payload.status === "cleared") return { status: "cleared" };
+  if (payload.status === "error") return { status: "error", error: str(payload.error) ?? "failed" };
+  return null;
 }

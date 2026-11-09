@@ -12,8 +12,14 @@ VIEWER_TOOLS = {
     "list_skills",
     "load_skill",
     "get_agent_context",
+    "resolve_team",  # version-03 P10 G9: the caller's own teams only
     "search_knowledge",
     "graph_query",  # version-02 N9: results limited to the caller's sources
+    # version-03 P5: the caller's own artifacts
+    "save_artifact",
+    "list_artifacts",
+    "read_artifact",
+    "delete_artifact",
 }
 DEV_TOOLS = VIEWER_TOOLS | {"generate_tests", "review_code"}
 # version-01 M6: read with the user's own connected account

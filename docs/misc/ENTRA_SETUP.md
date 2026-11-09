@@ -43,7 +43,7 @@ az account show --query "{tenant:tenantId, user:user.name}" -o table
 
 | Object | Purpose |
 |---|---|
-| App `sdlc-mcp` (API) | The resource. Tokens for it carry `aud=<sdlc-mcp client id>`, `scp=access_as_user`, `groups`. The MCP server validates these. |
+| App `sdlc-mcp` (API) | The resource. Tokens for it carry `aud=<sdlc-mcp client id>`, `scp=access_as_user`, `groups` and, for users assigned an app role, `roles` (§2b). The MCP server validates these. |
 | App `sdlc-client` (web) | Signs users in for adk web via oauth2-proxy (Stage 2d) and requests `sdlc-mcp/access_as_user`. Redirect URIs: `http://localhost:4180/oauth2/callback`, `https://app-sdlc-dev.shaheenks.co.in/oauth2/callback` (tunnel) and the GCP staging callback (see GCP_DEPLOYMENT.md). |
 | Security groups | `sdlc-eng-all`, `sdlc-payments-devs`, `sdlc-payments-leads`, `sdlc-platform-devs`, `sdlc-platform-admins`. Mapped to aliases in `config/env/<env>/groups.yaml`. |
 | Test users | A payments developer, a platform developer, an admin and (optionally) a payments lead: different groups → different `whoami`. UPNs are passed on the command line, never stored in the repo. |
@@ -142,6 +142,40 @@ for g in sdlc-eng-all sdlc-payments-devs sdlc-platform-devs; do
   echo "$g $(az ad group show --group $g --query id -o tsv)"; done
 ```
 
+## 2b. App roles (version-03 P2 E1)
+
+App roles are the enterprise alternative to groups. They are defined on `sdlc-mcp`, assigned to users
+(or, on P1/P2, to groups) on its enterprise app, and arrive in the access token's **`roles`** claim.
+Group overage never cuts that claim. Groups and app roles **work together**: a user gets the union of
+both. Role values are not secrets; config grants them as `app_role: <value>`.
+
+| App role | Grants (same as group) | Config |
+|---|---|---|
+| `SDLC.User` | viewer (`eng-all`) | `roles.yaml` binding |
+| `SDLC.Admin` | admin (`platform-admins`) | `roles.yaml` binding |
+| `SDLC.Payments.Developer` / `SDLC.Payments.Lead` | payments developer / lead (`payments-devs` / `payments-leads`) | `teams/payments.yaml` membership |
+| `SDLC.Platform.Developer` / `SDLC.Platform.Lead` | sdlc-platform developer / lead (no group; otherwise users.yaml) | `teams/sdlc-platform.yaml` membership |
+
+The script defines all of them (`$AppRoles`; `tests/policy/test_app_roles.py` checks that the list matches
+config) and, with `-AppRoleUser`, assigns roles to one user:
+
+```powershell
+# tenant change: admin account, confirmed first. -DryRun shows the plan.
+.\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> -AppRoleUser <upn> `
+  -AppRoleUserRoles SDLC.User,SDLC.Payments.Developer -DryRun
+```
+
+Notes:
+- **Free tier:** only users can be assigned to app roles. Assigning **groups** needs Entra ID P1/P2, and
+  only direct members of an assigned group get the role (no nesting).
+- An app-role assignment also satisfies `appRoleAssignmentRequired`; such a user needs no default-access
+  assignment.
+- New or removed roles show up at the user's **next token** (sign out and in, or wait for the refresh).
+- Removing a role: unassign it in the portal (Enterprise applications > sdlc-mcp > Users and groups). To
+  delete a role definition, disable it on the app first (the script only adds or updates).
+- Check: `whoami(explain=true)` lists `app_roles` and the teams / roles they matched;
+  `uv run sdlc-config explain --groups "" --app-roles SDLC.User,SDLC.Payments.Developer` shows the same offline.
+
 ## 3. Client app: `sdlc-client` (needed for Stage 2d, web sign-in)
 
 ```bash
@@ -161,6 +195,10 @@ missing ones and keeps existing ones (`-DryRun` first). Afterwards check each en
 account only with explicit confirmation.
 
 ## 4. Optional: Graph fallback for users with too many groups
+
+> **Off by default** (version-03 P2, 2026-11-07): `config/platform.yaml` `identity.groups.overage_fallback: none`.
+> Use app roles (§2b) for users with many groups. To turn the fallback on, set it to
+> `graph_transitive_member_of` and follow the steps below.
 
 This is only needed when a user's token can overflow (>200 groups, e.g. with `SecurityGroup`).
 Without it, such users get **no groups** (fail closed) and `whoami` reports `group_source: overage_unresolved`.

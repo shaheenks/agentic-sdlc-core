@@ -112,7 +112,7 @@ variable "config_store_bucket" {
 }
 
 variable "artifact_store_bucket" {
-  description = "Private bucket for temporary files and agent artefacts, written by the agent (sdlc-app), created in var.region (storage.tf). Empty = no bucket."
+  description = "Private bucket for agent-generated artifacts (version-03 P5), written only by the MCP server (sdlc-mcp), created in var.region (storage.tf). Empty = no bucket (artifacts off)."
   type        = string
   default     = ""
 }

@@ -4,7 +4,8 @@ ADK-based SDLC agents composed from skills. Central MCP server(s) serve skills, 
 knowledge, and enforce Entra ID identity + group-based RBAC defined in `config/`. Postgres +
 pgvector stores embeddings and the knowledge graph. Local: docker compose. Prod: GCP.
 
-Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Current plan: [docs/plans/version-02.md](docs/plans/version-02.md) (build complete 2026-11-05; closes when the user's handover checklist in §20 is done); next: [docs/plans/version-03.md](docs/plans/version-03.md) (draft: staging + enterprise identity, A2UI/A2A, artifacts, agent runtimes, write tools, more connectors); history: [docs/plans/version-01.md](docs/plans/version-01.md) (new sources, AG-UI web app with CopilotKit, per-user PAT connections, GCP dev) and [docs/plans/version-00.md](docs/plans/version-00.md). Check which stage is
+Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Built features and their status:
+[docs/FEATURE_INVENTORY.md](docs/FEATURE_INVENTORY.md) (update it with the plan after each milestone). Current plan: [docs/plans/version-03.md](docs/plans/version-03.md) (started 2026-11-05; first milestone P5 artifacts; staging + enterprise identity, A2UI/A2A, agent runtimes, write tools, more connectors proposed); history: [docs/plans/version-02.md](docs/plans/version-02.md) (closed 2026-11-06), [docs/plans/version-01.md](docs/plans/version-01.md) (new sources, AG-UI web app with CopilotKit, per-user PAT connections, GCP dev) and [docs/plans/version-00.md](docs/plans/version-00.md). Check which stage is
 current before adding features, and don't build ahead of the current stage's exit gate.
 
 ## Repo structure
@@ -16,6 +17,7 @@ current before adding features, and don't build ahead of the current stage's exi
 - `libs/sdlc_policy`        Enforcement: tools/list filtering, call authz, arg constraints
 - `libs/sdlc_db`            Postgres/pgvector access with RLS session context
 - `libs/sdlc_connectors`    External systems: `HttpClient` (host allowlist), Atlassian converters, user connections (providers, per-user secret store, service)
+- `libs/sdlc_artifacts`     Artifact content store (local folder / GCS) + limits (version-03 P5); metadata in `sdlc_db.artifacts`
 - `libs/sdlc_secrets`       Secret references (`{env: X}` / `{secret: x}`) resolved at runtime: env or Secret Manager, 5-min cache
 - `libs/sdlc_web`           Serves agents (ADK web app + AG-UI `/agui`) behind oauth2-proxy: token re-validation, user binding, token passthrough
 - `ui/copilotkit`           CopilotKit chat app (Next.js) at `/chat/` behind oauth2-proxy; talks AG-UI to the agent's `/agui`
@@ -66,9 +68,20 @@ Add new components as siblings instead of growing a starter indefinitely. Shared
   `knowledge.ocr`), cached as `ocr:` keys; chunks store PAGE ranges (`documents.media_type`), results return `pages`.
   PDFs are parsed only in ingest. Sample PDFs come from `scripts/make_sample_pdfs.py` (edit the script, not the PDFs).
 - A team add-on (skills, instructions, context) goes in `config/teams/<team>.yaml` + `skills/teams/<team>/`.
-- Teams (version-02 N12): `payments` (example, group members) and `sdlc-platform` (repo `agentic-sdlc-core` on GitHub;
-  members only from users.yaml, `membership: []`). Tests add fixture-only group members and a local `platform-infra`
+- Team customization (version-03 P10 G6–G9) changes behaviour, never permissions: add-on `tags` only from
+  `platform.yaml` `skills.team_tags` (goldfish-lens, brief-questions, doc-template; they grant nothing, role
+  `tag:` grants match global skills only); `addons.flows.document` (per-type template / brief / lenses /
+  `required_lenses`) names a global skill or the team's own add-on with the matching tag, and its caps may only
+  lower `platform.yaml` `flows.document`. The team applies once **locked** for a document: brainstorming is broad,
+  the confirmed brief locks it (`set_active_team` → session state `sdlc_active_team`, checked with
+  `get_agent_context(team=)` as the user; clients can never set `sdlc_` state keys). `resolve_team` sees only the
+  caller's own teams; users.yaml `default_team` is a fallback, applied only while the user is a member.
+- Teams (version-02 N12): `payments` (example, group + app-role members) and `sdlc-platform` (repo `agentic-sdlc-core`
+  on GitHub; members from app roles + users.yaml, no group). Tests add fixture-only group members and a local `platform-infra`
   source to sdlc-platform (`tests/support/config.py`); `tests/config/test_repo_teams.py` pins the real setup.
+- App roles (version-03 P2 E1): defined on `sdlc-mcp` by `entra_setup.ps1` (`$AppRoles`, `-AppRoleUser`), arrive in the
+  `roles` claim (no overage), combine with groups (union). A new `app_role:` value in config must be added to `$AppRoles`
+  (`tests/policy/test_app_roles.py`); each app-role persona must resolve exactly like its group twin.
 - **Skill naming** (validated at load):
   - lowercase kebab-case `^[a-z][a-z0-9-]*$`, **globally unique** across `skills.yaml` and every team's add-ons
     (a duplicate fails validation);
@@ -105,7 +118,8 @@ See "Runtime Config Exposure" in docs/plans/version-00.md.
   `aud` = the sdlc-mcp client ID (v2) or `api://<client id>`, `scp` contains `access_as_user` (user tokens only),
   `tid` = our tenant, plus signature (JWKS) and exp. Implemented in `sdlc_auth.entra.EntraTokenVerifier`.
 - The MCP server refuses to start without valid config and `ENTRA_TENANT_ID` / `ENTRA_API_CLIENT_ID` (fail closed).
-- Users whose token omits groups (overage) get no groups unless the Graph fallback secret is set.
+- Users whose token omits groups (overage) get no groups (fail closed); app roles still apply. The Graph fallback is off
+  (`platform.yaml` `overage_fallback: none`, version-03 P2); turning it on needs the Graph fallback secret.
 - Block list (E3): `config/env/<env>/blocked.yaml` (kind `BlockList`, optional, git-ignored like groups.yaml) is checked by
   the MCP token verifier on every request (via `store.current()`); blocked users get 401, audited as reason `blocked`.
   On GCP it travels in the config bundle (`-Step config`, live in ~2 min). Review + rotation procedures: docs/SECRETS_REVIEW.md.
@@ -123,11 +137,24 @@ See "Runtime Config Exposure" in docs/plans/version-00.md.
   uses one declares `credentials: { user: <connection> }` (connection in `config/connections.yaml`, host in `allowed_hosts`) and is
   in `connected_tools.TOOL_PROVIDERS`; no usable connection = "not connected", never a service-credential fallback. Provider
   content is untrusted data. Audit: `connection_change`; `tool_call` gets `credential`, `connection`, `connection_outcome`.
+- Artifacts (version-03 P5): documents the agent saves for a user, **owner only**, written and read only through the MCP
+  server (tools `save/list/read/delete_artifact`; the ADK artifact service stays `memory://`). The owner is the token
+  `oid`, never a tool argument. Metadata in `sdlc.artifacts` under owner RLS (`sdlc_db.owner_scoped`: the only table
+  `sdlc_app` may write, no UPDATE); content in `SDLC_ARTIFACT_STORE` (`file://` volume / `gs://` bucket) under
+  `artifacts/<oid>/<id>`. Text only, 1 MiB, 50 per user, `SDLC_ARTIFACT_RETENTION_DAYS` = bucket lifecycle (7).
+  Another user's id answers "artifact not found". Versions: `save_artifact(replaces=<id>, base_version=<n>)` adds the
+  next version of the same document and refuses if `n` is not the latest (never overwrite newer edits); rows immutable,
+  id/link stable, older versions readable via `version`. `read_artifact(numbered=true)` must number lines exactly as the
+  chat's ArtifactViewer does (`split_lines`). Browser downloads: MCP `/artifacts/` API through oauth2-proxy (an
+  upstream, not an API route), same token checks + the matching tool grant; served as attachments (`nosniff`, CSP
+  sandbox), DELETE needs `X-SDLC-Request: 1`; the chat card builds links from the UUID only. Audit: `artifact_change` /
+  `artifact_access` (ids, type, size; never the content or file name).
 - Audit to the `sdlc.audit` logger (JSON lines), one `event` per record:
   `tool_call` (oid, teams, roles, tool, args hash, decision, matched rule, outcome, config_version),
   `tools_list` (who listed tools, visible names, hidden count; hidden names are not logged),
   `skill_access` (load_skill: skill, allow/deny, matched rule and the real reason; callers only see "unknown skill"),
   `skills_list` (visible skill names, hidden count),
+  `artifact_change` / `artifact_access` (artifact id, action, outcome),
   `auth_failure` (401/403 on the MCP endpoint: reason from UNVERIFIED claims, client IP, token fingerprint).
   Every record carries `request_id` (one MCP request) and `agent_session_id` (the conversation, client-supplied,
   correlation only; `mcp_session_id` only when a client sends the header). Failures record `error_type` + `error` (<=500 chars); unexpected exceptions
@@ -189,7 +216,7 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
   it in `PassThroughAgentRunner.connect` from the agent's `/agents/state` as the same user; runs send only the latest turn.
   `DELETE /threads/{id}` deletes the caller's own chat (needs `X-SDLC-Request: 1`; others' and missing threads answer 404).
   ADK developer tools (builder, deploy, evals, tests, other users' traces) are off; `SDLC_DEV_TOOLS=true` enables them (never outside local dev).
-- DB connections use standard `PG*` env vars. Roles: `sdlc_owner` (migrations), `sdlc_app` (MCP, read-only), `sdlc_ingest`
+- DB connections use standard `PG*` env vars. Roles: `sdlc_owner` (migrations), `sdlc_app` (MCP, read-only except its own rows in `artifacts`), `sdlc_ingest`
   (writes); none bypasses RLS. Init: `db/bootstrap/README.md`. On the host use `PGHOST=127.0.0.1` (`localhost` tries IPv6
   first and hangs; Docker publishes Postgres on IPv4 only).
 - `uv run --env-file .env sdlc-agent-web`   agent web app outside Docker (expects a token in `X-Forwarded-Access-Token` or `Authorization: Bearer`)
@@ -201,6 +228,8 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
 - `SDLC_EVAL=1 uv run --env-file .env pytest tests/evals -s`   retrieval eval (vector vs hybrid) on the ingested dev DB, live Vertex
 - `uv run --env-file .env pytest tests/e2e`   exit-gate tests (DB + pgvector; the Stage 2 agent e2e needs `SDLC_E2E_USER_TOKEN`, see docs/misc/ENTRA_SETUP.md)
 - `uv run python scripts/mcp_whoami.py --token <entra token>`   manual identity check (see docs/misc/ENTRA_SETUP.md)
+- `uv run python scripts/a2a_client.py [--url <app>] [--context <id>] "question"`   A2A check (version-03 P4; token in `SDLC_TOKEN`);
+  `/a2a` (JSON-RPC, A2A 0.3) + public `/.well-known/agent-card.json` on the agent (`SDLC_A2A_AGENT`), bearer tokens through oauth2-proxy
 - `.\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> [-DryRun] [-WriteLocalFiles]`   idempotent Entra provisioning
   (Windows: `az` is az.cmd, so never pass inline JSON or parentheses as az args; use `--body @file`)
 - Tests never read the real `config/env/local/groups.yaml`; the `config_dir` fixture swaps in a fixed test GroupMap
@@ -226,7 +255,10 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
 - `uv run sdlc-config explain --persona payments-dev` | `--groups eng-all,payments-devs [--app-roles X]` | `--user <alias>` `[--json]` (`--dummy-env` works)
 - `uv run sdlc-config diff [--from HEAD] [--to WORKTREE] [--exit-code]`   per-persona permission changes (review on every config PR)
 - MCP tools: `whoami(explain=true)` (own view with source rules); `list_skills` / `load_skill` (per-user; hidden skills answer
-  "unknown skill"); `get_agent_context` (team instructions + context); `search_knowledge` (viewer+, vector) and
+  "unknown skill"; `list_skills` returns tags + team); `get_agent_context(team=)` (team instructions + context,
+  your teams, default team, document flow defaults; a team you are not in = "unknown team"); `resolve_team(hints)`
+  (viewer+, which of your teams); `search_knowledge` (viewer+, vector; + keyword matches on identifier terms when
+  `platform.yaml` `knowledge.keyword_search`, version-03 P11, needs migration 007) and
   `graph_query` (viewer+, vector + knowledge graph), both under RLS; admin only: `config_info()`, `config_explain(groups, app_roles)`
 - Skills: a `"*"` skill grant (admin) covers every team's add-ons; team instructions are guidance, never authorization.
   `sdlc-config diff` cannot compare across the Stage 4 boundary (older revisions lack skills.yaml) or the Stage 6 boundary

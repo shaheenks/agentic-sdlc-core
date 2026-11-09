@@ -41,6 +41,10 @@
             "description": "global roles (like a roles.yaml binding)",
             "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
           },
+          "default_team": {
+            "type": "string", "pattern": "^[a-z][a-z0-9-]*$",
+            "description": "team the agent uses when a document's team is not clear from the conversation (version-03 P10 G9); guidance only, applies only while the user is a member"
+          },
           "description": { "type": "string" }
         }
       }
