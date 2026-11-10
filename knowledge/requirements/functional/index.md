@@ -36,6 +36,7 @@
 - [FR-CONN-001: Users connect their own accounts](FR-CONN-001.md) - Users add personal access tokens for external systems through a dedicated page, never through chat.
 - [FR-CONN-002: Tools act as the user](FR-CONN-002.md) - Tools that reach external systems use the caller's own connection, after the policy check.
 - [FR-CONN-003: Atlassian and Data Center connections](FR-CONN-003.md) - Users connect Atlassian Cloud and Data Center accounts, and connected tools use them as the user.
+- [FR-CONN-004: Service connections for autonomous workflows](FR-CONN-004.md) - Autonomous workflows reach Jira, Confluence and Bitbucket through service connections held server-side; initially broad-scoped tokens, later OAuth or system principals.
 
 ## Conversations
 

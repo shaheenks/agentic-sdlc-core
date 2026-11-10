@@ -20,6 +20,19 @@
   - the Agent Gateway is optional;
   - memory is parked (FR-CONV-002 `parked`).
 - **Creation**: change record CH-0009 (`draft`): rename the team roles and fix the cross-team role leak.
+- **Update**: design decisions D10 and D11 recorded:
+  - MCP backends can be segregated per workflow (new NFR-SEC-014);
+  - autonomous workflows use server-side service connections, initially broad-scoped Jira, Confluence and Bitbucket
+    tokens (new FR-CONN-004);
+  - NFR-SEC-012 now keeps every external credential out of the sandbox (the runtime pushes the patch);
+  - NFR-SEC-013 now covers all external-system credentials.
+- **Update**: design decisions D8, D9 and D12 recorded:
+  - each team's Jira project for ops findings is declared in its team configuration (FR-WFL-005);
+  - the role rename switches the Entra app roles in one step (CH-0009);
+  - one set of service tokens per workflow (FR-CONN-004).
+
+- **Update**: design decision D13 recorded: admin alerts go to a Jira queue or an email message, declared in
+  platform configuration (FR-WFL-005). No design questions are open.
 
 ## 2026-11-10
 

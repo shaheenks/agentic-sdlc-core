@@ -27,5 +27,5 @@ The system shall enrich each accepted event with the agent context of its workfl
 
 - Enrichment resolves the Workflow and team from the matched Trigger, never from the payload.
 - Agent context (team instructions, skills, knowledge references) and real-time context (PR diff, pipeline log, alert, log lines) are fetched through the MCP server as the workflow principal.
-- Enrichment runs no model and holds no write credential.
+- Enrichment runs no model and holds no external-system credential; it reaches those systems only through the MCP backend.
 - Fetched content is marked as untrusted data in the enriched event.

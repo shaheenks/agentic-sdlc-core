@@ -36,6 +36,12 @@ Users have a platform role (`viewer` for the common knowledge, skills and tools,
 everything) and, per team, a team role (`member`, or the optional `approver` for approval and
 elevated access). A team role applies only within its own team.
 
+One MCP server and API backend serves everything today. A workflow gets a dedicated MCP backend
+whenever least privilege or identity separation requires it. User-led workflows reach dependent
+systems with the user's own connection. Autonomous workflows use service connections held only
+by server-side components: broad-scoped tokens in the initial phases, OAuth or system principals
+later.
+
 Each principal sees only the tools, skills and knowledge its identity allows (*selective
 disclosure*). Declarative configuration decides the rules; the MCP server enforces them, backed by
 database row-level security.

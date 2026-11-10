@@ -61,4 +61,5 @@
 - [NFR-SEC-010: Least-privilege runtime](NFR-SEC-010.md) - Each service gets only the credentials and environment it needs.
 - [NFR-SEC-011: Browser-facing hardening](NFR-SEC-011.md) - Browser-reachable endpoints are hardened against content sniffing, cross-site requests and developer tooling exposure.
 - [NFR-SEC-012: Sandboxed code execution](NFR-SEC-012.md) - Code written by agents runs only in ephemeral sandboxes with no production access.
-- [NFR-SEC-013: Agents hold no write credentials](NFR-SEC-013.md) - Agents emit structured outcomes; a separate delivery service holds the credentials that write to external systems.
+- [NFR-SEC-013: Agents hold no external-system credentials](NFR-SEC-013.md) - Autonomous agents never hold credentials for external systems; server-side components use them after the policy check.
+- [NFR-SEC-014: MCP backends can be segregated per workflow](NFR-SEC-014.md) - A workflow can get its own MCP backend that serves only its tools and holds only its credentials, under the same config and policy.

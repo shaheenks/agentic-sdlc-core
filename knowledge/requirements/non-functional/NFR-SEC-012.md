@@ -26,6 +26,6 @@ Agent-driven code changes and their builds shall run only in an ephemeral sandbo
 # Acceptance criteria
 
 - Each run is a fresh job that is destroyed afterwards.
-- Egress is allowed only to the repository host, the model endpoint and declared package registries.
-- The repository token is short-lived and can only push to a new branch. It cannot approve, merge or change branch protection.
-- No production, database or user credential is present in the sandbox.
+- Egress is allowed only to the model endpoint and declared package registries.
+- No external-system credential is present in the sandbox: no repository, Jira or Confluence token, and no production, database or user credential. Model access uses the job's own service account, which has only the model role.
+- The checkout is prepared outside the sandbox before the run. The sandbox returns a patch, and a component outside the sandbox pushes a new branch and opens the draft PR through the MCP backend. Nothing in the run can approve, merge or change branch protection.
