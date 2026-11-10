@@ -74,7 +74,7 @@ questions:
   - q: What must be true of a config bundle before the current pointer can move to it?
     expect: [sdlc-platform:libs/sdlc_config/src/sdlc_config/bundles.py]
   - q: Which hostnames and local ports does the Cloudflare tunnel expose for development?
-    expect: [sdlc-platform:docs/misc/CLOUDFLARE_TUNNEL.md]
+    expect: [sdlc-platform:docs/guides/CLOUDFLARE_TUNNEL.md]
   - q: Which workload reads the Entra client secret on GCP, and which container receives it?
     hops: multi
     expect: [sdlc-platform:infra/gcp/iam.tf, sdlc-platform:infra/gcp/run.tf]

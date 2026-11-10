@@ -50,7 +50,7 @@ with that pattern).
 
 ### 3. Team file — `config/teams/<team>.yaml`
 
-The full example is [config/teams/webapp.yaml](../config/teams/webapp.yaml). The parts:
+The full example is [config/teams/webapp.yaml](../../config/teams/webapp.yaml). The parts:
 
 ```yaml
 apiVersion: sdlc/v1
@@ -80,7 +80,7 @@ addons:
     glossary_source: webapp-code
 ```
 
-Optional: `policy.limits` for per-user rate limits (see [config/teams/README.md](../config/teams/README.md)).
+Optional: `policy.limits` for per-user rate limits (see [config/teams/README.md](../../config/teams/README.md)).
 The `context` values also help `resolve_team` pick this team from words in a request (the repo
 name, the project name).
 
@@ -118,7 +118,7 @@ Also add:
 - `AGENT_ADDENDUM.md`: a few plain lines of team context (repo, stack, which skills to recommend).
   It is guidance for the agent, not authorization.
 - `README.md`: one or two lines.
-- a row in [skills/teams/README.md](../skills/teams/README.md).
+- a row in [skills/teams/README.md](../../skills/teams/README.md).
 
 To keep a skill to leads only: `access: { roles: [lead] }` on its `addons.skills` entry
 (example: `ledger-design-review` in payments).
@@ -146,7 +146,7 @@ the document to the team.
 
 ### 6. Knowledge source — `config/sources/<id>.yaml`
 
-The example is [config/sources/webapp-code.yaml](../config/sources/webapp-code.yaml):
+The example is [config/sources/webapp-code.yaml](../../config/sources/webapp-code.yaml):
 
 ```yaml
 metadata: { id: webapp-code, owner_team: webapp }
@@ -166,7 +166,7 @@ access:
 
 - The host must be in `platform.yaml` `knowledge.allowed_hosts` (github.com already is).
 - A public repo needs no credentials. A private one needs `credentials: { secret: <name> }`
-  (a reference only; see [config/sources/README.md](../config/sources/README.md)).
+  (a reference only; see [config/sources/README.md](../../config/sources/README.md)).
 - Exclude generated code and files that are instructions for other tools (the fork's
   `.claude/` and `.agents/` skill folders).
 - `classification`: `internal` is readable by viewers and up who have access; `confidential` needs lead.
@@ -174,11 +174,11 @@ access:
 
 ### 7. Ownership and Entra script
 
-- [.github/CODEOWNERS](../.github/CODEOWNERS): one rule each for `/config/teams/<team>.yaml`,
+- [.github/CODEOWNERS](../../.github/CODEOWNERS): one rule each for `/config/teams/<team>.yaml`,
   `/skills/teams/<team>/` and `/config/sources/<id>.yaml` (`tests/policy/test_codeowners.py`).
-- [scripts/entra_setup.ps1](../scripts/entra_setup.ps1): add each new app role to `$AppRoles`
+- [scripts/entra_setup.ps1](../../scripts/entra_setup.ps1): add each new app role to `$AppRoles`
   (`tests/policy/test_app_roles.py`).
-- [config/env/local/users.yaml.example](../config/env/local/users.yaml.example): an example member entry.
+- [config/env/local/users.yaml.example](../../config/env/local/users.yaml.example): an example member entry.
 
 ### 8. Tests
 

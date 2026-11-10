@@ -16,4 +16,4 @@ Entra ID identity for the platform. Stage 2.
   per user token × conversation), `set_conversation_id` (keeps the parent conversation id for nested
   Goldfish reviewer sessions).
 
-Setup: docs/misc/ENTRA_SETUP.md. Tests: tests/auth (tokens minted by tests/support/entra.py).
+Setup: docs/guides/ENTRA_SETUP.md. Tests: tests/auth (tokens minted by tests/support/entra.py).

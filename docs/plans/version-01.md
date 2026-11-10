@@ -1,7 +1,7 @@
 # Agentic SDLC — Implementation Plan version-01
 
 Follows [version-00.md](version-00.md) (Stages 0–9 and the local backlog H1–H10). Architecture: [../ARCHITECTURE.md](../ARCHITECTURE.md);
-database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md).
+database: [../DATABASE_SCHEMA.md](../DATABASE_SCHEMA.md); GCP design: [../GCP_DEPLOYMENT.md](../guides/GCP_DEPLOYMENT.md).
 
 ## Goals
 
@@ -484,7 +484,7 @@ and Confluence Cloud (`atlassian` connection), and every Data Center edition (§
 
 ## 5. GCP (M7, resumes Stage 7a; dev environment since 2026-10-28, §5.1)
 
-Originally planned as staging. As designed in [../GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md), with what changed since:
+Originally planned as staging. As designed in [../GCP_DEPLOYMENT.md](../guides/GCP_DEPLOYMENT.md), with what changed since:
 - Rebuild images (the pushed `57f55cc3ef68` images predate H1–H10); run `db` for migrations 003–004.
 - Terraform already done in M0–M2: the ingest job reads `{secret: ...}` source credentials from Secret Manager
   (`SDLC_SECRETS_BACKEND=gcp`, `SDLC_SECRETS_PROJECT`); `gcs_source_buckets` → `roles/storage.objectViewer` per bucket

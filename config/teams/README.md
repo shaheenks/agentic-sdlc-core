@@ -8,4 +8,4 @@ Rate limits: the most generous value across a user's teams applies per scope; wi
 `platform.yaml` `defaults.rate_limit` baseline applies to all tools. Limits apply to every role (admin included),
 are checked after authorization (refused calls do not count), and are counted per MCP server instance.
 
-Adding a team, step by step: docs/TEAM_ONBOARDING.md.
+Adding a team, step by step: docs/guides/TEAM_ONBOARDING.md.

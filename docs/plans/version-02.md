@@ -2,7 +2,7 @@
 
 Follows [version-01.md](version-01.md) (new sources, AG-UI web app, user connections, GCP dev, M0–M8) and
 [version-00.md](version-00.md) (Stages 0–9, local backlog H1–H10). Architecture: [../ARCHITECTURE.md](../ARCHITECTURE.md);
-GCP runbook: [../GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md).
+GCP runbook: [../GCP_DEPLOYMENT.md](../guides/GCP_DEPLOYMENT.md).
 
 Version-02 collects everything still open from both earlier plans: what version-01 left pending or deferred
 (§10.3, §10.4, §6) and what version-00 left open (Stage 7b operations, Stage 8 surfaces, the Stage 9 backlog, the
@@ -658,7 +658,7 @@ cross-check: the payments developer's `tools_list` records are identical across 
 notes were written, so it no longer serves as the "no groups" persona (use a no-groups test user instead).
 
 ### R2 — GCP dev catch-up deploy
-One run covers every "Open: GCP ..." note of N8, N10, N11, N13, N14 and N15 (runbook: docs/GCP_DEPLOYMENT.md):
+One run covers every "Open: GCP ..." note of N8, N10, N11, N13, N14 and N15 (runbook: docs/guides/GCP_DEPLOYMENT.md):
 `base` (config store bucket) → `config` → `images` (`core-mcp`, `user-agent`, chat app; new names after N11) → `plan`
 → `apply` (with `config/env/dev/users.yaml` in place) → `db` → `ingest` → `urls`. Before `plan`: review the bucket
 mount (`mount_options`) in the Terraform, which has not been planned yet (§16).
@@ -737,7 +737,7 @@ argument values; audit records link to it by `trace_id`.
 - Terraform: `cloud_trace` (default false; **dev.tfvars: true**) adds `SDLC_TRACE_TO_CLOUD` to the MCP and agent
   containers and `roles/cloudtrace.agent` to their service accounts; `cloudtrace.googleapis.com` is enabled with the
   other APIs. Cost: the first 2.5 M spans per month are free.
-- Audit views: Logs Explorer queries in docs/GCP_DEPLOYMENT.md §8 "Audit views" (denied calls, rate limited, auth
+- Audit views: Logs Explorer queries in docs/guides/GCP_DEPLOYMENT.md §8 "Audit views" (denied calls, rate limited, auth
   failures, connection changes incl. reconcile, per user / conversation / trace). Log-based metrics and alerts: version-03.
 
 **Your steps (GCP, same `images` + `plan` + `apply` as R5):** expect `roles/cloudtrace.agent` for

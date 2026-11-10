@@ -11,4 +11,4 @@ Add-ons may carry a tag from `platform.yaml` `skills.team_tags` (`goldfish-lens`
 | `sdlc-platform` | `infra-change-review` |
 | `webapp` | `webapp-coding-standards`, `webapp-code-review`, `webapp-api-lens` (goldfish-lens), `webapp-design-template` (doc-template), `webapp-story-template` (doc-template) |
 
-Adding a team: docs/TEAM_ONBOARDING.md.
+Adding a team: docs/guides/TEAM_ONBOARDING.md.

@@ -6,7 +6,7 @@ Other milestones remain a proposal, confirmed one by one.
 
 Follows [version-02.md](version-02.md). Architecture: [../ARCHITECTURE.md](../ARCHITECTURE.md); feature status
 (reconciliation baseline, 2026-11-08): [../FEATURE_INVENTORY.md](../FEATURE_INVENTORY.md); GCP runbook:
-[../GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md); secrets: [../SECRETS_REVIEW.md](../SECRETS_REVIEW.md); designs carried in:
+[../GCP_DEPLOYMENT.md](../guides/GCP_DEPLOYMENT.md); secrets: [../SECRETS_REVIEW.md](../SECRETS_REVIEW.md); designs carried in:
 [pending-task.md](pending-task.md) (tasks 1 and 3).
 
 ## Goals
@@ -319,7 +319,7 @@ only Pub/Sub push from their own subscription; event payloads are untrusted data
 source `webapp-code` (GitHub fork, tracks `master`; generated client and the fork's `.claude/` / `.agents/` excluded),
 add-ons `webapp-coding-standards`, `webapp-code-review`, `webapp-api-lens` (goldfish-lens, required for designs),
 `webapp-design-template` / `webapp-story-template` (doc-template). First step-by-step guide for adding a team and
-for new members: `docs/TEAM_ONBOARDING.md`. Pending (user): app roles in Entra (`entra_setup.ps1`), ingest,
+for new members: `docs/guides/TEAM_ONBOARDING.md`. Pending (user): app roles in Entra (`entra_setup.ps1`), ingest,
 GCP `-Step config` + `-Step ingest`.
 
 **Fixes from the G4–G9 live test (2026-11-07):**

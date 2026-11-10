@@ -52,7 +52,7 @@ def test_sdlc_platform_sources():
 def test_webapp_team():
     """webapp: full-stack-fastapi-template; app roles + users.yaml, no group.
 
-    The worked example in docs/TEAM_ONBOARDING.md."""
+    The worked example in docs/guides/TEAM_ONBOARDING.md."""
     team = doc("teams/webapp.yaml")
     assert team["membership"] == [
         {"app_role": "SDLC.Webapp.Developer", "roles": ["developer"]},

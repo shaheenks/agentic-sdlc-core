@@ -6,7 +6,7 @@ metadata:
   owners: [platform-admins]          # group aliases; also drive CODEOWNERS
 # No Entra group: members come from Entra app roles (version-03 P2 E1) or directly from the
 # git-ignored config/env/<env>/users.yaml, e.g. `teams: { webapp: [developer] }`, matched by
-# object ID (version-02 N10). Onboarding steps: docs/TEAM_ONBOARDING.md.
+# object ID (version-02 N10). Onboarding steps: docs/guides/TEAM_ONBOARDING.md.
 membership:
   - app_role: SDLC.Webapp.Developer
     roles: [developer]
