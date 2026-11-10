@@ -1,5 +1,5 @@
 # Persona matrix: every row is checked in CI (tests/policy/test_matrix.py).
-# A new tool needs rows here (CLAUDE.md: tools.yaml entry + grants + persona-matrix rows).
+# A new tool needs rows here (knowledge/rules/configuration.md: tools.yaml entry + grants + persona-matrix rows).
 # expect: allow | deny.  `args` are the call arguments.
 rows:
   # identity basics: every signed-in user

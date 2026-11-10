@@ -15,8 +15,8 @@ verified:
   at: '2026-11-10T21:28:01+05:30'
 sources:
 - id: rules
-  resource: ../../../CLAUDE.md
-  title: Project rules
+  resource: ../../rules/index.md
+  title: Project rules (rule sets)
 - id: inventory
   resource: ../../../docs/FEATURE_INVENTORY.md
   title: Feature inventory (baseline 2026-11-08)

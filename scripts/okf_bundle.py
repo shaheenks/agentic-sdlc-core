@@ -39,8 +39,16 @@ REQ_KEYS = ("title", "description", "area", "status", "priority", "implementatio
 REQ_HEADINGS = ("# Statement", "# Acceptance criteria")
 COMPONENT = "Component"
 COMPONENT_KEYS = ("title", "description", "area", "status", "resource", "satisfies")
+CHANGE = "Change"
+CHANGE_ID = re.compile(r"^CH-\d{4}$")
+CHANGE_KEYS = ("title", "description", "status", "kind", "state", "touches")
+CHANGE_KINDS = {"feature", "change", "fix", "refactor"}
+CHANGE_STATES = {"open", "done", "dropped"}
+DELTAS = ("adds", "modifies", "retires")
+NO_DELTA = {"fix", "refactor"}  # behaviour stays as specified, so no requirement changes
 GENERATED_TYPES = {"Traceability Matrix"}  # written by `build`, never reviewed by hand
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+FENCE = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)  # examples are not links
 LOG_DATE = re.compile(r"^## (.*)$", re.MULTILINE)
 
 
@@ -102,6 +110,18 @@ def target(path: Path, ref: str) -> Path | None:
     return found.resolve()
 
 
+def linked(path: Path, body: str, name: re.Pattern | None = None) -> set[str]:
+    """Concept IDs the body links to (optionally only those whose file name matches)."""
+    ids = set()
+    for ref in LINK.findall(FENCE.sub("", body)):
+        found = target(path, ref)
+        if found is None or found.suffix != ".md" or not found.is_relative_to(BUNDLE):
+            continue
+        if found.name not in RESERVED and (name is None or name.match(found.stem)):
+            ids.add("/" + found.relative_to(BUNDLE).with_suffix("").as_posix())
+    return ids
+
+
 def check_concept(path: Path, meta: dict | None, body: str) -> list[str]:
     if meta is None or not str(meta.get("type") or "").strip():
         return ["concept needs frontmatter with a non-empty `type`"]
@@ -140,6 +160,8 @@ def check_concept(path: Path, meta: dict | None, body: str) -> list[str]:
         errors.append("requirement file names look like FR-AREA-001.md / NFR-AREA-001.md")
     if meta["type"] == COMPONENT:
         errors += check_component(path, meta, body)
+    if meta["type"] == CHANGE or path.parent == BUNDLE / "changes":
+        errors += check_change(path, meta, body)
     return errors
 
 
@@ -173,13 +195,37 @@ def check_component(path: Path, meta: dict, body: str) -> list[str]:
         if not (ROOT / ref).exists():
             errors.append(f"verified_by: not found in the repository: {ref}")
     # The body links are what OKF consumers follow, so they must say the same as the key.
-    linked = set()
-    for ref in LINK.findall(body):
-        found = target(path, ref)
-        if found is not None and REQ_ID.match(found.stem) and found.is_relative_to(BUNDLE):
-            linked.add("/" + found.relative_to(BUNDLE).with_suffix("").as_posix())
-    if linked != satisfies:
-        errors.append(f"`satisfies` and the body's requirement links differ: {linked ^ satisfies}")
+    if (links := linked(path, body, REQ_ID)) != satisfies:
+        errors.append(f"`satisfies` and the body's requirement links differ: {links ^ satisfies}")
+    return errors
+
+
+def check_change(path: Path, meta: dict, body: str) -> list[str]:
+    errors = [f"missing `{key}`" for key in CHANGE_KEYS if not meta.get(key)]
+    if meta["type"] != CHANGE or path.parent != BUNDLE / "changes":
+        errors.append("change records are `type: Change` in changes/")
+    if not CHANGE_ID.match(path.stem):
+        errors.append("change file names look like CH-0001.md")
+    if meta.get("kind") not in CHANGE_KINDS:
+        errors.append(f"kind must be one of {sorted(CHANGE_KINDS)}")
+    if meta.get("state") not in CHANGE_STATES:
+        errors.append(f"state must be one of {sorted(CHANGE_STATES)}")
+    deltas = {ref for key in DELTAS for ref in meta.get(key) or []}
+    for ref in sorted(deltas):
+        if not REQ_ID.match(ref.rsplit("/", 1)[-1]) or not (BUNDLE / f"{ref[1:]}.md").exists():
+            errors.append(f"no such requirement: {ref}")
+    touches = set(meta.get("touches") or [])
+    for ref in sorted(touches):
+        if not ref.startswith("/components/") or not (BUNDLE / f"{ref[1:]}.md").exists():
+            errors.append(f"touches: no such component {ref}")
+    if meta.get("kind") in NO_DELTA and deltas:
+        errors.append(f"a {meta['kind']} leaves requirements untouched; use kind `change`")
+    if meta.get("kind") in CHANGE_KINDS - NO_DELTA and not deltas:
+        errors.append(f"a {meta['kind']} names the requirements it adds, modifies or retires")
+    if meta.get("state") == "done" and meta.get("status") != "stable":
+        errors.append("a change is approved (`status: stable`, verified) before it is done")
+    if (links := linked(path, body)) != deltas | touches:
+        errors.append(f"frontmatter and body links differ: {links ^ (deltas | touches)}")
     return errors
 
 
@@ -240,7 +286,7 @@ def lint() -> list[str]:
             continue
         check = check_reserved if path.name in RESERVED else check_concept
         errors = check(path, meta, body)
-        for ref in LINK.findall(body):
+        for ref in LINK.findall(FENCE.sub("", body)):
             if (found := target(path, ref)) is not None and not found.exists():
                 errors.append(f"broken link: {ref}")
         problems += [f"{path.relative_to(ROOT)}: {e}" for e in errors]
@@ -249,7 +295,8 @@ def lint() -> list[str]:
 
 def label(concept: Concept) -> str:
     title = concept.meta.get("title", concept.path.stem)
-    return f"{concept.path.stem}: {title}" if REQ_ID.match(concept.path.stem) else title
+    numbered = REQ_ID.match(concept.path.stem) or CHANGE_ID.match(concept.path.stem)
+    return f"{concept.path.stem}: {title}" if numbered else title
 
 
 def render_index(folder: Path) -> str:
@@ -272,8 +319,8 @@ def render_index(folder: Path) -> str:
             continue
         meta = concept.meta
         bullet = f"- [{label(concept)}]({concept.path.name}) - {meta.get('description', '')}"
-        group = str(meta.get("area") or meta.get("type") or "Other")
-        groups.setdefault(group, []).append(bullet.rstrip(" -"))
+        group = str(meta.get("area") or meta.get("state") or meta.get("type") or "Other")
+        groups.setdefault(group[:1].upper() + group[1:], []).append(bullet.rstrip(" -"))
     for group, bullets in groups.items():
         lines += [f"## {group}", "", *bullets, ""]
     if (folder / "log.md").exists():
@@ -345,6 +392,29 @@ def render_trace() -> str:
     ] or ["None."]
     lines += ["", "## Components with no automated verification", ""]
     lines += [f"- {link(c)}" for c in untested] or ["None."]
+    changes = [c for c in everything if c.meta.get("type") == CHANGE]
+    if changes:
+        known = {c.id: c for c in everything}
+        lines += [
+            "",
+            "# Changes",
+            "",
+            "| Change | Kind | State | Requirements | Components |",
+            "|---|---|---|---|---|",
+        ]
+        for ch in changes:
+            refs = [
+                f"{key} {link(known[r])}"
+                for key in DELTAS
+                for r in ch.meta.get(key) or []
+                if r in known
+            ]
+            touched = [known[r] for r in ch.meta.get("touches") or [] if r in known]
+            parts = ", ".join(link(c) for c in touched)
+            lines.append(
+                f"| {link(ch)} {ch.meta.get('title', '')} | {ch.meta.get('kind', '')} "
+                f"| {ch.meta.get('state', '')} | {', '.join(refs) or '-'} | {parts or '-'} |"
+            )
     return "\n".join(lines) + "\n"
 
 

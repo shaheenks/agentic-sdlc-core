@@ -45,7 +45,7 @@ jobs:
       - run: uv run sdlc-config validate --env local
       - name: Permission diff against the PR base (informational)
         if: github.event_name == 'pull_request'
-        continue-on-error: true # revisions before Stage 4/6 cannot be loaded (see CLAUDE.md)
+        continue-on-error: true # revisions before Stage 4/6 cannot be loaded (knowledge/rules/commands.md)
         run: |
           {
             echo "## Effective permission changes (sdlc-config diff)"

@@ -21,8 +21,8 @@ sources:
   resource: ../../../docs/ARCHITECTURE.md
   title: System architecture
 - id: rules
-  resource: ../../../CLAUDE.md
-  title: Project rules
+  resource: ../../rules/index.md
+  title: Project rules (rule sets)
 ---
 
 # Statement

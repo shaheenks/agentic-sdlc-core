@@ -1,7 +1,7 @@
 # config
 
 Declarative access and customization, keyed on Entra ID identity (groups, app roles, direct members).
-Syntax and resolution rules: docs/plans/version-00.md → "Configuration Model"; working rules: CLAUDE.md.
+Syntax and resolution rules: docs/plans/version-00.md → "Configuration Model"; working rules: knowledge/rules/configuration.md.
 
 | File | kind | Purpose |
 |---|---|---|

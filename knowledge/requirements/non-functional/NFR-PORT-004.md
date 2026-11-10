@@ -15,8 +15,8 @@ verified:
   at: '2026-11-10T21:45:18+05:30'
 sources:
 - id: rules
-  resource: ../../../CLAUDE.md
-  title: Project rules
+  resource: ../../rules/index.md
+  title: Project rules (rule sets)
 - id: v03
   resource: ../../../docs/plans/version-03.md
   title: Implementation plan version-03

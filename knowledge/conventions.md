@@ -27,6 +27,8 @@ convention on top of it.
 | `requirements/non-functional/` | One concept per non-functional requirement | step 2 |
 | `components/` | One concept per component, tracing to requirements | step 3 |
 | `traceability.md` | Generated matrix: requirement to components, component to tests, gaps | step 3 |
+| `changes/` | One record per feature, behaviour change, fix or refactor | step 6 |
+| `rules/` | Binding working rules per area, routed from `CLAUDE.md` | step 7 |
 | `interfaces/`, `data/`, `decisions/` | MCP tools and APIs, data model, decision records | step 5 |
 
 `index.md` files and `traceability.md` are generated (`scripts/okf_bundle.py build`); do not edit
@@ -42,6 +44,8 @@ them by hand.
 | `Non-Functional Requirement` | A quality or constraint the system must hold |
 | `Component` | A deployable or importable part of the repository |
 | `Traceability Matrix` | The generated trace report |
+| `Change` | A proposed or completed change and the requirements and components it affects |
+| `Rule Set` | Binding working rules for one area of the repository |
 | `Convention` | Rules for the bundle itself |
 
 New types are added to this table in the pull request that first uses them.
@@ -137,6 +141,67 @@ Optional: known gaps, open decisions, links to related requirements.
 ```
 
 Links inside the bundle are relative, so they also work in the repository browser and in editors.
+
+# Change records
+
+Work on the system starts from a change record, `changes/CH-<nnnn>.md`, numbered in order. It says
+which requirements the work adds, modifies or retires and which components it touches, so every
+code change traces back to the specification. Records are never deleted or renumbered.
+
+| Key | Values | Meaning |
+|---|---|---|
+| `kind` | `feature`, `change`, `fix`, `refactor` | See below |
+| `state` | `open`, `done`, `dropped` | Where the work is |
+| `adds`, `modifies`, `retires` | requirement concept IDs | The requirement delta |
+| `touches` | component concept IDs | Components whose code or design changes |
+
+- `feature` and `change` name at least one requirement they add, modify or retire.
+- `fix` and `refactor` leave requirements untouched: a fix restores specified behaviour and a
+  refactor keeps it. If the work shows the specification was wrong, it is a `change`.
+- Approval is the OKF review state: a record is `status: draft` while proposed and becomes
+  `status: stable` with a `verified` entry by `human:<id>` when approved. Code work starts only on
+  an approved record, and only an approved record can be `done`.
+
+```markdown
+---
+type: Change
+title: Share artifacts with a team
+description: One line saying what changes for whom.
+kind: feature
+state: open
+status: draft
+modifies: [/requirements/functional/FR-ART-004]
+touches: [/components/core_mcp, /components/sdlc_db]
+---
+
+# Why
+
+The problem or goal, and where it comes from (plan section, issue, incident).
+
+# Requirements
+
+- Modifies [FR-ART-004](../requirements/functional/FR-ART-004.md): what changes in the statement
+  or acceptance criteria. A new requirement is written as its own concept, `status: draft`.
+
+# Design
+
+How each touched component changes: [core_mcp](../components/core_mcp.md) ...,
+[sdlc_db](../components/sdlc_db.md) ... Alternatives considered. For a refactor, the tests that
+pin today's behaviour before the work starts.
+
+# Tasks
+
+- [ ] Ordered steps, each small enough to review.
+
+# Verification
+
+Which tests or commands show each acceptance criterion holds.
+```
+
+Every requirement and component named in the frontmatter is linked in the body, and the other way
+round; the lint checks. The work is finished in one pull request that carries the code, the
+updated requirement and component concepts, the record set to `state: done`, and a line in
+`log.md`. Changes made before the bundle existed are not backfilled.
 
 # Changing the bundle
 
