@@ -1,0 +1,33 @@
+---
+type: Functional Requirement
+title: Per-call authorization with argument limits
+description: Every tool call is re-authorized, including team limits on argument values.
+area: Authorization
+tags:
+- requirement
+- functional
+- authorization
+status: stable
+priority: must
+implementation: live
+verified:
+- by: human:shaheenks
+  at: '2026-11-10T21:10:40+05:30'
+sources:
+- id: rules
+  resource: ../../../CLAUDE.md
+  title: Project rules
+- id: inventory
+  resource: ../../../docs/FEATURE_INVENTORY.md
+  title: Feature inventory (baseline 2026-11-08)
+---
+
+# Statement
+
+The system shall re-check authorization on every tool call, including limits on argument values, regardless of what was listed.
+
+# Acceptance criteria
+
+- Calling a tool that was filtered from the listing is refused.
+- Argument limits are unioned across the teams that constrain a tool; a team that does not constrain it never widens access.
+- Roles with `tools.unconstrained: true` (admin) skip argument limits; a deny wins over any allow.
