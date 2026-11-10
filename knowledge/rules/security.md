@@ -3,7 +3,10 @@ type: Rule Set
 title: Security rules
 description: "Authorization, token validation, block list, connections, artifacts, audit records and secrets."
 tags: [rules]
-status: draft
+status: stable
+verified:
+- by: human:shaheenks
+  at: '2026-11-10T22:53:19+05:30'
 ---
 
 Binding working rules for contributors and coding agents, moved word for word from `CLAUDE.md` on 2026-11-10.

@@ -3,7 +3,10 @@ type: System
 title: Agentic SDLC platform
 description: What the platform is, who uses it, what it connects to and what is in scope.
 tags: [system, context]
-status: draft
+status: stable
+verified:
+- by: human:shaheenks
+  at: '2026-11-10T22:53:19+05:30'
 sources:
   - id: arch
     resource: ../../docs/ARCHITECTURE.md
@@ -61,4 +64,7 @@ development (see the `planned` and `parked` requirements).
 - [Functional requirements](../requirements/functional/index.md) - what the system does.
 - [Non-functional requirements](../requirements/non-functional/index.md) - qualities and
   constraints it must hold.
-- [Conventions](../conventions.md) - how this bundle is organised.
+- [Components](../components/index.md) - the parts of the system and the requirements each
+  satisfies; the [traceability matrix](../traceability.md) shows coverage and gaps.
+- [Rule sets](../rules/index.md) - binding working rules per area.
+- [Conventions](../conventions.md) - how this bundle is organised and how changes are proposed.

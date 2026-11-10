@@ -3,7 +3,10 @@ type: Rule Set
 title: Commands
 description: "Every command for running, testing, ingesting, tracing, configuring and deploying, with the rules attached to each."
 tags: [rules]
-status: draft
+status: stable
+verified:
+- by: human:shaheenks
+  at: '2026-11-10T22:53:19+05:30'
 ---
 
 Binding working rules for contributors and coding agents, moved word for word from `CLAUDE.md` on 2026-11-10.

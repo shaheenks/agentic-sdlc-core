@@ -3,7 +3,10 @@ type: Convention
 title: Bundle conventions
 description: How this bundle is organised - concept types, requirement IDs, extension keys, review states and the change procedure.
 tags: [meta]
-status: draft
+status: stable
+verified:
+- by: human:shaheenks
+  at: '2026-11-10T22:53:19+05:30'
 sources:
   - id: okf
     resource: https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md
@@ -20,16 +23,16 @@ convention on top of it.
 
 # Layout
 
-| Path | Holds | Added in |
-|---|---|---|
-| `system/` | System context and scope | step 2 |
-| `requirements/functional/` | One concept per functional requirement | step 2 |
-| `requirements/non-functional/` | One concept per non-functional requirement | step 2 |
-| `components/` | One concept per component, tracing to requirements | step 3 |
-| `traceability.md` | Generated matrix: requirement to components, component to tests, gaps | step 3 |
-| `changes/` | One record per feature, behaviour change, fix or refactor | step 6 |
-| `rules/` | Binding working rules per area, routed from `CLAUDE.md` | step 7 |
-| `interfaces/`, `data/`, `decisions/` | MCP tools and APIs, data model, decision records | step 5 |
+| Path | Holds |
+|---|---|
+| `system/` | System context and scope |
+| `requirements/functional/` | One concept per functional requirement |
+| `requirements/non-functional/` | One concept per non-functional requirement |
+| `components/` | One concept per component, tracing to requirements |
+| `traceability.md` | Generated matrix: requirement to components, component to tests, gaps |
+| `changes/` | One record per feature, behaviour change, fix or refactor |
+| `rules/` | Binding working rules per area, routed from `CLAUDE.md` |
+| `interfaces/`, `data/`, `decisions/` | Planned, not created yet: MCP tools and APIs, data model, decision records |
 
 `index.md` files and `traceability.md` are generated (`scripts/okf_bundle.py build`); do not edit
 them by hand.

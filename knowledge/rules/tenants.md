@@ -3,7 +3,10 @@ type: Rule Set
 title: Tenant accounts and enterprise tenants
 description: "Test users, when the tenant admin account may be used, and keeping identity tenant-agnostic."
 tags: [rules]
-status: draft
+status: stable
+verified:
+- by: human:shaheenks
+  at: '2026-11-10T22:53:19+05:30'
 ---
 
 Binding working rules for contributors and coding agents, moved word for word from `CLAUDE.md` on 2026-11-10.

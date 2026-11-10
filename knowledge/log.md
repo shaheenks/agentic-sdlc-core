@@ -15,3 +15,4 @@
   lint; working rules added to `CLAUDE.md`. No existing work is backfilled.
 - **Creation**: seven rule sets in `rules/`, moved word for word from `CLAUDE.md`, which now keeps
   the always-apply rules and a routing table. Requirement sources point at the rule sets.
+- **Update**: system context, conventions and the seven rule sets reviewed and accepted (`stable`).
