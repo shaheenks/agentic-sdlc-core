@@ -9,3 +9,5 @@
 - [CH-0005: Remove the Graph group-overage fallback](CH-0005.md) - The switched-off Microsoft Graph lookup for users with too many groups is removed from the sign-in path, with its config keys, secret and Graph host.
 - [CH-0006: Test the components that have no automated verification](CH-0006.md) - Offline tests for compose, the workspace, user_agent and infra_gcp, so their trace claims are checked on every run.
 - [CH-0007: Check the specification tooling](CH-0007.md) - The bundle's own tooling gets a requirement, stricter lint rules and its own tests.
+- [CH-0008: Workflow platform design baseline](CH-0008.md) - The finalized POC design becomes the specification. There are four workflow classes, event intake, enrichment and delivery, workflow identity, team-scoped platform and team roles, a sandboxed ADK implementation agent, harness catalogs and knowledge extensions.
+- [CH-0009: Rename team roles and scope them to their team](CH-0009.md) - The team roles developer and lead become member and approver, and a team role grants access only within its own team, which closes today's cross-team leak.

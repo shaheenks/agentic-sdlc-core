@@ -45,6 +45,7 @@
 - [NFR-REL-002: Stable MCP sessions](NFR-REL-002.md) - There is one MCP client session per user and conversation, and the server holds no session state.
 - [NFR-REL-003: Scale-out readiness](NFR-REL-003.md) - Per-instance state must move to shared stores before services run more than one instance.
 - [NFR-REL-004: Repeatable data changes](NFR-REL-004.md) - Ingest and schema changes can be re-run safely.
+- [NFR-REL-005: Durable event processing](NFR-REL-005.md) - Event workflows survive retries, duplicates, bursts and failures without double outcomes or loops.
 
 ## Security
 
@@ -59,3 +60,5 @@
 - [NFR-SEC-009: External content is untrusted](NFR-SEC-009.md) - Content from providers, sources and model extraction is treated as data, never as instructions or trusted structure.
 - [NFR-SEC-010: Least-privilege runtime](NFR-SEC-010.md) - Each service gets only the credentials and environment it needs.
 - [NFR-SEC-011: Browser-facing hardening](NFR-SEC-011.md) - Browser-reachable endpoints are hardened against content sniffing, cross-site requests and developer tooling exposure.
+- [NFR-SEC-012: Sandboxed code execution](NFR-SEC-012.md) - Code written by agents runs only in ephemeral sandboxes with no production access.
+- [NFR-SEC-013: Agents hold no write credentials](NFR-SEC-013.md) - Agents emit structured outcomes; a separate delivery service holds the credentials that write to external systems.

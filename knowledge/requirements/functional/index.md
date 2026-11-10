@@ -18,6 +18,7 @@
 - [FR-AUTHZ-003: Role hierarchy with classification ceilings](FR-AUTHZ-003.md) - Roles inherit from one another and each caps the data classification its holder can read.
 - [FR-AUTHZ-004: Per-user rate limits](FR-AUTHZ-004.md) - Calls are rate-limited per user from a platform baseline and team limits.
 - [FR-AUTHZ-005: Data access granted per source](FR-AUTHZ-005.md) - Knowledge is readable only where the source's own access rule grants it, under the role's classification ceiling.
+- [FR-AUTHZ-006: Team roles are scoped to their team](FR-AUTHZ-006.md) - A team role grants access only to that team's resources, never to another team's.
 
 ## Autonomous agents
 
@@ -39,6 +40,7 @@
 ## Conversations
 
 - [FR-CONV-001: Conversation history](FR-CONV-001.md) - Users can list, reopen and delete their own conversations.
+- [FR-CONV-002: Per-user memory](FR-CONV-002.md) - The assistant keeps long-term memory per user, readable only in that user's sessions.
 
 ## Documents
 
@@ -50,6 +52,7 @@
 - [FR-IDN-002: Membership from groups, app roles and direct members](FR-IDN-002.md) - A user's teams and roles come from Entra groups, Entra app roles and the per-environment direct-member list, combined as a union.
 - [FR-IDN-003: Users can see their own access](FR-IDN-003.md) - A user can ask what they are allowed to do and why; only admins can view another user's policy.
 - [FR-IDN-004: Revocation of access](FR-IDN-004.md) - A blocked user loses access on the next request and their stored connections are removed by a reconcile job.
+- [FR-IDN-005: Workflow identity](FR-IDN-005.md) - Autonomous workflows authenticate with their own Entra workload identity and are authorized like any principal.
 
 ## Knowledge
 
@@ -60,6 +63,9 @@
 - [FR-KNOW-005: Scheduled ingest](FR-KNOW-005.md) - Ingest runs on a schedule in the cloud environment.
 - [FR-KNOW-006: Atlassian and Bitbucket sources](FR-KNOW-006.md) - Confluence spaces, Jira projects and Bitbucket repositories, Cloud and Data Center, can be declared and ingested as sources.
 - [FR-KNOW-007: OCR for scanned PDFs](FR-KNOW-007.md) - PDFs without a text layer are read with model OCR, only for sources that opt in.
+- [FR-KNOW-008: Source code graph](FR-KNOW-008.md) - Repositories are parsed into a symbol graph that queries can walk under the same access rules.
+- [FR-KNOW-009: Images and diagrams](FR-KNOW-009.md) - Images and diagrams in sources are described and read with a multimodal model, for sources that opt in.
+- [FR-KNOW-010: Diverse document formats](FR-KNOW-010.md) - Office documents, API specifications and structured data are ingested with format-aware chunking.
 
 ## Skills
 
@@ -71,11 +77,21 @@
 - [FR-SURF-001: Chat application](FR-SURF-001.md) - A web chat is the main surface for talking to the assistant.
 - [FR-SURF-002: Agent-to-agent endpoint](FR-SURF-002.md) - Other agent platforms reach the assistant over A2A with the user's token.
 - [FR-SURF-003: Direct MCP clients](FR-SURF-003.md) - IDE clients can connect straight to the MCP server.
+- [FR-SURF-004: Catalogs for coding harnesses](FR-SURF-004.md) - Coding harnesses get the caller's tools, skills and knowledge catalogs straight from the MCP server.
 
 ## Teams
 
 - [FR-TEAM-001: Team customization of behaviour](FR-TEAM-001.md) - Teams add instructions, skills and document-flow defaults that change behaviour but never permissions.
 - [FR-TEAM-002: Team resolution and lock](FR-TEAM-002.md) - The assistant works broadly until a brief is confirmed, then locks to one of the user's own teams.
+
+## Workflows
+
+- [FR-WFL-001: Workflows are declared and classified](FR-WFL-001.md) - Each workflow is declared in configuration with its class, trigger, identity, access and outcome delivery.
+- [FR-WFL-002: Event intake](FR-WFL-002.md) - One gateway receives CI and operational events, verifies the caller, matches a Trigger and publishes a normalised event.
+- [FR-WFL-003: Event enrichment](FR-WFL-003.md) - Events are enriched with the workflow's agent context and real-time context before an agent runs.
+- [FR-WFL-004: Build and test workflows](FR-WFL-004.md) - CI events start pull request analysis, code quality, security audit and change management workflows that report back to source control.
+- [FR-WFL-005: Deploy and maintain workflows](FR-WFL-005.md) - Operational events start read-only diagnosis whose findings become incident records, with optional proposed fixes.
+- [FR-WFL-006: Implementation workflow](FR-WFL-006.md) - An approved design or spec starts a sandboxed coding agent that delivers a first version of the code as a draft PR.
 
 ## Write actions
 

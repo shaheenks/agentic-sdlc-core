@@ -1,63 +1,112 @@
 ---
 type: System
 title: Agentic SDLC platform
-description: What the platform is, who uses it, what it connects to and what is in scope.
+description: What the platform is, its workflows, who uses it, what it connects to and what is in scope.
 tags: [system, context]
-status: stable
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T22:53:19+05:30'
+status: draft
 sources:
+  - id: design
+    resource: ../../docs/designs/workflow-platform.md
+    title: Workflow platform target design
   - id: arch
     resource: ../../docs/ARCHITECTURE.md
-    title: System architecture
+    title: System architecture (as built)
   - id: inventory
     resource: ../../docs/FEATURE_INVENTORY.md
     title: Feature inventory (baseline 2026-11-08)
   - id: v03
     resource: ../../docs/plans/version-03.md
     title: Implementation plan version-03
+  - id: playbook
+    resource: https://claude.com/resources/articles/the-ai-native-sdlc-playbook
+    title: The AI-Native SDLC Playbook
+  - id: egm
+    resource: https://egm.dev/
+    title: Elephant-Goldfish Model
 ---
 
 # Purpose
 
-Engineers use an AI assistant for software-delivery work: writing user stories, reviewing designs,
-generating tests, reviewing code and answering questions about their team's systems. The assistant
-is an agent built from skills. The skills, tools and team knowledge it can use come from a central
-MCP server.
+Engineers use AI agents for software-delivery work: planning and design, building and testing,
+deploying and maintaining. The platform is built from **workflows**. Each one is an agent, or a
+chain of agents, whose context (skills, tools and knowledge) comes from a central MCP server,
+filtered by the identity it runs as.
 
-Each user sees only the tools, skills and knowledge their identity allows (*selective
+Users have a platform role (`viewer` for the common knowledge, skills and tools, or `admin` for
+everything) and, per team, a team role (`member`, or the optional `approver` for approval and
+elevated access). A team role applies only within its own team.
+
+Each principal sees only the tools, skills and knowledge its identity allows (*selective
 disclosure*). Declarative configuration decides the rules; the MCP server enforces them, backed by
 database row-level security.
+
+The design follows two models:
+- The AI-Native SDLC Playbook: every stage commits an artifact that the next stage reads, humans
+  approve at gates, and autonomy is tiered.
+- The Elephant-Goldfish Model: a deep-context agent drafts, and isolated reviewers critique.
+
+The target design is [docs/designs/workflow-platform.md](../../docs/designs/workflow-platform.md).
+
+# Workflows
+
+| Class | Started by | Runs as | Outcome |
+|---|---|---|---|
+| Plan and design (user-led; built as `user_agent`) | A user in a chat surface | The user | Documents, reviews and answers to the user |
+| Build and test (autonomous) | CI events: PRs, pipelines | The workflow's own identity | Findings in source control |
+| Deploy and maintain (autonomous) | Operational events: alerts, logs | The workflow's own identity | Incident records, proposed fixes |
+| Implementation (autonomous, gated) | An approved spec or design | The workflow's own identity, in a sandbox | A draft PR for human review |
+
+A workflow is classified by its source events, the identity it runs as, the systems it may reach,
+and where it delivers its outcome. All four are declared in configuration, so new workflows and
+actions are added without changing the platform.
 
 # Actors
 
 | Actor | Wants |
 |---|---|
-| Engineer (viewer, developer, lead) | Answers from team knowledge, documents, reviews, actions on their own repositories |
-| Team owner | To shape the assistant for the team: instructions, skills, document templates, sources |
+| Engineer (platform `viewer`; team `member`) | Answers from common and team knowledge, documents and reviews, and findings on their own changes |
+| Team approver (optional team role) | To approve specs and designs for the team, to use the team's elevated skills and tools, and to review agent-written code |
+| Team owner | To shape the assistant for the team: instructions, skills, document templates, sources, workflows |
 | Platform admin | To declare access, publish configuration, onboard teams, block users |
 | Operator | To deploy, observe, audit and roll back |
-| External agent platform or IDE | To reach the assistant or the MCP server for a signed-in user |
-| Autonomous agent (planned) | To act on CI and operations events under its own identity |
+| External agent platform or coding harness | To reach the assistant, or the MCP server's catalogs, for a signed-in user |
+| Workflow principal | To act on CI, operational and approval events under its own identity |
 
 # External systems
 
 | System | Role |
 |---|---|
-| Microsoft Entra ID | The only identity provider: sign-in, groups, app roles |
-| Gemini on Vertex AI | The model for agents, embeddings, graph extraction and OCR |
-| GitHub, Bitbucket, Jira, Confluence | Knowledge sources, and systems the tools reach as the user |
-| Google Cloud | Hosting for the cloud environment: compute, database, storage, secrets, tracing |
+| Microsoft Entra ID | The only identity provider: sign-in, groups, app roles, workload identities |
+| Gemini on Vertex AI | The model for agents, embeddings, graph extraction, OCR and image understanding |
+| Gemini Enterprise | A2A surface for users, with the user's Entra token. On GCP, also sessions and the optional Agent Registry |
+| Microsoft Copilot and other third-party agent platforms | A2A surfaces for users, with the user's Entra token |
+| Coding harnesses (Antigravity, IDEs) | Direct MCP clients for the tools, skills and knowledge catalogs |
+| GitHub, Bitbucket (Cloud and Data Center), Jira, Confluence | Knowledge sources; systems tools reach as the user or workflow; CI and approval event sources; Jira also receives ops findings as tickets |
+| GitHub Actions, Bitbucket Pipelines | CI event sources |
+| GCP Cloud Monitoring and Logging, on-premise Kubernetes, Splunk | Operational event sources that push to the event endpoint, and real-time context |
+| Google Cloud | Hosting: Cloud Run services and jobs (including the ADK implementation agent), Cloud SQL (PostgreSQL + pgvector), Cloud Storage, Secret Manager, Pub/Sub, tracing; optional Agent Gateway |
 
 # Scope
 
-In scope: the assistant and its surfaces, the MCP server, the access model and its configuration,
-knowledge ingestion and retrieval, skills and team customization, artifacts, user connections,
-audit and tracing, and deployment locally and on GCP.
+In scope:
+- the four workflow classes and their surfaces;
+- the MCP server and its catalogs;
+- the access model and its configuration;
+- event intake, enrichment and outcome delivery;
+- knowledge ingestion and retrieval, including code, images and diverse formats;
+- skills and team customization;
+- artifacts, user connections and sessions;
+- audit and tracing;
+- deployment locally and on GCP.
 
-Out of scope today: write actions on external systems, autonomous agents, and environments beyond
-development (see the `planned` and `parked` requirements).
+Out of scope today:
+- workflows at tier `act` (changing a system without human approval);
+- user-confirmed write tools before version-03 P7;
+- pulling from on-premise Kubernetes and Splunk (push only for now);
+- long-term memory (only sessions for now);
+- environments beyond development.
+
+See the `planned` and `parked` requirements.
 
 # Specification
 

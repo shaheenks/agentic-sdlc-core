@@ -2,5 +2,5 @@
 
 ## Sections
 
-- [Functional](functional/index.md) - 39 concepts
-- [Non-functional](non-functional/index.md) - 33 concepts
+- [Functional](functional/index.md) - 52 concepts
+- [Non-functional](non-functional/index.md) - 36 concepts
