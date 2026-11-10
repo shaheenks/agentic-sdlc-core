@@ -1,13 +1,13 @@
 # Pending tasks
 
 Work that is agreed but not scheduled. Each task says what it waits for; when it is picked up, it moves into the
-current plan ([version-02.md](version-02.md)) or a new numbered plan.
+current plan ([version-02.md](archive/version-02.md)) or a new numbered plan.
 
 | # | Task | Waits for | Recorded |
 |---|---|---|---|
 | 1 | [Agent runtimes: user, CI and ops agents](#task-1--agent-runtimes-user-ci-and-ops-agents) | **Moved to version-03 P6** (2026-11-06: trigger sources decided, event intake designed) | 2026-11-03 |
-| 2 | [Re-ingest and remove data of dropped sources](#task-2--re-ingest-and-remove-data-of-dropped-sources) | **Done 2026-11-05** (re-ingest local + GCP at `7a5e4df`, eval passed) | 2026-11-03 |
-| 3 | [Agent-generated artifacts: storage and access](#task-3--agent-generated-artifacts-storage-and-access) | **Moved to version-03 P5** (2026-11-05: decisions A1–A5, build started) | 2026-11-04 |
+| 2 | Re-ingest and remove data of dropped sources (run log removed 2026-11-10; outcome in [version-02.md](archive/version-02.md) §19) | **Done 2026-11-05** (re-ingest local + GCP at `7a5e4df`, eval passed) | 2026-11-03 |
+| 3 | Agent-generated artifacts: storage and access (design sketch removed 2026-11-10; decisions and as-built in [version-03.md](version-03.md) §P5) | **Moved to version-03 P5** (2026-11-05: decisions A1–A5, build started) | 2026-11-04 |
 
 ## Task 1 — Agent runtimes: user, CI and ops agents
 
@@ -16,7 +16,7 @@ current plan ([version-02.md](version-02.md)) or a new numbered plan.
 gateway → Pub/Sub → per-runtime push subscriptions), milestones A1 + E1–E6 there. §5 (triggers) and §6 (execution
 model) below are superseded by §P6; the rest of this design still applies. Nothing is built.
 
-Related: [version-02.md](version-02.md) (current plan; write tools = decision D5), [../ARCHITECTURE.md](../ARCHITECTURE.md)
+Related: [version-02.md](archive/version-02.md) (current plan; write tools = decision D5), [../ARCHITECTURE.md](../ARCHITECTURE.md)
 §4–5 (request flow, identity model).
 
 ### 1. Goal
@@ -165,101 +165,3 @@ caller ──► POST /triggers/<adapter> ──► verify caller ──► Trig
 4. One autonomous runtime service or one per agent?
 5. ~~Rename `bootstrap` to `user_agent`~~: done 2026-11-03 (with `mcp_servers/bootstrap` → `core_mcp`); see version-02 §14.
 6. Write actions (open issues, re-run pipelines, roll back): decision D5; would need approval gates.
-
-## Task 2 — Re-ingest and remove data of dropped sources
-
-**Status:** local dev DB done (2026-11-03, after N14); GCP dev ingested in version-02 R2 (2026-11-05, step 5); eval paths
-updated on the version-02 branch (step 6). **Done 2026-11-05:** after the merge (`7a5e4df`) local and GCP re-ingested `sdlc-platform` (80 changed, 25 deleted, 683 chunks each) and the retrieval eval passed (recall@5 0.97 with dedup; version-02 §19 R8 C7). Recorded 2026-11-03.
-
-**Local run (2026-11-03):** `docker compose --profile ingest build ingest` (the compose image predated the gcs
-loader: `no loader for source type 'gcs'`), then `docker compose run --rm ingest run --all --force`:
-`platform-infra` removed by the registry sync; eng-standards 6 files / 11 chunks, payments-code 9 / 18,
-payments-incidents 2 / 6 (all three from the config store bucket), sdlc-platform 181 files / 1012 chunks from GitHub
-`main` `a9608c0` (4 stale files deleted); 653 extraction calls, no errors.
-
-**Why:** config changes never touch the database, and ingest only runs for sources that are in config. After N12 the
-local dev DB (checked 2026-11-03) still holds:
-
-| Source | In config | Stored | Readable by |
-|---|---|---|---|
-| `sdlc-platform` | yes, now GitHub `agentic-sdlc-core` `main` | 134 docs, 599 chunks, 813 entities from this repo's pinned commit `f2178f0` (local, 2026-10-06), `owner_team: platform` | sdlc-platform team, admin (stale content, no GitHub links) |
-| `platform-infra` | removed | 8 docs, 10 chunks, 29 entities | nobody (in no policy; RLS hides it) |
-| `eng-standards`, `payments-*` | unchanged | as ingested 2026-10-06 (`owner_team` of eng-standards still `platform`) | as configured |
-
-**Steps:**
-1. Finish the source changes in `config/sources/` and run `uv run --env-file .env sdlc-config validate --env local`.
-2. Data of sources no longer in config: already handled. Every non-dry-run ingest syncs the source registry
-   (`sdlc_db.knowledge.sync_sources`) and deletes sources missing from config, cascading to their documents, chunks
-   and graph rows (log: `source registry synced: N sources, removed [...]`). No prune command is needed.
-3. Re-ingest everything: `uv run --env-file .env sdlc-ingest run --all`. `sdlc-platform` does a full read from GitHub
-   (location changed: 181 files at `main`), replaces the old copy and gets GitHub deep links; graph extraction costs
-   about one Gemini call per changed chunk. Use `--force` for sources whose graph settings changed.
-4. Check: per-source counts, `owner_team` updated, a `graph_query` as a sdlc-platform member (e.g. Paul, users.yaml)
-   returns GitHub links, and `platform-infra` is gone.
-5. GCP dev: same steps with `gcp_deploy.ps1 -Step ingest` (run by the user) after the config is deployed.
-6. Retrieval eval: `sdlc-platform` now tracks `main`; update `tests/evals/retrieval_questions.yaml` paths (e.g.
-   `core_mcp`, `user_agent`) once version-02 is merged to GitHub `main`, then re-run `SDLC_EVAL=1 ... pytest tests/evals`.
-
-## Task 3 — Agent-generated artifacts: storage and access
-
-**Status:** pending, not scheduled (recorded 2026-11-04). Nothing here is built. Revisit when the first use cases
-and the storage choice are decided; then move it into the current or a new numbered plan.
-
-Related: [../ARCHITECTURE.md](../ARCHITECTURE.md) ("Conversation storage"), Task 1 (autonomous agents would produce
-reports too), [version-02.md](version-02.md) decision D5 (write tools).
-
-### 1. Goal
-
-Let agents produce files that outlive the chat reply: generated test files, design or review documents, user
-stories exported as Markdown, reports. Users can list, download and share them under the same RBAC as everything
-else.
-
-### 2. What exists today
-
-- The agent produces **chat text only**. `agents/user_agent` saves no artifacts and nothing writes files.
-- ADK's artifact service is **in memory**: `libs/sdlc_web/src/sdlc_web/app.py` passes `artifact_service_uri="memory://"`,
-  `use_local_storage=False`. Anything saved would be lost on restart and not shared across Cloud Run instances.
-- `generate_tests`, `review_code`, `approve_design` (`mcp_servers/core_mcp/.../sdlc_tools.py`) are stubs and store nothing.
-- Generated text survives only as session events in the conversation store (SQLite on the `agent-sessions` volume
-  locally, 7-day idle retention; Agent Engine sessions on GCP), bound to the user's `oid`. It is not in Postgres
-  and never reachable through `search_knowledge`.
-- The chat app stores nothing (`PassThroughAgentRunner`).
-
-### 3. Design sketch (proposal)
-
-- **Write through MCP, not the ADK artifact service.** Authorization lives in the MCP server, so artifacts are saved
-  and read through MCP tools (e.g. `save_artifact`, `list_artifacts`, `get_artifact`), each in `tools.yaml` with role
-  grants and persona-matrix rows. The ADK artifact service stays in memory (or off) so it can't become a second,
-  unaudited store.
-- **Storage:** object store for content (GCS bucket on GCP, a compose volume or local folder in dev) behind one
-  `libs/` interface; metadata in Postgres (owner `oid`, team, conversation id, name, media type, size, hash,
-  classification, created/expires) with RLS like the knowledge tables.
-- **Access:** owner-only by default. Sharing with the owner's team is an explicit choice. Classification defaults to
-  the highest classification among the sources the agent read in that conversation, so a summary of confidential
-  incidents can't be read by someone below that ceiling.
-- **Download:** an authenticated endpoint behind oauth2-proxy (like `/connections/`), or short-lived signed URLs
-  issued only after the policy check. The chat app shows artifacts as links, never inline data from other users.
-- **Limits:** max size per file and per user, allowed media types, retention (TTL) and deletion, per-user rate limit.
-- **Audit:** `artifact_change` (create/delete/share) and `artifact_access` (read/download) with oid, artifact id,
-  classification, decision; never the content.
-- **Untrusted content:** artifacts may embed retrieved or provider content; served as downloads with a safe
-  `Content-Type` and `Content-Disposition: attachment`, never rendered as HTML on our origin.
-
-### 4. Milestones (proposal)
-
-| # | Scope | Exit gate |
-|---|---|---|
-| F1 | Storage interface + metadata table (RLS, migration, `tests/db`) + MCP tools + config/persona rows | A user saves and reads back their own artifact; another user gets "not found"; audit records both |
-| F2 | Download endpoint + chat app links | Download works on localhost and the Cloudflare Tunnel; no access without a valid session |
-| F3 | Team sharing + classification inheritance | A shared artifact is readable by teammates at or above its classification, by nobody else |
-| F4 | GCP: bucket, service account access, retention (Terraform, run by the user) | Same gates on GCP dev |
-
-### 5. Open questions
-
-1. First use cases: which outputs need to be files (generated tests, design docs, review reports)?
-2. Storage: GCS + Postgres metadata (proposed), Postgres only for small files, or ADK's `gs://` artifact service with
-   an MCP check in front?
-3. Retention: tie to the conversation's TTL or keep independently?
-4. Sharing scope: owner only, team, or per-artifact access lists?
-5. Should artifacts ever be ingested into the knowledge base (as a source), and with what review?
-6. Autonomous agents (Task 1): do their reports become artifacts owned by the service principal?

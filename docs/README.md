@@ -7,7 +7,7 @@
 | How the bundle is organised and how to propose a change | [knowledge/conventions.md](../knowledge/conventions.md) |
 | How the system is designed | [ARCHITECTURE.md](ARCHITECTURE.md), [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md), [SECRETS_REVIEW.md](SECRETS_REVIEW.md) |
 | What is built, feature by feature | [FEATURE_INVENTORY.md](FEATURE_INVENTORY.md) |
-| What is planned and what was decided when | [plans/](plans/version-03.md) (current: version-03) |
+| What is planned and what was decided when | [plans/version-03.md](plans/version-03.md) (current), [plans/pending-task.md](plans/pending-task.md); closed plans in [plans/archive/](plans/archive/version-02.md) |
 | How to set something up or operate it | [guides/](#guides) |
 | The working rules for contributors and coding agents | [CLAUDE.md](../CLAUDE.md) (always-apply rules and routing), [knowledge/rules](../knowledge/rules/index.md) (rule sets per area) |
 

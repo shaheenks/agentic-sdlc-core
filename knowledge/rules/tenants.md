@@ -24,7 +24,7 @@ Paths are relative to the repository root.
 
 # Enterprise tenants
 
-See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/version-00.md.
+See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/archive/version-00.md.
 - Keep identity tenant-agnostic: tenant/app IDs come from env, group IDs from the git-ignored groups.yaml.
   Never hard-code login/Graph hosts in new code; take them from `platform.yaml` (`identity.authority_host`, `graph_host`;
   the agent web app and oauth2-proxy use `ENTRA_AUTHORITY_HOST`, since agents never read config).

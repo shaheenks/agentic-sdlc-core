@@ -14,7 +14,7 @@ Paths are relative to the repository root.
 
 # Runtime config
 
-See "Runtime Config Exposure" in docs/plans/version-00.md.
+See "Runtime Config Exposure" in docs/plans/archive/version-00.md.
 - Only MCP servers (full bundle) and ingest (`Source.spec`) read config. Agents and prompts never read
   `config/`; they get per-user views through MCP tools (tools/list, list_skills, get_agent_context, whoami).
 - Read config only through `ConfigStore.current()`. Take one snapshot per request; never cache policy across versions.

@@ -1,7 +1,7 @@
 # Feature Inventory (reconciliation baseline)
 
 Snapshot of `agentic-sdlc-core` on branch `version-03` (commit `da33d14`, 2026-11-08), built from the code, `config/`
-and the plans ([version-00](plans/version-00.md) … [version-03](plans/version-03.md)). Use it to reconcile what the
+and the plans ([version-00](plans/archive/version-00.md) … [version-03](plans/version-03.md)). Use it to reconcile what the
 plans and [ARCHITECTURE.md](ARCHITECTURE.md) claim against what the code does.
 
 Since 2026-11-10 the status of each capability is also carried by its requirement in the knowledge bundle

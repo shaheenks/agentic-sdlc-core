@@ -5,7 +5,7 @@ knowledge, and enforce Entra ID identity + group-based RBAC defined in `config/`
 pgvector stores embeddings and the knowledge graph. Local: docker compose. Prod: GCP.
 
 Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Built features and their status:
-[docs/FEATURE_INVENTORY.md](docs/FEATURE_INVENTORY.md) (update it with the plan after each milestone). Current plan: [docs/plans/version-03.md](docs/plans/version-03.md) (started 2026-11-05; first milestone P5 artifacts; staging + enterprise identity, A2UI/A2A, agent runtimes, write tools, more connectors proposed); history: [docs/plans/version-02.md](docs/plans/version-02.md) (closed 2026-11-06), [docs/plans/version-01.md](docs/plans/version-01.md) (new sources, AG-UI web app with CopilotKit, per-user PAT connections, GCP dev) and [docs/plans/version-00.md](docs/plans/version-00.md). Check which stage is
+[docs/FEATURE_INVENTORY.md](docs/FEATURE_INVENTORY.md) (update it with the plan after each milestone). Current plan: [docs/plans/version-03.md](docs/plans/version-03.md) (started 2026-11-05; first milestone P5 artifacts; staging + enterprise identity, A2UI/A2A, agent runtimes, write tools, more connectors proposed); history: [docs/plans/archive/version-02.md](docs/plans/archive/version-02.md) (closed 2026-11-06), [docs/plans/archive/version-01.md](docs/plans/archive/version-01.md) (new sources, AG-UI web app with CopilotKit, per-user PAT connections, GCP dev) and [docs/plans/archive/version-00.md](docs/plans/archive/version-00.md). Check which stage is
 current before adding features, and don't build ahead of the current stage's exit gate.
 
 ## Where things are

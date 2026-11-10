@@ -1,7 +1,7 @@
 # Agentic SDLC — System Architecture
 
 High-level view of the platform. For staged delivery, config syntax and exit gates, see
-[version-00.md](plans/version-00.md); current plan: [version-03.md](plans/version-03.md); what is built, per
+[version-00.md](plans/archive/version-00.md); current plan: [version-03.md](plans/version-03.md); what is built, per
 component and with its status: [FEATURE_INVENTORY.md](FEATURE_INVENTORY.md).
 
 Requirements and the component register now live in the knowledge bundle: [system context](../knowledge/system/context.md),

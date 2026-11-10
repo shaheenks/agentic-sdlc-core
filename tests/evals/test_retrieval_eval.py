@@ -133,7 +133,7 @@ def summary(tmp_path_factory):
 
 
 def test_hybrid_retrieval_is_at_least_as_good_as_vector_only(summary):
-    # Gate (docs/plans/version-00.md Stage 6): hybrid >= vector-only on recall@5.
+    # Gate (docs/plans/archive/version-00.md Stage 6): hybrid >= vector-only on recall@5.
     for group in ("stage6", "multi-hop"):
         assert summary[group]["hybrid h1"]["recall@5"] >= summary[group]["vector"]["recall@5"]
 

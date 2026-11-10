@@ -4,10 +4,10 @@
 First milestone: **P5 artifacts** (§P5): **done 2026-11-06** (F1, F2, F4, F5, F6; F3 sharing deferred).
 Other milestones remain a proposal, confirmed one by one.
 
-Follows [version-02.md](version-02.md). Architecture: [../ARCHITECTURE.md](../ARCHITECTURE.md); feature status
+Follows [version-02.md](archive/version-02.md). Architecture: [../ARCHITECTURE.md](../ARCHITECTURE.md); feature status
 (reconciliation baseline, 2026-11-08): [../FEATURE_INVENTORY.md](../FEATURE_INVENTORY.md); GCP runbook:
 [../GCP_DEPLOYMENT.md](../guides/GCP_DEPLOYMENT.md); secrets: [../SECRETS_REVIEW.md](../SECRETS_REVIEW.md); designs carried in:
-[pending-task.md](pending-task.md) (tasks 1 and 3).
+[pending-task.md](pending-task.md) (task 1; the task 3 sketch is superseded by §P5).
 
 ## Goals
 

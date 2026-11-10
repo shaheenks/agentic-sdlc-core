@@ -4,8 +4,8 @@ How agentic-sdlc runs on Google Cloud: the design, the resources Terraform creat
 secrets flow, and how to deploy, update and tear down an environment.
 Related: [ARCHITECTURE.md](../ARCHITECTURE.md) §7–8 (environments), [infra/README.md](../../infra/README.md)
 (files), [version-03.md](../plans/version-03.md) (current: P2 identity, P3 operations, P4 A2A, P5 artifacts),
-[version-02.md](../plans/version-02.md) §19–20 (sources, bundles, trace, reconcile on GCP), [version-01.md](../plans/version-01.md)
-§5 and §10 (M7–M8), [version-00.md](../plans/version-00.md) Stage 7 (original decisions).
+[version-02.md](../plans/archive/version-02.md) §19–20 (sources, bundles, trace, reconcile on GCP), [version-01.md](../plans/archive/version-01.md)
+§5 and §10 (M7–M8), [version-00.md](../plans/archive/version-00.md) Stage 7 (original decisions).
 
 ## 1. Status
 
