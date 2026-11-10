@@ -25,6 +25,7 @@ def test_sources_load(config_dir):
         "eng-standards",
         "payments-incidents",
         "sdlc-platform",
+        "webapp-code",
     }
     platform = snap.sources["sdlc-platform"]  # GitHub, tracking main (public: no credentials)
     assert (platform.type, platform.provider, platform.ref) == ("git", "github", "main")
@@ -122,6 +123,7 @@ def test_bad_source_config_fails(config_dir, file, mutate, message):
                 "payments-incidents",
                 "platform-infra",
                 "sdlc-platform",
+                "webapp-code",
             },
             "restricted",
         ),

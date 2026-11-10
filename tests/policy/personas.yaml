@@ -20,6 +20,9 @@ personas:
   approle-payments-lead: { groups: [], app_roles: [SDLC.User, SDLC.Payments.Lead] }
   approle-platform-dev:  { groups: [], app_roles: [SDLC.User, SDLC.Platform.Developer] }
   approle-admin:         { groups: [], app_roles: [SDLC.User, SDLC.Admin] }
+  # webapp team: app roles + users.yaml only, no group (so no group twin)
+  approle-webapp-dev:    { groups: [], app_roles: [SDLC.User, SDLC.Webapp.Developer] }
+  approle-webapp-lead:   { groups: [], app_roles: [SDLC.User, SDLC.Webapp.Lead] }
   approle-team-only:     { groups: [], app_roles: [SDLC.Payments.Developer] }   # team role, no SDLC.User
   # groups and app roles together: the union of both
   mixed-dev:             { groups: [eng-all, payments-devs], app_roles: [SDLC.Platform.Developer] }

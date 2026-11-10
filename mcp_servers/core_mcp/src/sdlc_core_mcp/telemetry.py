@@ -14,8 +14,9 @@ writes the `trace_id` into each audit record, so logs and traces join in both di
 Agent -> server propagation works without HTTP headers: the MCP client puts the trace context in
 the request's `_meta` and fastmcp continues it, so one agent turn is one trace (agent, MCP server,
 Postgres). Never add a trace HTTP header instead: a per-call header would change the MCP session key
-(one MCP session per conversation, see CLAUDE.md). Clients without trace context (e.g. Antigravity)
-get a server-rooted trace; `sdlc.agent_session_id` / `trace_id` in the audit log still correlate.
+(one MCP session per conversation, see knowledge/rules/workspace.md). Clients without trace context
+(e.g. Antigravity) get a server-rooted trace; `sdlc.agent_session_id` / `trace_id` in the audit log
+still correlate.
 """
 
 import logging

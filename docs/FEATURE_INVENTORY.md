@@ -1,8 +1,13 @@
 # Feature Inventory (reconciliation baseline)
 
 Snapshot of `agentic-sdlc-core` on branch `version-03` (commit `da33d14`, 2026-11-08), built from the code, `config/`
-and the plans ([version-00](plans/version-00.md) … [version-03](plans/version-03.md)). Use it to reconcile what the
+and the plans ([version-00](plans/archive/version-00.md) … [version-03](plans/version-03.md)). Use it to reconcile what the
 plans and [ARCHITECTURE.md](ARCHITECTURE.md) claim against what the code does.
+
+Since 2026-11-10 the status of each capability is also carried by its requirement in the knowledge bundle
+(`implementation:` in [knowledge/requirements](../knowledge/requirements/index.md)), and the
+[traceability matrix](../knowledge/traceability.md) shows which component satisfies it. Where Part 1 below disagrees
+with the bundle, the bundle is right; Part 2 remains the per-feature detail.
 
 **Status legend**
 
@@ -160,6 +165,7 @@ Plan references in brackets: Stage N (version-00), M/H (version-01 / version-00 
 | Lenses `lens-zoom-out`, `lens-comprehension`, `lens-design-critic`, `lens-implementation-readiness` (default) + `lens-structure`, `lens-style` (opt-in) | global, `tag:goldfish-lens` | ✅ Live |
 | payments: `pci-checklist`, `ledger-design-review` (lead), `payments-pci-lens`, `payments-story-questions`, `payments-design-template`, `AGENT_ADDENDUM.md`, flow defaults | team | ✅ Live |
 | sdlc-platform: `infra-change-review`, `AGENT_ADDENDUM.md` | team | ✅ Live |
+| webapp (2026-11-09): `webapp-coding-standards`, `webapp-code-review`, `webapp-api-lens`, `webapp-design-template`, `webapp-story-template`, `AGENT_ADDENDUM.md`, flow defaults; source `webapp-code` (GitHub, `master`); guide `docs/guides/TEAM_ONBOARDING.md` | team | 📝 In repo (needs app roles in Entra, ingest, `-Step config` on GCP) |
 | Team lens eval (`tests/evals/teams/payments`) | eval | ✅ Run live once (G8) |
 
 ### 2.8 Configuration — `config/`

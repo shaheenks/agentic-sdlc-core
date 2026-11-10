@@ -2,10 +2,10 @@
 
 How agentic-sdlc runs on Google Cloud: the design, the resources Terraform creates, how identity and
 secrets flow, and how to deploy, update and tear down an environment.
-Related: [ARCHITECTURE.md](ARCHITECTURE.md) §7–8 (environments), [infra/README.md](../infra/README.md)
-(files), [version-03.md](plans/version-03.md) (current: P2 identity, P3 operations, P4 A2A, P5 artifacts),
-[version-02.md](plans/version-02.md) §19–20 (sources, bundles, trace, reconcile on GCP), [version-01.md](plans/version-01.md)
-§5 and §10 (M7–M8), [version-00.md](plans/version-00.md) Stage 7 (original decisions).
+Related: [ARCHITECTURE.md](../ARCHITECTURE.md) §7–8 (environments), [infra/README.md](../../infra/README.md)
+(files), [version-03.md](../plans/version-03.md) (current: P2 identity, P3 operations, P4 A2A, P5 artifacts),
+[version-02.md](../plans/archive/version-02.md) §19–20 (sources, bundles, trace, reconcile on GCP), [version-01.md](../plans/archive/version-01.md)
+§5 and §10 (M7–M8), [version-00.md](../plans/archive/version-00.md) Stage 7 (original decisions).
 
 ## 1. Status
 
@@ -292,7 +292,7 @@ cd infra/gcp; terraform destroy -var-file=dev.tfvars   # needs the same TF_VAR_*
 
 ## 10. Next
 
-All items below are version-03 P3 unless noted (see [version-03.md](plans/version-03.md)).
+All items below are version-03 P3 unless noted (see [version-03.md](../plans/version-03.md)).
 
 - Source secrets in Secret Manager once a private source exists (P8).
 - Scale `sdlc-app` out (note: A2A task / context owner maps are per instance): check conversations survive a new revision and that cookie sessions in oauth2-proxy are

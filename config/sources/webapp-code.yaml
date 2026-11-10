@@ -1,0 +1,25 @@
+apiVersion: sdlc/v1
+kind: Source
+metadata:
+  id: webapp-code
+  owner_team: webapp
+  description: Full-stack web app code and docs (GitHub full-stack-fastapi-template, master)
+spec:
+  type: git
+  location: https://github.com/shaheenks/full-stack-fastapi-template.git
+  provider: github
+  ref: master                          # tracked: resolved on every ingest run (public repo, no credentials)
+  include: ["**/*.py", "**/*.ts", "**/*.tsx", "**/*.md", "**/*.yaml", "**/*.yml", "**/*.toml", "**/Dockerfile", "**/*.sh"]
+  # frontend/src/client is generated from the OpenAPI schema; .claude/.agents hold the repo's own
+  # agent skills (instructions for other tools, not team knowledge).
+  exclude: ["**/*.lock", "**/node_modules/**", "frontend/src/client/**", "img/**", ".claude/**", ".agents/**"]
+  classification: internal
+  ingest:
+    chunking: { strategy: auto, max_tokens: 400, overlap: 40 }
+    graph:
+      enabled: true
+      entity_types: [service, component, api_endpoint, data_model, library, tool, document]
+      relation_types: [depends_on, calls, uses, runs_on, stores_data_in, owns, part_of, implements, documents]
+access:
+  teams: [webapp]
+  roles: [admin]

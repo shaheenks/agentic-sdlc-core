@@ -1,8 +1,12 @@
 # Agentic SDLC — System Architecture
 
 High-level view of the platform. For staged delivery, config syntax and exit gates, see
-[version-00.md](plans/version-00.md); current plan: [version-03.md](plans/version-03.md); what is built, per
+[version-00.md](plans/archive/version-00.md); current plan: [version-03.md](plans/version-03.md); what is built, per
 component and with its status: [FEATURE_INVENTORY.md](FEATURE_INVENTORY.md).
+
+Requirements and the component register now live in the knowledge bundle: [system context](../knowledge/system/context.md),
+[requirements](../knowledge/requirements/index.md), [components](../knowledge/components/index.md). Where §1 or §3 below
+disagree with the bundle, the bundle is right. All documents: [README.md](README.md).
 
 ## 1. What the system does
 
@@ -425,8 +429,8 @@ Rules that follow from this:
 - **Hostnames are configuration, not code:** `SDLC_APP_HOST`, `SDLC_MCP_HOST` and
   `MCP_PUBLIC_URL` per environment. Nothing in code may assume `localhost` or a tunnel.
 
-Details for dev exposure: [CLOUDFLARE_TUNNEL.md](misc/CLOUDFLARE_TUNNEL.md). GCP design, diagrams and deployment runbook:
-[GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md).
+Details for dev exposure: [CLOUDFLARE_TUNNEL.md](guides/CLOUDFLARE_TUNNEL.md). GCP design, diagrams and deployment runbook:
+[GCP_DEPLOYMENT.md](guides/GCP_DEPLOYMENT.md).
 
 ## 8. Deployment views
 

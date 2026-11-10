@@ -27,10 +27,10 @@ connections:
       your Atlassian account email (not your Bitbucket username). Unscoped API tokens, app
       passwords and repository/workspace access tokens do not work.
   atlassian:
-    description: Jira and Confluence Cloud (acme.atlassian.net)
+    description: Jira and Confluence Cloud (shaheenks.atlassian.net)
     provider: atlassian
     edition: cloud
-    base_url: https://acme.atlassian.net   # replace with your site
+    base_url: https://shaheenks.atlassian.net   # replace with your site
     max_token_days: 90
     token_help: >-
       Atlassian API token (scoped to read Jira work and Confluence content where available), used

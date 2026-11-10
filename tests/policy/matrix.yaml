@@ -1,5 +1,5 @@
 # Persona matrix: every row is checked in CI (tests/policy/test_matrix.py).
-# A new tool needs rows here (CLAUDE.md: tools.yaml entry + grants + persona-matrix rows).
+# A new tool needs rows here (knowledge/rules/configuration.md: tools.yaml entry + grants + persona-matrix rows).
 # expect: allow | deny.  `args` are the call arguments.
 rows:
   # identity basics: every signed-in user
@@ -44,6 +44,14 @@ rows:
   - { persona: mixed-dev,            tool: review_code,     args: { repo: agentic-sdlc-core }, expect: allow }
   - { persona: mixed-dev,            tool: review_code,     args: { repo: payments-ui },    expect: allow }
   - { persona: unknown-app-role,     tool: search_knowledge, expect: deny }
+  # webapp team (app roles only): its own repo, nobody else's
+  - { persona: approle-webapp-dev,   tool: review_code,     args: { repo: full-stack-fastapi-template }, expect: allow }
+  - { persona: approle-webapp-dev,   tool: generate_tests,  args: { repo: full-stack-fastapi-template }, expect: allow }
+  - { persona: approle-webapp-dev,   tool: review_code,     args: { repo: payments-api },   expect: deny }
+  - { persona: approle-webapp-dev,   tool: approve_design,  args: { repo: full-stack-fastapi-template }, expect: deny }   # lead only
+  - { persona: approle-webapp-lead,  tool: approve_design,  args: { repo: full-stack-fastapi-template }, expect: allow }
+  - { persona: platform-dev,         tool: review_code,     args: { repo: full-stack-fastapi-template }, expect: deny }
+  - { persona: payments-dev,         tool: review_code,     args: { repo: full-stack-fastapi-template }, expect: deny }
   # catalog tools implemented in later stages (rows keep their grants under test)
   - { persona: nobody,        tool: ping,              expect: allow }
   - { persona: viewer,        tool: get_agent_context, expect: allow }
@@ -144,6 +152,23 @@ skill_rows:
   - { persona: multi-team-dev, skill: payments-pci-lens,        expect: visible }
   - { persona: admin,          skill: payments-pci-lens,        expect: visible }  # "*"
   - { persona: nobody,         skill: payments-story-questions, expect: hidden }
+  # webapp team add-ons: webapp members only (app roles); admin through "*"
+  - { persona: approle-webapp-dev,  skill: webapp-coding-standards, expect: visible }
+  - { persona: approle-webapp-dev,  skill: webapp-code-review,      expect: visible }
+  - { persona: approle-webapp-dev,  skill: webapp-api-lens,         expect: visible }
+  - { persona: approle-webapp-dev,  skill: webapp-design-template,  expect: visible }
+  - { persona: approle-webapp-dev,  skill: webapp-story-template,   expect: visible }
+  - { persona: approle-webapp-lead, skill: webapp-api-lens,         expect: visible }
+  - { persona: viewer,              skill: webapp-api-lens,         expect: hidden }   # tag:goldfish-lens does not reach team lenses
+  - { persona: viewer,              skill: webapp-coding-standards, expect: hidden }
+  - { persona: payments-dev,        skill: webapp-code-review,      expect: hidden }
+  - { persona: platform-dev,        skill: webapp-design-template,  expect: hidden }
+  - { persona: approle-platform-dev, skill: webapp-story-template,  expect: hidden }
+  - { persona: nobody,              skill: webapp-coding-standards, expect: hidden }
+  - { persona: admin,               skill: webapp-code-review,      expect: visible }  # "*"
+  - { persona: admin,               skill: webapp-story-template,   expect: visible }
+  - { persona: approle-webapp-dev,  skill: infra-change-review,     expect: hidden }
+  - { persona: approle-webapp-dev,  skill: payments-pci-lens,       expect: hidden }
 
 # Data access (Stage 5). readable = source granted by Source.access AND its classification is at
 # or below the persona's ceiling (both are enforced by Postgres RLS). Every source needs rows.
@@ -183,3 +208,15 @@ data_rows:
   - { persona: approle-platform-dev,  source: sdlc-platform,      expect: readable }
   - { persona: approle-viewer,        source: payments-code,      expect: unreadable }
   - { persona: unknown-app-role,      source: payments-code,      expect: unreadable }
+  # webapp team source (internal): team members and admin only
+  - { persona: approle-webapp-dev,    source: webapp-code,        expect: readable }
+  - { persona: approle-webapp-lead,   source: webapp-code,        expect: readable }
+  - { persona: approle-webapp-dev,    source: eng-standards,      expect: readable }    # everyone
+  - { persona: approle-webapp-dev,    source: sdlc-platform,      expect: unreadable }
+  - { persona: approle-webapp-dev,    source: payments-code,      expect: unreadable }
+  - { persona: admin,                 source: webapp-code,        expect: readable }
+  - { persona: viewer,                source: webapp-code,        expect: unreadable }
+  - { persona: payments-dev,          source: webapp-code,        expect: unreadable }
+  - { persona: platform-dev,          source: webapp-code,        expect: unreadable }
+  - { persona: approle-platform-dev,  source: webapp-code,        expect: unreadable }
+  - { persona: nobody,                source: webapp-code,        expect: unreadable }

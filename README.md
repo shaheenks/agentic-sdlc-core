@@ -11,132 +11,18 @@ draft → Goldfish review), save and review them as versioned artifacts, and rea
 Confluence with their own connected accounts.
 
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Database: [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) · What is built and its status: [docs/FEATURE_INVENTORY.md](docs/FEATURE_INVENTORY.md)
-- Plans: [current: version-03](docs/plans/version-03.md) (artifacts, A2A + A2UI, app roles, EGM document flow, keyword search; proposed: operations, agent runtimes, write tools, connectors) · history: [version-02](docs/plans/version-02.md) (GCP sources, live checks, secrets, chat history, config bundles on GCS), [version-01](docs/plans/version-01.md) (new sources, AG-UI web app, per-user connections, GCP dev), [version-00](docs/plans/version-00.md)
-- Setup runbooks: [Entra ID](docs/misc/ENTRA_SETUP.md) · [Cloudflare Tunnel](docs/misc/CLOUDFLARE_TUNNEL.md) · [GCP (dev)](docs/GCP_DEPLOYMENT.md)
+- Plans: [current: version-03](docs/plans/version-03.md) (artifacts, A2A + A2UI, app roles, EGM document flow, keyword search; proposed: operations, agent runtimes, write tools, connectors) · history: [version-02](docs/plans/archive/version-02.md) (GCP sources, live checks, secrets, chat history, config bundles on GCS), [version-01](docs/plans/archive/version-01.md) (new sources, AG-UI web app, per-user connections, GCP dev), [version-00](docs/plans/archive/version-00.md)
+- Specification: [knowledge/](knowledge/index.md) — requirements, component register and traceability (OKF 0.2 bundle)
+- Guides: [local setup and commands](docs/guides/LOCAL_SETUP.md) · [Entra ID](docs/guides/ENTRA_SETUP.md) · [Cloudflare Tunnel](docs/guides/CLOUDFLARE_TUNNEL.md) · [GCP (dev)](docs/guides/GCP_DEPLOYMENT.md) · [adding a team](docs/guides/TEAM_ONBOARDING.md)
+- All documentation: [docs/README.md](docs/README.md)
 - Working rules for contributors and coding agents: [CLAUDE.md](CLAUDE.md)
 
-## Prerequisites
+## Quick start
 
-- Docker Desktop, [uv](https://docs.astral.sh/uv/) (Python 3.12 is installed by uv), Git
-- Google Cloud SDK with Application Default Credentials for Vertex AI (Gemini + embeddings)
-- An Entra ID tenant with the `sdlc-mcp` and `sdlc-client` app registrations and the sdlc groups
-  (see [docs/misc/ENTRA_SETUP.md](docs/misc/ENTRA_SETUP.md); `scripts/entra_setup.ps1` provisions them)
-- Optional: the `Cloudflared` Windows service for public access; Terraform for GCP
-
-## First-time setup
-
-```powershell
-uv sync --all-packages                                   # every workspace member (plain `uv sync` installs only the root)
-copy .env.example .env                                   # fill in Entra IDs/secrets, DB passwords, Vertex settings
-copy config\env\local\groups.yaml.example config\env\local\groups.yaml   # real Entra group object IDs
-gcloud auth application-default login                    # Vertex AI credentials (re-run when they expire)
-uv run --env-file .env sdlc-config validate --env local  # config + env check
+```
+uv sync --all-packages
+docker compose up -d --build --wait
 ```
 
-`.env`, `config/env/*/groups.yaml`, `users.yaml` and `blocked.yaml` are git-ignored: never commit tenant
-IDs, group IDs, user names or secrets.
-
-## Run the stack
-
-```bash
-docker compose up -d --build --wait          # postgres, core-mcp, user-agent, ui-copilotkit, oauth2-proxy
-docker compose run --rm migrate              # database schema + row-level security (first time, and after new migrations)
-docker compose run --rm ingest run --all     # build the knowledge store (embeddings, graph, PDFs)
-```
-
-Open **http://localhost:4180** and sign in with an Entra test user: you land in the chat app at **`/chat/`** (CopilotKit), with your name and connection status in the navbar; developer UI at `/dev-ui/`.
-
-| Endpoint | URL |
-|---|---|
-| Chat app (local) | http://localhost:4180/chat/ |
-| Agent developer UI (local) | http://localhost:4180/dev-ui/ |
-| A2A endpoint (bearer token) / agent card | http://localhost:4180/a2a · `/.well-known/agent-card.json` |
-| MCP server (local) | http://localhost:8080/mcp (health: `/healthz`) |
-| Chat app / developer UI (public, profile `tunnel`) | https://app-sdlc-dev.shaheenks.co.in/chat/ · `/dev-ui/` |
-| MCP server (public, via the tunnel) | https://mcp-sdlc-dev.shaheenks.co.in/mcp |
-| Trace viewer (profile `observability`) | http://localhost:16686 |
-
-### Optional profiles
-
-| Profile | Adds | Command |
-|---|---|---|
-| `tunnel` | `oauth2-proxy-public` on `127.0.0.1:4181` for the Cloudflare Tunnel (needs the `Cloudflared` Windows service) | `docker compose --profile tunnel up -d --wait` |
-| `observability` | Jaeger; set `OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318` in `.env` | `docker compose --profile observability up -d --wait` |
-| `ingest` | the on-demand `migrate` and `ingest` jobs (never started by `up`) | `docker compose run --rm migrate` / `… ingest …` |
-
-Profiles combine: `docker compose --profile tunnel --profile observability up -d --wait`.
-
-### Stop and reset
-
-```bash
-docker compose --profile tunnel --profile observability down   # stop everything (data kept)
-docker compose down -v                                          # also delete volumes: database and conversations
-```
-
-## Knowledge ingestion
-
-```bash
-docker compose run --rm ingest run --all                       # every source in config/sources
-docker compose run --rm ingest run --source eng-standards      # one source (repeat --source for more)
-docker compose run --rm ingest run --all --dry-run             # walk + chunk only: no database, no model calls
-docker compose run --rm ingest run --source sdlc-platform --force   # re-process unchanged files too
-```
-
-Same commands on the host: `uv run --env-file .env sdlc-ingest run …`. Sources are local folders, git
-repositories (GitHub, Bitbucket) at a pinned commit or tracked branch, GCS buckets, Confluence and Jira (Cloud and
-Data Center); supported files are UTF-8 text and PDFs (OCR for scanned pages is opt-in per source). Sample PDFs are generated by `uv run python scripts/make_sample_pdfs.py`.
-
-## Tests and checks
-
-```bash
-uv run ruff check . && uv run ruff format .                     # lint + format
-uv run pytest                                                   # unit tests (DB tests skip without Postgres)
-uv run --env-file .env pytest                                   # everything, incl. RLS/graph/PDF tests on a throwaway DB
-uv run --env-file .env pytest tests/db                          # database tests only (needs the postgres container)
-SDLC_EVAL=1 uv run --env-file .env pytest tests/evals -s        # retrieval eval (live Vertex, ingested dev DB)
-uv run --env-file .env pytest tests/e2e                         # exit-gate checks (agent e2e needs SDLC_E2E_USER_TOKEN)
-```
-
-CI (`.github/workflows/ci.yml`) runs lint, config validation (+ permission diff on pull requests), the full test
-suite against a pgvector service, and Terraform checks, with no secrets or cloud access.
-
-## Configuration tools
-
-```bash
-uv run --env-file .env sdlc-config validate --env local         # schemas + cross-references (--dummy-env: no Entra values)
-uv run sdlc-config explain --persona payments-dev               # effective permissions (--groups a,b  --app-roles X  --user <alias>  --json)
-uv run sdlc-config users sync --env local --check               # fill/check oids of users.yaml direct members (read-only az lookup; --write)
-uv run sdlc-config diff --from HEAD --to WORKTREE               # per-persona permission changes (review on config PRs)
-uv run --env-file .env sdlc-config compile --env local --out .bundles --activate   # immutable config bundle
-uv run sdlc-config bundles --root .bundles                      # list bundles (* = active); `activate <version>` to roll back
-```
-
-Run `validate` after every config change and review `diff`. Access rules live only in `config/`.
-
-## Database
-
-```bash
-uv run --env-file .env sdlc-db bootstrap      # extension, roles, schema, grants (idempotent)
-uv run --env-file .env sdlc-db migrate        # apply db/migrations as sdlc_owner
-```
-
-Connect locally (e.g. pgAdmin) to `127.0.0.1:5432`, database `sdlc`. As `postgres` you see all rows; the
-application roles see only what row-level security allows (see [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) §9).
-
-## Other scripts
-
-| Command | Purpose |
-|---|---|
-| `.\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> -DryRun` | Preview Entra provisioning (apps, groups, assignments, redirect URIs); drop `-DryRun` to apply (admin rights) |
-| `uv run python scripts/mcp_whoami.py --token <entra token>` | Call `whoami` on the MCP server with a user token |
-| `uv run python scripts/a2a_client.py [--url <app>] "question"` | Ask the agent over A2A (token in `SDLC_TOKEN`); prints the answer, tools and A2UI cards |
-| `docker compose exec core-mcp sdlc-reconcile-connections [--apply]` | Clean up stored PATs of blocked users, expired tokens and removed connections (dry run by default) |
-| `uv run python scripts/make_sample_pdfs.py` | Regenerate the sample PDFs (deterministic) |
-| `.\scripts\gcp_deploy.ps1 -EnvName dev -Step <step>` | GCP deployment (dev; creates billable resources; run by the owner) |
-
-## Troubleshooting
-
-- **`Reauthentication is needed` / Vertex 401:** run `gcloud auth application-default login`.
-- **Database connections hang on the host:** use `PGHOST=127.0.0.1` (`localhost` tries IPv6 first).
-- **Agent tools fail with 401 after a long session:** the Entra token expired; sign in again or start a new conversation.
-- **Public URLs return Cloudflare 502:** the stack or the `Cloudflared` service is not running.
+Then open http://localhost:4180 and sign in with Entra. Prerequisites, first-time setup, ingestion, tests and
+troubleshooting: [docs/guides/LOCAL_SETUP.md](docs/guides/LOCAL_SETUP.md).

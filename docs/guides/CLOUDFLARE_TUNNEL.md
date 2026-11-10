@@ -4,7 +4,7 @@
 > this tunnel, and development is the current phase. GCP dev (version-01 M7) uses Cloud Run URLs,
 > not this tunnel. Higher environments
 > (staging, prod) are hosted directly, without a tunnel (see [ARCHITECTURE.md](../ARCHITECTURE.md) §7
-> and [GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md)).
+> and [GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md)).
 
 The local stack is exposed to users of the Entra tenant through a Cloudflare Tunnel. The
 connector dials out to Cloudflare, so no inbound ports are opened on this machine. TLS ends at

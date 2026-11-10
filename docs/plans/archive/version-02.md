@@ -1,8 +1,8 @@
 # Agentic SDLC — Implementation Plan version-02
 
 Follows [version-01.md](version-01.md) (new sources, AG-UI web app, user connections, GCP dev, M0–M8) and
-[version-00.md](version-00.md) (Stages 0–9, local backlog H1–H10). Architecture: [../ARCHITECTURE.md](../ARCHITECTURE.md);
-GCP runbook: [../GCP_DEPLOYMENT.md](../GCP_DEPLOYMENT.md).
+[version-00.md](version-00.md) (Stages 0–9, local backlog H1–H10). Architecture: [../ARCHITECTURE.md](../../ARCHITECTURE.md);
+GCP runbook: [../GCP_DEPLOYMENT.md](../../guides/GCP_DEPLOYMENT.md).
 
 Version-02 collects everything still open from both earlier plans: what version-01 left pending or deferred
 (§10.3, §10.4, §6) and what version-00 left open (Stage 7b operations, Stage 8 surfaces, the Stage 9 backlog, the
@@ -27,7 +27,7 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 | N0 — Carry-over checks | ✅ Done (2026-11-04) | version-01 G1, G2, G5, G7 passed on localhost / the tunnel (§19 R1) |
 | N1 — Dev sources on GCP + ingest | 🔨 Built; deployed on GCP dev 2026-11-05 (image `98f327f`) | D1: the current four sources (already ingested on GCP in R2, no secrets needed). Added: Cloud Scheduler for the ingest job (`ingest_schedule`, off by default). Open: set the schedule, `plan` + `apply` (§19 R7) |
 | N2 — Live connector checks + retrieval eval | ✅ Done (2026-11-05, §19 R8 C1–C7) | GitHub and GCS ingest live on GCP (R2); GitHub/Bitbucket Cloud user connections on GCP and AG-UI gates 3 and 5 verified by the user; retrieval eval passed (C7). Atlassian (D2: no site), Data Center and the PDF OCR live check → version-03 |
-| N3 — Block list and secret management review | 🔨 Built; deployed on GCP dev 2026-11-05 (image `98f327f`) | Review: [docs/SECRETS_REVIEW.md](../SECRETS_REVIEW.md). Block list via bundles (tested), reconcile job + CLI, `validate --check-secrets`, rotation procedures, E3 decision (no lifetime policy / CAE now). Open: `images` + `plan` + `apply`, GCP checks (§19 R5) |
+| N3 — Block list and secret management review | 🔨 Built; deployed on GCP dev 2026-11-05 (image `98f327f`) | Review: [docs/SECRETS_REVIEW.md](../../SECRETS_REVIEW.md). Block list via bundles (tested), reconcile job + CLI, `validate --check-secrets`, rotation procedures, E3 decision (no lifetime policy / CAE now). Open: `images` + `plan` + `apply`, GCP checks (§19 R5) |
 | N4 — Observability on GCP | 🔨 Built; deployed on GCP dev 2026-11-05 (image `98f327f`) | Cloud Trace exporter for agent (ADK `trace_to_cloud`) and MCP (`SDLC_TRACE_TO_CLOUD`), `cloud_trace = true` in dev.tfvars, audit views as Logs Explorer queries (GCP_DEPLOYMENT §8). Open: `images` + `plan` + `apply`, gate check (§19 R6) |
 | N5 — GCP operations (Stage 7b) | ➡️ Moved to version-03 (2026-11-04) | Bundles + reload done by N13; its Stage 7b gate is checked in §19 R2. Scale-out, CI deploy, hostnames, private IP, staging, E1/E4–E6 → version-03 (§5) |
 | N6 — Product backlog | ➡️ Moved to version-03 (2026-11-04) | Chat history done by N15; the rest of §6 (incl. write tools) → version-03 |
@@ -40,14 +40,14 @@ enterprise gaps E1–E10). §9 maps every carried-over item to its milestone. N8
 | N13 — Config from the config store bucket | ✅ Built (2026-11-03); local bundle checked | MCP + ingest read config bundles from `gs://sdlc-config-store-a7484d8b/bundles/<env>/`, pointer polled every 60 s, `-Step config` publishes (§16). Part of N5 (bundles + reload). Deployed on GCP dev; config-only change + rollback checked (2026-11-05, §19 R2) |
 | N14 — Sample sources from the config store bucket | ✅ Built (2026-11-03); live dry-run checked | One-time upload of `samples/sources/*` to `gs://sdlc-config-store-a7484d8b/source_docs/<source id>/`; `eng-standards`, `payments-code`, `payments-incidents` are `gcs` sources (§17); repo copy moved to `tests/fixtures/sample_sources/`. Local DB re-ingested; GCP dev ingested (2026-11-05, §19 R2) |
 | N15 — Chat history in the CopilotKit app | ✅ Built (2026-11-04); local stack checked | History sidebar: `GET /threads` (agent, per user) lists previous chats, opening one replays its messages from the agent's `/agents/state`; thread in the URL; delete per chat (`DELETE /threads/{id}`, owner only) (§18). Deployed and checked on GCP dev (2026-11-05, §19 R2) |
-| Pending — Agent runtimes (user / CI / ops) | 📝 Design only | Workload identity, read + report back; trigger sources not decided (D7, [pending-task.md](pending-task.md)) |
+| Pending — Agent runtimes (user / CI / ops) | 📝 Design only | Workload identity, read + report back; trigger sources not decided (D7, [pending-task.md](../pending-task.md)) |
 | Deferred — Gemini Enterprise | ⏸ | Design in version-01 §6; needs an org admin, a workforce pool and licences |
 
 **Scope (narrowed 2026-11-04):** version-02 = close out N8–N15 (checks, GCP deploy, merge to `main`), N0, N1, N2
 (Cloud editions), N3, N4 and the N7 spike. No new features until R1 and R2 are done.
 
 **Status: closed (2026-11-06).** Everything in scope is built, deployed to GCP dev and checked; the §20 handover
-checklist is complete (H6, the first scheduled runs, on 2026-11-06). Current plan: [version-03.md](version-03.md).
+checklist is complete (H6, the first scheduled runs, on 2026-11-06). Current plan: [version-03.md](../version-03.md).
 
 ## Open decisions
 
@@ -59,7 +59,7 @@ checklist is complete (H6, the first scheduled runs, on 2026-11-06). Current pla
 | D4 | A staging environment in version-02, or dev only? **Decided 2026-11-04:** dev only; staging in version-03 with N5 | — |
 | D5 | Write tools on behalf of the user (create issue, comment, PR)? **Decided 2026-11-04:** version-03 (with N6 and the agent runtimes) | — |
 | D6 | Replace CopilotKit with an own chat client (`@ag-ui/client` + `@a2ui/react`)? **Not pursued** (2026-10-30): no Gemini Enterprise benefit (GE has its own UI); it would only remove the Node runtime and its workarounds at the cost of owning a chat UI. Revisit if the CopilotKit runtime becomes a burden | — |
-| D7 | Agent runtimes: interactive `user_agent` plus autonomous `ci_agent` / `ops_agent` (own workload identity, read + report back). **Pending** (2026-11-03): trigger sources not decided; design in [pending-task.md](pending-task.md) | later (version-03) |
+| D7 | Agent runtimes: interactive `user_agent` plus autonomous `ci_agent` / `ops_agent` (own workload identity, read + report back). **Pending** (2026-11-03): trigger sources not decided; design in [pending-task.md](../pending-task.md) | later (version-03) |
 
 ## 1. Dev sources on GCP + ingest (N1)
 
@@ -341,7 +341,7 @@ on the chat after sign-in, and the navbar should show the signed-in user with th
   the user menu's "Manage connections" does. Same API calls and headers as before.
 - **Artifacts panel (placeholder)** (`components/ArtifactsPanel.tsx`): a right-hand panel with an empty state for
   files from the artifacts library; "Artifacts" in the navbar shows/hides it (remembered per browser), hidden below
-  1100px. No data source yet: the library is [pending-task.md](pending-task.md) task 3.
+  1100px. No data source yet: the library is [pending-task.md](../pending-task.md) task 3.
 - **Tests:** `tests/web/test_app.py` (`/me` fields and 401; `/` redirect only with the chat app on, still behind
   sign-in), `ui/copilotkit/tests/status.test.ts` (parsing, states, no token passthrough); typecheck and build.
 - **To check (user):** local `docker compose up -d --build --wait`, then in the browser on localhost and the tunnel:
@@ -410,7 +410,7 @@ Admins need to add users directly, by their Entra email, to teams (with team rol
 
 ## 14. Rename: `user_agent` and `core_mcp` — done 2026-11-03
 
-The starter agent and MCP server are renamed for the agent-runtime work ([pending-task.md](pending-task.md)):
+The starter agent and MCP server are renamed for the agent-runtime work ([pending-task.md](../pending-task.md)):
 
 | Before | After |
 |---|---|
@@ -460,7 +460,7 @@ in the public GitHub repository https://github.com/shaheenks/agentic-sdlc-core. 
 - `sdlc-config diff` against commits before this change fails locally (they reference the removed `infra-readers`
   alias); later revisions diff normally.
 - Add the team's members to `config/env/<env>/users.yaml` and run `sdlc-config users sync --env <env> --write`.
-- Re-ingest and cleanup are deferred until all sources are fixed: [pending-task.md](pending-task.md) task 2 (the DB
+- Re-ingest and cleanup are deferred until all sources are fixed: [pending-task.md](../pending-task.md) task 2 (the DB
   still holds the old local `sdlc-platform` copy and unreadable `platform-infra` rows).
 
 ## 16. Config from the config store bucket (N13) — built 2026-11-03
@@ -517,7 +517,7 @@ store was not used: it deletes objects after 7 days, keeps no versions and is wr
   from the folders); unit and DB tests pass.
 
 **Open:**
-- GCP `-Step ingest` after the next `images` + `apply` (local DB re-ingested 2026-11-03, [pending-task.md](pending-task.md)
+- GCP `-Step ingest` after the next `images` + `apply` (local DB re-ingested 2026-11-03, [pending-task.md](../pending-task.md)
   task 2).
 - Changing a sample document: edit it in `tests/fixtures/sample_sources/` and upload it again (its README).
 - The bucket name is in the source config (sources are not per environment): local and GCP dev read the same objects.
@@ -658,7 +658,7 @@ cross-check: the payments developer's `tools_list` records are identical across 
 notes were written, so it no longer serves as the "no groups" persona (use a no-groups test user instead).
 
 ### R2 — GCP dev catch-up deploy
-One run covers every "Open: GCP ..." note of N8, N10, N11, N13, N14 and N15 (runbook: docs/GCP_DEPLOYMENT.md):
+One run covers every "Open: GCP ..." note of N8, N10, N11, N13, N14 and N15 (runbook: docs/guides/GCP_DEPLOYMENT.md):
 `base` (config store bucket) → `config` → `images` (`core-mcp`, `user-agent`, chat app; new names after N11) → `plan`
 → `apply` (with `config/env/dev/users.yaml` in place) → `db` → `ingest` → `urls`. Before `plan`: review the bucket
 mount (`mount_options`) in the Terraform, which has not been planned yet (§16).
@@ -688,7 +688,7 @@ task 2.
 | D3 security review scope | R5 | **Decided 2026-11-05:** default scope |
 | D4 staging in version-02? | — | **Decided 2026-11-04:** dev only; staging in version-03 |
 | D5 write tools now or later? | — | **Decided 2026-11-04:** version-03, with the agent runtimes |
-| Artifacts ([pending-task.md](pending-task.md) task 3) in version-02? | — | **Decided 2026-11-05:** version-03 |
+| Artifacts ([pending-task.md](../pending-task.md) task 3) in version-02? | — | **Decided 2026-11-05:** version-03 |
 | `infra-readers` Entra group (admin action) | N9 live check | Create when a real per-source group is needed |
 
 ### R5 — N3 security review (§3)
@@ -697,7 +697,7 @@ Write the review first (one page: threats, current controls, gaps, what to build
 block list on GCP via bundles; global secret rotation tried once; a decision on token lifetime / CAE (E3).
 Gate: review accepted; each kept item has tests and a GCP check.
 
-**Built 2026-11-05** ([docs/SECRETS_REVIEW.md](../SECRETS_REVIEW.md)):
+**Built 2026-11-05** ([docs/SECRETS_REVIEW.md](../../SECRETS_REVIEW.md)):
 - Review: inventory, threats/controls, revocation latency, rotation table; **E3 decision:** no token lifetime policy
   and no CAE in version-02 (the block list cuts access in ~2 min); revisit with E4 for prod.
 - Block list on GCP = config bundle (`tests/config/test_bundles.py::test_block_list_travels_in_the_bundle`); `sdlc_web`
@@ -737,7 +737,7 @@ argument values; audit records link to it by `trace_id`.
 - Terraform: `cloud_trace` (default false; **dev.tfvars: true**) adds `SDLC_TRACE_TO_CLOUD` to the MCP and agent
   containers and `roles/cloudtrace.agent` to their service accounts; `cloudtrace.googleapis.com` is enabled with the
   other APIs. Cost: the first 2.5 M spans per month are free.
-- Audit views: Logs Explorer queries in docs/GCP_DEPLOYMENT.md §8 "Audit views" (denied calls, rate limited, auth
+- Audit views: Logs Explorer queries in docs/guides/GCP_DEPLOYMENT.md §8 "Audit views" (denied calls, rate limited, auth
   failures, connection changes incl. reconcile, per user / conversation / trace). Log-based metrics and alerts: version-03.
 
 **Your steps (GCP, same `images` + `plan` + `apply` as R5):** expect `roles/cloudtrace.agent` for
@@ -796,7 +796,7 @@ Output: a short findings note in §10 and a go/no-go for §10 Work items 2–4.
 - **N2:** Data Center checks, Antigravity in AG-UI gate 2, Confluence/Jira Cloud live checks (D2: no site), the H10
   PDF OCR live check (needs a source with scanned PDFs), source secrets in Secret Manager (first private source).
 - **N7 build** (§10 Work items 2–4), unless the R9 spike makes a case for version-02.
-- **Pending tasks** ([pending-task.md](pending-task.md)): agent runtimes (task 1); artifacts (task 3; decided
+- **Pending tasks** ([pending-task.md](../pending-task.md)): agent runtimes (task 1); artifacts (task 3; decided
   2026-11-05).
 
 ### Version-02 exit
@@ -814,7 +814,7 @@ open for version-03.
 
 **Moved to version-03** (with reasons, §19 "Moved to version-03"): N5 operations and staging (D4), N6 backlog and write
 tools (D5), N2 Atlassian / Data Center / PDF OCR live checks (D2, no source), the N7 build, the `infra-readers` group,
-pending tasks 1 (agent runtimes) and 3 (artifacts). Drafted as [version-03.md](version-03.md).
+pending tasks 1 (agent runtimes) and 3 (artifacts). Drafted as [version-03.md](../version-03.md).
 
 ### Handover checklist (run by the user)
 

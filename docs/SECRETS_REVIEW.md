@@ -17,7 +17,7 @@ GCP dev; staging/prod follow in version-03.
 | Tenant data (groups.yaml, users.yaml, blocked.yaml) | inside config bundles in the config store bucket / git-ignored files | MCP, ingest, reconcile | `gcp_deploy.ps1 -Step config` |
 
 Agents and the chat app hold no secrets beyond the ADC file locally; the agent never gets DB
-credentials or PATs (CLAUDE.md "Security rules").
+credentials or PATs (knowledge/rules/security.md).
 
 ## 2. Threats and controls
 

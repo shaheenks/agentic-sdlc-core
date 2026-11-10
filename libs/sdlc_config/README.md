@@ -25,7 +25,7 @@ Pub/Sub delivery is not built.
 `platform.yaml` `skills.team_tags`, `addons.flows.document` + `platform.yaml` `flows.document` caps,
 `document_flow(snapshot, policy, team)` (`flows.py`), users.yaml `default_team`, team `metadata.description`
 (P10 G6–G9).
-Design: docs/plans/version-00.md → "Configuration Model" and "Runtime Config Exposure".
+Design: docs/plans/archive/version-00.md → "Configuration Model" and "Runtime Config Exposure".
 
 ## Components
 - **Schemas** - JSON Schema per kind (config/schemas/), strict: unknown keys/refs fail.

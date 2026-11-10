@@ -58,8 +58,8 @@ def test_committed_example_is_valid(config_dir):
     example = config_dir / "env/local/users.yaml.example"
     users_file(config_dir).write_text(example.read_text())
     users = load(config_dir).users
-    assert set(users.email_by_alias) == {"paul", "ana", "ben"}
-    assert set(users.pending) == {"ana", "ben"}
+    assert set(users.email_by_alias) == {"paul", "ana", "ben", "wendy"}
+    assert set(users.pending) == {"ana", "ben", "wendy"}
 
 
 def test_users_file_path_override(config_dir, tmp_path):

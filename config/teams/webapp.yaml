@@ -1,0 +1,50 @@
+apiVersion: sdlc/v1
+kind: Team
+metadata:
+  name: webapp
+  description: Full-stack web app (FastAPI + SQLModel backend, React/TypeScript frontend) in full-stack-fastapi-template.
+  owners: [platform-admins]          # group aliases; also drive CODEOWNERS
+# No Entra group: members come from Entra app roles (version-03 P2 E1) or directly from the
+# git-ignored config/env/<env>/users.yaml, e.g. `teams: { webapp: [developer] }`, matched by
+# object ID (version-02 N10). Onboarding steps: docs/guides/TEAM_ONBOARDING.md.
+membership:
+  - app_role: SDLC.Webapp.Developer
+    roles: [developer]
+  - app_role: SDLC.Webapp.Lead
+    roles: [lead]
+policy:
+  tools:
+    deny: []
+    constraints:
+      review_code:
+        args:
+          repo: { in: [full-stack-fastapi-template] }
+      generate_tests:
+        args:
+          repo: { in: [full-stack-fastapi-template] }
+      approve_design:
+        args:
+          repo: { in: [full-stack-fastapi-template] }
+addons:                              # visible only to members of this team
+  skills:
+    webapp-coding-standards: { path: skills/teams/webapp/webapp-coding-standards }
+    webapp-code-review:      { path: skills/teams/webapp/webapp-code-review }
+    webapp-api-lens:         { path: skills/teams/webapp/webapp-api-lens,        tags: [goldfish-lens] }
+    webapp-design-template:  { path: skills/teams/webapp/webapp-design-template, tags: [doc-template] }
+    webapp-story-template:   { path: skills/teams/webapp/webapp-story-template,  tags: [doc-template] }
+  # Document flow defaults (version-03 P10 G7), applied once the brief locks the team.
+  flows:
+    document:
+      types:
+        design:
+          template: webapp-design-template
+          lenses: [lens-design-critic, lens-implementation-readiness, lens-zoom-out]
+          required_lenses: [webapp-api-lens]
+        user-story:
+          template: webapp-story-template
+          lenses: [lens-comprehension, lens-implementation-readiness]
+  instructions: skills/teams/webapp/AGENT_ADDENDUM.md
+  context:
+    default_project: webapp
+    repository: https://github.com/shaheenks/full-stack-fastapi-template
+    glossary_source: webapp-code

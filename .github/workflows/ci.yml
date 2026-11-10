@@ -1,4 +1,5 @@
-# CI: lint, config validation + permission diff, tests with Postgres/pgvector, Terraform checks.
+# CI: lint, config validation + permission diff, knowledge bundle checks, tests with
+# Postgres/pgvector, Terraform checks.
 # No secrets and no cloud access: tests use FakeEntra tokens, hash embeddings and a throwaway
 # database; live checks (agent e2e, retrieval eval, GCP) stay manual.
 name: ci
@@ -44,12 +45,34 @@ jobs:
       - run: uv run sdlc-config validate --env local
       - name: Permission diff against the PR base (informational)
         if: github.event_name == 'pull_request'
-        continue-on-error: true # revisions before Stage 4/6 cannot be loaded (see CLAUDE.md)
+        continue-on-error: true # revisions before Stage 4/6 cannot be loaded (knowledge/rules/commands.md)
         run: |
           {
             echo "## Effective permission changes (sdlc-config diff)"
             echo '```'
             uv run sdlc-config diff --env local --from "origin/${{ github.base_ref }}" --to WORKTREE
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  knowledge:
+    # OKF bundle in knowledge/: conformance, conventions, requirement <-> component trace,
+    # generated files up to date (knowledge/conventions.md).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # drift compares git revisions
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --no-project --with pyyaml python scripts/okf_bundle.py lint
+      - name: Components whose code changed without their concept (informational)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true # a hint for the reviewer; not every code change alters the design
+        run: |
+          {
+            echo "## Code changed without its component concept (okf_bundle.py drift)"
+            echo '```'
+            uv run --no-project --with pyyaml python scripts/okf_bundle.py drift \
+              --base "origin/${{ github.base_ref }}" || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

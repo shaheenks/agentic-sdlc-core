@@ -341,7 +341,7 @@ docker compose run --rm ingest run --all
 - **Migrations** are numbered SQL files (`NNN_name.sql`), each applied in its own transaction and recorded with
   a checksum. They are **append-only**: change the schema with a new file, never by editing an applied one.
 
-**Adding a data table** (CLAUDE.md rules): include `source_id` + `classification_rank`; `ENABLE` and `FORCE`
+**Adding a data table** (knowledge/rules/workspace.md): include `source_id` + `classification_rank`; `ENABLE` and `FORCE`
 RLS; add an `app_read` policy for `sdlc_app` and `ingest_all` for `sdlc_ingest`; grant as in §6; add it to
 `CLASSIFIED_TABLES` in `libs/sdlc_db/src/sdlc_db/knowledge.py` so classification changes re-stamp it; read it
 only through `sdlc_db.scoped()`; and add RLS tests in `tests/db`.

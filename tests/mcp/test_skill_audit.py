@@ -97,7 +97,8 @@ async def test_skills_list_is_recorded(base_url, entra, caplog):
         "test-case-gen",
         "write-user-story",
     ]
-    assert listing["hidden_count"] == 6  # design-review, payments add-ons (incl. G6 typed skills)
+    # design-review, payments add-ons (incl. G6 typed skills), webapp add-ons
+    assert listing["hidden_count"] == 11
     assert "pci-checklist" not in json.dumps(listing)  # hidden names are not disclosed
 
 

@@ -32,6 +32,13 @@ EGM = {
 }
 # payments typed team skills (version-03 P10 G6)
 PAYMENTS_TYPED = {"payments-pci-lens", "payments-story-questions", "payments-design-template"}
+WEBAPP_ADDONS = {
+    "webapp-coding-standards",
+    "webapp-code-review",
+    "webapp-api-lens",
+    "webapp-design-template",
+    "webapp-story-template",
+}
 
 
 @pytest.mark.parametrize(
@@ -69,7 +76,8 @@ PAYMENTS_TYPED = {"payments-pci-lens", "payments-story-questions", "payments-des
                 "infra-change-review",
             }
             | EGM
-            | PAYMENTS_TYPED,
+            | PAYMENTS_TYPED
+            | WEBAPP_ADDONS,
         ),
     ],
 )
