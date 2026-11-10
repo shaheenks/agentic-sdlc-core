@@ -2,6 +2,11 @@
 
 ## 2026-11-10
 
+- **Creation**: change records CH-0001 to CH-0007 (`draft`, awaiting review), from a review of the
+  requirements and design: built vs live split, one owner per criterion, retire the SDLC action
+  stubs, artifact version limit, remove the Graph overage fallback, tests for unverified
+  components, checks for the specification tooling. New draft requirements FR-KNOW-006,
+  FR-KNOW-007, FR-CONN-003 and NFR-MAINT-005.
 - **Creation**: bundle scaffold (OKF 0.2), [conventions](conventions.md) and the
   `scripts/okf_bundle.py` lint and index tool.
 - **Creation**: [system context](system/context.md), 36 functional and 32 non-functional

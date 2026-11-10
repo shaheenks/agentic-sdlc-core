@@ -11,6 +11,7 @@
 - [NFR-MAINT-002: Access rules are covered by tests](NFR-MAINT-002.md) - A new tool, source or team cannot be added without the tests that pin its access.
 - [NFR-MAINT-003: CI runs without secrets](NFR-MAINT-003.md) - The full CI suite runs with no secrets and no cloud calls.
 - [NFR-MAINT-004: Permission changes are reviewable](NFR-MAINT-004.md) - Every configuration change shows its effect on each persona before merge.
+- [NFR-MAINT-005: The specification is traced and checked](NFR-MAINT-005.md) - Every built requirement traces to components and every component to tests, and a tool checks the trace on every change.
 
 ## Observability
 

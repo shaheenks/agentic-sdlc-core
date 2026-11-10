@@ -34,6 +34,7 @@
 
 - [FR-CONN-001: Users connect their own accounts](FR-CONN-001.md) - Users add personal access tokens for external systems through a dedicated page, never through chat.
 - [FR-CONN-002: Tools act as the user](FR-CONN-002.md) - Tools that reach external systems use the caller's own connection, after the policy check.
+- [FR-CONN-003: Atlassian and Data Center connections](FR-CONN-003.md) - Users connect Atlassian Cloud and Data Center accounts, and connected tools use them as the user.
 
 ## Conversations
 
@@ -57,6 +58,8 @@
 - [FR-KNOW-003: Knowledge graph queries](FR-KNOW-003.md) - Users can follow relations between entities extracted from their sources.
 - [FR-KNOW-004: PDF ingestion](FR-KNOW-004.md) - PDFs are ingested with page-level citations; OCR is opt-in per source.
 - [FR-KNOW-005: Scheduled ingest](FR-KNOW-005.md) - Ingest runs on a schedule in the cloud environment.
+- [FR-KNOW-006: Atlassian and Bitbucket sources](FR-KNOW-006.md) - Confluence spaces, Jira projects and Bitbucket repositories, Cloud and Data Center, can be declared and ingested as sources.
+- [FR-KNOW-007: OCR for scanned PDFs](FR-KNOW-007.md) - PDFs without a text layer are read with model OCR, only for sources that opt in.
 
 ## Skills
 
