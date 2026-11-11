@@ -35,7 +35,7 @@ def test_sources_load(config_dir):
     assert incidents.classification == "confidential" and incidents.classification_rank == 2
     assert incidents.access_teams == {"payments"} and incidents.access_roles == {"admin"}
     assert snap.sources["eng-standards"].access_everyone
-    assert snap.sources["platform-infra"].access_groups == {"infra-readers"}
+    assert snap.sources["platform-infra"].access_roles == {"infra-reader", "admin"}
     assert snap.platform.embedding_model == "gemini-embedding-2"
     assert snap.platform.embedding_dimensions == 768
 
@@ -61,7 +61,7 @@ def test_sources_load(config_dir):
         (
             "sources/eng-standards.yaml",
             lambda d: d["access"].update(groups=["ghosts"]),
-            "unknown group alias 'ghosts'",
+            "access/groups: Entra groups are no longer used",
         ),
         (
             "sources/eng-standards.yaml",
@@ -95,28 +95,28 @@ def test_bad_source_config_fails(config_dir, file, mutate, message):
 
 
 @pytest.mark.parametrize(
-    ("groups", "sources", "ceiling"),
+    ("app_roles", "sources", "ceiling"),
     [
         ([], {"eng-standards"}, "public"),  # everyone: true
-        (["eng-all", "infra-readers"], {"eng-standards", "platform-infra"}, "internal"),
-        (["eng-all"], {"eng-standards"}, "internal"),
+        (["SDLC.User", "SDLC.Infra.Reader"], {"eng-standards", "platform-infra"}, "internal"),
+        (["SDLC.User"], {"eng-standards"}, "internal"),
         (
-            ["eng-all", "payments-devs"],
+            ["SDLC.User", "SDLC.Payments.Member"],
             {"eng-standards", "payments-code", "payments-incidents"},
             "internal",
         ),
         (
-            ["eng-all", "payments-leads"],
+            ["SDLC.User", "SDLC.Payments.Approver"],
             {"eng-standards", "payments-code", "payments-incidents"},
             "confidential",
         ),
         (
-            ["eng-all", "platform-devs"],
+            ["SDLC.User", "SDLC.Platform.Member"],
             {"eng-standards", "platform-infra", "sdlc-platform"},
             "internal",
         ),
         (
-            ["platform-admins"],
+            ["SDLC.Admin"],
             {
                 "eng-standards",
                 "payments-code",
@@ -129,15 +129,15 @@ def test_bad_source_config_fails(config_dir, file, mutate, message):
         ),
     ],
 )
-def test_data_resolution(config_dir, groups, sources, ceiling):
-    policy = resolve(load(config_dir), groups)
+def test_data_resolution(config_dir, app_roles, sources, ceiling):
+    policy = resolve(load(config_dir), app_roles)
     assert set(policy.data_sources) == sources
     assert policy.max_classification == ceiling
 
 
 def test_granted_source_above_ceiling_is_still_unreadable_by_rank(config_dir):
     snap = load(config_dir)
-    dev = resolve(snap, ["eng-all", "payments-devs"])
+    dev = resolve(snap, ["SDLC.User", "SDLC.Payments.Member"])
     # granted by team access, but its classification is above the developer's ceiling
     assert "payments-incidents" in dev.data_sources
     assert "payments-incidents" not in dev.readable_sources  # granted, but above the ceiling
@@ -147,7 +147,7 @@ def test_granted_source_above_ceiling_is_still_unreadable_by_rank(config_dir):
 
 
 def test_data_grants_name_their_rule(config_dir):
-    policy = resolve(load(config_dir), ["eng-all", "payments-devs"])
+    policy = resolve(load(config_dir), ["SDLC.User", "SDLC.Payments.Member"])
     assert policy.data_sources["payments-code"] == (
         "team:payments <- sources/payments-code.yaml#access/teams",
     )
@@ -157,20 +157,21 @@ def test_data_grants_name_their_rule(config_dir):
     assert policy.explain()["data"]["max_classification"] == "internal"
 
 
-def test_source_group_grants_data_without_team(config_dir):
-    """A source's own Entra group grants that source only; no team, no developer tools."""
-    policy = resolve(load(config_dir), ["eng-all", "infra-readers"])
+def test_source_audience_grants_data_without_team(config_dir):
+    """A source's own audience (a platform role bound to its own app role, formerly an Entra
+    group) grants that source only; no team, no member tools."""
+    policy = resolve(load(config_dir), ["SDLC.User", "SDLC.Infra.Reader"])
     assert policy.teams == {}
     assert policy.data_sources["platform-infra"] == (
-        "group:infra-readers <- sources/platform-infra.yaml#access/groups",
+        "role:infra-reader <- sources/platform-infra.yaml#access/roles",
     )
     assert set(policy.readable_sources) == {"eng-standards", "platform-infra"}
     assert policy.allows("graph_query") and not policy.allows("fixture_review")
 
 
-def test_source_group_alone_has_no_knowledge_tool(config_dir):
-    """Without eng-all (viewer) the user has the data grant but no tool to read it."""
-    policy = resolve(load(config_dir), ["infra-readers"])
+def test_source_audience_alone_has_no_knowledge_tool(config_dir):
+    """Without SDLC.User (viewer) the user has the data grant but no tool to read it."""
+    policy = resolve(load(config_dir), ["SDLC.Infra.Reader"])
     assert "platform-infra" in policy.data_sources
     assert not policy.allows("graph_query") and not policy.allows("search_knowledge")
     data = policy.explain()["data"]
@@ -179,7 +180,7 @@ def test_source_group_alone_has_no_knowledge_tool(config_dir):
 
 
 def test_explain_signed_in_only_lists_everyone_source_as_unreadable(config_dir):
-    """No sdlc groups: eng-standards (`everyone: true`, public) is granted, but signed-in has no
+    """No app roles: eng-standards (`everyone: true`, public) is granted, but signed-in has no
     knowledge tool, so whoami(explain) must not call it readable."""
     policy = resolve(load(config_dir), [])
     assert set(policy.roles) == {"signed-in"}
@@ -190,7 +191,7 @@ def test_explain_signed_in_only_lists_everyone_source_as_unreadable(config_dir):
 
 
 def test_explain_viewer_lists_readable_sources_and_tools(config_dir):
-    data = resolve(load(config_dir), ["eng-all", "payments-devs"]).explain()["data"]
+    data = resolve(load(config_dir), ["SDLC.User", "SDLC.Payments.Member"]).explain()["data"]
     assert data["tools"] == ["graph_query", "search_knowledge"]
     assert set(data["readable"]) == {"eng-standards", "payments-code"}
     assert "note" not in data

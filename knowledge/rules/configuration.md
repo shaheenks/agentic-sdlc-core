@@ -3,10 +3,7 @@ type: Rule Set
 title: Configuration rules
 description: "How access is declared in config/: resolution, tools, sources, teams, app roles, skill naming and validation."
 tags: [rules]
-status: stable
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T22:53:19+05:30'
+status: draft
 ---
 
 Binding working rules for contributors and coding agents, moved word for word from `CLAUDE.md` on 2026-11-10.
@@ -14,20 +11,22 @@ Paths are relative to the repository root.
 
 # Configuration rules
 
-- All access is declared in `config/`. Never hardcode roles, groups, tool lists or data scopes in code.
-- Identity = Entra `oid` + group membership. Group object IDs appear ONLY in
-  `config/env/<env>/groups.yaml`; everything else references group aliases.
-- `config/env/*/groups.yaml` is git-ignored (tenant-specific). Commit only `groups.yaml.example`
-  with placeholder GUIDs; never commit tenant IDs, app IDs, group IDs or test-user UPNs.
-- Resolution: groups → teams (membership) + global bindings → roles (inherits) → tools/skills/sources.
-  Deny wins. Arg constraints are unioned across teams. Data access is granted only by `Source.access`
-  (`teams`, `roles`, `groups` = a source's own Entra group alias, or `everyone: true`); the role ceiling still applies.
+- All access is declared in `config/`. Never hardcode roles, app roles, tool lists or data scopes in code.
+- Identity = Entra `oid` + app roles (`roles` claim) + users.yaml. Entra groups are not used (CH-0011): a `group:`
+  identity or `Source.access.groups` fails validation, and a `groups` claim is ignored. Never commit tenant IDs,
+  app IDs, group IDs or test-user UPNs.
+- Resolution: app roles / users.yaml → teams (membership) + global bindings → scoped roles (inherits, within the
+  scope) → tools/skills/sources. Global bindings give platform roles; team membership gives team roles (`member`,
+  `approver`) that count only in that team (CH-0009). A role is one or the other (validated). Deny wins. Arg
+  constraints are unioned across the teams that grant the tool. Data access is granted only by `Source.access`
+  (`teams`, `roles` = a platform role or a role in the source's owner team, or `everyone: true`); the ceiling is
+  per source (platform roles + roles held in its owner team).
 - A new tool requires: `tools.yaml` entry (with `args` for any argument a team may limit) + role/team grants +
   persona-matrix rows (`tests/policy/matrix.yaml`; a test fails if a catalog tool has no rows).
-- Identities in bindings/membership: `group:` (alias), `app_role:` (Entra app role) or `everyone: true` (roles.yaml only;
+- Identities in bindings/membership: `app_role:` (Entra app role) or `everyone: true` (roles.yaml only;
   every signed-in user gets the minimal `signed-in` role: ping, whoami).
-- Direct members (version-02 N10): `config/env/<env>/users.yaml` (kind `UserMap`, optional, git-ignored like groups.yaml)
-  lists users by email with their `teams: {<team>: [roles]}` and global `roles`, for tenants without a group per team.
+- Direct members (version-02 N10): `config/env/<env>/users.yaml` (kind `UserMap`, optional, git-ignored)
+  lists users by email with their `teams: {<team>: [roles]}` and global `roles`, for users without an app role assignment.
   Matched on `oid` ONLY (never on an email/UPN claim); an entry without `oid` grants nothing. Fill oids with
   `uv run sdlc-config users sync --env <env> [--write] [--check]` (read-only `az ad user show`, as whoever az is signed in as).
   Rules read `env/<env>/users.yaml#users/<alias>/teams/<team>`; personas may set `user: <alias>`; `explain --user <alias>`.
@@ -57,13 +56,15 @@ Paths are relative to the repository root.
   the confirmed brief locks it (`set_active_team` → session state `sdlc_active_team`, checked with
   `get_agent_context(team=)` as the user; clients can never set `sdlc_` state keys). `resolve_team` sees only the
   caller's own teams; users.yaml `default_team` is a fallback, applied only while the user is a member.
-- Teams (version-02 N12): `payments` (example, group + app-role members), `sdlc-platform` (repo `agentic-sdlc-core`
-  on GitHub; members from app roles + users.yaml, no group) and `webapp` (2026-11-09: repo `full-stack-fastapi-template`,
-  source `webapp-code` tracks `master`; app roles `SDLC.Webapp.*` + users.yaml, no group). Adding a team: docs/guides/TEAM_ONBOARDING.md. Tests add fixture-only group members and a local `platform-infra`
-  source to sdlc-platform (`tests/support/config.py`); `tests/config/test_repo_teams.py` pins the real setup.
-- App roles (version-03 P2 E1): defined on `sdlc-mcp` by `entra_setup.ps1` (`$AppRoles`, `-AppRoleUser`), arrive in the
-  `roles` claim (no overage), combine with groups (union). A new `app_role:` value in config must be added to `$AppRoles`
-  (`tests/policy/test_app_roles.py`); each app-role persona must resolve exactly like its group twin.
+- Teams (version-02 N12): `payments` (example), `sdlc-platform` (repo `agentic-sdlc-core` on GitHub) and `webapp`
+  (2026-11-09: repo `full-stack-fastapi-template`, source `webapp-code` tracks `master`); members from app roles
+  `SDLC.<Team>.Member|Approver` + users.yaml. Team `metadata.owners` are the GitHub handles that CODEOWNERS lists for
+  the team's files (D15, `tests/policy/test_codeowners.py`). Adding a team: docs/guides/TEAM_ONBOARDING.md. Tests add a
+  local `platform-infra` source with its own fixture app role (`tests/support/config.py`); `tests/config/test_repo_teams.py`
+  pins the real setup.
+- App roles: defined on `sdlc-mcp` by `entra_setup.ps1` (`$AppRoles`, assignments for the test users and
+  `-AppRoleUser`), arrive in the `roles` claim. A new `app_role:` value in config must be added to `$AppRoles`
+  (`tests/policy/test_app_roles.py`).
 - **Skill naming** (validated at load):
   - lowercase kebab-case `^[a-z][a-z0-9-]*$`, **globally unique** across `skills.yaml` and every team's add-ons
     (a duplicate fails validation);

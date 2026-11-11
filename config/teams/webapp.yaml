@@ -3,8 +3,8 @@ kind: Team
 metadata:
   name: webapp
   description: Full-stack web app (FastAPI + SQLModel backend, React/TypeScript frontend) in full-stack-fastapi-template.
-  owners: [platform-admins]          # group aliases; also drive CODEOWNERS
-# No Entra group: members come from Entra app roles (version-03 P2 E1) or directly from the
+  owners: ["@shaheenks"]             # GitHub handles; CODEOWNERS lists exactly these (D15)
+# Members come from Entra app roles (version-03 P2 E1) or directly from the
 # git-ignored config/env/<env>/users.yaml, e.g. `teams: { webapp: [member] }`, matched by
 # object ID (version-02 N10). Onboarding steps: docs/guides/TEAM_ONBOARDING.md.
 membership:

@@ -41,7 +41,8 @@ def test_compile_writes_an_immutable_verified_bundle(config_dir, tmp_path):
     manifest = verify_bundle(root, version)
     assert manifest["env"] == "local" and manifest["git_sha"] == "0123456789ab"
     files = set(manifest["files"])
-    assert {"config/platform.yaml", "config/env/local/groups.yaml"} <= files
+    assert {"config/platform.yaml", "config/env/local/users.yaml"} <= files
+    assert not any("groups" in f for f in files)  # no group map (CH-0011)
     assert any(f.startswith("skills/") and f.endswith("/SKILL.md") for f in files)
     assert any(f.startswith("config/schemas/") for f in files)
     source = load_snapshot(config_dir, "local", ENV)

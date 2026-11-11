@@ -42,9 +42,8 @@ says which test catches what.
 
 | Option | When | What to add |
 |---|---|---|
-| **Entra app roles** (recommended) | enterprise path; not cut by group overage | `app_role: SDLC.<Team>.Member` / `.Approver` in the team file, and the same names in `$AppRoles` in `scripts/entra_setup.ps1` |
+| **Entra app roles** (recommended) | the normal path | `app_role: SDLC.<Team>.Member` / `.Approver` in the team file, and the same names in `$AppRoles` in `scripts/entra_setup.ps1` |
 | **users.yaml** | a few people, no Entra change | `teams: { <team>: [member] }` per user in the git-ignored `config/env/<env>/users.yaml` |
-| **Entra group** | the tenant already has a group per team | an alias in `config/env/<env>/groups.yaml` (+ `groups.yaml.example`), `group: <alias>` in the team file |
 
 `webapp` uses app roles plus users.yaml, like `sdlc-platform`. App role values must match
 `SDLC.<Letters>.<Letters>` (no digits or hyphens: `tests/policy/test_app_roles.py` reads them
@@ -60,7 +59,7 @@ kind: Team
 metadata:
   name: webapp
   description: ...                 # 200 characters max
-  owners: [platform-admins]        # an existing group alias
+  owners: ["@shaheenks"]           # GitHub handles; CODEOWNERS lists exactly these (D15)
 membership:
   - app_role: SDLC.Webapp.Member
     roles: [member]
@@ -174,7 +173,8 @@ access:
 ### 7. Ownership and Entra script
 
 - [.github/CODEOWNERS](../../.github/CODEOWNERS): one rule each for `/config/teams/<team>.yaml`,
-  `/skills/teams/<team>/` and `/config/sources/<id>.yaml` (`tests/policy/test_codeowners.py`).
+  `/skills/teams/<team>/` and `/config/sources/<id>.yaml`; a team's rules list exactly its `owners`
+  (`tests/policy/test_codeowners.py`).
 - [scripts/entra_setup.ps1](../../scripts/entra_setup.ps1): add each new app role to `$AppRoles`
   (`tests/policy/test_app_roles.py`).
 - [config/env/local/users.yaml.example](../../config/env/local/users.yaml.example): an example member entry.
@@ -183,7 +183,7 @@ access:
 
 | File | What to add | Fails without it because |
 |---|---|---|
-| `tests/policy/personas.yaml` | a persona per new role, e.g. `approle-webapp-dev` | matrix rows need someone to test |
+| `tests/policy/personas.yaml` | a persona per new role, e.g. `webapp-member` | matrix rows need someone to test |
 | `tests/policy/matrix.yaml` `skill_rows` | each new skill: visible to members and admin, hidden to others | every skill needs rows |
 | `tests/policy/matrix.yaml` `data_rows` | the new source: readable by members and admin, not by others | every source needs rows |
 | `tests/policy/matrix.yaml` `rows` | the new personas on the tools their roles grant (and any argument limits the team sets) | pins who gets which tool |
@@ -192,14 +192,14 @@ access:
 | `tests/config/test_users_config.py` | any example user added to `users.yaml.example` | the example's users are pinned |
 | `tests/mcp/test_skills.py`, `test_skill_audit.py` | admin sees the new skills; others' hidden count grows | exact lists are pinned |
 
-A team with only app roles has no group twin, so it is not added to `TWINS` in
-`tests/policy/test_app_roles.py`.
+New app-role values must also be in `$AppRoles` in `scripts/entra_setup.ps1`
+(`tests/policy/test_app_roles.py`).
 
 ### 9. Check
 
 ```powershell
 uv run --env-file .env sdlc-config validate --env local
-uv run sdlc-config explain --persona approle-webapp-dev
+uv run sdlc-config explain --persona webapp-member
 uv run sdlc-config diff            # only the new team's additions; admin gains its skills and source
 uv run pytest
 uv run ruff check . ; uv run ruff format .

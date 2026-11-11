@@ -18,19 +18,21 @@
           "description": "one line on what the team does; shown to the agent for its member users (G9)",
           "type": "string", "maxLength": 200
         },
-        "owners":{ "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/name" } }
+        "owners": {
+          "description": "GitHub handles that CODEOWNERS lists for this team's files (D15)",
+          "type": "array", "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^@[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:/[A-Za-z0-9._-]+)?$" }
+        }
       }
     },
     "membership": {
-      "description": "group / app role members; may be empty when members come from env/<env>/users.yaml",
+      "description": "app role members; may be empty when members come from env/<env>/users.yaml",
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["roles"],
-        "oneOf": [{ "required": ["group"] }, { "required": ["app_role"] }],
+        "required": ["roles", "app_role"],
         "properties": {
-          "group": { "$ref": "#/$defs/name" },
           "app_role": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9._-]*$" },
           "roles": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/name" } }
         }

@@ -16,7 +16,7 @@ def events(caplog, event: str) -> list[dict]:
 
 
 def client(base_url, entra, groups):
-    return Client(f"{base_url}/mcp", auth=entra.token(groups=groups))
+    return Client(f"{base_url}/mcp", auth=entra.token(roles=groups))
 
 
 async def test_allowed_skill_access_is_recorded_with_rule(base_url, entra, caplog):

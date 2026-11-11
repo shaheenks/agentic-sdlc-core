@@ -1,6 +1,6 @@
 """Immutable, validated view of the config. One Snapshot per config version."""
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -13,13 +13,10 @@ class PlatformConfig:
     jwks_uri: str
     audience: tuple[str, ...]
     required_scopes: tuple[str, ...]
-    groups_overage_fallback: str  # "graph_transitive_member_of" | "none"
-    groups_cache_ttl_seconds: int
     classification_levels: tuple[str, ...]
     default_max_classification: str
     embedding_model: str = "gemini-embedding-2"
     authority_host: str = "https://login.microsoftonline.com"  # Entra login host (E7)
-    graph_host: str = "https://graph.microsoft.com"  # Microsoft Graph host (E7)
     embedding_dimensions: int = 768
     graph_model: str = ""  # knowledge.graph.model; empty = graph extraction not configured
     graph_relation_types: tuple[str, ...] = ()
@@ -39,27 +36,6 @@ class PlatformConfig:
 
 
 @dataclass(frozen=True)
-class GroupMap:
-    """Entra group object ID <-> alias. Group IDs appear only in env/<env>/groups.yaml."""
-
-    alias_by_id: Mapping[str, str]  # lower-cased GUID -> alias
-
-    def aliases_for(self, group_ids: Iterable[str]) -> tuple[tuple[str, ...], int]:
-        """Map token group IDs to aliases. Returns (sorted aliases, count of unmapped IDs).
-
-        Unmapped IDs are ignored for authorization; the count is only for diagnostics.
-        """
-        aliases, unmapped = set(), 0
-        for gid in group_ids:
-            alias = self.alias_by_id.get(gid.lower())
-            if alias is None:
-                unmapped += 1
-            else:
-                aliases.add(alias)
-        return tuple(sorted(aliases)), unmapped
-
-
-@dataclass(frozen=True)
 class UserMap:
     """Users added directly to teams/roles (env/<env>/users.yaml, git-ignored). Matched ONLY on
     the token's oid; emails are for people and for the oid lookup, never for authorization."""
@@ -75,10 +51,10 @@ class UserMap:
 
 @dataclass(frozen=True)
 class IdentityRef:
-    """Who a binding applies to: a group alias (groups.yaml), an Entra app role value, a user
-    alias (users.yaml) or everyone (every signed-in user)."""
+    """Who a binding applies to: an Entra app role value, a user alias (users.yaml) or everyone
+    (every signed-in user). Entra groups are not used (CH-0011)."""
 
-    kind: str  # "group" | "app_role" | "user" | "everyone"
+    kind: str  # "app_role" | "user" | "everyone"
     value: str
 
     def __str__(self) -> str:
@@ -204,7 +180,6 @@ class SourceDef:
     relation_types: tuple[str, ...] = ()  # resolved: the source's list or the platform default
     access_teams: frozenset[str] = frozenset()
     access_roles: frozenset[str] = frozenset()
-    access_groups: frozenset[str] = frozenset()
     access_everyone: bool = False  # access.everyone: every signed-in user
     description: str = ""
 
@@ -217,7 +192,6 @@ class Snapshot:
     env: str
     loaded_at: datetime
     platform: PlatformConfig
-    groups: GroupMap
     roles: Mapping[str, RoleDef]
     bindings: tuple[RoleBinding, ...]
     tools: Mapping[str, ToolDef]
@@ -231,3 +205,10 @@ class Snapshot:
     # Every file this version was built from, repo-relative (config/..., skills/...) -> sha256.
     # sdlc-config compile copies exactly these into a bundle.
     files: Mapping[str, str] = field(default_factory=dict)
+
+    @property
+    def app_role_values(self) -> frozenset[str]:
+        """Every Entra app role value the config grants something to."""
+        refs = [b.ref for b in self.bindings]
+        refs += [m.ref for team in self.teams.values() for m in team.membership]
+        return frozenset(r.value for r in refs if r.kind == "app_role")

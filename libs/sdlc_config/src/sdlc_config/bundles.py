@@ -10,7 +10,8 @@ A bundle is compiled from a validated config folder and never changes afterwards
 `<git sha>-<hash of every file>`, so different content always means a different directory.
 Files are copied as they are in git, so `${VAR}` placeholders stay unresolved (bundles never
 contain secrets); values are resolved from the environment when the bundle is loaded.
-The tenant's groups.yaml IS included (group IDs, not secrets): keep bundle roots out of git.
+The tenant's users.yaml IS included (emails and object IDs, not secrets): keep bundle roots out
+of git. There is no group map (CH-0011).
 Loading verifies every file against the manifest and the recomputed version before serving.
 A GCS store (7b on GCP) uses the same layout and pointer.
 """

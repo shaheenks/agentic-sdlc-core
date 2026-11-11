@@ -201,20 +201,20 @@ async def test_real_fetch_of_one_team_as_the_user(base_url, entra):
     import pytest
     from sdlc_agent.team_context import UnknownTeamError
 
-    token = entra.token(groups=[G_ENG_ALL, G_PAYMENTS_DEVS, G_PLATFORM_DEVS])
+    token = entra.token(roles=[G_ENG_ALL, G_PAYMENTS_DEVS, G_PLATFORM_DEVS])
     full = await fetch_agent_context(f"{base_url}/mcp", token, team="sdlc-platform")
     assert [i["team"] for i in full["instructions"]] == ["sdlc-platform"]
-    payments_only = entra.token(groups=[G_ENG_ALL, G_PAYMENTS_DEVS])
+    payments_only = entra.token(roles=[G_ENG_ALL, G_PAYMENTS_DEVS])
     with pytest.raises(UnknownTeamError):
         await fetch_agent_context(f"{base_url}/mcp", payments_only, team="sdlc-platform")
 
 
 async def test_real_fetch_as_the_user(base_url, entra):
     payments = await fetch_agent_context(
-        f"{base_url}/mcp", entra.token(groups=[G_ENG_ALL, G_PAYMENTS_DEVS])
+        f"{base_url}/mcp", entra.token(roles=[G_ENG_ALL, G_PAYMENTS_DEVS])
     )
     platform = await fetch_agent_context(
-        f"{base_url}/mcp", entra.token(groups=[G_ENG_ALL, G_PLATFORM_DEVS])
+        f"{base_url}/mcp", entra.token(roles=[G_ENG_ALL, G_PLATFORM_DEVS])
     )
     assert [i["team"] for i in payments["instructions"]] == ["payments"]
     assert [i["team"] for i in platform["instructions"]] == ["sdlc-platform"]

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from sdlc_config.cli import main
 
-from tests.support.config import TEST_GROUPS_YAML
+from tests.support.config import TEST_USERS_YAML
 
 PERSONAS = Path(__file__).resolve().parents[1] / "policy" / "personas.yaml"
 
@@ -25,7 +25,7 @@ def test_explain_persona(config_dir, capsys):
         capsys,
         "explain",
         "--persona",
-        "payments-dev",
+        "payments-member",
         "--personas",
         str(PERSONAS),
         "--config-dir",
@@ -37,19 +37,19 @@ def test_explain_persona(config_dir, capsys):
     assert re.search(r"fixture_review +repo in \[payments-api, payments-ui\]", out)
 
 
-def test_explain_groups_json_reports_unknown(config_dir, capsys):
+def test_explain_app_roles_json_reports_unknown(config_dir, capsys):
     code, out = run(
         capsys,
         "explain",
-        "--groups",
-        "eng-all,ghosts",
+        "--app-roles",
+        "SDLC.User,SDLC.Ghosts",
         "--json",
         "--config-dir",
         str(config_dir),
         "--dummy-env",
     )
     view = json.loads(out)
-    assert code == 0 and view["unknown_groups"] == ["ghosts"]
+    assert code == 0 and view["unknown"] == ["app_role:SDLC.Ghosts"]
     assert set(view["tools"]) >= {"whoami", "list_skills"} and "fixture_review" not in view["tools"]
 
 
@@ -73,12 +73,12 @@ def test_diff_between_revisions(tmp_path, config_dir, capsys):
     repo = tmp_path / "repo"
     shutil.copytree(config_dir, repo / "config")
     shutil.copytree(config_dir.parent / "skills", repo / "skills")  # config references skills/
-    (repo / ".gitignore").write_text("config/env/*/groups.yaml\n")
+    (repo / ".gitignore").write_text("config/env/*/users.yaml\n")
     git = ["git", "-c", "user.email=t@example.com", "-c", "user.name=t"]
     subprocess.run([*git, "init", "-q"], cwd=repo, check=True)
     subprocess.run([*git, "add", "-A"], cwd=repo, check=True)
     subprocess.run([*git, "commit", "-q", "-m", "base"], cwd=repo, check=True)
-    assert (repo / "config/env/local/groups.yaml").read_text() == TEST_GROUPS_YAML  # ignored
+    assert (repo / "config/env/local/users.yaml").read_text() == TEST_USERS_YAML  # ignored
 
     team = repo / "config/teams/payments.yaml"
     team.write_text(
@@ -106,11 +106,11 @@ def test_diff_between_revisions(tmp_path, config_dir, capsys):
     )
     assert code == 1
     assert (
-        "payments-dev:\n  ~ fixture_review  (repo in [payments-api, payments-ui] -> "
+        "payments-member:\n  ~ fixture_review  (repo in [payments-api, payments-ui] -> "
         "repo in [payments-api, payments-ledger, payments-ui])" in out
     )
-    assert "payments-lead:" in out and "  - fixture_approve" in out
-    assert "platform-dev:" not in out  # unchanged personas are not listed
+    assert "payments-approver:" in out and "  - fixture_approve" in out
+    assert "platform-member:" not in out  # unchanged personas are not listed
 
     code, out = run(
         capsys,

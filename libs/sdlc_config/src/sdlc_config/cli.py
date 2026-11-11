@@ -1,7 +1,7 @@
 """sdlc-config CLI.
 
 validate  check config for one environment (schemas + cross-references)
-explain   effective permissions of a persona or a set of group aliases / app roles / a user
+explain   effective permissions of a persona, a set of app roles or a users.yaml user
 users     users sync: look up (read-only) the Entra object IDs of env/<env>/users.yaml
 diff      per-persona permission changes between two git revisions (for PR review / CI)
 compile   validate and write an immutable bundle (optionally activate it)
@@ -55,9 +55,8 @@ def main(argv: list[str] | None = None) -> int:
     common(explain)
     who = explain.add_mutually_exclusive_group(required=True)
     who.add_argument("--persona", help="name from the personas file")
-    who.add_argument("--groups", help="comma-separated group aliases")
-    who.add_argument("--user", help="users.yaml alias (add --groups via a persona if needed)")
-    explain.add_argument("--app-roles", default="", help="comma-separated Entra app roles")
+    who.add_argument("--app-roles", help="comma-separated Entra app roles")
+    who.add_argument("--user", help="users.yaml alias (add app roles via a persona if needed)")
     explain.add_argument("--personas", type=Path, default=DEFAULT_PERSONAS)
     explain.add_argument("--json", action="store_true", help="machine-readable output")
 
@@ -118,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
 def _validate(args) -> int:
     snap = load_snapshot(args.config_dir, args.env, dummy_env=args.dummy_env)
     print(
-        f"OK env={snap.env} version={snap.version} groups={len(snap.groups.alias_by_id)} "
+        f"OK env={snap.env} version={snap.version} "
         f"roles={len(snap.roles)} teams={len(snap.teams)} tools={len(snap.tools)} "
         f"users={len(snap.users.alias_by_oid)} tenant={snap.platform.tenant_id}"
     )
@@ -220,18 +219,14 @@ def _explain(args) -> int:
             raise ConfigError([f"unknown persona '{args.persona}' (have: {sorted(personas)})"])
         persona = personas[args.persona]
     else:
-        persona = Persona(
-            "(ad hoc)", _split(args.groups or ""), _split(args.app_roles), args.user or None
-        )
-    known = set(snap.groups.alias_by_id.values())
-    unknown = sorted(set(persona.groups) - known)
+        persona = Persona("(ad hoc)", _split(args.app_roles or ""), args.user or None)
+    unknown = [f"app_role:{r}" for r in persona.app_roles if r not in snap.app_role_values]
     if persona.user and persona.user not in snap.users.email_by_alias:
         unknown.append(f"user:{persona.user}")
-    groups = [g for g in persona.groups if g in known]
-    policy = resolve(snap, groups, persona.app_roles, _known_user(snap, persona))
+    policy = resolve(snap, persona.app_roles, _known_user(snap, persona))
     if args.json:
         view = policy.explain()
-        view["persona"], view["unknown_groups"] = persona.name, unknown
+        view["persona"], view["unknown"] = persona.name, unknown
         print(json.dumps(view, indent=2))
         return 0
     print(_render(persona, policy, unknown))
@@ -245,12 +240,12 @@ def _known_user(snap, persona: Persona) -> str | None:
 
 def _render(persona: Persona, policy: EffectivePolicy, unknown: list[str]) -> str:
     lines = [
-        f"persona: {persona.name}  groups: {', '.join(persona.groups) or '-'}  "
+        f"persona: {persona.name}  "
         f"app roles: {', '.join(persona.app_roles) or '-'}  user: {persona.user or '-'}",
         f"config:  {policy.config_version}",
     ]
     if unknown:
-        lines.append(f"unknown groups/users (ignored): {', '.join(unknown)}")
+        lines.append(f"unknown app roles/users (grant nothing): {', '.join(unknown)}")
     lines.append("teams:")
     lines += [f"  {t:<14} <- {', '.join(r)}" for t, r in sorted(policy.teams.items())] or ["  -"]
     lines.append("roles:")
@@ -294,8 +289,8 @@ def _repo_root(path: Path) -> Path:
 
 def _config_at(rev: str, config_dir: Path, env: str, workdir: Path) -> Path:
     """Materialize config/ (and the sibling skills/, which config references) at a git revision.
-    groups.yaml is git-ignored, so the working tree's (or the committed example) is used: diffs
-    compare policy, not tenant group IDs."""
+    users.yaml is git-ignored, so the working tree's is used. Revisions before CH-0011 (Entra
+    groups) cannot be loaded any more."""
     if rev == WORKTREE:
         return config_dir
     repo = _repo_root(config_dir)
@@ -314,13 +309,6 @@ def _config_at(rev: str, config_dir: Path, env: str, workdir: Path) -> Path:
     with tarfile.open(fileobj=BytesIO(out.stdout)) as tar:
         tar.extractall(target, filter="data")
     at_rev = target / rel
-    groups = at_rev / "env" / env / "groups.yaml"
-    if not groups.exists():
-        source = config_dir / "env" / env / "groups.yaml"
-        if not source.exists():
-            source = config_dir / "env" / env / "groups.yaml.example"
-        groups.parent.mkdir(parents=True, exist_ok=True)
-        groups.write_bytes(source.read_bytes())
     users = config_dir / "env" / env / "users.yaml"  # git-ignored too; optional
     knows_users = (at_rev / "schemas" / "usermap.schema.json").exists()  # version-02 N10+
     if users.exists() and knows_users and not (at_rev / "env" / env / "users.yaml").exists():
@@ -356,11 +344,7 @@ def _diff(args) -> int:
     print(f"permission diff {args.rev_from} -> {args.rev_to} (env {args.env})")
     for name, persona in personas.items():
         before, after = (
-            _summary(
-                resolve(
-                    snaps[rev], persona.groups, persona.app_roles, _known_user(snaps[rev], persona)
-                )
-            )
+            _summary(resolve(snaps[rev], persona.app_roles, _known_user(snaps[rev], persona)))
             for rev in (args.rev_from, args.rev_to)
         )
         lines = [f"  + {t}  ({after[t]})" for t in sorted(after.keys() - before.keys())]

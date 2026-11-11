@@ -19,7 +19,6 @@ from collections.abc import Callable
 import uvicorn
 from fastmcp import FastMCP
 from fastmcp.server.auth import AuthProvider, RemoteAuthProvider
-from sdlc_auth import GraphGroupResolver, GroupResolver
 from sdlc_auth.entra import EntraTokenVerifier
 from sdlc_config import ConfigStore, PolicyCache, Snapshot, skill_decision
 from starlette.middleware import Middleware as ASGIMiddleware
@@ -64,7 +63,6 @@ def catalog_problems(snapshot: Snapshot, registered: dict[str, frozenset[str]]) 
 def build_server(
     store: ConfigStore,
     auth: AuthProvider,
-    group_resolver: GroupResolver | None = None,
     knowledge: Knowledge | None = None,
     connected: Connected | None = None,
     artifacts: Artifacts | None = None,
@@ -74,7 +72,7 @@ def build_server(
         name="sdlc-core-mcp",
         instructions="Central SDLC tool server. Use list_skills, then load_skill before a task.",
         auth=auth,
-        middleware=[PolicyMiddleware(store, group_resolver, cache)],
+        middleware=[PolicyMiddleware(store, cache)],
     )
     registered: dict[str, frozenset[str]] = {}
 
@@ -96,12 +94,8 @@ def build_server(
             "upn": p.upn,
             "name": p.name,
             "tenant_id": p.tid,
-            "groups": list(ident.group_aliases),
             "user": ident.user_alias,
             "app_roles": sorted(p.app_roles),
-            "unmapped_group_count": ident.unmapped_group_count,
-            "non_guid_group_claims": p.non_guid_group_claims,
-            "group_source": ident.group_source,
             "config_version": ident.snapshot.version,
         }
         if explain:
@@ -156,7 +150,7 @@ def build_server(
     verifier = getattr(auth, "token_verifier", None)
     if verifier is not None:  # the Connections and Artifacts APIs use the same token checks as MCP
         add_connection_routes(mcp, connected, verifier)
-        add_artifact_routes(mcp, artifacts, verifier, store, group_resolver, cache)
+        add_artifact_routes(mcp, artifacts, verifier, store, cache)
 
     # Catalog vs code: fail startup on bad constraint args; re-check (log) on every reload.
     problems = catalog_problems(store.current(), registered)
@@ -217,27 +211,6 @@ def build_auth(
         authorization_servers=[platform.issuer],
         base_url=public_url,
         resource_name="sdlc-mcp",
-    )
-
-
-def build_group_resolver(snapshot: Snapshot) -> GroupResolver | None:
-    platform = snapshot.platform
-    if platform.groups_overage_fallback != "graph_transitive_member_of":
-        return None
-    secret = os.environ.get("ENTRA_GRAPH_CLIENT_SECRET")
-    if not secret:
-        log.warning(
-            "groups overage fallback disabled: ENTRA_GRAPH_CLIENT_SECRET not set "
-            "(users with too many groups will get no groups)"
-        )
-        return None
-    return GraphGroupResolver(
-        tenant_id=platform.tenant_id,
-        client_id=os.environ["ENTRA_API_CLIENT_ID"],
-        client_secret=secret,
-        ttl_seconds=platform.groups_cache_ttl_seconds,
-        graph_host=platform.graph_host,
-        authority_host=platform.authority_host,
     )
 
 
@@ -311,7 +284,6 @@ def main() -> None:
     server = build_server(
         store,
         build_auth(snapshot, os.environ.get("MCP_PUBLIC_URL", f"http://127.0.0.1:{port}"), store),
-        build_group_resolver(snapshot),
         knowledge,
         build_connected(store, knowledge),
         build_artifacts(knowledge),

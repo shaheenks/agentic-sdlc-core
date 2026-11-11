@@ -3,10 +3,7 @@ type: Rule Set
 title: Environments and endpoints
 description: "Development on localhost and the tunnel, GCP dev, hostnames as configuration, and who runs Terraform and deployments."
 tags: [rules]
-status: stable
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T22:53:19+05:30'
+status: draft
 ---
 
 Binding working rules for contributors and coding agents, moved word for word from `CLAUDE.md` on 2026-11-10.
@@ -23,7 +20,7 @@ See ARCHITECTURE.md §7.
 - **Higher environments** (staging, prod) are hosted directly: DNS CNAME + managed certificate, no tunnel, no localhost
   callbacks, no Azure CLI pre-authorization.
 - **Dev on GCP** (version-01 M7, 2026-10-28): project `sdlc-demo-env01`, region `asia-southeast1`, env `dev`
-  (`infra/gcp/dev.tfvars`, state `gs://sdlc-demo-env01-tf-state` prefix `dev`, `config/env/dev/groups.yaml`), Cloud Run
+  (`infra/gcp/dev.tfvars`, state `gs://sdlc-demo-env01-tf-state` prefix `dev`, optional `config/env/dev/users.yaml`), Cloud Run
   `*.run.app` URLs (temporary exception to the CNAME rule); the dev callback goes on `sdlc-client`. Public Cloud Run
   services use `invoker_iam_disabled`; Entra stays the gate. The earlier `cloud-migration-agent` / asia-south1 staging
   attempt is abandoned (ignore its state). **The user runs Terraform and the deploy script; do not run `terraform` or

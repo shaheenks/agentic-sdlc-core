@@ -7,7 +7,7 @@
     state    create the Terraform state bucket (once per project)
     base     APIs + Artifact Registry + config store bucket (targeted apply; images need the
              registry, `config` needs the bucket)
-    config   compile + verify a config bundle (config, skills, tenant groups.yaml/users.yaml),
+    config   compile + verify a config bundle (config, skills, the tenant's users.yaml),
              upload it to gs://<config_store_bucket>/bundles/<env>/ and point `current` at it.
              Cloud Run reads the active bundle and picks up a new one within ~2 minutes.
              -ConfigVersion <version>: only move `current` to an uploaded bundle (rollback).
@@ -18,7 +18,9 @@
     ingest   run the sdlc-ingest job
     urls     print app / MCP URLs and the OAuth callback to register on sdlc-client
 
-  Tenant values (ENTRA_*) come from .env; group IDs from config/env/<env>/groups.yaml (git-ignored).
+  Tenant values (ENTRA_*) come from .env. Membership comes from Entra app roles (CH-0011); the
+  `plan` step still needs config/env/<env>/groups.yaml because Terraform creates the groups-yaml
+  secret from it until infra/gcp drops it.
   First deployment with a config store bucket: state, base, config, images, plan, apply, db, ingest.
   A config-only change afterwards: commit, then `config` (no new images, no apply).
   `base` and `apply` change cloud resources and ask for confirmation unless -AutoApprove.
@@ -186,9 +188,6 @@ switch ($Step) {
         }
         else {
             [void](Get-ImageTag)   # refuses uncommitted changes: the bundle version starts with the commit
-            if (-not (Test-Path (Join-Path $Root "config/env/$EnvName/groups.yaml"))) {
-                throw "missing config/env/$EnvName/groups.yaml"
-            }
             $local = Join-Path $Root ".bundles/$EnvName"   # git-ignored: bundles hold tenant files
             # uv reads --env-file shell-style (backslashes are escapes): pass forward slashes.
             $envFile = (Join-Path $Root '.env') -replace '\\', '/'
@@ -211,8 +210,9 @@ switch ($Step) {
     }
     'plan' {
         Set-TerraformEnv
+        # Terraform (secrets.tf) still reads groups.yaml for the unused groups-yaml secret.
         if (-not (Test-Path (Join-Path $Root "config/env/$EnvName/groups.yaml"))) {
-            throw "missing config/env/$EnvName/groups.yaml"
+            throw "missing config/env/$EnvName/groups.yaml (still read by Terraform; content unused)"
         }
         # With a config store bucket, Cloud Run reads its config from there: an active bundle must
         # exist first, or the new MCP revision fails closed at startup.

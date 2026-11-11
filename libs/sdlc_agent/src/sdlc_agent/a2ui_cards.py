@@ -168,18 +168,17 @@ def identity(payload: Payload) -> ComponentBuilderNode | None:
 
     teams = items(policy.get("teams"))
     roles = [r for r in items(policy.get("roles")) if r != "signed-in"]
-    groups = items(payload.get("groups"))
+    app_roles = items(payload.get("app_roles"))
     who = plain(payload.get("name") or payload.get("upn") or "you", 80)
     facts = [_count(len(teams), "team")] if teams else []
     facts += [_count(len(roles), "role")] if roles else []
-    facts += [_count(len(groups), "group")] if groups else []
     rows: list[ComponentBuilderNode] = [Text(text=who, variant="h4")]
     if payload.get("upn"):
         rows.append(Text(text=plain(payload["upn"]), variant="caption"))
     if policy:
         rows.append(Text(text=f"Teams: {', '.join(teams) or 'none'}"))
         rows.append(Text(text=f"Roles: {', '.join(roles) or 'none'}"))
-    rows.append(Text(text=f"Groups: {', '.join(groups) or 'none'}"))
+    rows.append(Text(text=f"App roles: {', '.join(app_roles) or 'none'}"))
     return Row(
         align="center",
         children=[

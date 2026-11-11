@@ -37,7 +37,7 @@ def whoami(tool_context: ToolContext) -> dict:
             "state_keys": sorted(tool_context.state.to_dict()),
         }
     )
-    return {"oid": oid, "name": "Probe User", "groups": ["eng-all"]}
+    return {"oid": oid, "name": "Probe User", "groups": ["SDLC.User"]}
 
 
 root_agent = Agent(

@@ -3,10 +3,7 @@ type: Rule Set
 title: Repo structure and workspace conventions
 description: "Where each component lives, and conventions for the uv workspace, ADK and MCP sessions, tests, data tables and the knowledge graph."
 tags: [rules]
-status: stable
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T22:53:19+05:30'
+status: draft
 ---
 
 Binding working rules for contributors and coding agents, moved word for word from `CLAUDE.md` on 2026-11-10.
@@ -17,7 +14,7 @@ Paths are relative to the repository root.
 - `agents/<name>/`          ADK agents (`agents/user_agent` = starter root agent)
 - `mcp_servers/<name>/`     FastMCP servers, streamable HTTP (`mcp_servers/core_mcp` = starter)
 - `ingest/<component>/`     RAG + KG pipeline (`ingest/bootstrap` = pipeline + CLI; `ingest/loaders` = `sdlc_loaders`, one loader per source type)
-- `libs/sdlc_auth`          Entra JWT validation, group overage fallback, `get_user_token(context)`
+- `libs/sdlc_auth`          Entra JWT validation, the principal (app roles), `get_user_token(context)`
 - `libs/sdlc_config`        Config loader + JSON Schemas + resolver → `EffectivePolicy`; CLI validate/explain/diff
 - `libs/sdlc_policy`        Enforcement: tools/list filtering, call authz, arg constraints
 - `libs/sdlc_db`            Postgres/pgvector access with RLS session context
@@ -28,7 +25,7 @@ Paths are relative to the repository root.
 - `ui/copilotkit`           CopilotKit chat app (Next.js) at `/chat/` behind oauth2-proxy; talks AG-UI to the agent's `/agui`
 - `libs/sdlc_agent`         Agent helpers: `with_team_context` (per-session team instructions/context via `get_agent_context`, as the user)
 - `skills/core/`, `skills/teams/<team>/`   SKILL.md content only (no access rules inside skills)
-- `config/`                 platform, roles, tools, skills, `teams/`, `sources/`, `env/<env>/groups.yaml`, `schemas/`
+- `config/`                 platform, roles, tools, skills, `teams/`, `sources/`, `env/<env>/users.yaml`, `schemas/`
 - `db/bootstrap`, `db/migrations`   Schema + RLS
 - `infra/`                  Terraform (GCP)
 - `tests/`                  persona-matrix, resolver, RLS, e2e, retrieval evals

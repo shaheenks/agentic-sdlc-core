@@ -29,7 +29,7 @@ def test_repo_rbac_config_loads(config_dir):
     assert payments.membership[0].rule == "teams/payments.yaml#membership[0]"
     assert payments.membership[0].team == "payments"
     assert str(snap.bindings[0].ref) == "everyone:*"
-    assert str(snap.bindings[1].ref) == "group:eng-all"
+    assert str(snap.bindings[1].ref) == "app_role:SDLC.User"
 
 
 def test_app_role_bindings_are_accepted(config_dir):
@@ -60,11 +60,11 @@ def test_app_role_bindings_are_accepted(config_dir):
         (
             "roles.yaml",
             lambda d: d["bindings"].append({"group": "ghosts", "roles": ["viewer"]}),
-            "unknown group alias 'ghosts'",
+            "Entra groups are no longer used",
         ),
         (
             "roles.yaml",
-            lambda d: d["bindings"].append({"group": "eng-all", "roles": ["god"]}),
+            lambda d: d["bindings"].append({"app_role": "SDLC.User", "roles": ["god"]}),
             "unknown role 'god'",
         ),
         (
@@ -90,7 +90,7 @@ def test_app_role_bindings_are_accepted(config_dir):
         (
             "roles.yaml",
             lambda d: d["bindings"].append(
-                {"group": "eng-all", "app_role": "X", "roles": ["viewer"]}
+                {"everyone": True, "app_role": "X", "roles": ["viewer"]}
             ),
             "bindings/",
         ),
@@ -102,13 +102,15 @@ def test_app_role_bindings_are_accepted(config_dir):
         ("tools.yaml", lambda d: d["tools"]["ping"].update(risk="extreme"), "tools/ping/risk"),
         (
             "teams/payments.yaml",
-            lambda d: d["membership"].append({"group": "payments-devs", "roles": ["overlord"]}),
+            lambda d: d["membership"].append(
+                {"app_role": "SDLC.Payments.Member", "roles": ["overlord"]}
+            ),
             "unknown role 'overlord'",
         ),
         (
             "teams/payments.yaml",
-            lambda d: d["metadata"].update(owners=["nobody"]),
-            "metadata/owners: unknown group alias 'nobody'",
+            lambda d: d["metadata"].update(owners=["payments-leads"]),  # D15: GitHub handles
+            "metadata/owners/0",
         ),
         (
             "teams/payments.yaml",
@@ -159,7 +161,8 @@ def test_all_problems_reported_together(config_dir):
         config_dir / "roles.yaml", lambda d: d["roles"]["viewer"]["tools"]["allow"].append("a")
     )
     edit_yaml(
-        config_dir / "teams/sdlc-platform.yaml", lambda d: d["metadata"].update(owners=["zz"])
+        config_dir / "teams/sdlc-platform.yaml",
+        lambda d: d["membership"].append({"app_role": "SDLC.X", "roles": ["zz"]}),
     )
     with pytest.raises(ConfigError) as exc:
         load(config_dir)

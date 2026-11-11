@@ -88,7 +88,7 @@ async def test_blocked_user_is_refused_and_audited(config_dir, store, entra, blo
     caplog.set_level("INFO", logger="sdlc.audit")
     write_blocklist(config_dir, [(BLOCKED, "SEC-1 offboarding")])
     assert store.reload()
-    assert tools_list(blocking_url, entra.token(oid=BLOCKED, groups=[G_ENG_ALL])).status_code == 401
+    assert tools_list(blocking_url, entra.token(oid=BLOCKED, roles=[G_ENG_ALL])).status_code == 401
     records = [json.loads(r.getMessage()) for r in caplog.records if r.name == "sdlc.audit"]
     [failure] = [r for r in records if r["event"] == "auth_failure"]
     assert failure["reason"] == "blocked" and failure["claimed"]["oid"] == BLOCKED
@@ -97,7 +97,7 @@ async def test_blocked_user_is_refused_and_audited(config_dir, store, entra, blo
 
 
 async def test_block_and_unblock_apply_on_reload(config_dir, store, entra, blocking_url):
-    token = entra.token(oid=BLOCKED, groups=[G_ENG_ALL])
+    token = entra.token(oid=BLOCKED, roles=[G_ENG_ALL])
     assert tools_list(blocking_url, token).status_code != 401
     write_blocklist(config_dir, [(BLOCKED, "SEC-2 compromised account")])
     assert store.reload()

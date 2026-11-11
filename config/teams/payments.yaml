@@ -3,13 +3,10 @@ kind: Team
 metadata:
   name: payments
   description: Payment APIs and UI (payments-api, payments-ui); card data under PCI DSS.
-  owners: [payments-leads]           # group aliases; also drive CODEOWNERS
+  owners: ["@shaheenks"]             # GitHub handles; CODEOWNERS lists exactly these (D15)
+# Members come from Entra app roles or the git-ignored config/env/<env>/users.yaml (CH-0011).
 membership:
-  - group: payments-devs
-    roles: [member]
-  - group: payments-leads
-    roles: [approver]
-  - app_role: SDLC.Payments.Member   # app roles: no group overage (version-03 P2 E1)
+  - app_role: SDLC.Payments.Member
     roles: [member]
   - app_role: SDLC.Payments.Approver
     roles: [approver]

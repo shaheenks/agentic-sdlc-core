@@ -1,19 +1,15 @@
 apiVersion: sdlc/v1
 kind: RoleSet
-# Global bindings apply regardless of team. Identify principals by group alias (groups.yaml)
-# or by Entra app role value (`app_role: SDLC.Admin`), for tenants that use app roles, or
-# `everyone: true` for every signed-in user.
-# Groups and app roles combine: a user gets the union of both (version-03 P2 E1). App role
-# values are defined on the sdlc-mcp app (scripts/entra_setup.ps1 $AppRoles) and are no secret.
+# Global bindings give PLATFORM roles, whatever the team. Identify principals by Entra app role
+# value (`app_role: SDLC.Admin`) or `everyone: true` for every signed-in user; users.yaml adds
+# direct members. Entra groups are not used (CH-0011). App role values are defined on the
+# sdlc-mcp app (scripts/entra_setup.ps1 $AppRoles) and are no secret.
+# Team roles (member, approver) are granted only by team membership and count only in that team.
 bindings:
   - everyone: true              # every signed-in user: identity basics only
     roles: [signed-in]
-  - group: eng-all
+  - app_role: SDLC.User
     roles: [viewer]
-  - app_role: SDLC.User         # app-role equivalent of eng-all
-    roles: [viewer]
-  - group: platform-admins
-    roles: [admin]
   - app_role: SDLC.Admin
     roles: [admin]
 roles:

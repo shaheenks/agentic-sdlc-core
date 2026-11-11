@@ -26,6 +26,10 @@
   closes the cross-team leak. The classification ceiling is per source; migration 008 checks each row against its own
   source's ceiling. FR-AUTHZ-006 is `built`. GCP dev needs the Entra app-role switch with `-Step images`, `-Step db`
   and `-Step config` in one window.
+- **Update**: CH-0011 done: Entra groups and the group map are gone; membership comes from app roles and users.yaml only.
+  FR-IDN-002, FR-AUTHZ-005, FR-CFG-002, FR-IDN-003, NFR-PORT-001, NFR-PRIV-003 and NFR-SEC-004 edited and back to
+  `draft`; the seven rule sets edited and back to `draft`. Team `owners` are GitHub handles that CODEOWNERS must
+  match. CH-0005 dropped (superseded). Follow-up: remove the unused groups and Graph secrets from infra/gcp.
 
 - **Creation**: NFR-OPS-002 continuous deployment to GCP dev (`draft`) and change record CH-0010: a GitHub workflow (bash on
   Linux runners) deploys every merge to `main`, running only the steps the changes need, in order. `gcp_deploy.ps1`

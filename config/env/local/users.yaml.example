@@ -1,4 +1,4 @@
-# Direct members: users added to teams and roles without an Entra group.
+# Direct members: users added to teams and roles without an Entra app role assignment.
 # Copy to users.yaml (git-ignored: tenant emails and object IDs) and list your users by email.
 # Then run `uv run sdlc-config users sync --env local --write` to fill in each user's Entra object
 # ID (read-only lookup with the Azure CLI). Tokens are matched on the object ID only; an entry

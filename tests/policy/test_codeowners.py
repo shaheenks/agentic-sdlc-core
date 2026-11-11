@@ -1,6 +1,6 @@
 """CODEOWNERS covers every team, team skill folder, source and security-critical path with a rule
 of its own (governance: team files are reviewed by that team's owners, the access model by
-platform-admins). Adding a team or source without a CODEOWNERS rule fails here."""
+the platform owners). Adding a team or source without a CODEOWNERS rule fails here."""
 
 from pathlib import Path
 
@@ -55,3 +55,18 @@ def test_every_team_and_source_has_a_rule():
     ]
     missing += [f"/skills/teams/{p.name}/" for p in (REPO / "skills/teams").iterdir() if p.is_dir()]
     assert [p for p in missing if p not in have] == []
+
+
+def test_team_rules_name_exactly_the_team_owners():
+    """D15 / CH-0011: a team's `owners` are the GitHub handles CODEOWNERS lists for its files."""
+    import yaml
+
+    have = rules()
+    for path in sorted((REPO / "config/teams").glob("*.yaml")):
+        team = yaml.safe_load(path.read_text(encoding="utf-8"))
+        owners = sorted(team["metadata"].get("owners", []))
+        assert owners, f"{path.name}: metadata/owners is empty"
+        name = team["metadata"]["name"]
+        for pattern in (f"/config/teams/{path.name}", f"/skills/teams/{name}/"):
+            if pattern in have:
+                assert sorted(have[pattern]) == owners, pattern

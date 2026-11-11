@@ -40,12 +40,10 @@ jobs:
           fetch-depth: 0 # diff compares git revisions
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --all-packages --frozen
-      - name: GroupMap placeholder (the real groups.yaml is git-ignored)
-        run: cp config/env/local/groups.yaml.example config/env/local/groups.yaml
       - run: uv run sdlc-config validate --env local
       - name: Permission diff against the PR base (informational)
         if: github.event_name == 'pull_request'
-        continue-on-error: true # revisions before Stage 4/6 cannot be loaded (knowledge/rules/commands.md)
+        continue-on-error: true # revisions before Stage 4/6, or with Entra groups (before CH-0011), cannot be loaded
         run: |
           {
             echo "## Effective permission changes (sdlc-config diff)"

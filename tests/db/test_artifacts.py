@@ -105,8 +105,8 @@ def mcp(database, entra, store):
         yield url, content, artifacts
 
 
-async def call(url, entra, oid, tool, args=None, groups=(G_ENG_ALL,)):
-    async with Client(f"{url}/mcp", auth=entra.token(oid=oid, groups=list(groups))) as c:
+async def call(url, entra, oid, tool, args=None, roles=(G_ENG_ALL,)):
+    async with Client(f"{url}/mcp", auth=entra.token(oid=oid, roles=list(roles))) as c:
         return (await c.call_tool(tool, args or {})).data
 
 
@@ -161,8 +161,8 @@ async def test_bad_input_and_no_role_are_refused(mcp, entra):
     url, _, _ = mcp
     with pytest.raises(ToolError, match="must end with .md"):
         await call(url, entra, ALICE, "save_artifact", {"name": "x.html", "content": "<b>"})
-    with pytest.raises(ToolError):  # no sdlc groups: signed-in only, the tool is not granted
-        await call(url, entra, ALICE, "list_artifacts", groups=())
+    with pytest.raises(ToolError):  # no app roles: signed-in only, the tool is not granted
+        await call(url, entra, ALICE, "list_artifacts", roles=())
 
 
 async def test_live_limit(mcp, entra, monkeypatch):
@@ -194,9 +194,9 @@ async def test_download_api_owner_only(mcp, entra, caplog):
     saved = await call(url, entra, ALICE, "save_artifact", {"name": "stories.md", "content": "# S"})
     aid = saved["id"]
 
-    def as_user(oid, groups=(G_ENG_ALL,)):
+    def as_user(oid, roles=(G_ENG_ALL,)):
         # oauth2-proxy forwards the session's access token in this header
-        token = entra.token(oid=oid, groups=list(groups))
+        token = entra.token(oid=oid, roles=list(roles))
         return httpx.AsyncClient(base_url=url, headers={"X-Forwarded-Access-Token": token})
 
     async with as_user(ALICE) as alice, as_user(BOB) as bob, as_user(ALICE, ()) as nobody:
@@ -267,7 +267,7 @@ async def test_versions_of_one_document(mcp, entra, caplog):
             {"name": "x.md", "content": "x", "replaces": doc, "base_version": 2},
         )
 
-    token = entra.token(oid=erin, groups=[G_ENG_ALL])
+    token = entra.token(oid=erin, roles=[G_ENG_ALL])
     async with httpx.AsyncClient(base_url=url, headers={"X-Forwarded-Access-Token": token}) as h:
         latest = await h.get(f"/artifacts/{doc}")
         assert latest.content == b"two" and latest.headers["x-sdlc-artifact-version"] == "2"

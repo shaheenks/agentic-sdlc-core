@@ -33,11 +33,11 @@ from tests.support.servers import free_port, serve
 pytestmark = pytest.mark.skipif(bool(db.available()), reason=str(db.available()))
 
 EMBEDDER = HashEmbedder()
-PAYMENTS_DEV = ["eng-all", "payments-devs"]
-PAYMENTS_LEAD = ["eng-all", "payments-leads"]
-PLATFORM_DEV = ["eng-all", "platform-devs"]
-INFRA_READER = ["eng-all", "infra-readers"]  # source group only, no team
-ADMIN = ["platform-admins"]
+PAYMENTS_DEV = ["SDLC.User", "SDLC.Payments.Member"]
+PAYMENTS_LEAD = ["SDLC.User", "SDLC.Payments.Approver"]
+PLATFORM_DEV = ["SDLC.User", "SDLC.Platform.Member"]
+INFRA_READER = ["SDLC.User", "SDLC.Infra.Reader"]  # source group only, no team
+ADMIN = ["SDLC.Admin"]
 GRAPH_TABLES = ("entities", "mentions", "edges")
 
 
@@ -160,7 +160,7 @@ def test_no_rls_context_means_no_graph_rows(corpus):
         (PAYMENTS_LEAD, {"eng-standards", "payments-code", "payments-incidents"}),
         (PLATFORM_DEV, {"eng-standards", "platform-infra"}),
         (INFRA_READER, {"eng-standards", "platform-infra"}),
-        (["eng-all"], {"eng-standards"}),
+        (["SDLC.User"], {"eng-standards"}),
         (ADMIN, {"eng-standards", "payments-code", "payments-incidents", "platform-infra"}),
     ],
 )
@@ -226,7 +226,7 @@ def knowledge_url(corpus, entra, store):
 
 
 async def graph(url, entra, groups, question, hops=1):
-    async with Client(f"{url}/mcp", auth=entra.token(groups=groups)) as c:
+    async with Client(f"{url}/mcp", auth=entra.token(roles=groups)) as c:
         return (await c.call_tool("graph_query", {"query": question, "k": 8, "hops": hops})).data
 
 

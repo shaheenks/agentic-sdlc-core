@@ -1,31 +1,21 @@
 # Personas for the persona-matrix tests and `sdlc-config explain --persona / diff`.
-# A persona is a set of group aliases (config/env/<env>/groups.yaml) and/or Entra app roles.
+# A persona is a set of Entra app roles and/or a users.yaml user (CH-0011: no Entra groups).
 personas:
-  nobody:        { groups: [] }
-  viewer:        { groups: [eng-all] }
-  payments-dev:  { groups: [eng-all, payments-devs] }
-  payments-lead: { groups: [eng-all, payments-leads] }
-  platform-dev:  { groups: [eng-all, platform-devs] }
-  multi-team-dev: { groups: [eng-all, payments-devs, platform-devs] }
-  admin:         { groups: [eng-all, platform-admins] }
-  infra-reader:  { groups: [eng-all, infra-readers] }    # a source's own group, no team
-  # users.yaml direct members (no groups at all); test users from tests/support/config.py
-  direct-payments-dev: { groups: [], user: direct-dev }
-  direct-viewer:       { groups: [], user: direct-viewer }
-  pending-user:        { groups: [], user: pending }       # no oid yet: no access
-  # Entra app roles only (version-03 P2 E1): no groups at all, e.g. after group overage.
-  # test_app_role_personas_match_group_personas pins each to its group twin.
-  approle-viewer:        { groups: [], app_roles: [SDLC.User] }
-  approle-payments-dev:  { groups: [], app_roles: [SDLC.User, SDLC.Payments.Member] }
-  approle-payments-lead: { groups: [], app_roles: [SDLC.User, SDLC.Payments.Approver] }
-  approle-platform-dev:  { groups: [], app_roles: [SDLC.User, SDLC.Platform.Member] }
-  approle-admin:         { groups: [], app_roles: [SDLC.User, SDLC.Admin] }
-  # webapp team: app roles + users.yaml only, no group (so no group twin)
-  approle-webapp-dev:    { groups: [], app_roles: [SDLC.User, SDLC.Webapp.Member] }
-  approle-webapp-lead:   { groups: [], app_roles: [SDLC.User, SDLC.Webapp.Approver] }
-  approle-team-only:     { groups: [], app_roles: [SDLC.Payments.Member] }   # team role, no SDLC.User
-  # groups and app roles together: the union of both
-  mixed-dev:             { groups: [eng-all, payments-devs], app_roles: [SDLC.Platform.Member] }
+  nobody:            { app_roles: [] }
+  viewer:            { app_roles: [SDLC.User] }
+  payments-member:   { app_roles: [SDLC.User, SDLC.Payments.Member] }
+  payments-approver: { app_roles: [SDLC.User, SDLC.Payments.Approver] }
+  platform-member:   { app_roles: [SDLC.User, SDLC.Platform.Member] }
+  multi-team-member: { app_roles: [SDLC.User, SDLC.Payments.Member, SDLC.Platform.Member] }
+  admin:             { app_roles: [SDLC.User, SDLC.Admin] }
+  infra-reader:      { app_roles: [SDLC.User, SDLC.Infra.Reader] }   # a source's own audience, no team
+  webapp-member:     { app_roles: [SDLC.User, SDLC.Webapp.Member] }
+  webapp-approver:   { app_roles: [SDLC.User, SDLC.Webapp.Approver] }
+  team-only:         { app_roles: [SDLC.Payments.Member] }   # team role, no SDLC.User
   # approver in webapp, member in payments: team roles count only in their own team (CH-0009)
-  cross-team-approver:   { groups: [], app_roles: [SDLC.User, SDLC.Webapp.Approver, SDLC.Payments.Member] }
-  unknown-app-role:      { groups: [], app_roles: [SDLC.NotDefined] }          # grants nothing
+  cross-team-approver: { app_roles: [SDLC.User, SDLC.Webapp.Approver, SDLC.Payments.Member] }
+  unknown-app-role:  { app_roles: [SDLC.NotDefined] }          # grants nothing
+  # users.yaml direct members (no app roles at all); test users from tests/support/config.py
+  direct-payments-member: { user: direct-dev }
+  direct-viewer:          { user: direct-viewer }
+  pending-user:           { user: pending }       # no oid yet: no access

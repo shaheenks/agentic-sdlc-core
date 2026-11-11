@@ -14,7 +14,7 @@ BOTH = [G_ENG_ALL, G_PAYMENTS_DEVS, G_PLATFORM_DEVS]
 
 
 async def call(base_url, entra, groups, tool, args):
-    async with Client(f"{base_url}/mcp", auth=entra.token(groups=groups)) as c:
+    async with Client(f"{base_url}/mcp", auth=entra.token(roles=groups)) as c:
         return (await c.call_tool(tool, args)).data
 
 
@@ -89,7 +89,8 @@ async def test_hints_never_reveal_other_teams(base_url, entra):
 def test_default_team_applies_only_when_no_hint_matches(config_dir):
     snap = load_snapshot(config_dir, "local", TEST_ENV)
     policy = dataclasses.replace(
-        resolve(snap, ["eng-all", "payments-devs", "platform-devs"]), default_team="sdlc-platform"
+        resolve(snap, ["SDLC.User", "SDLC.Payments.Member", "SDLC.Platform.Member"]),
+        default_team="sdlc-platform",
     )
     assert match_teams(snap, policy, ["no names here"])["team"] == "sdlc-platform"
     assert match_teams(snap, policy, ["payments-ui"])["team"] == "payments"

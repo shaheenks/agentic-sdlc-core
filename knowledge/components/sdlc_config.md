@@ -73,7 +73,7 @@ Code: `libs/sdlc_config`
 - [FR-CFG-001: Access declared in configuration](../requirements/functional/FR-CFG-001.md) - Validates all configuration.
 - [FR-CFG-002: Explain and diff effective permissions](../requirements/functional/FR-CFG-002.md) - `explain` and `diff` commands.
 - [FR-CFG-003: Immutable config bundles with rollback](../requirements/functional/FR-CFG-003.md) - Bundles and `ConfigStore`.
-- [FR-IDN-002: Membership from groups, app roles and direct members](../requirements/functional/FR-IDN-002.md) - Maps groups, app roles and direct members to teams and roles.
+- [FR-IDN-002: Membership from app roles and direct members](../requirements/functional/FR-IDN-002.md) - Maps app roles and direct members to teams and scoped roles; rejects `group:` identities.
 - [FR-IDN-003: Users can see their own access](../requirements/functional/FR-IDN-003.md) - Produces the explanation of a policy.
 - [FR-SKILL-001: Skills served per user](../requirements/functional/FR-SKILL-001.md) - Resolves the skills a caller may see.
 - [FR-SKILL-002: Skill naming and layout](../requirements/functional/FR-SKILL-002.md) - Validates skill names and layout.

@@ -30,7 +30,7 @@ def _row_id(row: dict) -> str:
 @pytest.mark.parametrize("row", ROWS, ids=[_row_id(r) for r in ROWS])
 def test_matrix_row(snap, row):
     persona = PERSONAS[row["persona"]]
-    policy = resolve(snap, persona.groups, persona.app_roles, persona.user)
+    policy = resolve(snap, persona.app_roles, persona.user)
     decision = authorize(policy, row["tool"], row.get("args") or {})
     assert decision.allowed is (row["expect"] == "allow"), (decision.reason, decision.matched_rule)
 
@@ -47,10 +47,12 @@ def test_matrix_references_known_personas_and_tools(snap):
         assert row["expect"] in ("allow", "deny"), row
 
 
-def test_personas_use_known_group_aliases(snap):
-    known = set(snap.groups.alias_by_id.values())
+def test_personas_use_known_app_roles(snap):
+    """Every persona app role is granted something in config, except the deliberately unknown
+    one; the fixture-only SDLC.Infra.Reader comes from tests/support/config.py."""
     for persona in PERSONAS.values():
-        assert set(persona.groups) <= known, persona
+        unknown = set(persona.app_roles) - snap.app_role_values
+        assert unknown <= {"SDLC.NotDefined"}, persona
 
 
 SKILL_ROWS = yaml.safe_load((HERE / "matrix.yaml").read_text(encoding="utf-8"))["skill_rows"]
@@ -61,7 +63,7 @@ SKILL_ROWS = yaml.safe_load((HERE / "matrix.yaml").read_text(encoding="utf-8"))[
 )
 def test_skill_row(snap, row):
     persona = PERSONAS[row["persona"]]
-    policy = resolve(snap, persona.groups, persona.app_roles, persona.user)
+    policy = resolve(snap, persona.app_roles, persona.user)
     assert policy.sees_skill(row["skill"]) is (row["expect"] == "visible"), policy.skills
 
 
@@ -78,7 +80,7 @@ DATA_ROWS = yaml.safe_load((HERE / "matrix.yaml").read_text(encoding="utf-8"))["
 )
 def test_data_row(snap, row):
     persona = PERSONAS[row["persona"]]
-    policy = resolve(snap, persona.groups, persona.app_roles, persona.user)
+    policy = resolve(snap, persona.app_roles, persona.user)
     source = snap.sources[row["source"]]
     readable = source.id in policy.readable_sources
     assert readable is (row["expect"] == "readable"), (

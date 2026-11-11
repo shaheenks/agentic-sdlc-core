@@ -17,7 +17,7 @@ def test_repo_config_loads(config_dir):
     assert snap.platform.issuer == f"https://login.microsoftonline.com/{TENANT}/v2.0"
     assert snap.platform.audience == (API_CLIENT, f"api://{API_CLIENT}")
     assert snap.platform.required_scopes == ("access_as_user",)
-    assert "eng-all" in snap.groups.alias_by_id.values()
+    assert {"SDLC.User", "SDLC.Admin", "SDLC.Payments.Member"} <= snap.app_role_values
     assert snap.version.startswith("local-")
 
 
@@ -38,20 +38,6 @@ def test_unknown_key_fails(config_dir):
         load_snapshot(config_dir, "local", ENV)
 
 
-def test_bad_group_guid_fails(config_dir):
-    p = config_dir / "env/local/groups.yaml"
-    p.write_text(p.read_text().replace("00000000-0000-0000-0000-000000000001", "not-a-guid"))
-    with pytest.raises(ConfigError, match="groups/eng-all/id"):
-        load_snapshot(config_dir, "local", ENV)
-
-
-def test_duplicate_group_id_fails(config_dir):
-    p = config_dir / "env/local/groups.yaml"
-    p.write_text(p.read_text().replace("-000000000002", "-000000000001"))
-    with pytest.raises(ConfigError, match="mapped by both"):
-        load_snapshot(config_dir, "local", ENV)
-
-
 def test_default_classification_must_exist(config_dir):
     p = config_dir / "platform.yaml"
     p.write_text(p.read_text().replace("max_classification: public", "max_classification: secret"))
@@ -60,8 +46,29 @@ def test_default_classification_must_exist(config_dir):
 
 
 def test_missing_env_folder_fails(config_dir):
-    with pytest.raises(ConfigError, match="env/prod/groups.yaml: file not found"):
-        load_snapshot(config_dir, "prod", ENV)
+    with pytest.raises(ConfigError, match="env/nowhere: unknown environment"):
+        load_snapshot(config_dir, "nowhere", ENV)
+
+
+def test_env_without_tenant_files_loads(config_dir):
+    """CH-0011: no group map; users.yaml and blocked.yaml are optional."""
+    assert load_snapshot(config_dir, "prod", ENV).users.alias_by_oid == {}
+
+
+def test_group_identities_fail_with_a_clear_message(config_dir):
+    p = config_dir / "roles.yaml"
+    text = p.read_text().replace(
+        "bindings:\n", "bindings:\n  - group: eng-all\n    roles: [viewer]\n", 1
+    )
+    p.write_text(text)
+    with pytest.raises(ConfigError, match=r"bindings\[0\]/group: Entra groups are no longer used"):
+        load_snapshot(config_dir, "local", ENV)
+
+
+def test_a_leftover_groups_file_is_ignored(config_dir):
+    v1 = load_snapshot(config_dir, "local", ENV).version
+    (config_dir / "env/local/groups.yaml").write_text("not: [valid yaml for anything\n")
+    assert load_snapshot(config_dir, "local", ENV).version == v1
 
 
 def test_errors_are_all_reported_at_once(config_dir):
@@ -71,23 +78,10 @@ def test_errors_are_all_reported_at_once(config_dir):
     assert len(exc.value.problems) >= 3
 
 
-def test_group_aliases_for_token_ids(config_dir):
-    snap = load_snapshot(config_dir, "local", ENV)
-    aliases, unmapped = snap.groups.aliases_for(
-        [
-            "00000000-0000-0000-0000-000000000002",
-            "00000000-0000-0000-0000-00000000000A",
-            "99999999-9999-9999-9999-999999999999",
-        ]
-    )
-    assert aliases == ("payments-devs",)
-    assert unmapped == 2
-
-
 def test_version_changes_with_content(config_dir):
     v1 = load_snapshot(config_dir, "local", ENV).version
     assert load_snapshot(config_dir, "local", ENV).version == v1
-    p = config_dir / "env/local/groups.yaml"
+    p = config_dir / "env/local/users.yaml"
     p.write_text(p.read_text() + "\n# comment\n")
     assert load_snapshot(config_dir, "local", ENV).version != v1
 
@@ -110,7 +104,7 @@ def test_store_keeps_last_known_good_and_notifies(config_dir):
     assert "expected kind 'Platform'" in store.last_error
 
     shutil.copy(REPO_CONFIG / "platform.yaml", config_dir / "platform.yaml")
-    p = config_dir / "env/local/groups.yaml"
+    p = config_dir / "env/local/users.yaml"
     p.write_text(p.read_text() + "\n# changed\n")
     assert store.reload() is True
     assert store.current().version != good.version
@@ -124,17 +118,3 @@ def test_cli_validate(config_dir, monkeypatch, capsys):
     assert "ENTRA_TENANT_ID" in capsys.readouterr().err
     assert cli_main(["validate", "--config-dir", str(config_dir), "--dummy-env"]) == 0
     assert capsys.readouterr().out.startswith("OK env=local")
-
-
-def test_missing_groups_file_hints_at_example(config_dir):
-    (config_dir / "env/local/groups.yaml").unlink()
-    assert (config_dir / "env/local/groups.yaml.example").is_file()
-    with pytest.raises(ConfigError, match=r"copy env/local/groups.yaml.example"):
-        load_snapshot(config_dir, "local", ENV)
-
-
-def test_committed_example_is_a_valid_groupmap(config_dir):
-    example = config_dir / "env/local/groups.yaml.example"
-    (config_dir / "env/local/groups.yaml").write_text(example.read_text())
-    (config_dir / "sources/platform-infra.yaml").unlink()  # test-only source (test group alias)
-    assert len(load_snapshot(config_dir, "local", ENV).groups.alias_by_id) == 5

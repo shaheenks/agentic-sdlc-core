@@ -138,7 +138,7 @@ async def test_public_origin_is_allowed_when_the_proxy_rewrites_host(entra):
 
 
 async def test_me_returns_only_name_and_sign_in_name(web, entra):
-    token = entra.token(oid=OID_A, upn="ana@example.com", name="Ana Dev", groups=["g1"])
+    token = entra.token(oid=OID_A, upn="ana@example.com", name="Ana Dev", roles=["g1"])
     resp = await web.get("/me", headers={"X-Forwarded-Access-Token": token})
     assert resp.status_code == 200 and resp.headers["cache-control"] == "no-store"
     assert resp.json() == {"name": "Ana Dev", "upn": "ana@example.com"}  # no oid, groups or token

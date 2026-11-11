@@ -49,7 +49,7 @@ Code: `config`
 
 - `platform.yaml`, `roles.yaml`, `tools.yaml`, `skills.yaml`, `connections.yaml`.
 - `teams/`, `sources/`, `schemas/`.
-- `env/<env>/`: group map, direct members and block list (examples only in git).
+- `env/<env>/`: direct members and block list (examples only in git; no group map, CH-0011).
 
 # Depends on
 
@@ -65,7 +65,7 @@ No other component.
 - [FR-CFG-001: Access declared in configuration](../requirements/functional/FR-CFG-001.md) - Is the declared access model.
 - [FR-CONN-001: Users connect their own accounts](../requirements/functional/FR-CONN-001.md) - Connection catalog.
 - [FR-CONN-003: Atlassian and Data Center connections](../requirements/functional/FR-CONN-003.md) - The `atlassian` connection and Data Center editions.
-- [FR-IDN-002: Membership from groups, app roles and direct members](../requirements/functional/FR-IDN-002.md) - Group map and direct-member list per environment.
+- [FR-IDN-002: Membership from app roles and direct members](../requirements/functional/FR-IDN-002.md) - App-role bindings and the direct-member list per environment.
 - [FR-IDN-004: Revocation of access](../requirements/functional/FR-IDN-004.md) - Block list per environment.
 - [FR-KNOW-001: Ingest declared sources](../requirements/functional/FR-KNOW-001.md) - Source definitions.
 - [FR-KNOW-006: Atlassian and Bitbucket sources](../requirements/functional/FR-KNOW-006.md) - Confluence, Jira and Bitbucket source types.

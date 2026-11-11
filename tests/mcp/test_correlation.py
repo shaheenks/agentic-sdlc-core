@@ -46,7 +46,7 @@ def test_agent_header_provider_adds_conversation_id_only_with_a_token():
 
 async def test_every_event_carries_both_session_ids(base_url, entra, caplog):
     caplog.set_level("INFO", logger="sdlc.audit")
-    token = entra.token(groups=[G_ENG_ALL, G_PAYMENTS_DEVS])
+    token = entra.token(roles=[G_ENG_ALL, G_PAYMENTS_DEVS])
     async with agent_client(base_url, token, "e7a1c0de-conv-0001") as c:
         await c.list_tools()
         await c.call_tool("list_skills", {})
@@ -81,7 +81,7 @@ def test_mcp_session_header_is_recorded_when_a_client_sends_it(base_url, caplog)
 
 async def test_two_conversations_are_separated(base_url, entra, caplog):
     caplog.set_level("INFO", logger="sdlc.audit")
-    token = entra.token(groups=[G_ENG_ALL])
+    token = entra.token(roles=[G_ENG_ALL])
     for conversation in ("conv-a", "conv-b"):
         async with agent_client(base_url, token, conversation) as c:
             await c.call_tool("whoami", {})
@@ -92,7 +92,7 @@ async def test_two_conversations_are_separated(base_url, entra, caplog):
 @pytest.mark.parametrize("bad", ["x" * 200, "conv id with spaces", 'conv"},{"forged":1'])
 async def test_malformed_conversation_ids_are_not_logged_verbatim(base_url, entra, caplog, bad):
     caplog.set_level("INFO", logger="sdlc.audit")
-    async with agent_client(base_url, entra.token(groups=[G_ENG_ALL]), bad) as c:
+    async with agent_client(base_url, entra.token(roles=[G_ENG_ALL]), bad) as c:
         await c.call_tool("whoami", {})
     [call] = [r for r in audit(caplog) if r["event"] == "tool_call"]
     assert call["agent_session_id"] == "invalid"
@@ -100,7 +100,7 @@ async def test_malformed_conversation_ids_are_not_logged_verbatim(base_url, entr
 
 async def test_missing_conversation_id_is_null(base_url, entra, caplog):
     caplog.set_level("INFO", logger="sdlc.audit")
-    async with agent_client(base_url, entra.token(groups=[G_ENG_ALL]), None) as c:
+    async with agent_client(base_url, entra.token(roles=[G_ENG_ALL]), None) as c:
         await c.call_tool("whoami", {})
     [call] = [r for r in audit(caplog) if r["event"] == "tool_call"]
     assert call["agent_session_id"] is None

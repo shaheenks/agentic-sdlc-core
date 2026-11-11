@@ -108,20 +108,20 @@ def test_identity_is_one_line_with_details_in_a_dialog():
         "oid": "c150bc3b-0000-0000-0000-000000000000",
         "upn": "paul@example.com",
         "name": "Paul",
-        "groups": ["eng-all", "payments-devs"],
-        "policy": {"teams": {"payments": []}, "roles": {"member": [], "signed-in": []}},
+        "app_roles": ["SDLC.Payments.Member", "SDLC.User"],
+        "policy": {"teams": {"payments": []}, "roles": {"member@payments": [], "signed-in": []}},
     }
     ops = build_operations("whoami", mcp(who), "w1")
     strictly_valid(ops)
     assert any(c["component"] == "Modal" for c in components(ops))
-    assert texts(ops)[0] == "Signed in as Paul · 1 team · 1 role · 2 groups"
+    assert texts(ops)[0] == "Signed in as Paul · 1 team · 1 role"
     assert {
         "Details",
         "Paul",
         "paul@example.com",
         "Teams: payments",
-        "Roles: member",
-        "Groups: eng-all, payments-devs",
+        "Roles: member@payments",
+        "App roles: SDLC.Payments.Member, SDLC.User",
     } <= set(texts(ops))
 
 

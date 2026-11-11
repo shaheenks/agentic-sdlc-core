@@ -28,7 +28,6 @@ from datetime import UTC, datetime
 
 from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import Middleware, MiddlewareContext
-from sdlc_auth import GroupResolver
 from sdlc_config import ConfigStore, PolicyCache, SkillDecision
 from sdlc_policy import RateLimiter, authorize
 
@@ -160,12 +159,10 @@ class PolicyMiddleware(Middleware):
     def __init__(
         self,
         store: ConfigStore,
-        group_resolver: GroupResolver | None = None,
         cache: PolicyCache | None = None,
         limiter: RateLimiter | None = None,
     ):
         self._store = store
-        self._group_resolver = group_resolver
         self._cache = cache or PolicyCache()
         self._limiter = limiter or RateLimiter()
         self._calls_since_prune = 0
@@ -175,9 +172,7 @@ class PolicyMiddleware(Middleware):
         if principal is None:
             return None
         snapshot = self._store.current()  # one snapshot for the whole request
-        identity = await resolve_identity(
-            principal, snapshot, self._group_resolver, self._cache, request_id
-        )
+        identity = await resolve_identity(principal, snapshot, self._cache, request_id)
         await remember_identity(identity)
         return identity
 

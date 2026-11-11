@@ -1,9 +1,10 @@
-"""Test config: the repo config/ with a fixed test GroupMap (independent of any real tenant).
+"""Test config: the repo config/ with fixed test users (independent of any real tenant).
 
-Fixture-only additions (see make_config_dir): the sdlc-platform team gets a group membership
-(`platform-devs` -> member) and a local `platform-infra` source, so tests have a second
-group-based team with its own local data. The real sdlc-platform team has members only from
-app roles and users.yaml and reads its code from GitHub (tests/config/test_repo_teams.py pins that).
+Fixture-only additions (see make_config_dir): a local `platform-infra` source for sdlc-platform,
+whose own audience is the fixture app role SDLC.Infra.Reader (platform role `infra-reader`), so
+tests have a second team with its own local data. The real sdlc-platform team reads its code from
+GitHub (tests/config/test_repo_teams.py pins that). Membership comes only from app roles and
+users.yaml (CH-0011).
 The repo's gcs sources read their copies in tests/fixtures/sample_sources instead
 (use_sample_folders); make_config_dir copies that folder to <tmp>/sample_sources."""
 
@@ -14,17 +15,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REPO_CONFIG = REPO_ROOT / "config"
 SAMPLES_DIR = REPO_ROOT / "tests" / "fixtures" / "sample_sources"  # synthetic test corpus
-
-TEST_GROUPS_YAML = """apiVersion: sdlc/v1
-kind: GroupMap
-groups:
-  eng-all:         { id: "00000000-0000-0000-0000-000000000001" }
-  payments-devs:   { id: "00000000-0000-0000-0000-000000000002" }
-  payments-leads:  { id: "00000000-0000-0000-0000-000000000003" }
-  platform-devs:   { id: "00000000-0000-0000-0000-000000000004" }
-  platform-admins: { id: "00000000-0000-0000-0000-000000000005" }
-  infra-readers:   { id: "00000000-0000-0000-0000-000000000006" }
-"""
 
 # Direct members (users.yaml), matched by oid. "pending" has no oid yet: it must grant nothing.
 TEST_USERS_YAML = """apiVersion: sdlc/v1
@@ -42,10 +32,13 @@ users:
     email: pending@example.com
     teams: { sdlc-platform: [member] }
 """
-# Fixture-only (not in the repo config): group members for sdlc-platform and its local source.
-TEST_PLATFORM_MEMBERSHIP = """membership:
-  - group: platform-devs
-    roles: [member]
+# Fixture-only (not in the repo config): the platform-infra source and its own audience, a
+# platform role bound to an app role (a source's own Entra group before CH-0011).
+TEST_INFRA_READER_ROLE = """  infra-reader:
+    tools:  { allow: [ping, whoami] }   # fixture: grants data only (platform-infra), no tools
+"""
+TEST_INFRA_READER_BINDING = """  - app_role: SDLC.Infra.Reader   # fixture-only
+    roles: [infra-reader]
 """
 TEST_PLATFORM_INFRA = """apiVersion: sdlc/v1
 kind: Source
@@ -66,8 +59,7 @@ spec:
       entity_types: [service, component, data_store, environment, runbook, metric, team, alert]
 access:
   teams: [sdlc-platform]
-  groups: [infra-readers]
-  roles: [admin]
+  roles: [infra-reader, admin]
 """
 DIRECT_DEV_OID = "aaaaaaaa-0000-0000-0000-000000000001"
 
@@ -151,19 +143,20 @@ def use_sample_folders(config_dir: Path) -> None:
 
 def make_config_dir(tmp_path: Path, fixture_tools: bool = True) -> Path:
     """Private, mutable copies of config/ and skills/ (skill paths resolve next to config/);
-    env/local/groups.yaml uses the test group IDs. fixture_tools=False keeps the real catalog
-    (the persona matrix pins the real access model)."""
+    env/local/users.yaml holds the test users. fixture_tools=False keeps the real catalog (the
+    persona matrix pins the real access model)."""
     dst = tmp_path / "config"
     shutil.copytree(REPO_CONFIG, dst)
     shutil.copytree(REPO_ROOT / "skills", tmp_path / "skills")
     shutil.copytree(SAMPLES_DIR, tmp_path / "sample_sources")  # local source locations
-    (dst / "env" / "local" / "groups.yaml").write_text(TEST_GROUPS_YAML, encoding="utf-8")
     (dst / "env" / "local" / "users.yaml").write_text(TEST_USERS_YAML, encoding="utf-8")
-    team = dst / "teams" / "sdlc-platform.yaml"
-    team.write_text(
-        team.read_text(encoding="utf-8").replace("membership:\n", TEST_PLATFORM_MEMBERSHIP, 1),
-        encoding="utf-8",
-    )
+    roles = dst / "roles.yaml"
+    text = roles.read_text(encoding="utf-8")
+    # appended after the real bindings, so their rule names (bindings[i]) do not move
+    text = text.replace("\nroles:\n", "\n" + TEST_INFRA_READER_BINDING + "roles:\n", 1)
+    text = text.replace("  admin:\n", TEST_INFRA_READER_ROLE + "  admin:\n", 1)
+    assert "infra-reader:" in text and "SDLC.Infra.Reader" in text, "roles.yaml layout changed"
+    roles.write_text(text, encoding="utf-8")
     (dst / "sources" / "platform-infra.yaml").write_text(TEST_PLATFORM_INFRA, encoding="utf-8")
     use_sample_folders(dst)
     if fixture_tools:

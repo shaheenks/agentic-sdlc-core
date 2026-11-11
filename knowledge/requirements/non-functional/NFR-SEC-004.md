@@ -7,10 +7,7 @@ tags:
 - requirement
 - non-functional
 - security
-status: stable
-verified:
-- by: human:shaheenks
-  at: '2026-11-11T16:02:28+05:30'
+status: draft
 priority: must
 implementation: live
 sources:
@@ -30,4 +27,6 @@ When identity or configuration cannot be verified, the system shall refuse rathe
 
 # Notes
 
-The overage rule (a token without groups yields no groups) is stated once, in [FR-IDN-002](../functional/FR-IDN-002.md) (CH-0002).
+How a `groups` claim is treated (ignored) is stated once, in [FR-IDN-002](../functional/FR-IDN-002.md) (CH-0002, CH-0011).
+
+Edited by CH-0011: groups are not read, so there is no overage case.

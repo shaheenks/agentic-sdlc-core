@@ -3,10 +3,7 @@ type: Rule Set
 title: Commands
 description: "Every command for running, testing, ingesting, tracing, configuring and deploying, with the rules attached to each."
 tags: [rules]
-status: stable
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T22:53:19+05:30'
+status: draft
 ---
 
 Binding working rules for contributors and coding agents, moved word for word from `CLAUDE.md` on 2026-11-10.
@@ -45,7 +42,7 @@ Paths are relative to the repository root.
   `/a2a` (JSON-RPC, A2A 0.3) + public `/.well-known/agent-card.json` on the agent (`SDLC_A2A_AGENT`), bearer tokens through oauth2-proxy
 - `.\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> [-DryRun] [-WriteLocalFiles]`   idempotent Entra provisioning
   (Windows: `az` is az.cmd, so never pass inline JSON or parentheses as az args; use `--body @file`)
-- Tests never read the real `config/env/local/groups.yaml`; the `config_dir` fixture swaps in a fixed test GroupMap
+- Tests never read the real `config/env/local/users.yaml`; the `config_dir` fixture swaps in fixed test users
 - `uv run ruff check . && uv run ruff format .`
 - Tracing: set `OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318` in `.env`, then `docker compose --profile observability up -d`;
   Jaeger UI http://localhost:16686. One agent turn is one trace across agent, MCP server and Postgres (context travels in
@@ -56,7 +53,7 @@ Paths are relative to the repository root.
 - `cd ui/copilotkit; npm ci; npm test; npm run typecheck; npm run build`   chat app checks (exact versions pinned; telemetry off)
 - CI: `.github/workflows/ci.yml` (lint, config validate + PR permission diff, UI typecheck/test/build, tests on a pgvector service after
   `sdlc-db bootstrap` + `migrate`, terraform fmt/validate). No secrets or cloud calls in CI; tests must pass without `.env`
-  (placeholder Entra IDs, example GroupMap, HashEmbedder, FakeEntra).
+  (placeholder Entra IDs, HashEmbedder, FakeEntra).
 - `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values;
   `--check-secrets` also resolves every secret reference and prints names + outcomes only; not in CI)
 - `.\scripts\gcp_deploy.ps1 -EnvName dev -Step state|base|config|images|plan|apply|db|ingest|urls`   GCP deployment, run by the user (see
@@ -65,14 +62,14 @@ Paths are relative to the repository root.
   deleted by `apply`).
 - `uv run --env-file .env sdlc-db bootstrap`   extension, roles, schema, grants (idempotent; no true superuser needed, as on
   Cloud SQL); fails if any role can bypass RLS. The test database is built with it.
-- `uv run sdlc-config explain --persona payments-dev` | `--groups eng-all,payments-devs [--app-roles X]` | `--user <alias>` `[--json]` (`--dummy-env` works)
+- `uv run sdlc-config explain --persona payments-member` | `--app-roles SDLC.User,SDLC.Payments.Member` | `--user <alias>` `[--json]` (`--dummy-env` works)
 - `uv run sdlc-config diff [--from HEAD] [--to WORKTREE] [--exit-code]`   per-persona permission changes (review on every config PR)
 - MCP tools: `whoami(explain=true)` (own view with source rules); `list_skills` / `load_skill` (per-user; hidden skills answer
   "unknown skill"; `list_skills` returns tags + team); `get_agent_context(team=)` (team instructions + context,
   your teams, default team, document flow defaults; a team you are not in = "unknown team"); `resolve_team(hints)`
   (viewer+, which of your teams); `search_knowledge` (viewer+, vector; + keyword matches on identifier terms when
   `platform.yaml` `knowledge.keyword_search`, version-03 P11, needs migration 007) and
-  `graph_query` (viewer+, vector + knowledge graph), both under RLS; admin only: `config_info()`, `config_explain(groups, app_roles)`
+  `graph_query` (viewer+, vector + knowledge graph), both under RLS; admin only: `config_info()`, `config_explain(app_roles, user)`
 - Skills: a `"*"` skill grant (admin) covers every team's add-ons; team instructions are guidance, never authorization.
   `sdlc-config diff` cannot compare across the Stage 4 boundary (older revisions lack skills.yaml) or the Stage 6 boundary
   (older revisions enable a source graph without `platform.yaml` `knowledge.graph`); later revisions diff normally.

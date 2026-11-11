@@ -36,7 +36,7 @@ class Ctx:
 async def test_payments_pci_lens_flags_stored_card_numbers(base_url, entra):
     model = os.environ.get("SDLC_AGENT_MODEL", "gemini-3.8-flash")
     tool = make_goldfish_review(f"{base_url}/mcp", model, reviewer_tools=("whoami",))
-    reset = set_request_token(entra.token(groups=[G_ENG_ALL, G_PAYMENTS_DEVS]))
+    reset = set_request_token(entra.token(roles=[G_ENG_ALL, G_PAYMENTS_DEVS]))
     try:
         result = await tool.func(draft=DRAFT, tool_context=Ctx(), lenses=["payments-pci-lens"])
     finally:

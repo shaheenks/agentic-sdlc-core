@@ -34,7 +34,7 @@ flowchart TB
         S3[Antigravity IDE<br/>direct MCP client]
     end
 
-    Entra[(Microsoft Entra ID<br/>single IdP<br/>groups claim)]
+    Entra[(Microsoft Entra ID<br/>single IdP<br/>app roles)]
 
     subgraph AgentTier["Agent tier"]
         A1[ADK root agent<br/>agents/user_agent]
@@ -177,16 +177,13 @@ The security checkpoints in this flow are:
 
 ```mermaid
 flowchart LR
-    T[Entra token<br/>oid · groups · roles] --> GA[Group aliases<br/>env/&lt;env&gt;/groups.yaml]
-    T --> AR[App roles<br/>roles claim]
+    T[Entra token<br/>oid · roles] --> AR[App roles<br/>roles claim]
     T --> EV[Every signed-in user]
     T --> UA[User alias by oid<br/>env/&lt;env&gt;/users.yaml]
     UA --> TM
     UA --> GB
-    GA --> TM[Teams<br/>teams/*.yaml membership]
-    AR --> TM
-    GA --> GB[Global bindings<br/>roles.yaml]
-    AR --> GB
+    AR --> TM[Teams<br/>teams/*.yaml membership]
+    AR --> GB[Global bindings<br/>roles.yaml]
     EV --> GB
     TM --> R[Roles<br/>+ inherits]
     GB --> R
@@ -200,14 +197,12 @@ flowchart LR
     TL & SKL & DT & SRCS & CTX --> EP[[EffectivePolicy<br/>cached per identities + config version]]
 ```
 
-- **Identity** is the Entra `oid` plus group membership and, for enterprise tenants, Entra **app roles**
-  (`roles` claim). Entra is the only trusted issuer. Every signed-in user also matches `everyone: true`
+- **Identity** is the Entra `oid` plus Entra **app roles** (`roles` claim) and the optional users.yaml entry.
+  Entra groups are not used (CH-0011): a `groups` claim is ignored. Entra is the only trusted issuer. Every signed-in user also matches `everyone: true`
   bindings, which grant only the `signed-in` basics (`ping`, `whoami`).
 - **App roles** (version-03 P2 E1): `SDLC.User`, `SDLC.Admin`, `SDLC.<Team>.Member|Approver`
-  (payments, platform, webapp) on `sdlc-mcp` (`entra_setup.ps1`); each grants exactly what its group twin grants
-  and combines with groups (union). **Group overage** (token without `groups`) means no groups, only app roles
-  (fail closed); the Graph fallback is off (`platform.yaml` `overage_fallback: none`).
-- **Direct members** (version-02 N10): where the tenant has no group per team, `config/env/<env>/users.yaml`
+  (payments, platform, webapp) on `sdlc-mcp` (`entra_setup.ps1`), assigned to users on its enterprise app.
+- **Direct members** (version-02 N10): for users without an app role assignment, `config/env/<env>/users.yaml`
   (git-ignored) adds users to teams (with team roles) and global roles. Admins list emails; `sdlc-config users sync`
   looks up each `oid` (read-only); the server matches tokens on `oid` only, never on an email claim, and an entry
   without an `oid` grants nothing. A user's policy is the union of their groups, app roles and users.yaml entry.

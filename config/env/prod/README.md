@@ -1,3 +1,3 @@
 # config/env/prod
 
-Prod GroupMap + overrides. Stage 7.
+Prod tenant files (optional `users.yaml`, `blocked.yaml`) and overrides. Stage 7.

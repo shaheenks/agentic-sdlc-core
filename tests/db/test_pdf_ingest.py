@@ -73,7 +73,7 @@ def test_search_returns_the_pdf_page(corpus):
     async def go():
         async with await psycopg.AsyncConnection.connect(db.db_conninfo("app")) as conn:
             [vec] = EMBEDDER.embed([QUESTION], "query")
-            return await search(conn, resolve(snapshot, ["eng-all"]), vec, k=5)
+            return await search(conn, resolve(snapshot, ["SDLC.User"]), vec, k=5)
 
     hits = run(go())
     pdf_hits = [h for h in hits if h.path == POLICY_PDF]
@@ -82,7 +82,7 @@ def test_search_returns_the_pdf_page(corpus):
 
 def test_rls_applies_to_pdfs(corpus):
     snapshot, _ = corpus
-    dev = resolve(snapshot, ["eng-all", "payments-devs"])  # no platform-infra access
+    dev = resolve(snapshot, ["SDLC.User", "SDLC.Payments.Member"])  # no platform-infra access
     paths = {p for (p,) in app_query("SELECT path FROM documents", dev)}
     assert POLICY_PDF in paths and SCAN_PDF not in paths
 
@@ -103,7 +103,7 @@ def knowledge_url(corpus, entra, store):
 
 async def test_search_knowledge_cites_pages_for_pdfs(knowledge_url, entra):
     async with Client(
-        f"{knowledge_url}/mcp", auth=entra.token(groups=[G_ENG_ALL, G_PAYMENTS_DEVS])
+        f"{knowledge_url}/mcp", auth=entra.token(roles=[G_ENG_ALL, G_PAYMENTS_DEVS])
     ) as c:
         result = (await c.call_tool("search_knowledge", {"query": QUESTION, "k": 10})).data
     pdf = [r for r in result["results"] if r["path"] == POLICY_PDF]

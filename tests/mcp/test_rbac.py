@@ -12,12 +12,11 @@ from tests.support.config import DIRECT_DEV_OID
 from tests.support.entra import (
     G_ENG_ALL,
     G_PAYMENTS_DEVS,
+    G_PAYMENTS_LEADS,
+    G_PLATFORM_ADMINS,
     G_PLATFORM_DEVS,
     TEST_ENV,
 )
-
-G_PAYMENTS_LEADS = "00000000-0000-0000-0000-000000000003"
-G_PLATFORM_ADMINS = "00000000-0000-0000-0000-000000000005"
 
 PERSONAS = {
     "nobody": [],
@@ -42,7 +41,7 @@ def client(base_url: str, token: str) -> Client:
 
 
 async def tools_for(base_url, entra, persona) -> set[str]:
-    async with client(base_url, entra.token(groups=PERSONAS[persona])) as c:
+    async with client(base_url, entra.token(roles=PERSONAS[persona])) as c:
         return {t.name for t in await c.list_tools()}
 
 
@@ -62,7 +61,7 @@ async def test_tools_list_is_filtered_per_persona(base_url, entra, persona, expe
 
 
 async def test_payments_dev_calls_within_limits_only(base_url, entra):
-    async with client(base_url, entra.token(groups=PERSONAS["payments_dev"])) as c:
+    async with client(base_url, entra.token(roles=PERSONAS["payments_dev"])) as c:
         ok = (await c.call_tool("fixture_review", {"repo": "payments-api"})).data
         assert ok["fixture"] is True and ok["inputs"]["repo"] == "payments-api"
         with pytest.raises(ToolError, match="repo='platform-infra' is not allowed"):
@@ -75,34 +74,36 @@ async def test_payments_dev_calls_within_limits_only(base_url, entra):
 
 
 async def test_platform_dev_gets_platform_repos(base_url, entra):
-    async with client(base_url, entra.token(groups=PERSONAS["platform_dev"])) as c:
+    async with client(base_url, entra.token(roles=PERSONAS["platform_dev"])) as c:
         assert (await c.call_tool("fixture_review", {"repo": "agentic-sdlc-core"})).data
         with pytest.raises(ToolError, match="not allowed"):
             await c.call_tool("fixture_review", {"repo": "payments-api"})
 
 
 async def test_admin_tools(base_url, entra, store):
-    async with client(base_url, entra.token(groups=PERSONAS["admin"])) as c:
+    async with client(base_url, entra.token(roles=PERSONAS["admin"])) as c:
         info = (await c.call_tool("config_info", {})).data
         assert info["config_version"] == store.current().version
         assert info["counts"]["teams"] >= 2
         explained = (
-            await c.call_tool("config_explain", {"groups": ["eng-all", "payments-devs", "ghosts"]})
+            await c.call_tool(
+                "config_explain", {"app_roles": ["SDLC.User", "SDLC.Payments.Member", "SDLC.Ghost"]}
+            )
         ).data
         assert explained["tools"]["fixture_review"]["constraints"] == {
             "repo": ["payments-api", "payments-ui"]
         }
-        assert explained["unknown_groups"] == ["ghosts"]
+        assert explained["unknown_app_roles"] == ["SDLC.Ghost"]
         # admin is unconstrained
         assert (await c.call_tool("fixture_review", {"repo": "any-repo"})).data["fixture"]
 
 
 async def test_whoami_explain_shows_own_policy(base_url, entra):
-    token = entra.token(groups=[*PERSONAS["payments_dev"], "Payments-Admins-OnPrem"])
+    token = entra.token(roles=PERSONAS["payments_dev"])
     async with client(base_url, token) as c:
         me = (await c.call_tool("whoami", {"explain": True})).data
-    assert me["groups"] == ["eng-all", "payments-devs"]
-    assert me["non_guid_group_claims"] == 1  # E10: on-prem style group name flagged
+    assert me["app_roles"] == ["SDLC.Payments.Member", "SDLC.User"]
+    assert "groups" not in me and "group_source" not in me  # CH-0011
     assert set(me["policy"]["teams"]) == {"payments"}
     assert me["policy"]["tools"]["fixture_review"]["constraint_sources"] == [
         "teams/payments.yaml#policy/tools/constraints/fixture_review"
@@ -110,35 +111,44 @@ async def test_whoami_explain_shows_own_policy(base_url, entra):
 
 
 async def test_app_roles_are_reported(base_url, entra):
-    token = entra.token(groups=[G_ENG_ALL], roles=["SDLC.Reader"])
+    token = entra.token(roles=["SDLC.Reader"])
     async with client(base_url, token) as c:
         me = (await c.call_tool("whoami", {})).data
     assert me["app_roles"] == ["SDLC.Reader"]
 
 
-async def test_app_roles_survive_group_overage(base_url, entra):
-    """version-03 P2 E1: overage drops the groups claim, never the roles claim."""
+async def test_groups_claim_grants_nothing(base_url, entra):
+    """CH-0011: a token with a `groups` claim (or an overage marker) but no app roles gets only
+    the signed-in basics; groups never grant anything."""
     token = entra.token(
-        omit=["groups"],
-        _claim_names={"groups": "src1"},
-        roles=["SDLC.User", "SDLC.Payments.Member"],
+        roles=[], groups=[G_PAYMENTS_DEVS, "00000000-0000-0000-0000-000000000002"], hasgroups=True
+    )
+    async with client(base_url, token) as c:
+        assert {t.name for t in await c.list_tools()} == BASICS
+        me = (await c.call_tool("whoami", {"explain": True})).data
+    assert me["app_roles"] == [] and me["policy"]["teams"] == {}
+    assert set(me["policy"]["roles"]) == {"signed-in"}
+
+
+async def test_app_roles_with_an_overage_marker(base_url, entra):
+    """An overage marker in the token changes nothing: the roles claim decides."""
+    token = entra.token(
+        _claim_names={"groups": "src1"}, roles=["SDLC.User", "SDLC.Payments.Member"]
     )
     async with client(base_url, token) as c:
         me = (await c.call_tool("whoami", {"explain": True})).data
-        assert me["groups"] == [] and me["group_source"] == "overage_unresolved"
         assert set(me["policy"]["teams"]) == {"payments"}
         assert (await c.call_tool("fixture_review", {"repo": "payments-api"})).data
         with pytest.raises(ToolError, match="not allowed"):
             await c.call_tool("fixture_review", {"repo": "agentic-sdlc-core"})
 
 
-async def test_users_yaml_grants_access_after_group_overage_without_app_roles(base_url, entra):
-    """Overage drops the groups claim and the token has no roles: the users.yaml entry (matched
-    on oid alone) still gives the user their team."""
-    token = entra.token(oid=DIRECT_DEV_OID, omit=["groups"], _claim_names={"groups": "src1"})
+async def test_users_yaml_grants_access_without_app_roles(base_url, entra):
+    """A token without app roles: the users.yaml entry (matched on oid alone) still gives the
+    user their team."""
+    token = entra.token(oid=DIRECT_DEV_OID, roles=[])
     async with client(base_url, token) as c:
         me = (await c.call_tool("whoami", {"explain": True})).data
-        assert me["groups"] == [] and me["group_source"] == "overage_unresolved"
         assert me["app_roles"] == [] and me["user"] == "direct-dev"
         assert me["policy"]["teams"] == {
             "payments": ["env/local/users.yaml#users/direct-dev/teams/payments"]
@@ -150,7 +160,7 @@ async def test_users_yaml_grants_access_after_group_overage_without_app_roles(ba
 
 async def test_audit_records_decision_and_rule(base_url, entra, caplog):
     caplog.set_level("INFO", logger="sdlc.audit")
-    token = entra.token(oid="aaaaaaaa-0000-0000-0000-00000000000a", groups=PERSONAS["payments_dev"])
+    token = entra.token(oid="aaaaaaaa-0000-0000-0000-00000000000a", roles=PERSONAS["payments_dev"])
     async with client(base_url, token) as c:
         await c.call_tool("fixture_review", {"repo": "payments-api"})
         with pytest.raises(ToolError):
@@ -189,14 +199,14 @@ def test_startup_fails_if_catalog_constrains_missing_parameter(config_dir, entra
 
 
 async def test_direct_member_from_users_yaml(base_url, entra):
-    """version-02 N10: a user with no groups, listed in users.yaml, is matched by oid."""
-    token = entra.token(oid=DIRECT_DEV_OID, groups=[], upn="renamed@example.com")
+    """version-02 N10: a user with no app roles, listed in users.yaml, is matched by oid."""
+    token = entra.token(oid=DIRECT_DEV_OID, roles=[], upn="renamed@example.com")
     async with client(base_url, token) as c:
         me = (await c.call_tool("whoami", {"explain": True})).data
         ok = (await c.call_tool("fixture_review", {"repo": "payments-api"})).data
         with pytest.raises(ToolError):
             await c.call_tool("fixture_review", {"repo": "platform-infra"})
-    assert me["user"] == "direct-dev" and me["groups"] == []
+    assert me["user"] == "direct-dev" and me["app_roles"] == []
     assert me["policy"]["teams"] == {
         "payments": ["env/local/users.yaml#users/direct-dev/teams/payments"]
     }
@@ -206,7 +216,7 @@ async def test_direct_member_from_users_yaml(base_url, entra):
 async def test_users_yaml_email_alone_grants_nothing(base_url, entra):
     """The email claim of a listed user, with another oid, gets signed-in basics only."""
     token = entra.token(
-        groups=[], upn="direct.dev@example.com", preferred_username="direct.dev@example.com"
+        roles=[], upn="direct.dev@example.com", preferred_username="direct.dev@example.com"
     )
     async with client(base_url, token) as c:
         me = (await c.call_tool("whoami", {"explain": True})).data
@@ -215,9 +225,7 @@ async def test_users_yaml_email_alone_grants_nothing(base_url, entra):
 
 async def test_whoami_shows_team_roles_with_their_team(base_url, entra):
     """CH-0009: an approver in webapp who is a member of payments."""
-    token = entra.token(
-        groups=[], roles=["SDLC.User", "SDLC.Webapp.Approver", "SDLC.Payments.Member"]
-    )
+    token = entra.token(roles=["SDLC.User", "SDLC.Webapp.Approver", "SDLC.Payments.Member"])
     async with client(base_url, token) as c:
         me = (await c.call_tool("whoami", {"explain": True})).data
     roles = me["policy"]["roles"]

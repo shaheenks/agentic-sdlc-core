@@ -34,7 +34,7 @@
 
 - [sdlc_agent](sdlc_agent.md) - Agent helpers: per-session team context, the team lock, Goldfish reviewers and A2UI cards.
 - [sdlc_artifacts](sdlc_artifacts.md) - Artifact content store (local folder or GCS) and the limits on what an artifact may be.
-- [sdlc_auth](sdlc_auth.md) - Entra ID identity: token verification, the principal, group resolution and user-token passthrough for agents.
+- [sdlc_auth](sdlc_auth.md) - Entra ID identity: token verification, the principal (app roles) and user-token passthrough for agents.
 - [sdlc_config](sdlc_config.md) - Config loading and validation, the resolver that produces each caller's effective policy, bundles and the sdlc-config CLI.
 - [sdlc_connectors](sdlc_connectors.md) - Talking to external systems: allowlisted HTTP, provider adapters, per-user secret store, the connection service and reconcile.
 - [sdlc_db](sdlc_db.md) - Postgres and pgvector access under row-level security: knowledge search, graph, artifact metadata, bootstrap and migrations.

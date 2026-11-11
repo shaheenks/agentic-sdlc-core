@@ -1,7 +1,7 @@
 ---
 type: Component
 title: sdlc_auth
-description: 'Entra ID identity: token verification, the principal, group resolution and user-token passthrough for agents.'
+description: 'Entra ID identity: token verification, the principal (app roles) and user-token passthrough for agents.'
 area: Libraries
 tags:
 - component
@@ -41,7 +41,7 @@ Code: `libs/sdlc_auth`
 
 - `EntraTokenVerifier`: v2 issuer, audience, scope, tenant, signature, expiry; block-list check.
 - `Principal` from validated claims, including app roles.
-- Group resolution; overage yields no groups (Graph fallback present but off).
+- Membership from the `roles` claim only; a `groups` claim is ignored (CH-0011).
 - `get_user_token` and `agent_header_provider` for ADK agents.
 
 # Depends on
@@ -51,7 +51,7 @@ Code: `libs/sdlc_auth`
 # Requirements
 
 - [FR-IDN-001: Sign-in with Entra ID](../requirements/functional/FR-IDN-001.md) - Verifies Entra tokens for the MCP server.
-- [FR-IDN-002: Membership from groups, app roles and direct members](../requirements/functional/FR-IDN-002.md) - Reads groups and app roles from the token; overage yields no groups.
+- [FR-IDN-002: Membership from app roles and direct members](../requirements/functional/FR-IDN-002.md) - Reads app roles from the token; ignores a `groups` claim.
 - [FR-IDN-004: Revocation of access](../requirements/functional/FR-IDN-004.md) - Checks the block list during token verification.
 - [NFR-AUD-002: Records can be correlated](../requirements/non-functional/NFR-AUD-002.md) - Sends the conversation id header that becomes `agent_session_id`.
 - [NFR-PORT-001: Tenant-agnostic identity](../requirements/non-functional/NFR-PORT-001.md) - Takes tenant, client and authority host from configuration.

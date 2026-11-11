@@ -1,6 +1,6 @@
 """Resolve a principal's identities into an EffectivePolicy (plan: resolution steps 1-5).
 
-identities (group aliases + Entra app roles + the user alias from users.yaml, matched by oid)
+identities (Entra app roles + the user alias from users.yaml, matched by oid; no Entra groups)
   -> teams (membership) + global bindings -> SCOPED roles (CH-0009): a global binding gives a
      platform role; a team membership gives a role in that team only (`approver@payments`).
      `inherits` expands within the same scope. Platform roles count in every team.
@@ -15,9 +15,9 @@ identities (group aliases + Entra app roles + the user alias from users.yaml, ma
      grant (admin) also covers every team's add-ons.
   -> agent context (step 8): member teams' instructions (AGENT_ADDENDUM) and context.
   -> data (step 7): allowed sources = sources whose `access` matches the caller's teams, roles
-     (platform roles, or roles held in the source's owner team) or group aliases, or that set
-     `everyone: true` (the ONLY grant for data; a source can have its own Entra group,
-     independent of teams). The ceiling is PER SOURCE: the highest level among the platform
+     (platform roles, or roles held in the source's owner team), or that set `everyone: true`
+     (the ONLY grant for data; a source with its own audience grants a platform role bound to
+     its own app role). The ceiling is PER SOURCE: the highest level among the platform
      roles and the roles held in the source's owner team (platform default otherwise).
      Postgres RLS enforces both on every query.
 Every role, grant, deny and limit records the config rule it came from.
@@ -66,7 +66,6 @@ class TeamInstructions:
 @dataclass(frozen=True)
 class EffectivePolicy:
     config_version: str
-    group_aliases: tuple[str, ...]
     app_roles: tuple[str, ...]
     teams: Mapping[str, tuple[str, ...]]  # team -> membership rules that matched
     # held role, scoped ("admin", "approver@payments") -> reasons (binding/membership or inherits)
@@ -145,7 +144,6 @@ class EffectivePolicy:
         """JSON-friendly view for whoami(explain) / config_explain / CLI."""
         return {
             "config_version": self.config_version,
-            "group_aliases": list(self.group_aliases),
             "app_roles": list(self.app_roles),
             "user": self.user,
             "teams": {t: list(r) for t, r in sorted(self.teams.items())},
@@ -184,15 +182,16 @@ class EffectivePolicy:
 
 def resolve(
     snapshot: Snapshot,
-    group_aliases: Iterable[str],
     app_roles: Iterable[str] = (),
     user: str | None = None,
 ) -> EffectivePolicy:
-    """`user` is the caller's users.yaml alias (Snapshot.users.alias_for(oid)), if any."""
-    aliases, roles_claim = tuple(sorted(set(group_aliases))), tuple(sorted(set(app_roles)))
+    """`app_roles` from the token's `roles` claim; `user` is the caller's users.yaml alias
+    (Snapshot.users.alias_for(oid)), if any."""
+    if isinstance(app_roles, str):
+        raise TypeError("app_roles must be a collection of role values, not a string")
+    roles_claim = tuple(sorted(set(app_roles)))
     # Every resolved principal is a signed-in user, so `everyone` bindings always apply.
     ids = {IdentityRef("everyone", "*")}
-    ids |= {IdentityRef("group", a) for a in aliases}
     ids |= {IdentityRef("app_role", r) for r in roles_claim}
     if user:
         ids.add(IdentityRef("user", user))
@@ -298,7 +297,7 @@ def resolve(
         if snapshot.teams[team].context
     }
 
-    data_sources = _resolve_sources(snapshot, aliases, held_roles, team_rules)
+    data_sources = _resolve_sources(snapshot, held_roles, team_rules)
     ceilings = {
         sid: _ceiling(snapshot, held_roles, snapshot.sources[sid].owner_team)
         for sid in data_sources
@@ -307,7 +306,6 @@ def resolve(
 
     return EffectivePolicy(
         config_version=snapshot.version,
-        group_aliases=aliases,
         app_roles=roles_claim,
         user=user,
         teams=MappingProxyType({t: tuple(r) for t, r in team_rules.items()}),
@@ -358,8 +356,8 @@ def _roles_in(held_roles: frozenset[tuple[Scope, str]], team: Scope) -> set[tupl
     return {(s, r) for s, r in held_roles if s is PLATFORM or s == team}
 
 
-def _resolve_sources(snapshot, aliases, held_roles, team_rules) -> dict[str, tuple[str, ...]]:
-    member_teams, groups = set(team_rules), set(aliases)
+def _resolve_sources(snapshot, held_roles, team_rules) -> dict[str, tuple[str, ...]]:
+    member_teams = set(team_rules)
     grants: dict[str, tuple[str, ...]] = {}
     for source in snapshot.sources.values():
         roles_here = _roles_in(held_roles, source.owner_team)
@@ -372,10 +370,6 @@ def _resolve_sources(snapshot, aliases, held_roles, team_rules) -> dict[str, tup
                 f"role:{scoped_name(s, r)} <- {source.source}#access/roles"
                 for s, r in sorted(roles_here, key=lambda k: (k[0] or "", k[1]))
                 if r in source.access_roles
-            ]
-            + [
-                f"group:{g} <- {source.source}#access/groups"
-                for g in sorted(groups & source.access_groups)
             ]
             + ([f"everyone <- {source.source}#access/everyone"] if source.access_everyone else [])
         )
@@ -478,9 +472,9 @@ def skill_decision(snapshot: Snapshot, policy: EffectivePolicy, name: str) -> Sk
 
 
 class PolicyCache:
-    """EffectivePolicy per (config version, group aliases, app roles, users.yaml alias).
+    """EffectivePolicy per (config version, app roles, users.yaml alias).
 
-    Policies depend only on identities and config, so users with the same groups and no
+    Policies depend only on identities and config, so users with the same app roles and no
     users.yaml entry share an entry; a direct member gets their own. A new config version
     never sees an older version's entries.
     """
@@ -493,16 +487,15 @@ class PolicyCache:
     def get(
         self,
         snapshot: Snapshot,
-        group_aliases: Iterable[str],
         app_roles: Iterable[str] = (),
         user: str | None = None,
     ) -> EffectivePolicy:
-        key = (snapshot.version, frozenset(group_aliases), frozenset(app_roles), user)
+        key = (snapshot.version, frozenset(app_roles), user)
         with self._lock:
             hit = self._entries.get(key)
         if hit is not None:
             return hit
-        policy = resolve(snapshot, key[1], key[2], key[3])
+        policy = resolve(snapshot, key[1], key[2])
         with self._lock:
             if len(self._entries) >= self._max or any(
                 k[0] != snapshot.version for k in self._entries

@@ -8,26 +8,23 @@ rows:
   - { persona: viewer,        tool: list_skills,     expect: allow }
   - { persona: viewer,        tool: load_skill,      expect: allow }
   # developers: the user-connection tools, no admin tools (team argument limits: tests/policy/test_authorize.py)
-  - { persona: payments-dev,  tool: config_info,     expect: deny }
-  - { persona: payments-lead, tool: config_info,     expect: deny }
-  - { persona: platform-dev,  tool: github_get_file, args: { repo: agentic-sdlc-core }, expect: allow }
-  - { persona: multi-team-dev, tool: bitbucket_get_file, args: { repo: payments-api }, expect: allow }
+  - { persona: payments-member,  tool: config_info,     expect: deny }
+  - { persona: payments-approver, tool: config_info,     expect: deny }
+  - { persona: platform-member,  tool: github_get_file, args: { repo: agentic-sdlc-core }, expect: allow }
+  - { persona: multi-team-member, tool: bitbucket_get_file, args: { repo: payments-api }, expect: allow }
   # admin: whole catalog, unconstrained
   - { persona: admin,         tool: config_info,     expect: allow }
   - { persona: admin,         tool: config_explain,  expect: allow }
-  # Entra app roles only, no groups (version-03 P2 E1; full equivalence: tests/policy/test_app_roles.py)
-  - { persona: approle-viewer,       tool: search_knowledge, expect: allow }
-  - { persona: approle-viewer,       tool: github_get_file, args: { repo: payments-api }, expect: deny }
-  - { persona: approle-payments-dev, tool: jira_get_issue,  expect: allow }
-  - { persona: approle-payments-lead, tool: config_info,    expect: deny }
-  - { persona: approle-platform-dev, tool: github_get_file, args: { repo: agentic-sdlc-core }, expect: allow }
-  - { persona: approle-admin,        tool: config_explain,  expect: allow }
-  - { persona: mixed-dev,            tool: confluence_get_page, expect: allow }
+  # Entra app roles (membership comes only from app roles and users.yaml, CH-0011)
+  - { persona: viewer,       tool: search_knowledge, expect: allow }
+  - { persona: viewer,       tool: github_get_file, args: { repo: payments-api }, expect: deny }
+  - { persona: payments-member, tool: jira_get_issue,  expect: allow }
+  - { persona: multi-team-member,            tool: confluence_get_page, expect: allow }
   - { persona: unknown-app-role,     tool: search_knowledge, expect: deny }
   # webapp team (app roles only)
   - { persona: cross-team-approver, tool: github_get_file, args: { repo: payments-api }, expect: allow }
-  - { persona: approle-webapp-dev,   tool: github_get_file, args: { repo: full-stack-fastapi-template }, expect: allow }
-  - { persona: approle-webapp-lead,  tool: config_explain,  expect: deny }
+  - { persona: webapp-member,   tool: github_get_file, args: { repo: full-stack-fastapi-template }, expect: allow }
+  - { persona: webapp-approver,  tool: config_explain,  expect: deny }
   # catalog tools implemented in later stages (rows keep their grants under test)
   - { persona: nobody,        tool: ping,              expect: allow }
   - { persona: viewer,        tool: get_agent_context, expect: allow }
@@ -40,38 +37,36 @@ rows:
   - { persona: viewer,        tool: list_artifacts,    expect: allow }
   - { persona: viewer,        tool: read_artifact,     expect: allow }
   - { persona: viewer,        tool: delete_artifact,   expect: allow }
-  - { persona: payments-dev,  tool: save_artifact,     expect: allow }
+  - { persona: payments-member,  tool: save_artifact,     expect: allow }
   - { persona: admin,         tool: read_artifact,     expect: allow }
   - { persona: direct-viewer, tool: save_artifact,     expect: allow }
   - { persona: nobody,        tool: get_agent_context, expect: deny }
   # version-03 P10 G9: which of the caller's own teams a document is for (viewer and up)
   - { persona: nobody,        tool: resolve_team,      expect: deny }
   - { persona: viewer,        tool: resolve_team,      expect: allow }
-  - { persona: multi-team-dev, tool: resolve_team,     expect: allow }
+  - { persona: multi-team-member, tool: resolve_team,     expect: allow }
   - { persona: pending-user,  tool: resolve_team,      expect: deny }
-  - { persona: viewer,        tool: search_knowledge,  expect: allow }
   - { persona: viewer,        tool: graph_query,       expect: allow }   # data limited to granted sources
-  - { persona: payments-dev,  tool: graph_query,       expect: allow }
-  - { persona: platform-dev,  tool: graph_query,       expect: allow }
+  - { persona: payments-member,  tool: graph_query,       expect: allow }
+  - { persona: platform-member,  tool: graph_query,       expect: allow }
   - { persona: nobody,        tool: graph_query,       expect: deny }
   - { persona: admin,         tool: graph_query,       expect: allow }
   - { persona: infra-reader,  tool: graph_query,       expect: allow }
-  - { persona: infra-reader,  tool: github_get_file,   args: { repo: platform-infra }, expect: deny }  # source group grants data, not developer tools
+  - { persona: infra-reader,  tool: github_get_file,   args: { repo: platform-infra }, expect: deny }  # a source audience grants data, not member tools
   # version-01 M6: tools that use the user's own connection (developers and above)
   - { persona: viewer,        tool: jira_get_issue,      expect: deny }
-  - { persona: payments-dev,  tool: jira_get_issue,      expect: allow }
   - { persona: nobody,        tool: confluence_get_page, expect: deny }
-  - { persona: platform-dev,  tool: confluence_get_page, expect: allow }
+  - { persona: platform-member,  tool: confluence_get_page, expect: allow }
   - { persona: viewer,        tool: github_get_file,     args: { repo: acme/pay }, expect: deny }
-  - { persona: payments-dev,  tool: github_get_file,     args: { repo: acme/pay }, expect: allow }
+  - { persona: payments-member,  tool: github_get_file,     args: { repo: acme/pay }, expect: allow }
   - { persona: admin,         tool: github_get_file,     args: { repo: any/repo }, expect: allow }
   - { persona: viewer,        tool: bitbucket_get_file,  args: { repo: ws/pay },   expect: deny }
-  - { persona: platform-dev,  tool: bitbucket_get_file,  args: { repo: ws/infra }, expect: allow }
+  - { persona: platform-member,  tool: bitbucket_get_file,  args: { repo: ws/infra }, expect: allow }
 
-  # version-02 N10: direct members from users.yaml (no Entra groups)
-  - { persona: direct-payments-dev, tool: graph_query,  expect: allow }
-  - { persona: direct-payments-dev, tool: jira_get_issue, expect: allow }
-  - { persona: direct-payments-dev, tool: config_info,  expect: deny }
+  # version-02 N10: direct members from users.yaml (no app roles)
+  - { persona: direct-payments-member, tool: graph_query,  expect: allow }
+  - { persona: direct-payments-member, tool: jira_get_issue, expect: allow }
+  - { persona: direct-payments-member, tool: config_info,  expect: deny }
   - { persona: direct-viewer,       tool: search_knowledge, expect: allow }
   - { persona: pending-user,        tool: graph_query,  expect: deny }
   - { persona: pending-user,        tool: github_get_file, args: { repo: platform-infra }, expect: deny }
@@ -82,28 +77,28 @@ skill_rows:
   - { persona: nobody,         skill: write-user-story,     expect: hidden }
   - { persona: viewer,         skill: write-user-story,     expect: visible }
   - { persona: viewer,         skill: test-case-gen,        expect: hidden }
-  - { persona: payments-dev,   skill: test-case-gen,        expect: visible }
-  - { persona: payments-dev,   skill: pci-checklist,        expect: visible }
-  - { persona: payments-dev,   skill: ledger-design-review, expect: hidden }   # leads only
-  - { persona: payments-dev,   skill: design-review,        expect: hidden }   # leads only
-  - { persona: payments-dev,   skill: infra-change-review,  expect: hidden }   # platform add-on
-  - { persona: payments-lead,  skill: ledger-design-review, expect: visible }
-  - { persona: payments-lead,  skill: design-review,        expect: visible }
-  - { persona: platform-dev,   skill: infra-change-review,  expect: visible }
-  - { persona: platform-dev,   skill: pci-checklist,        expect: hidden }   # payments add-on
-  - { persona: multi-team-dev, skill: pci-checklist,        expect: visible }
-  - { persona: multi-team-dev, skill: infra-change-review,  expect: visible }
+  - { persona: payments-member,   skill: test-case-gen,        expect: visible }
+  - { persona: payments-member,   skill: pci-checklist,        expect: visible }
+  - { persona: payments-member,   skill: ledger-design-review, expect: hidden }   # leads only
+  - { persona: payments-member,   skill: design-review,        expect: hidden }   # leads only
+  - { persona: payments-member,   skill: infra-change-review,  expect: hidden }   # platform add-on
+  - { persona: payments-approver,  skill: ledger-design-review, expect: visible }
+  - { persona: payments-approver,  skill: design-review,        expect: visible }
+  - { persona: platform-member,   skill: infra-change-review,  expect: visible }
+  - { persona: platform-member,   skill: pci-checklist,        expect: hidden }   # payments add-on
+  - { persona: multi-team-member, skill: pci-checklist,        expect: visible }
+  - { persona: multi-team-member, skill: infra-change-review,  expect: visible }
   - { persona: admin,          skill: ledger-design-review, expect: visible }  # "*" covers add-ons
   - { persona: admin,          skill: infra-change-review,  expect: visible }
-  - { persona: direct-payments-dev, skill: pci-checklist,        expect: visible }
-  - { persona: direct-payments-dev, skill: ledger-design-review, expect: hidden }
+  - { persona: direct-payments-member, skill: pci-checklist,        expect: visible }
+  - { persona: direct-payments-member, skill: ledger-design-review, expect: hidden }
   # approver in webapp only: not a payments approver (CH-0009)
   - { persona: cross-team-approver, skill: ledger-design-review, expect: hidden }
   - { persona: cross-team-approver, skill: pci-checklist,        expect: visible }
   - { persona: cross-team-approver, skill: webapp-code-review,   expect: visible }
   - { persona: cross-team-approver, skill: design-review,        expect: visible }   # global skill: an approver anywhere
   - { persona: pending-user,        skill: infra-change-review,  expect: hidden }
-  # Goldfish document flow (version-03 P10): viewers and up; no groups = nothing
+  # Goldfish document flow (version-03 P10): viewers and up; no app roles = nothing
   - { persona: nobody,         skill: egm-document-flow,             expect: hidden }
   - { persona: nobody,         skill: lens-zoom-out,                 expect: hidden }
   - { persona: viewer,         skill: egm-document-flow,             expect: visible }
@@ -111,7 +106,7 @@ skill_rows:
   - { persona: viewer,         skill: lens-comprehension,            expect: visible }
   - { persona: viewer,         skill: lens-design-critic,            expect: visible }
   - { persona: viewer,         skill: lens-implementation-readiness, expect: visible }
-  - { persona: payments-dev,   skill: lens-design-critic,            expect: visible }
+  - { persona: payments-member,   skill: lens-design-critic,            expect: visible }
   - { persona: pending-user,   skill: lens-zoom-out,                 expect: hidden }
   # G4 brainstorm + G5 opt-in lenses: same grants as the flow and the other lenses
   - { persona: nobody,         skill: egm-brainstorm,                expect: hidden }
@@ -123,32 +118,32 @@ skill_rows:
   - { persona: pending-user,   skill: lens-style,                    expect: hidden }
   # G6 typed team skills: payments members only; the viewer's tag:goldfish-lens does not reach them
   - { persona: viewer,         skill: payments-pci-lens,        expect: hidden }
-  - { persona: payments-dev,   skill: payments-pci-lens,        expect: visible }
-  - { persona: payments-dev,   skill: payments-story-questions, expect: visible }
-  - { persona: payments-dev,   skill: payments-design-template, expect: visible }
-  - { persona: payments-lead,  skill: payments-pci-lens,        expect: visible }
-  - { persona: platform-dev,   skill: payments-pci-lens,        expect: hidden }
-  - { persona: platform-dev,   skill: payments-design-template, expect: hidden }
-  - { persona: multi-team-dev, skill: payments-pci-lens,        expect: visible }
+  - { persona: payments-member,   skill: payments-pci-lens,        expect: visible }
+  - { persona: payments-member,   skill: payments-story-questions, expect: visible }
+  - { persona: payments-member,   skill: payments-design-template, expect: visible }
+  - { persona: payments-approver,  skill: payments-pci-lens,        expect: visible }
+  - { persona: platform-member,   skill: payments-pci-lens,        expect: hidden }
+  - { persona: platform-member,   skill: payments-design-template, expect: hidden }
+  - { persona: multi-team-member, skill: payments-pci-lens,        expect: visible }
   - { persona: admin,          skill: payments-pci-lens,        expect: visible }  # "*"
   - { persona: nobody,         skill: payments-story-questions, expect: hidden }
   # webapp team add-ons: webapp members only (app roles); admin through "*"
-  - { persona: approle-webapp-dev,  skill: webapp-coding-standards, expect: visible }
-  - { persona: approle-webapp-dev,  skill: webapp-code-review,      expect: visible }
-  - { persona: approle-webapp-dev,  skill: webapp-api-lens,         expect: visible }
-  - { persona: approle-webapp-dev,  skill: webapp-design-template,  expect: visible }
-  - { persona: approle-webapp-dev,  skill: webapp-story-template,   expect: visible }
-  - { persona: approle-webapp-lead, skill: webapp-api-lens,         expect: visible }
+  - { persona: webapp-member,  skill: webapp-coding-standards, expect: visible }
+  - { persona: webapp-member,  skill: webapp-code-review,      expect: visible }
+  - { persona: webapp-member,  skill: webapp-api-lens,         expect: visible }
+  - { persona: webapp-member,  skill: webapp-design-template,  expect: visible }
+  - { persona: webapp-member,  skill: webapp-story-template,   expect: visible }
+  - { persona: webapp-approver, skill: webapp-api-lens,         expect: visible }
   - { persona: viewer,              skill: webapp-api-lens,         expect: hidden }   # tag:goldfish-lens does not reach team lenses
   - { persona: viewer,              skill: webapp-coding-standards, expect: hidden }
-  - { persona: payments-dev,        skill: webapp-code-review,      expect: hidden }
-  - { persona: platform-dev,        skill: webapp-design-template,  expect: hidden }
-  - { persona: approle-platform-dev, skill: webapp-story-template,  expect: hidden }
+  - { persona: payments-member,        skill: webapp-code-review,      expect: hidden }
+  - { persona: platform-member,        skill: webapp-design-template,  expect: hidden }
+  - { persona: platform-member, skill: webapp-story-template,  expect: hidden }
   - { persona: nobody,              skill: webapp-coding-standards, expect: hidden }
   - { persona: admin,               skill: webapp-code-review,      expect: visible }  # "*"
   - { persona: admin,               skill: webapp-story-template,   expect: visible }
-  - { persona: approle-webapp-dev,  skill: infra-change-review,     expect: hidden }
-  - { persona: approle-webapp-dev,  skill: payments-pci-lens,       expect: hidden }
+  - { persona: webapp-member,  skill: infra-change-review,     expect: hidden }
+  - { persona: webapp-member,  skill: payments-pci-lens,       expect: hidden }
 
 # Data access (Stage 5). readable = source granted by Source.access AND its classification is at
 # or below the persona's ceiling (both are enforced by Postgres RLS). Every source needs rows.
@@ -156,51 +151,45 @@ data_rows:
   - { persona: nobody,        source: eng-standards,      expect: readable }    # everyone + public (no search tool though)
   - { persona: viewer,        source: eng-standards,      expect: readable }
   - { persona: viewer,        source: payments-code,      expect: unreadable }
-  - { persona: payments-dev,  source: payments-code,      expect: readable }
-  - { persona: payments-dev,  source: payments-incidents, expect: unreadable }  # confidential > internal
-  - { persona: payments-dev,  source: platform-infra,     expect: unreadable }
-  - { persona: payments-lead, source: payments-incidents, expect: readable }
-  - { persona: platform-dev,  source: platform-infra,     expect: readable }
-  - { persona: platform-dev,  source: payments-code,      expect: unreadable }
+  - { persona: payments-member,  source: payments-code,      expect: readable }
+  - { persona: payments-member,  source: payments-incidents, expect: unreadable }  # confidential > internal
+  - { persona: payments-member,  source: platform-infra,     expect: unreadable }
+  - { persona: payments-approver, source: payments-incidents, expect: readable }
+  - { persona: platform-member,  source: platform-infra,     expect: readable }
+  - { persona: platform-member,  source: payments-code,      expect: unreadable }
   - { persona: admin,         source: payments-incidents, expect: readable }
   # the webapp approver's confidential ceiling does not reach payments sources (CH-0009)
   - { persona: cross-team-approver, source: payments-code,      expect: readable }
   - { persona: cross-team-approver, source: payments-incidents, expect: unreadable }
   - { persona: cross-team-approver, source: webapp-code,        expect: readable }
   - { persona: admin,         source: platform-infra,     expect: readable }
-  - { persona: platform-dev,  source: sdlc-platform,      expect: readable }
-  - { persona: payments-dev,  source: sdlc-platform,      expect: unreadable }
+  - { persona: platform-member,  source: sdlc-platform,      expect: readable }
+  - { persona: payments-member,  source: sdlc-platform,      expect: unreadable }
   - { persona: viewer,        source: sdlc-platform,      expect: unreadable }
   - { persona: admin,         source: sdlc-platform,      expect: readable }
-  # source-level Entra group without team membership (version-02 N9)
+  # a source's own audience (app role, formerly an Entra group) without team membership (version-02 N9)
   - { persona: infra-reader,  source: platform-infra,     expect: readable }
   - { persona: infra-reader,  source: eng-standards,      expect: readable }
   - { persona: infra-reader,  source: payments-code,      expect: unreadable }
   - { persona: infra-reader,  source: sdlc-platform,      expect: unreadable }
   - { persona: infra-reader,  source: payments-incidents, expect: unreadable }
   # users.yaml direct members (version-02 N10)
-  - { persona: direct-payments-dev, source: payments-code,      expect: readable }
-  - { persona: direct-payments-dev, source: payments-incidents, expect: unreadable }  # confidential
-  - { persona: direct-payments-dev, source: platform-infra,     expect: unreadable }
+  - { persona: direct-payments-member, source: payments-code,      expect: readable }
+  - { persona: direct-payments-member, source: payments-incidents, expect: unreadable }  # confidential
+  - { persona: direct-payments-member, source: platform-infra,     expect: unreadable }
   - { persona: direct-viewer,       source: eng-standards,      expect: readable }
   - { persona: direct-viewer,       source: payments-code,      expect: unreadable }
   - { persona: pending-user,        source: platform-infra,     expect: unreadable }
   # Entra app roles only (version-03 P2 E1)
-  - { persona: approle-payments-dev,  source: payments-code,      expect: readable }
-  - { persona: approle-payments-dev,  source: payments-incidents, expect: unreadable }  # confidential
-  - { persona: approle-payments-lead, source: payments-incidents, expect: readable }
-  - { persona: approle-platform-dev,  source: sdlc-platform,      expect: readable }
-  - { persona: approle-viewer,        source: payments-code,      expect: unreadable }
   - { persona: unknown-app-role,      source: payments-code,      expect: unreadable }
   # webapp team source (internal): team members and admin only
-  - { persona: approle-webapp-dev,    source: webapp-code,        expect: readable }
-  - { persona: approle-webapp-lead,   source: webapp-code,        expect: readable }
-  - { persona: approle-webapp-dev,    source: eng-standards,      expect: readable }    # everyone
-  - { persona: approle-webapp-dev,    source: sdlc-platform,      expect: unreadable }
-  - { persona: approle-webapp-dev,    source: payments-code,      expect: unreadable }
+  - { persona: webapp-member,    source: webapp-code,        expect: readable }
+  - { persona: webapp-approver,   source: webapp-code,        expect: readable }
+  - { persona: webapp-member,    source: eng-standards,      expect: readable }    # everyone
+  - { persona: webapp-member,    source: sdlc-platform,      expect: unreadable }
+  - { persona: webapp-member,    source: payments-code,      expect: unreadable }
   - { persona: admin,                 source: webapp-code,        expect: readable }
   - { persona: viewer,                source: webapp-code,        expect: unreadable }
-  - { persona: payments-dev,          source: webapp-code,        expect: unreadable }
-  - { persona: platform-dev,          source: webapp-code,        expect: unreadable }
-  - { persona: approle-platform-dev,  source: webapp-code,        expect: unreadable }
+  - { persona: payments-member,          source: webapp-code,        expect: unreadable }
+  - { persona: platform-member,          source: webapp-code,        expect: unreadable }
   - { persona: nobody,                source: webapp-code,        expect: unreadable }

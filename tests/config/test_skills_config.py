@@ -230,11 +230,11 @@ def test_a_team_tag_grants_nothing_outside_the_team(config_dir):
     from sdlc_config import resolve
 
     snap = load(config_dir)
-    viewer = resolve(snap, ["eng-all"])
+    viewer = resolve(snap, ["SDLC.User"])
     assert "lens-zoom-out" in viewer.skills and "payments-pci-lens" not in viewer.skills
-    member = resolve(snap, ["eng-all", "payments-devs"])
+    member = resolve(snap, ["SDLC.User", "SDLC.Payments.Member"])
     assert {"payments-pci-lens", "payments-story-questions"} <= set(member.skills)
-    platform = resolve(snap, ["eng-all", "platform-devs"])
+    platform = resolve(snap, ["SDLC.User", "SDLC.Platform.Member"])
     assert "payments-pci-lens" not in platform.skills
 
 

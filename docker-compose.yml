@@ -100,7 +100,6 @@ services:
       # Entra identity (Stage 2). Missing values => the server refuses to start (fail closed).
       ENTRA_TENANT_ID: ${ENTRA_TENANT_ID:-}
       ENTRA_API_CLIENT_ID: ${ENTRA_API_CLIENT_ID:-}
-      ENTRA_GRAPH_CLIENT_SECRET: ${ENTRA_GRAPH_CLIENT_SECRET:-}
       # Advertised in the RFC 9728 metadata (the 401 challenge) for external MCP clients.
       MCP_PUBLIC_URL: https://${SDLC_MCP_HOST:-mcp-sdlc-dev.shaheenks.co.in}
       OTEL_SERVICE_NAME: sdlc-core-mcp
