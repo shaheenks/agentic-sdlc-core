@@ -10,6 +10,9 @@
 - **Update**: CH-0002 done. FR-AUTHZ-001, FR-AUTHZ-002, FR-AUTHZ-005, FR-SURF-002, NFR-REL-001 and NFR-SEC-004 drop
   criteria that NFR-MAINT-002, NFR-MAINT-004, NFR-SEC-002, NFR-SEC-009, FR-CFG-003 and FR-IDN-002 already state, and
   are back to `draft`.
+- **Update**: the user re-reviewed and approved the nine requirements edited by CH-0001 and CH-0002: FR-KNOW-001,
+  FR-KNOW-004, FR-CONN-002, FR-AUTHZ-001, FR-AUTHZ-002, FR-AUTHZ-005, FR-SURF-002, NFR-REL-001 and NFR-SEC-004 are
+  `stable` again (recorded by Claude on the user's instruction).
 
 - **Creation**: NFR-OPS-002 continuous deployment to GCP dev (`draft`) and change record CH-0010: a GitHub workflow (bash on
   Linux runners) deploys every merge to `main`, running only the steps the changes need, in order. `gcp_deploy.ps1`

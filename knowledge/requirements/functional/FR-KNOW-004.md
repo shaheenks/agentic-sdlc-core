@@ -7,7 +7,10 @@ tags:
 - requirement
 - functional
 - knowledge
-status: draft
+status: stable
+verified:
+- by: human:shaheenks
+  at: '2026-11-11T16:02:28+05:30'
 priority: should
 implementation: live
 sources:
