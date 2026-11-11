@@ -22,8 +22,10 @@ A team **changes behaviour, never permissions** (version-03 P10):
 | limit tool arguments, e.g. `github_get_file` only on its own repo | widen another team's argument limits |
 | own a knowledge source and decide who reads it | read data above its members' classification ceiling |
 
-What a member may do comes from their **roles** (`viewer`, `developer`, `lead`, `admin` in
-`config/roles.yaml`). The team only decides who gets which role inside it.
+What a member may do comes from their **roles** in `config/roles.yaml`. A team grants the team roles
+`member` and, optionally, `approver`; they count only inside that team (an approver in one team is a plain
+member, or nothing, in another). `viewer` and `admin` are platform roles. The team only decides who gets which
+role inside it.
 
 ## Part A — Adding a team
 
@@ -40,8 +42,8 @@ says which test catches what.
 
 | Option | When | What to add |
 |---|---|---|
-| **Entra app roles** (recommended) | enterprise path; not cut by group overage | `app_role: SDLC.<Team>.Developer` / `.Lead` in the team file, and the same names in `$AppRoles` in `scripts/entra_setup.ps1` |
-| **users.yaml** | a few people, no Entra change | `teams: { <team>: [developer] }` per user in the git-ignored `config/env/<env>/users.yaml` |
+| **Entra app roles** (recommended) | enterprise path; not cut by group overage | `app_role: SDLC.<Team>.Member` / `.Approver` in the team file, and the same names in `$AppRoles` in `scripts/entra_setup.ps1` |
+| **users.yaml** | a few people, no Entra change | `teams: { <team>: [member] }` per user in the git-ignored `config/env/<env>/users.yaml` |
 | **Entra group** | the tenant already has a group per team | an alias in `config/env/<env>/groups.yaml` (+ `groups.yaml.example`), `group: <alias>` in the team file |
 
 `webapp` uses app roles plus users.yaml, like `sdlc-platform`. App role values must match
@@ -60,10 +62,10 @@ metadata:
   description: ...                 # 200 characters max
   owners: [platform-admins]        # an existing group alias
 membership:
-  - app_role: SDLC.Webapp.Developer
-    roles: [developer]
-  - app_role: SDLC.Webapp.Lead
-    roles: [lead]
+  - app_role: SDLC.Webapp.Member
+    roles: [member]
+  - app_role: SDLC.Webapp.Approver
+    roles: [approver]
 policy:
   tools:
     deny: []                       # optional: team denies; `constraints` can limit tool arguments
@@ -117,7 +119,7 @@ Also add:
 - `README.md`: one or two lines.
 - a row in [skills/teams/README.md](../../skills/teams/README.md).
 
-To keep a skill to leads only: `access: { roles: [lead] }` on its `addons.skills` entry
+To keep a skill to the team's approvers only: `access: { roles: [approver] }` on its `addons.skills` entry
 (example: `ledger-design-review` in payments).
 
 ### 5. Document-flow defaults
@@ -166,7 +168,7 @@ access:
   (a reference only; see [config/sources/README.md](../../config/sources/README.md)).
 - Exclude generated code and files that are instructions for other tools (the fork's
   `.claude/` and `.agents/` skill folders).
-- `classification`: `internal` is readable by viewers and up who have access; `confidential` needs lead.
+- `classification`: `internal` is readable by viewers and up who have access; `confidential` needs an approver in the source's owner team (or admin).
 - `entity_types`: at most 12; `relation_types` must come from `platform.yaml` `knowledge.graph.relation_types`.
 
 ### 7. Ownership and Entra script
@@ -211,7 +213,7 @@ Local: the MCP server picks up config changes from the watched folder; run the i
 
 Entra (tenant admin, confirmed per action): run `entra_setup.ps1` to create the new app roles,
 then assign them to members in the Enterprise application `sdlc-mcp` (or with `-AppRoleUser <upn>
--AppRoleUserRoles SDLC.User,SDLC.Webapp.Developer`). Run with `-DryRun` first.
+-AppRoleUserRoles SDLC.User,SDLC.Webapp.Member`). Run with `-DryRun` first.
 
 users.yaml members: add them to `config/env/<env>/users.yaml`, then
 `uv run sdlc-config users sync --env <env> --write` to fill in their object IDs.
@@ -230,7 +232,7 @@ Config changes reach GCP only through `-Step config`; image or apply steps don't
 ### Get access
 
 Ask a platform admin for one of:
-- the app role `SDLC.<Team>.Developer` (or `.Lead`) on `sdlc-mcp`, plus `SDLC.User`, or
+- the app role `SDLC.<Team>.Member` (or `.Approver`) on `sdlc-mcp`, plus `SDLC.User`, or
 - a users.yaml entry for your work email.
 
 Access applies from your next sign-in (app roles arrive in a new token: sign out and back in).
@@ -240,7 +242,7 @@ Access applies from your next sign-in (app roles arrive in a new token: sign out
 Open the chat (http://localhost:4180 locally, or your environment's app URL), sign in, and ask:
 
 - **"whoami, explain"** (`whoami(explain=true)`): your teams, roles and the rules that grant them.
-  You should see your team, e.g. `webapp` with `developer`.
+  You should see your team, e.g. `webapp` with `member@webapp`.
 - **"list my skills"** (`list_skills`): you should see the team's skills
   (for webapp: `webapp-coding-standards`, `webapp-code-review`, `webapp-api-lens`,
   `webapp-design-template`, `webapp-story-template`) next to the global ones.

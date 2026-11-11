@@ -109,7 +109,7 @@ def test_identity_is_one_line_with_details_in_a_dialog():
         "upn": "paul@example.com",
         "name": "Paul",
         "groups": ["eng-all", "payments-devs"],
-        "policy": {"teams": {"payments": []}, "roles": {"developer": [], "signed-in": []}},
+        "policy": {"teams": {"payments": []}, "roles": {"member": [], "signed-in": []}},
     }
     ops = build_operations("whoami", mcp(who), "w1")
     strictly_valid(ops)
@@ -120,7 +120,7 @@ def test_identity_is_one_line_with_details_in_a_dialog():
         "Paul",
         "paul@example.com",
         "Teams: payments",
-        "Roles: developer",
+        "Roles: member",
         "Groups: eng-all, payments-devs",
     } <= set(texts(ops))
 

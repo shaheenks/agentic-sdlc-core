@@ -240,13 +240,13 @@ From the repo root, in PowerShell (Docker Desktop running, `gcloud` signed in, T
 
 ## 8. Verification
 
-On dev, with the test users (payments developer, platform developer, payments lead, admin, and an account with no
+On dev, with the test users (payments member, platform member, payments approver, admin, and an account with no
 sdlc groups):
 
 1. Sign in at the `app_url`: `/chat/` (CopilotKit) and `/dev-ui/` (ADK) load.
 2. `whoami` shows each user's own teams and roles; tool lists differ per persona.
 3. Skills and team context per user (`list_skills`, `get_agent_context`).
-4. After ingest: `search_knowledge` and `graph_query` return only each user's sources; the payments lead also sees
+4. After ingest: `search_knowledge` and `graph_query` return only each user's sources; the payments approver also sees
    the confidential incidents.
 5. Conversations (after the M8 apply): start a chat, deploy a new revision, and check the conversation is still
    listed in `/dev-ui/` for the same user and not for another.

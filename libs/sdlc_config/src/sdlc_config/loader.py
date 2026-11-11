@@ -159,6 +159,7 @@ def load_snapshot(
     )
     _check_document_flows(platform, teams, skills, problems)
     users, bindings, teams = _build_users(docs["UserMap"], env, roles, teams, bindings, problems)
+    _check_role_scopes(bindings, teams, problems)
     sources = _build_sources(docs["Source"], platform, teams, roles, aliases, problems)
     connections = _build_connections(docs["ConnectionCatalog"], platform, problems)
     for tool in tools.values():
@@ -467,6 +468,20 @@ def _build_users(user_docs, env, roles, teams, bindings, problems):
         default_team=MappingProxyType(default_team),
     )
     return users, bindings + tuple(extra_bindings), teams
+
+
+def _check_role_scopes(bindings, teams, problems: list[str]) -> None:
+    """CH-0009: a role is either a platform role (global bindings, users.yaml `roles`) or a team
+    role (team membership, users.yaml `teams`), never both, so every grant has one scope."""
+    platform = {role: b.rule for b in bindings for role in b.roles}
+    for team in teams.values():
+        for member in team.membership:
+            for role in member.roles:
+                if role in platform:
+                    problems.append(
+                        f"{member.rule}: role '{role}' is a platform role (granted by "
+                        f"{platform[role]}); a team membership may only grant team roles"
+                    )
 
 
 def _inheritance_cycles(roles: dict[str, RoleDef]) -> list[list[str]]:

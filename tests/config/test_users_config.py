@@ -81,7 +81,7 @@ def test_users_file_path_override(config_dir, tmp_path):
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda u: u["direct-dev"].update(teams={"marketing": ["developer"]}), "unknown team"),
+        (lambda u: u["direct-dev"].update(teams={"marketing": ["member"]}), "unknown team"),
         (lambda u: u["direct-dev"].update(teams={"payments": ["god"]}), "unknown role 'god'"),
         (lambda u: u["direct-viewer"].update(roles=["auditor"]), "unknown role 'auditor'"),
         (
@@ -109,7 +109,8 @@ def test_direct_member_gets_team_roles_limits_skills_and_sources(config_dir):
     policy = resolve(snap, [], (), "direct-dev")
     assert policy.user == "direct-dev"
     assert policy.teams == {"payments": ("env/local/users.yaml#users/direct-dev/teams/payments",)}
-    assert policy.roles["developer"] == ("env/local/users.yaml#users/direct-dev/teams/payments",)
+    rule = "env/local/users.yaml#users/direct-dev/teams/payments"
+    assert policy.roles["member@payments"] == (rule,)
     assert policy.tools["fixture_review"].constraints == {"repo": {"payments-api", "payments-ui"}}
     assert policy.sees_skill("pci-checklist")
     assert "payments-code" in policy.readable_sources

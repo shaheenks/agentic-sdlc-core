@@ -25,16 +25,16 @@ roles:
                       save_artifact, list_artifacts, read_artifact, delete_artifact] }   # artifacts: owner only
     skills: { allow: ["tag:general", "tag:goldfish-lens"] }   # lenses: version-03 P10
     data:   { max_classification: internal }
-  developer:
+  member:
     inherits: [viewer]
     # *_get_*: read with the user's own connected account (version-01 M6)
     tools:  { allow: [jira_get_issue, confluence_get_page, github_get_file, bitbucket_get_file] }
     skills: { allow: ["tag:engineering"] }
-  lead:
-    inherits: [developer]
+  approver:
+    inherits: [member]
     data:   { max_classification: confidential }
   admin:
-    inherits: [lead]
+    inherits: [approver]
     # unconstrained: team argument limits (e.g. allowed repos) don't apply to this role's grants
     tools:  { allow: ["*"], unconstrained: true }
     skills: { allow: ["*"] }

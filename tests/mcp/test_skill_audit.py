@@ -44,13 +44,13 @@ async def test_allowed_skill_access_is_recorded_with_rule(base_url, entra, caplo
             [G_ENG_ALL, G_PAYMENTS_DEVS],
             "ledger-design-review",
             "teams/payments.yaml#addons/skills/ledger-design-review/access",
-            "access requires roles ['lead']",
+            "access requires roles ['approver'] in team 'payments'",
         ),
         (
             [G_ENG_ALL, G_PAYMENTS_DEVS],
             "design-review",
             "skills.yaml#skills/design-review/access",
-            "access requires roles ['lead']",
+            "access requires roles ['approver']",
         ),
         (
             [G_ENG_ALL],

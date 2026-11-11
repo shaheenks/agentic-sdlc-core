@@ -19,8 +19,8 @@ def edit_yaml(path, mutate):
 
 def test_repo_rbac_config_loads(config_dir):
     snap = load(config_dir)
-    assert {"viewer", "developer", "lead", "admin"} <= set(snap.roles)
-    assert snap.roles["developer"].inherits == ("viewer",)
+    assert {"viewer", "member", "approver", "admin"} <= set(snap.roles)
+    assert snap.roles["member"].inherits == ("viewer",)
     assert snap.roles["admin"].unconstrained and "*" in snap.roles["admin"].tools_allow
     assert snap.tools["fixture_review"].args == {"repo"}
     assert set(snap.teams) >= {"payments", "sdlc-platform"}
@@ -39,16 +39,14 @@ def test_app_role_bindings_are_accepted(config_dir):
     )
     edit_yaml(
         config_dir / "teams/payments.yaml",
-        lambda d: d["membership"].append(
-            {"app_role": "SDLC.Payments.Developer", "roles": ["developer"]}
-        ),
+        lambda d: d["membership"].append({"app_role": "SDLC.Payments.Member", "roles": ["member"]}),
     )
     snap = load(config_dir)
     # users.yaml entries (kind "user") come after the declared ones
     declared = [b for b in snap.bindings if b.ref.kind != "user"]
     members = [m for m in snap.teams["payments"].membership if m.ref.kind != "user"]
     assert str(declared[-1].ref) == "app_role:SDLC.Admin"
-    assert str(members[-1].ref) == "app_role:SDLC.Payments.Developer"
+    assert str(members[-1].ref) == "app_role:SDLC.Payments.Member"
 
 
 @pytest.mark.parametrize(
@@ -76,8 +74,13 @@ def test_app_role_bindings_are_accepted(config_dir):
         ),
         (
             "roles.yaml",
-            lambda d: d["roles"]["lead"].update(inherits=["boss"]),
+            lambda d: d["roles"]["approver"].update(inherits=["boss"]),
             "unknown role 'boss'",
+        ),
+        (  # CH-0009: a team role in a global binding makes `member` a platform role
+            "roles.yaml",
+            lambda d: d["bindings"].append({"app_role": "SDLC.X", "roles": ["member"]}),
+            "role 'member' is a platform role",
         ),
         (
             "roles.yaml",

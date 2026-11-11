@@ -80,10 +80,7 @@ def test_data_row(snap, row):
     persona = PERSONAS[row["persona"]]
     policy = resolve(snap, persona.groups, persona.app_roles, persona.user)
     source = snap.sources[row["source"]]
-    readable = (
-        source.id in policy.data_sources
-        and source.classification_rank <= policy.max_classification_rank
-    )
+    readable = source.id in policy.readable_sources
     assert readable is (row["expect"] == "readable"), (
         policy.data_sources,
         policy.max_classification,

@@ -17,6 +17,7 @@ satisfies:
 - /requirements/functional/FR-AUTHZ-003
 - /requirements/functional/FR-AUTHZ-004
 - /requirements/functional/FR-AUTHZ-005
+- /requirements/functional/FR-AUTHZ-006
 - /requirements/functional/FR-CFG-001
 - /requirements/functional/FR-CFG-002
 - /requirements/functional/FR-CFG-003
@@ -68,6 +69,7 @@ Code: `libs/sdlc_config`
 - [FR-AUTHZ-003: Role hierarchy with classification ceilings](../requirements/functional/FR-AUTHZ-003.md) - Resolves role inheritance and classification ceilings.
 - [FR-AUTHZ-004: Per-user rate limits](../requirements/functional/FR-AUTHZ-004.md) - Resolves rate limits from the platform baseline and team limits.
 - [FR-AUTHZ-005: Data access granted per source](../requirements/functional/FR-AUTHZ-005.md) - Resolves readable sources from `Source.access`.
+- [FR-AUTHZ-006: Team roles are scoped to their team](../requirements/functional/FR-AUTHZ-006.md) - Holds roles per scope (platform or team), checks team skills and source roles in their own team, computes the ceiling per source, and rejects a role used as both a platform and a team role.
 - [FR-CFG-001: Access declared in configuration](../requirements/functional/FR-CFG-001.md) - Validates all configuration.
 - [FR-CFG-002: Explain and diff effective permissions](../requirements/functional/FR-CFG-002.md) - `explain` and `diff` commands.
 - [FR-CFG-003: Immutable config bundles with rollback](../requirements/functional/FR-CFG-003.md) - Bundles and `ConfigStore`.

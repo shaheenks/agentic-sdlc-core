@@ -35,4 +35,4 @@ The system shall provide inheriting platform roles and team roles, each with a m
 
 # Notes
 
-Modified by CH-0008 (design D4). The config ids are `developer` and `lead` today; [CH-0009](../../changes/CH-0009.md) renames them. Team scoping is [FR-AUTHZ-006](FR-AUTHZ-006.md).
+Modified by CH-0008 (design D4). [CH-0009](../../changes/CH-0009.md) renamed the config ids to `member` and `approver`. Team scoping is [FR-AUTHZ-006](FR-AUTHZ-006.md).

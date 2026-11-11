@@ -25,6 +25,7 @@ rows:
   - { persona: mixed-dev,            tool: confluence_get_page, expect: allow }
   - { persona: unknown-app-role,     tool: search_knowledge, expect: deny }
   # webapp team (app roles only)
+  - { persona: cross-team-approver, tool: github_get_file, args: { repo: payments-api }, expect: allow }
   - { persona: approle-webapp-dev,   tool: github_get_file, args: { repo: full-stack-fastapi-template }, expect: allow }
   - { persona: approle-webapp-lead,  tool: config_explain,  expect: deny }
   # catalog tools implemented in later stages (rows keep their grants under test)
@@ -96,6 +97,11 @@ skill_rows:
   - { persona: admin,          skill: infra-change-review,  expect: visible }
   - { persona: direct-payments-dev, skill: pci-checklist,        expect: visible }
   - { persona: direct-payments-dev, skill: ledger-design-review, expect: hidden }
+  # approver in webapp only: not a payments approver (CH-0009)
+  - { persona: cross-team-approver, skill: ledger-design-review, expect: hidden }
+  - { persona: cross-team-approver, skill: pci-checklist,        expect: visible }
+  - { persona: cross-team-approver, skill: webapp-code-review,   expect: visible }
+  - { persona: cross-team-approver, skill: design-review,        expect: visible }   # global skill: an approver anywhere
   - { persona: pending-user,        skill: infra-change-review,  expect: hidden }
   # Goldfish document flow (version-03 P10): viewers and up; no groups = nothing
   - { persona: nobody,         skill: egm-document-flow,             expect: hidden }
@@ -157,6 +163,10 @@ data_rows:
   - { persona: platform-dev,  source: platform-infra,     expect: readable }
   - { persona: platform-dev,  source: payments-code,      expect: unreadable }
   - { persona: admin,         source: payments-incidents, expect: readable }
+  # the webapp approver's confidential ceiling does not reach payments sources (CH-0009)
+  - { persona: cross-team-approver, source: payments-code,      expect: readable }
+  - { persona: cross-team-approver, source: payments-incidents, expect: unreadable }
+  - { persona: cross-team-approver, source: webapp-code,        expect: readable }
   - { persona: admin,         source: platform-infra,     expect: readable }
   - { persona: platform-dev,  source: sdlc-platform,      expect: readable }
   - { persona: payments-dev,  source: sdlc-platform,      expect: unreadable }

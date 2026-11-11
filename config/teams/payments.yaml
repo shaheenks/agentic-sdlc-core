@@ -6,13 +6,13 @@ metadata:
   owners: [payments-leads]           # group aliases; also drive CODEOWNERS
 membership:
   - group: payments-devs
-    roles: [developer]
+    roles: [member]
   - group: payments-leads
-    roles: [lead]
-  - app_role: SDLC.Payments.Developer   # app roles: no group overage (version-03 P2 E1)
-    roles: [developer]
-  - app_role: SDLC.Payments.Lead
-    roles: [lead]
+    roles: [approver]
+  - app_role: SDLC.Payments.Member   # app roles: no group overage (version-03 P2 E1)
+    roles: [member]
+  - app_role: SDLC.Payments.Approver
+    roles: [approver]
 policy:
   tools:
     deny: []                         # team-level denies (deny always wins)
@@ -22,7 +22,7 @@ policy:
 addons:                              # visible only to members of this team
   skills:
     pci-checklist:        { path: skills/teams/payments/pci-checklist }
-    ledger-design-review: { path: skills/teams/payments/ledger-design-review, access: { roles: [lead] } }
+    ledger-design-review: { path: skills/teams/payments/ledger-design-review, access: { roles: [approver] } }
     # typed team skills (version-03 P10 G6): tags from platform.yaml skills/team_tags, team members only
     payments-pci-lens:        { path: skills/teams/payments/payments-pci-lens,        tags: [goldfish-lens] }
     payments-story-questions: { path: skills/teams/payments/payments-story-questions, tags: [brief-questions] }

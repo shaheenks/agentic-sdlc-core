@@ -51,7 +51,7 @@ def test_skills_and_addons_load(config_dir):
     assert snap.skills["payments-pci-lens"].tags == {"goldfish-lens"}
     assert snap.skills["payments-pci-lens"].team == "payments"
     assert snap.skills["pci-checklist"].tags == frozenset()
-    assert snap.skills["design-review"].access_roles == {"lead"}
+    assert snap.skills["design-review"].access_roles == {"approver"}
     assert snap.skills["write-user-story"].description.startswith("Turn a feature idea")
     assert "Given" in snap.skills["write-user-story"].instructions
     payments = snap.teams["payments"]

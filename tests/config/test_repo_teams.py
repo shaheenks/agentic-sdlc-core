@@ -26,8 +26,8 @@ def test_sdlc_platform_members_come_from_app_roles_and_users_yaml():
     team = doc("teams/sdlc-platform.yaml")
     # no Entra group per role: app roles (version-03 P2 E1) + env/<env>/users.yaml
     assert team["membership"] == [
-        {"app_role": "SDLC.Platform.Developer", "roles": ["developer"]},
-        {"app_role": "SDLC.Platform.Lead", "roles": ["lead"]},
+        {"app_role": "SDLC.Platform.Member", "roles": ["member"]},
+        {"app_role": "SDLC.Platform.Approver", "roles": ["approver"]},
     ]
     assert team["addons"]["skills"] == {
         "infra-change-review": {"path": "skills/teams/sdlc-platform/infra-change-review"}
@@ -54,8 +54,8 @@ def test_webapp_team():
     The worked example in docs/guides/TEAM_ONBOARDING.md."""
     team = doc("teams/webapp.yaml")
     assert team["membership"] == [
-        {"app_role": "SDLC.Webapp.Developer", "roles": ["developer"]},
-        {"app_role": "SDLC.Webapp.Lead", "roles": ["lead"]},
+        {"app_role": "SDLC.Webapp.Member", "roles": ["member"]},
+        {"app_role": "SDLC.Webapp.Approver", "roles": ["approver"]},
     ]
     assert "constraints" not in team["policy"]["tools"]  # no constrained tool (CH-0003)
     addons = team["addons"]

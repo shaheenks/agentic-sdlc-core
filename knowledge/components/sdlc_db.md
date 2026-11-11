@@ -15,6 +15,7 @@ satisfies:
 - /requirements/functional/FR-ART-001
 - /requirements/functional/FR-ART-002
 - /requirements/functional/FR-AUTHZ-005
+- /requirements/functional/FR-AUTHZ-006
 - /requirements/functional/FR-KNOW-001
 - /requirements/functional/FR-KNOW-002
 - /requirements/functional/FR-KNOW-003
@@ -57,6 +58,7 @@ Code: `libs/sdlc_db`
 - [FR-ART-001: Save and manage artifacts](../requirements/functional/FR-ART-001.md) - Artifact metadata under owner RLS.
 - [FR-ART-002: Artifact versions](../requirements/functional/FR-ART-002.md) - Immutable version rows and the latest-version check.
 - [FR-AUTHZ-005: Data access granted per source](../requirements/functional/FR-AUTHZ-005.md) - Sets the RLS context that limits rows to readable sources.
+- [FR-AUTHZ-006: Team roles are scoped to their team](../requirements/functional/FR-AUTHZ-006.md) - Sets the per-source ceilings (`app.source_ceilings`) in the RLS context.
 - [FR-KNOW-001: Ingest declared sources](../requirements/functional/FR-KNOW-001.md) - Writes documents, chunks and embeddings for ingest.
 - [FR-KNOW-002: Knowledge search with citations](../requirements/functional/FR-KNOW-002.md) - Vector and keyword search with rank fusion.
 - [FR-KNOW-003: Knowledge graph queries](../requirements/functional/FR-KNOW-003.md) - Stores the graph per source and walks it at query time.

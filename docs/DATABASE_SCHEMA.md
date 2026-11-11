@@ -268,16 +268,18 @@ Plus the primary keys and unique constraints listed above.
 ## 5. Row-level security
 
 **Context per transaction.** `sdlc_db.scoped(conn, policy)` (`libs/sdlc_db/src/sdlc_db/scoped.py`) opens a
-transaction and sets two variables with `set_config(…, true)`, which last only until the transaction ends:
+transaction and sets these variables with `set_config(…, true)`, which last only until the transaction ends:
 
 | Variable | Value | Read by |
 |---|---|---|
 | `app.allowed_sources` | The user's **readable sources** as a text-array literal, e.g. `{eng-standards,payments-code}`: sources granted by `Source.access` whose current classification is at or below the user's ceiling | `sdlc.allowed_sources()` |
-| `app.max_classification_rank` | The user's ceiling: highest `max_classification` across their roles, as a rank | `sdlc.max_classification_rank()` |
+| `app.source_ceilings` | JSON object, source id → the user's ceiling rank **for that source**: the highest `max_classification` among their platform roles and the roles they hold in the source's owner team (CH-0009, `008_source_ceilings.sql`) | `sdlc.source_ceiling(source_id)` |
+| `app.max_classification_rank` | The highest ceiling over all scopes, as a rank. Kept for compatibility; no policy reads it since 008 | `sdlc.max_classification_rank()` |
 
 Source ids are validated before they go into the literal, so the array cannot be broken out of.
 
-**Fail closed.** Without the variables the functions return `{}` and `-1`, so every policy matches nothing.
+**Fail closed.** Without the variables the functions return `{}` and `-1`, so every policy matches nothing. A source
+missing from `app.source_ceilings` also gets `-1`, and a malformed value makes the query fail.
 Pooled connections never carry one user's scope into another request, because the settings end with the
 transaction.
 
@@ -285,7 +287,7 @@ transaction.
 
 | Policy | Role | Tables | Rule |
 |---|---|---|---|
-| `app_read` | `sdlc_app` | `sources`*, `documents`, `chunks`, `entities`, `mentions`, `edges` | `FOR SELECT`: `source_id = ANY(sdlc.allowed_sources()) AND classification_rank <= sdlc.max_classification_rank()` |
+| `app_read` | `sdlc_app` | `sources`*, `documents`, `chunks`, `entities`, `mentions`, `edges` | `FOR SELECT`: `source_id = ANY(sdlc.allowed_sources()) AND classification_rank <= sdlc.source_ceiling(source_id)` (008) |
 | `ingest_all` | `sdlc_ingest` | all six + `extraction_cache` | `USING (true) WITH CHECK (true)` |
 
 \* On `sources` the check uses `id` instead of `source_id`.
@@ -354,7 +356,7 @@ everything; as `sdlc_app` you see **nothing** until you set a context in a trans
 ```sql
 BEGIN;
 SELECT set_config('app.allowed_sources', '{eng-standards,payments-code}', true),
-       set_config('app.max_classification_rank', '1', true);   -- what a payments developer sees
+       set_config('app.source_ceilings', '{"eng-standards": 1, "payments-code": 1}', true);  -- a payments member
 SELECT source_id, count(*) FROM sdlc.chunks GROUP BY 1;
 ROLLBACK;
 ```

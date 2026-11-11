@@ -9,7 +9,7 @@
     - app sdlc-mcp (API): identifier URI, access_as_user scope, v2 tokens, groups claim,
       app roles ($AppRoles, version-03 P2 E1), Azure CLI pre-authorized (dev testing),
       assignment required
-    - optional: app roles for -AppRoleUser (default SDLC.User + SDLC.Payments.Developer)
+    - optional: app roles for -AppRoleUser (default SDLC.User + SDLC.Payments.Member)
     - security groups sdlc-eng-all, sdlc-payments-devs, sdlc-payments-leads,
       sdlc-platform-devs, sdlc-platform-admins
     - memberships: user A = eng-all + payments-devs, user B = eng-all + platform-devs
@@ -25,7 +25,7 @@
   az login --tenant <tenant> --allow-no-subscriptions
   .\scripts\entra_setup.ps1 -TestUserA ad.paul@contoso.onmicrosoft.com -TestUserB ad.b@contoso.onmicrosoft.com -DryRun
   .\scripts\entra_setup.ps1 -TestUserA ... -TestUserB ... -AdminUser <upn> -NewClientSecret -WriteLocalFiles
-  .\scripts\entra_setup.ps1 -TestUserA ... -TestUserB ... -AppRoleUser <upn> -AppRoleUserRoles SDLC.User,SDLC.Platform.Developer
+  .\scripts\entra_setup.ps1 -TestUserA ... -TestUserB ... -AppRoleUser <upn> -AppRoleUserRoles SDLC.User,SDLC.Platform.Member
 #>
 [CmdletBinding()]
 param(
@@ -41,7 +41,7 @@ param(
     [switch]$NoAzCliPreAuth,    # prod/enterprise: no Azure CLI pre-authorization (removes it if present)
     # app roles (version-03 P2 E1): optional user who gets app roles assigned (no groups needed)
     [string]$AppRoleUser = '',
-    [string[]]$AppRoleUserRoles = @('SDLC.User', 'SDLC.Payments.Developer')
+    [string[]]$AppRoleUserRoles = @('SDLC.User', 'SDLC.Payments.Member')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -68,12 +68,12 @@ if ($AdminUser) { $Memberships += @{ User = $AdminUser; Groups = @('eng-all', 'p
 $AppRoles = [ordered]@{
     'SDLC.User'               = 'SDLC viewer: knowledge search, skills, own artifacts (as group eng-all)'
     'SDLC.Admin'              = 'SDLC admin: every tool and skill (as group platform-admins)'
-    'SDLC.Payments.Developer' = 'Payments team developer (as group payments-devs)'
-    'SDLC.Payments.Lead'      = 'Payments team lead (as group payments-leads)'
-    'SDLC.Platform.Developer' = 'SDLC platform team developer'
-    'SDLC.Platform.Lead'      = 'SDLC platform team lead'
-    'SDLC.Webapp.Developer'   = 'Webapp team developer'
-    'SDLC.Webapp.Lead'        = 'Webapp team lead'
+    'SDLC.Payments.Member'   = 'Payments team member (as group payments-devs)'
+    'SDLC.Payments.Approver' = 'Payments team approver (as group payments-leads)'
+    'SDLC.Platform.Member'   = 'SDLC platform team member'
+    'SDLC.Platform.Approver' = 'SDLC platform team approver'
+    'SDLC.Webapp.Member'     = 'Webapp team member'
+    'SDLC.Webapp.Approver'   = 'Webapp team approver'
 }
 foreach ($r in $AppRoleUserRoles) {
     if (-not $AppRoles.Contains($r)) { throw "unknown app role $r (defined: $($AppRoles.Keys -join ', '))" }

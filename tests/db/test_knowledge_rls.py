@@ -89,6 +89,7 @@ def test_forged_context_values_are_rejected(corpus):
     policy = resolve(snap, ["eng-all"])
     object.__setattr__(policy, "data_sources", {"x},{payments-code": ()})
     object.__setattr__(policy, "source_classification", {"x},{payments-code": 0})
+    object.__setattr__(policy, "source_ceiling_ranks", {"x},{payments-code": 1})
     with pytest.raises(ValueError, match="invalid source id"):
         rls_settings(policy)
 
@@ -158,6 +159,33 @@ def test_reingest_skips_changes_and_deletes(corpus):
         "incident-policy.pdf",
         "service-tiers.md",
     }
+
+
+def test_team_role_ceiling_stays_in_its_team(corpus):
+    """CH-0009: an approver in webapp who is a member of payments keeps the internal ceiling on
+    payments sources; the webapp approver's confidential ceiling does not reach them."""
+    snap = corpus[1]
+    roles = ["SDLC.User", "SDLC.Webapp.Approver", "SDLC.Payments.Member"]
+    policy = resolve(snap, [], roles)
+    assert policy.source_ceilings["payments-code"] == "internal"
+    assert policy.source_ceilings["webapp-code"] == "confidential"
+    seen = sources_seen(policy)
+    assert "payments-code" in seen and "payments-incidents" not in seen
+
+
+def test_rows_are_checked_against_their_own_source_ceiling(corpus):
+    """Even with a source in allowed_sources and a high overall ceiling, a row above its own
+    source's ceiling stays hidden."""
+    with psycopg.connect(db.db_conninfo("app")) as conn:
+        conn.execute(
+            "SELECT set_config('app.allowed_sources', '{payments-incidents}', true),"
+            " set_config('app.source_ceilings', '{\"payments-incidents\": 1}', true),"
+            " set_config('app.max_classification_rank', '3', true)"
+        )
+        assert conn.execute("SELECT count(*) FROM chunks").fetchone()[0] == 0
+        conn.execute("SELECT set_config('app.source_ceilings', 'not json', true)")
+        with pytest.raises(psycopg.errors.InvalidTextRepresentation):
+            conn.execute("SELECT count(*) FROM chunks")
 
 
 def test_classification_change_applies_to_existing_rows(corpus):

@@ -16,6 +16,7 @@ satisfies:
 - /requirements/functional/FR-AUTHZ-003
 - /requirements/functional/FR-AUTHZ-004
 - /requirements/functional/FR-AUTHZ-005
+- /requirements/functional/FR-AUTHZ-006
 - /requirements/functional/FR-CFG-001
 - /requirements/functional/FR-CONN-001
 - /requirements/functional/FR-CONN-003
@@ -60,6 +61,7 @@ No other component.
 - [FR-AUTHZ-003: Role hierarchy with classification ceilings](../requirements/functional/FR-AUTHZ-003.md) - Role set.
 - [FR-AUTHZ-004: Per-user rate limits](../requirements/functional/FR-AUTHZ-004.md) - Platform baseline and team rate limits.
 - [FR-AUTHZ-005: Data access granted per source](../requirements/functional/FR-AUTHZ-005.md) - Source access rules and classifications.
+- [FR-AUTHZ-006: Team roles are scoped to their team](../requirements/functional/FR-AUTHZ-006.md) - Team roles `member` and `approver` are granted only by team membership; platform roles only by global bindings.
 - [FR-CFG-001: Access declared in configuration](../requirements/functional/FR-CFG-001.md) - Is the declared access model.
 - [FR-CONN-001: Users connect their own accounts](../requirements/functional/FR-CONN-001.md) - Connection catalog.
 - [FR-CONN-003: Atlassian and Data Center connections](../requirements/functional/FR-CONN-003.md) - The `atlassian` connection and Data Center editions.

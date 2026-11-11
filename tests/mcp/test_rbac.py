@@ -121,7 +121,7 @@ async def test_app_roles_survive_group_overage(base_url, entra):
     token = entra.token(
         omit=["groups"],
         _claim_names={"groups": "src1"},
-        roles=["SDLC.User", "SDLC.Payments.Developer"],
+        roles=["SDLC.User", "SDLC.Payments.Member"],
     )
     async with client(base_url, token) as c:
         me = (await c.call_tool("whoami", {"explain": True})).data
@@ -165,7 +165,7 @@ async def test_audit_records_decision_and_rule(base_url, entra, caplog):
         ("deny", "denied"),
     ]
     assert records[0]["teams"] == ["payments"]
-    assert {"developer", "viewer", "signed-in"} <= set(records[0]["roles"])
+    assert {"member@payments", "viewer", "signed-in"} <= set(records[0]["roles"])
     rule = "teams/payments.yaml#policy/tools/constraints/fixture_review"
     assert rule in records[1]["matched_rule"]
     assert records[2]["matched_rule"] == "default-deny"
@@ -211,3 +211,16 @@ async def test_users_yaml_email_alone_grants_nothing(base_url, entra):
     async with client(base_url, token) as c:
         me = (await c.call_tool("whoami", {"explain": True})).data
     assert me["user"] is None and me["policy"]["teams"] == {}
+
+
+async def test_whoami_shows_team_roles_with_their_team(base_url, entra):
+    """CH-0009: an approver in webapp who is a member of payments."""
+    token = entra.token(
+        groups=[], roles=["SDLC.User", "SDLC.Webapp.Approver", "SDLC.Payments.Member"]
+    )
+    async with client(base_url, token) as c:
+        me = (await c.call_tool("whoami", {"explain": True})).data
+    roles = me["policy"]["roles"]
+    assert {"approver@webapp", "member@payments", "viewer"} <= set(roles)
+    assert "approver@payments" not in roles
+    assert me["policy"]["data"]["ceilings"]["payments-code"] == "internal"

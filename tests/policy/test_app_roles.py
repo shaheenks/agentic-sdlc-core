@@ -66,16 +66,18 @@ def test_app_role_personas_match_group_personas(snap, approle, group):
 
 
 def test_team_app_role_alone_is_enough(snap):
-    """A team app role without SDLC.User still gives the team role (developer inherits viewer)."""
+    """A team app role without SDLC.User still gives the team role (member inherits viewer, in
+    the team's scope only: CH-0009)."""
     p = policy(snap, "approle-team-only")
-    assert set(p.teams) == {"payments"} and "viewer" in p.roles
+    assert set(p.teams) == {"payments"} and "viewer@payments" in p.roles
+    assert "viewer" not in p.roles
     repos = p.tools["fixture_review"].constraints["repo"]
     assert set(repos) == {"payments-api", "payments-ui"}
 
 
 def test_reasons_name_the_app_role_rule(snap):
     p = policy(snap, "approle-payments-dev")
-    assert p.teams["payments"] == ("teams/payments.yaml#membership[2]",)  # SDLC.Payments.Developer
+    assert p.teams["payments"] == ("teams/payments.yaml#membership[2]",)  # SDLC.Payments.Member
     assert "roles.yaml#bindings[2]" in p.roles["viewer"]  # SDLC.User
 
 

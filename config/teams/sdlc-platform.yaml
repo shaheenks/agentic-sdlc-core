@@ -6,13 +6,13 @@ metadata:
   owners: [platform-admins]          # group aliases; also drive CODEOWNERS
 # No Entra group per role in this tenant: members come from Entra app roles (version-03 P2 E1)
 # or directly from the git-ignored config/env/<env>/users.yaml, e.g.
-# `teams: { sdlc-platform: [developer] }` (viewer, developer, lead or admin), matched by object ID
+# `teams: { sdlc-platform: [member] }` (member or approver), matched by object ID
 # (version-02 N10).
 membership:
-  - app_role: SDLC.Platform.Developer
-    roles: [developer]
-  - app_role: SDLC.Platform.Lead
-    roles: [lead]
+  - app_role: SDLC.Platform.Member
+    roles: [member]
+  - app_role: SDLC.Platform.Approver
+    roles: [approver]
 policy:
   tools:
     deny: []

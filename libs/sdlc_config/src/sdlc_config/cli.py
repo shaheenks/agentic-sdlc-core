@@ -254,7 +254,7 @@ def _render(persona: Persona, policy: EffectivePolicy, unknown: list[str]) -> st
     lines.append("teams:")
     lines += [f"  {t:<14} <- {', '.join(r)}" for t, r in sorted(policy.teams.items())] or ["  -"]
     lines.append("roles:")
-    lines += [f"  {r:<14} <- {', '.join(w)}" for r, w in sorted(policy.roles.items())] or ["  -"]
+    lines += [f"  {r:<20} <- {', '.join(w)}" for r, w in sorted(policy.roles.items())] or ["  -"]
     lines.append("tools:")
     for name, perm in sorted(policy.tools.items()):
         limits = (

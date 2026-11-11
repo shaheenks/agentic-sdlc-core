@@ -5,13 +5,13 @@ metadata:
   description: Full-stack web app (FastAPI + SQLModel backend, React/TypeScript frontend) in full-stack-fastapi-template.
   owners: [platform-admins]          # group aliases; also drive CODEOWNERS
 # No Entra group: members come from Entra app roles (version-03 P2 E1) or directly from the
-# git-ignored config/env/<env>/users.yaml, e.g. `teams: { webapp: [developer] }`, matched by
+# git-ignored config/env/<env>/users.yaml, e.g. `teams: { webapp: [member] }`, matched by
 # object ID (version-02 N10). Onboarding steps: docs/guides/TEAM_ONBOARDING.md.
 membership:
-  - app_role: SDLC.Webapp.Developer
-    roles: [developer]
-  - app_role: SDLC.Webapp.Lead
-    roles: [lead]
+  - app_role: SDLC.Webapp.Member
+    roles: [member]
+  - app_role: SDLC.Webapp.Approver
+    roles: [approver]
 policy:
   tools:
     deny: []

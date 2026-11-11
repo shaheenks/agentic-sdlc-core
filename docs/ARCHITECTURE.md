@@ -25,7 +25,7 @@ rules, and the MCP server enforces them, backed by Postgres row-level security.
 ```mermaid
 flowchart TB
     subgraph Users["Users (Entra ID sign-in)"]
-        U1[Engineer / Lead / Admin]
+        U1[Member / Approver / Admin]
     end
 
     subgraph Surfaces["User surfaces"]
@@ -193,7 +193,7 @@ flowchart LR
     R --> TL[Tools<br/>allow − deny<br/>+ arg constraints]
     R --> SKL[Skills<br/>global + team add-ons]
     TM --> SKL
-    R --> DT[Data<br/>max classification]
+    R --> DT[Data<br/>ceiling per source]
     TM --> SRCS[Sources<br/>Source.access]
     R --> SRCS
     TM --> CTX[Agent context<br/>team instructions]
@@ -203,8 +203,8 @@ flowchart LR
 - **Identity** is the Entra `oid` plus group membership and, for enterprise tenants, Entra **app roles**
   (`roles` claim). Entra is the only trusted issuer. Every signed-in user also matches `everyone: true`
   bindings, which grant only the `signed-in` basics (`ping`, `whoami`).
-- **App roles** (version-03 P2 E1): `SDLC.User`, `SDLC.Admin`, `SDLC.Payments.Developer|Lead`,
-  `SDLC.Platform.Developer|Lead` on `sdlc-mcp` (`entra_setup.ps1`); each grants exactly what its group twin grants
+- **App roles** (version-03 P2 E1): `SDLC.User`, `SDLC.Admin`, `SDLC.<Team>.Member|Approver`
+  (payments, platform, webapp) on `sdlc-mcp` (`entra_setup.ps1`); each grants exactly what its group twin grants
   and combines with groups (union). **Group overage** (token without `groups`) means no groups, only app roles
   (fail closed); the Graph fallback is off (`platform.yaml` `overage_fallback: none`).
 - **Direct members** (version-02 N10): where the tenant has no group per team, `config/env/<env>/users.yaml`
@@ -213,6 +213,12 @@ flowchart LR
   without an `oid` grants nothing. A user's policy is the union of their groups, app roles and users.yaml entry.
 - **Teams** define who belongs, which roles each group gets, and team add-ons (extra skills, extra agent instructions, tool argument limits).
 - **Roles** are reusable permission bundles. A role can inherit from another.
+- **Platform and team roles** (CH-0009): global bindings give platform roles (`signed-in`, `viewer`, `admin`); team
+  membership gives team roles (`member`, optional `approver`) that count **only in that team**
+  (`approver@payments`). Inheritance stays in the same scope, and platform roles count in every team. So an
+  approver-only add-on skill needs the approver role in its own team, and the classification ceiling is computed
+  per source: the highest among the platform roles and the roles held in the source's owner team. A role is
+  either a platform role or a team role, never both (validated).
 - **Data access** is granted only by each source's own `access` block. The sensitivity ceiling comes from roles.
 - **Deny wins**, and anything not explicitly allowed is denied.
 - **Block list (E3):** `config/env/<env>/blocked.yaml` refuses listed users on every request, even with a valid
@@ -384,7 +390,7 @@ traces stays off, and the store is never readable by other workloads.
 
 ```mermaid
 flowchart LR
-    DEV[Team lead / admin<br/>edits YAML] --> PR[Pull request<br/>CODEOWNERS review]
+    DEV[Team approver / admin<br/>edits YAML] --> PR[Pull request<br/>CODEOWNERS review]
     PR --> CI[CI: validate · persona diff · tests]
     CI --> BUILD[sdlc-config compile<br/>bundle + manifest<br/>version = git SHA + hash]
     BUILD --> STORE[(Bundle store<br/>local folder / GCS)]

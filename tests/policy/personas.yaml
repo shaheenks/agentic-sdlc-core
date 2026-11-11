@@ -16,14 +16,16 @@ personas:
   # Entra app roles only (version-03 P2 E1): no groups at all, e.g. after group overage.
   # test_app_role_personas_match_group_personas pins each to its group twin.
   approle-viewer:        { groups: [], app_roles: [SDLC.User] }
-  approle-payments-dev:  { groups: [], app_roles: [SDLC.User, SDLC.Payments.Developer] }
-  approle-payments-lead: { groups: [], app_roles: [SDLC.User, SDLC.Payments.Lead] }
-  approle-platform-dev:  { groups: [], app_roles: [SDLC.User, SDLC.Platform.Developer] }
+  approle-payments-dev:  { groups: [], app_roles: [SDLC.User, SDLC.Payments.Member] }
+  approle-payments-lead: { groups: [], app_roles: [SDLC.User, SDLC.Payments.Approver] }
+  approle-platform-dev:  { groups: [], app_roles: [SDLC.User, SDLC.Platform.Member] }
   approle-admin:         { groups: [], app_roles: [SDLC.User, SDLC.Admin] }
   # webapp team: app roles + users.yaml only, no group (so no group twin)
-  approle-webapp-dev:    { groups: [], app_roles: [SDLC.User, SDLC.Webapp.Developer] }
-  approle-webapp-lead:   { groups: [], app_roles: [SDLC.User, SDLC.Webapp.Lead] }
-  approle-team-only:     { groups: [], app_roles: [SDLC.Payments.Developer] }   # team role, no SDLC.User
+  approle-webapp-dev:    { groups: [], app_roles: [SDLC.User, SDLC.Webapp.Member] }
+  approle-webapp-lead:   { groups: [], app_roles: [SDLC.User, SDLC.Webapp.Approver] }
+  approle-team-only:     { groups: [], app_roles: [SDLC.Payments.Member] }   # team role, no SDLC.User
   # groups and app roles together: the union of both
-  mixed-dev:             { groups: [eng-all, payments-devs], app_roles: [SDLC.Platform.Developer] }
+  mixed-dev:             { groups: [eng-all, payments-devs], app_roles: [SDLC.Platform.Member] }
+  # approver in webapp, member in payments: team roles count only in their own team (CH-0009)
+  cross-team-approver:   { groups: [], app_roles: [SDLC.User, SDLC.Webapp.Approver, SDLC.Payments.Member] }
   unknown-app-role:      { groups: [], app_roles: [SDLC.NotDefined] }          # grants nothing

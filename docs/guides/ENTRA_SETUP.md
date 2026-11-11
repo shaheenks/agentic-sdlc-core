@@ -46,7 +46,7 @@ az account show --query "{tenant:tenantId, user:user.name}" -o table
 | App `sdlc-mcp` (API) | The resource. Tokens for it carry `aud=<sdlc-mcp client id>`, `scp=access_as_user`, `groups` and, for users assigned an app role, `roles` (§2b). The MCP server validates these. |
 | App `sdlc-client` (web) | Signs users in for adk web via oauth2-proxy (Stage 2d) and requests `sdlc-mcp/access_as_user`. Redirect URIs: `http://localhost:4180/oauth2/callback`, `https://app-sdlc-dev.shaheenks.co.in/oauth2/callback` (tunnel) and the GCP staging callback (see GCP_DEPLOYMENT.md). |
 | Security groups | `sdlc-eng-all`, `sdlc-payments-devs`, `sdlc-payments-leads`, `sdlc-platform-devs`, `sdlc-platform-admins`. Mapped to aliases in `config/env/<env>/groups.yaml`. |
-| Test users | A payments developer, a platform developer, an admin and (optionally) a payments lead: different groups → different `whoami`. UPNs are passed on the command line, never stored in the repo. |
+| Test users | A payments member, a platform member, an admin and (optionally) a payments approver: different groups → different `whoami`. UPNs are passed on the command line, never stored in the repo. |
 
 ## 1. API app: `sdlc-mcp`
 
@@ -154,7 +154,7 @@ both. Role values are not secrets; config grants them as `app_role: <value>`.
 | `SDLC.User` | viewer (`eng-all`) | `roles.yaml` binding |
 | `SDLC.Admin` | admin (`platform-admins`) | `roles.yaml` binding |
 | `SDLC.Payments.Developer` / `SDLC.Payments.Lead` | payments developer / lead (`payments-devs` / `payments-leads`) | `teams/payments.yaml` membership |
-| `SDLC.Platform.Developer` / `SDLC.Platform.Lead` | sdlc-platform developer / lead (no group; otherwise users.yaml) | `teams/sdlc-platform.yaml` membership |
+| `SDLC.Platform.Member` / `SDLC.Platform.Approver` | sdlc-platform member / approver (no group; otherwise users.yaml) | `teams/sdlc-platform.yaml` membership |
 
 The script defines all of them (`$AppRoles`; `tests/policy/test_app_roles.py` checks that the list matches
 config) and, with `-AppRoleUser`, assigns roles to one user:
@@ -162,7 +162,7 @@ config) and, with `-AppRoleUser`, assigns roles to one user:
 ```powershell
 # tenant change: admin account, confirmed first. -DryRun shows the plan.
 .\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> -AppRoleUser <upn> `
-  -AppRoleUserRoles SDLC.User,SDLC.Payments.Developer -DryRun
+  -AppRoleUserRoles SDLC.User,SDLC.Payments.Member -DryRun
 ```
 
 Notes:
@@ -174,7 +174,7 @@ Notes:
 - Removing a role: unassign it in the portal (Enterprise applications > sdlc-mcp > Users and groups). To
   delete a role definition, disable it on the app first (the script only adds or updates).
 - Check: `whoami(explain=true)` lists `app_roles` and the teams / roles they matched;
-  `uv run sdlc-config explain --groups "" --app-roles SDLC.User,SDLC.Payments.Developer` shows the same offline.
+  `uv run sdlc-config explain --groups "" --app-roles SDLC.User,SDLC.Payments.Member` shows the same offline.
 
 ## 3. Client app: `sdlc-client` (needed for Stage 2d, web sign-in)
 

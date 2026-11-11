@@ -81,16 +81,11 @@ async def ingest_as_ingest_role(snapshot, repo_root, embedder, extractor, source
 
 def app_query(sql_text: str, policy=None, params=()):
     """Run one query as sdlc_app, with the policy's RLS context (or none)."""
-    from sdlc_db import rls_settings
+    from sdlc_db.scoped import SET_RLS_CONTEXT, rls_settings
 
     with psycopg.connect(db_conninfo("app")) as conn:
         if policy is not None:
-            allowed, rank = rls_settings(policy)
-            conn.execute(
-                "SELECT set_config('app.allowed_sources', %s, true),"
-                " set_config('app.max_classification_rank', %s, true)",
-                (allowed, rank),
-            )
+            conn.execute(SET_RLS_CONTEXT, rls_settings(policy))
         return conn.execute(sql_text, params).fetchall()
 
 

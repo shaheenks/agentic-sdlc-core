@@ -3,6 +3,7 @@
 import pytest
 import yaml
 from sdlc_config import PolicyCache, load_snapshot, resolve
+from sdlc_config.resolver import skill_decision
 
 from tests.support.entra import TEST_ENV
 
@@ -61,19 +62,19 @@ def test_payments_developer(snap):
     assert review.constraint_sources == (
         "teams/payments.yaml#policy/tools/constraints/fixture_review",
     )
-    assert review.allowed_by == ("role:developer <- teams/payments.yaml#membership[0]",)
-    # viewer comes both from the global binding and by inheritance from developer
-    assert set(policy.roles["viewer"]) == {
-        "roles.yaml#bindings[1]",
-        "inherited from role:developer",
-    }
+    assert review.allowed_by == ("role:member@payments <- teams/payments.yaml#membership[0]",)
+    # viewer from the global binding (platform), and by inheritance in the team's scope (CH-0009)
+    assert policy.roles["viewer"] == ("roles.yaml#bindings[1]",)
+    assert policy.roles["viewer@payments"] == ("inherited from role:member@payments",)
     assert "fixture_approve" not in policy.tools
 
 
 def test_payments_lead_gets_fixture_approve_within_payments(snap):
     policy = resolve(snap, ["eng-all", "payments-leads"])
     assert policy.tools["fixture_approve"].constraints == {"repo": PAYMENTS_REPOS}
-    assert {"lead", "developer", "viewer"} <= set(policy.roles)
+    assert {"approver@payments", "member@payments", "viewer@payments", "viewer"} <= set(
+        policy.roles
+    )
 
 
 def test_platform_developer_gets_platform_repos(snap):
@@ -126,12 +127,10 @@ def test_role_deny_wins_even_over_admin_wildcard(config_dir):
 def test_app_role_identities(config_dir):
     edit_yaml(
         config_dir / "teams/payments.yaml",
-        lambda d: d["membership"].append(
-            {"app_role": "SDLC.Payments.Developer", "roles": ["developer"]}
-        ),
+        lambda d: d["membership"].append({"app_role": "SDLC.Payments.Member", "roles": ["member"]}),
     )
     snap = load_snapshot(config_dir, "local", TEST_ENV)
-    policy = resolve(snap, [], app_roles=["SDLC.Payments.Developer"])
+    policy = resolve(snap, [], app_roles=["SDLC.Payments.Member"])
     assert set(policy.teams) == {"payments"}
     assert policy.tools["fixture_review"].constraints == {"repo": PAYMENTS_REPOS}
 
@@ -154,3 +153,48 @@ def test_policy_cache_shares_by_identity_and_version(snap, config_dir):
     newer = load_snapshot(config_dir, "local", TEST_ENV)
     b = cache.get(newer, ["payments-devs", "eng-all"])
     assert b is not a and b.config_version == newer.version
+
+
+# --- team roles are scoped to their team (CH-0009) --------------------------------------------
+
+CROSS_TEAM = ["SDLC.User", "SDLC.Webapp.Approver", "SDLC.Payments.Member"]
+
+
+def test_cross_team_roles_are_held_per_team(snap):
+    policy = resolve(snap, [], CROSS_TEAM)
+    assert {"approver@webapp", "member@webapp", "member@payments", "viewer"} <= set(policy.roles)
+    assert "approver@payments" not in policy.roles and "approver" not in policy.roles
+    assert policy.roles_in("payments") >= {"member", "viewer"}
+    assert "approver" not in policy.roles_in("payments")
+    assert "approver" in policy.roles_in("webapp")
+
+
+def test_approver_only_team_skill_needs_the_role_in_that_team(snap):
+    policy = resolve(snap, [], CROSS_TEAM)
+    assert not policy.sees_skill("ledger-design-review")  # payments approvers only
+    assert policy.sees_skill("pci-checklist")  # payments members
+    decision = skill_decision(snap, policy, "ledger-design-review")
+    assert not decision.allowed
+    assert decision.reason == "access requires roles ['approver'] in team 'payments'"
+    # a payments approver sees it
+    assert resolve(snap, [], ["SDLC.User", "SDLC.Payments.Approver"]).sees_skill(
+        "ledger-design-review"
+    )
+
+
+def test_ceiling_is_per_source_owner_team(snap):
+    policy = resolve(snap, [], CROSS_TEAM)
+    assert policy.source_ceilings["payments-code"] == "internal"
+    assert policy.source_ceilings["webapp-code"] == "confidential"
+    assert policy.max_classification == "confidential"  # shown to the user: the highest
+    assert "payments-incidents" in policy.data_sources  # granted to the payments team ...
+    assert "payments-incidents" not in policy.readable_sources  # ... but confidential
+    explained = policy.explain()["data"]
+    assert explained["ceilings"]["payments-incidents"] == "internal"
+
+
+def test_platform_roles_count_in_every_team(snap):
+    admin = resolve(snap, [], ["SDLC.Admin"])
+    assert admin.sees_skill("ledger-design-review")
+    assert admin.source_ceilings["payments-incidents"] == "restricted"
+    assert "payments-incidents" in admin.readable_sources

@@ -1,7 +1,7 @@
 """Test config: the repo config/ with a fixed test GroupMap (independent of any real tenant).
 
 Fixture-only additions (see make_config_dir): the sdlc-platform team gets a group membership
-(`platform-devs` -> developer) and a local `platform-infra` source, so tests have a second
+(`platform-devs` -> member) and a local `platform-infra` source, so tests have a second
 group-based team with its own local data. The real sdlc-platform team has members only from
 app roles and users.yaml and reads its code from GitHub (tests/config/test_repo_teams.py pins that).
 The repo's gcs sources read their copies in tests/fixtures/sample_sources instead
@@ -33,19 +33,19 @@ users:
   direct-dev:
     email: direct.dev@example.com
     oid: "aaaaaaaa-0000-0000-0000-000000000001"
-    teams: { payments: [developer] }
+    teams: { payments: [member] }
   direct-viewer:
     email: direct.viewer@example.com
     oid: "aaaaaaaa-0000-0000-0000-000000000002"
     roles: [viewer]
   pending:
     email: pending@example.com
-    teams: { sdlc-platform: [developer] }
+    teams: { sdlc-platform: [member] }
 """
 # Fixture-only (not in the repo config): group members for sdlc-platform and its local source.
 TEST_PLATFORM_MEMBERSHIP = """membership:
   - group: platform-devs
-    roles: [developer]
+    roles: [member]
 """
 TEST_PLATFORM_INFRA = """apiVersion: sdlc/v1
 kind: Source
@@ -73,7 +73,7 @@ DIRECT_DEV_OID = "aaaaaaaa-0000-0000-0000-000000000001"
 
 # Fixture-only tools (CH-0003): the policy engine's argument limits, role inheritance, denies and
 # audit are tested on two tools that exist only in tests. The real catalog has no team-constrained
-# tool. `fixture_review` is a developer tool, `fixture_approve` a lead tool; both take a `repo`
+# tool. `fixture_review` is a member tool, `fixture_approve` an approver tool; both take a `repo`
 # that each team limits to its own repositories. The test MCP server registers echo versions.
 FIXTURE_TOOLS_YAML = """  # fixture-only (tests/support/config.py)
   fixture_review:  { server: core-mcp, risk: medium, args: { repo: { type: string } } }
@@ -95,8 +95,8 @@ def add_fixture_tools(config_dir: Path) -> None:
     text = roles.read_text(encoding="utf-8")
     text = text.replace("allow: [jira_get_issue,", "allow: [fixture_review, jira_get_issue,", 1)
     text = text.replace(
-        "    inherits: [developer]\n",
-        "    inherits: [developer]\n    tools:  { allow: [fixture_approve] }\n",
+        "    inherits: [member]\n",
+        "    inherits: [member]\n    tools:  { allow: [fixture_approve] }\n",
         1,
     )
     assert "fixture_review" in text and "fixture_approve" in text, "roles.yaml layout changed"
