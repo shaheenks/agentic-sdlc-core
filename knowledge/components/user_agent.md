@@ -18,6 +18,7 @@ satisfies:
 - /requirements/non-functional/NFR-SEC-001
 - /requirements/non-functional/NFR-SEC-006
 verified_by:
+- tests/agent/test_user_agent.py
 - tests/e2e/test_stage2_agent.py
 sources:
 - id: readme
@@ -54,4 +55,5 @@ Code: `agents/user_agent`
 
 # Verification
 
-- `tests/e2e/test_stage2_agent.py`
+- `tests/agent/test_user_agent.py` (offline)
+- `tests/e2e/test_stage2_agent.py` (needs the running stack)

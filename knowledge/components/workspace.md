@@ -13,6 +13,8 @@ verified:
 resource: ../../pyproject.toml
 satisfies:
 - /requirements/non-functional/NFR-MAINT-001
+verified_by:
+- tests/infra/test_workspace.py
 ---
 
 # Purpose
@@ -36,4 +38,4 @@ No other component.
 
 # Verification
 
-No automated tests cover this component.
+- `tests/infra/test_workspace.py`

@@ -22,7 +22,7 @@ satisfies:
 - /requirements/non-functional/NFR-SEC-007
 - /requirements/non-functional/NFR-SEC-010
 verified_by:
-- .github/workflows/ci.yml
+- tests/infra/test_terraform.py
 ---
 
 # Purpose
@@ -58,4 +58,4 @@ Code: `infra/gcp`
 
 # Verification
 
-- `.github/workflows/ci.yml`
+- `tests/infra/test_terraform.py`; CI also runs `terraform validate`.

@@ -13,6 +13,7 @@ dev = [
     "pre-commit>=4.6",
     "psycopg[binary]>=3.2",
     "fpdf2>=2.8",
+    "python-hcl2>=8.2.0",
 ]
 
 [tool.uv]

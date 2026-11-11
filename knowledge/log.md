@@ -13,6 +13,10 @@
 - **Update**: the user re-reviewed and approved the nine requirements edited by CH-0001 and CH-0002: FR-KNOW-001,
   FR-KNOW-004, FR-CONN-002, FR-AUTHZ-001, FR-AUTHZ-002, FR-AUTHZ-005, FR-SURF-002, NFR-REL-001 and NFR-SEC-004 are
   `stable` again (recorded by Claude on the user's instruction).
+- **Update**: the user approved CH-0006 (recorded by Claude on the user's instruction). CH-0006 done: offline tests
+  `tests/infra/test_compose.py`, `test_workspace.py`, `test_terraform.py` (new dev dependency `python-hcl2`) and
+  `tests/agent/test_user_agent.py` now verify compose, workspace, infra_gcp and user_agent. infra_gcp is no longer
+  verified by a workflow file.
 
 - **Creation**: NFR-OPS-002 continuous deployment to GCP dev (`draft`) and change record CH-0010: a GitHub workflow (bash on
   Linux runners) deploys every merge to `main`, running only the steps the changes need, in order. `gcp_deploy.ps1`
