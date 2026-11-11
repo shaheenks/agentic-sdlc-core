@@ -3,10 +3,7 @@ type: Convention
 title: Bundle conventions
 description: How this bundle is organised - concept types, requirement IDs, extension keys, review states and the change procedure.
 tags: [meta]
-status: stable
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T22:53:19+05:30'
+status: draft
 sources:
   - id: okf
     resource: https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md
@@ -65,8 +62,8 @@ New types are added to this table in the pull request that first uses them.
 
 Areas in use - functional: `IDN` identity, `AUTHZ` authorization, `CFG` configuration, `KNOW`
 knowledge, `SKILL` skills, `TEAM` teams, `DOC` documents, `ART` artifacts, `CONN` connections,
-`SURF` surfaces, `CONV` conversations, `ACT` SDLC actions, `AUTO` autonomous agents, `WRITE`
-write actions. Non-functional: `SEC` security, `PRIV` privacy, `AUD` auditability, `OBS`
+`SURF` surfaces, `CONV` conversations, `ACT` SDLC actions (to be retired by CH-0003), `AUTO` autonomous agents
+(retired; replaced by `WFL`), `WFL` workflows, `WRITE` write actions. Non-functional: `SEC` security, `PRIV` privacy, `AUD` auditability, `OBS`
 observability, `REL` reliability, `PORT` portability, `MAINT` maintainability, `QUAL` quality,
 `OPS` operability.
 

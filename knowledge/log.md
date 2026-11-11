@@ -1,5 +1,39 @@
 # Change log
 
+## 2026-11-11
+
+- **Creation**: change record CH-0008 (`draft`), the workflow platform design baseline, and the target design
+  `docs/designs/workflow-platform.md`. Added 15 draft requirements: FR-WFL-001 to FR-WFL-006, FR-IDN-005,
+  FR-SURF-004, FR-KNOW-008 to FR-KNOW-010, FR-CONV-002, NFR-REL-005, NFR-SEC-012 and NFR-SEC-013.
+- **Update**: FR-AUTHZ-003 (platform and team roles), NFR-SEC-001 (event services, agent gateway) and NFR-QUAL-001
+  (eval covers every content type) edited; back to `draft`.
+- **Deprecation**: FR-AUTO-001, replaced by the FR-WFL requirements and FR-IDN-005.
+- **Update**: system context rewritten around the workflow classes, and conventions gain the `WFL` area; both back to
+  `draft`.
+- **Update**: design decisions D1 to D7 applied:
+  - roles: platform `viewer` and `admin`; team `member` and optional `approver`, scoped to their team (new
+    FR-AUTHZ-006);
+  - ops findings go to Jira or an admin alert;
+  - the coding agent is built on Google ADK;
+  - Kubernetes and Splunk push;
+  - third-party agents use A2A with the user token (FR-SURF-002 back to `draft`);
+  - the Agent Gateway is optional;
+  - memory is parked (FR-CONV-002 `parked`).
+- **Creation**: change record CH-0009 (`draft`): rename the team roles and fix the cross-team role leak.
+- **Update**: design decisions D10 and D11 recorded:
+  - MCP backends can be segregated per workflow (new NFR-SEC-014);
+  - autonomous workflows use server-side service connections, initially broad-scoped Jira, Confluence and Bitbucket
+    tokens (new FR-CONN-004);
+  - NFR-SEC-012 now keeps every external credential out of the sandbox (the runtime pushes the patch);
+  - NFR-SEC-013 now covers all external-system credentials.
+- **Update**: design decisions D8, D9 and D12 recorded:
+  - each team's Jira project for ops findings is declared in its team configuration (FR-WFL-005);
+  - the role rename switches the Entra app roles in one step (CH-0009);
+  - one set of service tokens per workflow (FR-CONN-004).
+
+- **Update**: design decision D13 recorded: admin alerts go to a Jira queue or an email message, declared in
+  platform configuration (FR-WFL-005). No design questions are open.
+
 ## 2026-11-10
 
 - **Creation**: change records CH-0001 to CH-0007 (`draft`, awaiting review), from a review of the

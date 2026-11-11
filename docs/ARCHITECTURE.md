@@ -451,6 +451,11 @@ Details for dev exposure: [CLOUDFLARE_TUNNEL.md](guides/CLOUDFLARE_TUNNEL.md). G
 
 ## 9. Growth path
 
+The target design (2026-11-11) is [designs/workflow-platform.md](designs/workflow-platform.md). It
+covers four workflow classes (plan and design, build and test, deploy and maintain, implementation),
+event intake, enrichment and delivery, workflow identity, and the knowledge extensions. This section
+stays the as-built view.
+
 The platform starts as one agent, one MCP server, one ingest CLI and one database; that is
 a starter component in each area (`agents/user_agent`, `mcp_servers/core_mcp`, `ingest/bootstrap`). It grows by adding **sibling components**: more
 SDLC agents (next: `ci_agent` / `ops_agent` with workload identity and an event gateway, version-03 P6),
