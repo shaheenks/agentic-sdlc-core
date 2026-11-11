@@ -92,7 +92,7 @@ tests, then the changes that move config.
 
 | # | Record | Why now | Exit gate | Status |
 |---|---|---|---|---|
-| W0.1 | CH-0001 built vs live split; CH-0002 one owner per criterion | Spec only; makes the trace honest before it grows | Lint passes; the matrix shows FR-KNOW-006, FR-KNOW-007, FR-CONN-003 as `built` | proposed |
+| W0.1 | CH-0001 built vs live split; CH-0002 one owner per criterion | Spec only; makes the trace honest before it grows | Lint passes; the matrix shows FR-KNOW-006, FR-KNOW-007, FR-CONN-003 as `built` | ✅ done 2026-11-11 (`99972d8`, `d4a0772`); 9 modified requirements await re-review |
 | W0.2 | CH-0006 tests for unverified components | Pins compose, workspace, user_agent and Terraform claims before W1 to W5 change them | `pytest tests/infra tests/agent/test_user_agent.py` passes with no `.env` and no skips | proposed |
 | W0.3 | CH-0003 retire the SDLC action stubs | Removes fake tools before the real build and test workflows replace them | `sdlc-config diff` shows only the three tools removed | proposed |
 | W0.4 | CH-0009 role rename and team scoping | Closes the cross-team role leak; W1's workflow roles build on scoped roles | The cross-team persona loses the leaked access; single-team personas unchanged; Entra app roles switched (user) | proposed |
