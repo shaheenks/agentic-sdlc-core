@@ -35,7 +35,6 @@ locals {
   }
 
   cloudsql_socket = "/cloudsql/${google_sql_database_instance.sdlc.connection_name}"
-  config_env_dir  = "/app/config/env/${var.env}" # groups.yaml is mounted here from Secret Manager
   # users.yaml (optional) gets its own folder: Cloud Run mounts one secret per folder.
   users_dir = "/app/config-users"
 

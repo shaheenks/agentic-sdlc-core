@@ -1,5 +1,5 @@
-# Secret Manager: generated DB passwords + cookie secret, and tenant values from .env / the
-# git-ignored groups.yaml and (optional) users.yaml. Values are also in the Terraform state (GCS bucket, restricted).
+# Secret Manager: generated DB passwords + cookie secret, and tenant values from .env and the
+# git-ignored (optional) users.yaml. No group map or Graph secret since CH-0011/CH-0012. Values are also in the Terraform state (GCS bucket, restricted).
 
 resource "random_password" "db" {
   for_each = toset(["admin", "owner", "app", "ingest"])
@@ -21,10 +21,6 @@ locals {
       "pg-ingest-password"  = random_password.db["ingest"].result
       "oauth2-cookie"       = random_password.cookie.result
       "entra-client-secret" = var.entra_client_secret
-      "groups-yaml"         = file(var.groups_yaml_path)
-    },
-    var.entra_graph_client_secret == "" ? {} : {
-      "entra-graph-secret" = var.entra_graph_client_secret
     },
     local.users_secret ? { # with config bundles, users.yaml travels in the bundle instead
       "users-yaml" = file(var.users_yaml_path)

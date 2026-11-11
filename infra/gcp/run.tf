@@ -8,7 +8,7 @@ locals {
   # Config bundles (version-02 N13): with a config store bucket, the MCP service and the ingest
   # job read the active bundle from gs://<bucket>/bundles/<env>/ (mounted read-only; published
   # by `gcp_deploy.ps1 -Step config`). A bundle carries config, skills and the tenant
-  # groups.yaml / users.yaml, so the secret mounts for those files are not used then.
+  # users.yaml, so its secret mount is not used then.
   bundles     = var.config_store_bucket != ""
   bundles_dir = "/app/config-bundles"
   bundles_env = local.bundles ? { SDLC_CONFIG_BUNDLES = local.bundles_dir } : {}
@@ -40,10 +40,7 @@ locals {
     # direct members (version-02 N10) without bundles: read from the secret mount
     local.users_secret ? { SDLC_USERS_FILE = "${local.users_dir}/users.yaml" } : {},
   )
-  mcp_secret_env = merge(
-    { PGPASSWORD = "pg-app-password" },
-    contains(keys(local.secret), "entra-graph-secret") ? { ENTRA_GRAPH_CLIENT_SECRET = "entra-graph-secret" } : {},
-  )
+  mcp_secret_env = { PGPASSWORD = "pg-app-password" }
 
   # Same settings as the local oauth2-proxy (docker-compose.yml x-oauth2-proxy-env).
   oauth2_proxy_env = {
@@ -169,13 +166,6 @@ resource "google_cloud_run_v2_service" "mcp" {
         mount_path = "/cloudsql"
       }
       dynamic "volume_mounts" {
-        for_each = local.bundles ? [] : [1]
-        content {
-          name       = "groups"
-          mount_path = local.config_env_dir
-        }
-      }
-      dynamic "volume_mounts" {
         for_each = local.users_secret ? [1] : []
         content {
           name       = "users"
@@ -201,19 +191,6 @@ resource "google_cloud_run_v2_service" "mcp" {
       name = "cloudsql"
       cloud_sql_instance {
         instances = [google_sql_database_instance.sdlc.connection_name]
-      }
-    }
-    dynamic "volumes" {
-      for_each = local.bundles ? [] : [1]
-      content {
-        name = "groups"
-        secret {
-          secret = local.secret["groups-yaml"]
-          items {
-            version = "latest"
-            path    = "groups.yaml"
-          }
-        }
       }
     }
     dynamic "volumes" {
@@ -455,13 +432,6 @@ resource "google_cloud_run_v2_job" "ingest" {
           mount_path = "/cloudsql"
         }
         dynamic "volume_mounts" {
-          for_each = local.bundles ? [] : [1]
-          content {
-            name       = "groups"
-            mount_path = local.config_env_dir
-          }
-        }
-        dynamic "volume_mounts" {
           for_each = local.bundles ? [1] : []
           content {
             name       = "config-bundles"
@@ -473,19 +443,6 @@ resource "google_cloud_run_v2_job" "ingest" {
         name = "cloudsql"
         cloud_sql_instance {
           instances = [google_sql_database_instance.sdlc.connection_name]
-        }
-      }
-      dynamic "volumes" {
-        for_each = local.bundles ? [] : [1]
-        content {
-          name = "groups"
-          secret {
-            secret = local.secret["groups-yaml"]
-            items {
-              version = "latest"
-              path    = "groups.yaml"
-            }
-          }
         }
       }
       dynamic "volumes" {
@@ -551,13 +508,6 @@ resource "google_cloud_run_v2_job" "reconcile" {
           mount_path = "/cloudsql"
         }
         dynamic "volume_mounts" {
-          for_each = local.bundles ? [] : [1]
-          content {
-            name       = "groups"
-            mount_path = local.config_env_dir
-          }
-        }
-        dynamic "volume_mounts" {
           for_each = local.bundles ? [1] : []
           content {
             name       = "config-bundles"
@@ -569,19 +519,6 @@ resource "google_cloud_run_v2_job" "reconcile" {
         name = "cloudsql"
         cloud_sql_instance {
           instances = [google_sql_database_instance.sdlc.connection_name]
-        }
-      }
-      dynamic "volumes" {
-        for_each = local.bundles ? [] : [1]
-        content {
-          name = "groups"
-          secret {
-            secret = local.secret["groups-yaml"]
-            items {
-              version = "latest"
-              path    = "groups.yaml"
-            }
-          }
         }
       }
       dynamic "volumes" {

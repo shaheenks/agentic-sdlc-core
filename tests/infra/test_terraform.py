@@ -132,3 +132,13 @@ def test_cloud_run_secrets_are_references_not_plain_values(tf):
             assert not [k for k in keys if SECRET_NAME.search(k)], name
             assert not SECRET_REF.search(text), name
     assert plain_maps  # the check saw the env maps
+
+
+def test_no_group_map_or_graph_secret():
+    """CH-0011/CH-0012: membership comes from app roles only; nothing creates, grants or mounts a
+    group map or a Graph secret."""
+    text = "\n".join(path.read_text(encoding="utf-8") for path in TF_DIR.glob("*.tf"))
+    text += "\n".join(path.read_text(encoding="utf-8") for path in TF_DIR.glob("*.tfvars"))
+    gone = ("groups-yaml", "groups_yaml_path", "entra-graph-secret", "entra_graph_client_secret")
+    for name in gone:
+        assert name not in text, name

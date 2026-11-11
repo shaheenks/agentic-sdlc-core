@@ -2,11 +2,11 @@
 
 locals {
   workloads = {
-    mcp  = { roles = ["roles/cloudsql.client", "roles/aiplatform.user"], secrets = ["pg-app-password", "groups-yaml", "entra-graph-secret", "users-yaml"] }
+    mcp  = { roles = ["roles/cloudsql.client", "roles/aiplatform.user"], secrets = ["pg-app-password", "users-yaml"] }
     app  = { roles = ["roles/aiplatform.user"], secrets = ["oauth2-cookie", "entra-client-secret"] }
-    jobs = { roles = ["roles/cloudsql.client", "roles/aiplatform.user"], secrets = ["pg-admin-password", "pg-owner-password", "pg-app-password", "pg-ingest-password", "groups-yaml"] }
+    jobs = { roles = ["roles/cloudsql.client", "roles/aiplatform.user"], secrets = ["pg-admin-password", "pg-owner-password", "pg-app-password", "pg-ingest-password"] }
     # user-connection reconcile job (version-02 N3): the DB only for the per-user advisory lock
-    reconcile = { roles = ["roles/cloudsql.client"], secrets = ["pg-app-password", "groups-yaml"] }
+    reconcile = { roles = ["roles/cloudsql.client"], secrets = ["pg-app-password"] }
   }
   role_grants = merge([
     for w, spec in local.workloads : { for r in spec.roles : "${w}/${r}" => { workload = w, role = r } }

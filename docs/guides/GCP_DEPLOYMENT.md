@@ -23,7 +23,7 @@ optional `config/env/dev/users.yaml`). **The user runs Terraform and `gcp_deploy
 | Artifact store | Bucket `sdlc-artifact-store-a7484d8b`, `objectUser` for `sdlc-mcp` only (version-03 P5 F4, 2026-11-06) |
 | Agent Engine sessions (`sessions.tf`, version-01 M8) | Applied 2026-10-30; conversations checked in the browser |
 | Cloud Trace (`cloud_trace = true`, version-02 N4) | On; one chat turn = one trace, no prompt or argument values (2026-11-05) |
-| Entra | Dev callback on `sdlc-client`; app roles on `sdlc-mcp` (version-03 P2 E1, 2026-11-07); membership from app roles only (CH-0011, tenant switch pending) |
+| Entra | Dev callback on `sdlc-client`; app roles on `sdlc-mcp` (version-03 P2 E1, 2026-11-07); membership from app roles only (CH-0011; groups removed 2026-11-11) |
 
 **Not yet in Terraform:** source credentials as Secret Manager secrets (no private source today), custom hostnames,
 CI deploy stages, Cloud SQL private IP (version-03 P3).
@@ -138,7 +138,7 @@ sequenceDiagram
 |---|---|---|
 | `main.tf` | `google_project_service` (Run, Cloud SQL Admin, Secret Manager, Artifact Registry, Vertex AI, IAM, Resource Manager), Artifact Registry `sdlc` | Locals compute the deterministic URLs `https://<service>-<project number>.<region>.run.app` before the services exist, so each service is configured with its own public URL (`MCP_PUBLIC_URL`, OAuth redirect). Enable `cloudresourcemanager.googleapis.com` by hand before the first plan |
 | `sql.tf` | Instance `sdlc-<env>` (PG 17, Enterprise, `db-g1-small`, zonal, 10 GB autoresize, backups on, `ENCRYPTED_ONLY`), database `sdlc`, user `postgres` | Public IP for the connector only, no authorized networks |
-| `secrets.tf` | Generated passwords (`admin`, `owner`, `app`, `ingest`), cookie secret; 7–8 secrets + versions `sdlc-<env>-*` | Entra client secret and optional `users.yaml` come from local git-ignored files. The `groups-yaml` and Graph secrets are left over from before CH-0011 (unused; a follow-up removes them) |
+| `secrets.tf` | Generated passwords (`admin`, `owner`, `app`, `ingest`), cookie secret; 6–7 secrets + versions `sdlc-<env>-*` | Entra client secret and optional `users.yaml` come from local git-ignored files (no group map or Graph secret since CH-0012) |
 | `iam.tf` | Service accounts `sdlc-<env>-mcp`, `-app`, `-jobs`; project roles; per-secret accessor bindings; custom role `sdlcUserSecrets_<env>` | See §5 |
 | `run.tf` | Services `sdlc-mcp-<env>`, `sdlc-app-<env>`; jobs `sdlc-db-setup-<env>`, `sdlc-ingest-<env>` | Secrets as env vars (`version = latest`); Cloud SQL socket at `/cloudsql` |
 | `sessions.tf` | Agent Engine `sdlc-sessions-<env>` (`google_vertex_ai_reasoning_engine`, version-01 M8) | Session store only (no deployed code, no memory bank); the agent gets its full resource name in `SDLC_SESSION_SERVICE_URI` |
@@ -154,10 +154,10 @@ by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on 
 
 | Workload | Service account | Project roles | Secrets it can read |
 |---|---|---|---|
-| `sdlc-mcp` | `sdlc-<env>-mcp` | Cloud SQL Client, Vertex AI User, `sdlcUserSecrets_<env>` (condition: names starting `sdlc-<env>-user-`) | `pg-app-password`, `groups-yaml`, `entra-graph-secret` and `users-yaml` (if set); users' connection secrets |
+| `sdlc-mcp` | `sdlc-<env>-mcp` | Cloud SQL Client, Vertex AI User, `sdlcUserSecrets_<env>` (condition: names starting `sdlc-<env>-user-`) | `pg-app-password` and `users-yaml` (if set); users' connection secrets |
 | `sdlc-app` | `sdlc-<env>-app` | Vertex AI User (Gemini and Agent Engine sessions) | `oauth2-cookie`, `entra-client-secret` |
-| jobs | `sdlc-<env>-jobs` | Cloud SQL Client, Vertex AI User; Storage Object Viewer on `gcs_source_buckets` | `pg-admin-password`, `pg-owner-password`, `pg-app-password`, `pg-ingest-password`, `groups-yaml` |
-| reconcile job (N3) | `sdlc-<env>-reconcile` | Cloud SQL Client (advisory lock only), `sdlcUserSecrets_<env>` (same name condition as the MCP), `sdlcSecretsList_<env>` (secret names/labels, unconditioned: list is checked on the project); Object Viewer on the config store | `pg-app-password`, `groups-yaml` |
+| jobs | `sdlc-<env>-jobs` | Cloud SQL Client, Vertex AI User; Storage Object Viewer on `gcs_source_buckets` | `pg-admin-password`, `pg-owner-password`, `pg-app-password`, `pg-ingest-password` |
+| reconcile job (N3) | `sdlc-<env>-reconcile` | Cloud SQL Client (advisory lock only), `sdlcUserSecrets_<env>` (same name condition as the MCP), `sdlcSecretsList_<env>` (secret names/labels, unconditioned: list is checked on the project); Object Viewer on the config store | `pg-app-password` |
 | Cloud Scheduler (if a schedule is set) | `sdlc-<env>-scheduler` | Cloud Run Invoker on the scheduled jobs only | none |
 
 - **No key files**: Vertex AI, Agent Engine, Secret Manager and Cloud SQL use each workload's service identity.
@@ -240,7 +240,7 @@ From the repo root, in PowerShell (Docker Desktop running, `gcloud` signed in, T
 ## 8. Verification
 
 On dev, with the test users (payments member, platform member, payments approver, admin, and an account with no
-sdlc groups):
+sdlc app roles):
 
 1. Sign in at the `app_url`: `/chat/` (CopilotKit) and `/dev-ui/` (ADK) load.
 2. `whoami` shows each user's own teams and roles; tool lists differ per persona.

@@ -18,9 +18,8 @@
     ingest   run the sdlc-ingest job
     urls     print app / MCP URLs and the OAuth callback to register on sdlc-client
 
-  Tenant values (ENTRA_*) come from .env. Membership comes from Entra app roles (CH-0011); the
-  `plan` step still needs config/env/<env>/groups.yaml because Terraform creates the groups-yaml
-  secret from it until infra/gcp drops it.
+  Tenant values (ENTRA_*) come from .env. Membership comes from Entra app roles (CH-0011); there is
+  no group map (CH-0012).
   First deployment with a config store bucket: state, base, config, images, plan, apply, db, ingest.
   A config-only change afterwards: commit, then `config` (no new images, no apply).
   `base` and `apply` change cloud resources and ask for confirmation unless -AutoApprove.
@@ -109,7 +108,6 @@ function Set-TerraformEnv {
     $env:TF_VAR_entra_api_client_id = Get-DotEnv 'ENTRA_API_CLIENT_ID'
     $env:TF_VAR_entra_client_id = Get-DotEnv 'ENTRA_CLIENT_ID'
     $env:TF_VAR_entra_client_secret = Get-DotEnv 'ENTRA_CLIENT_SECRET'
-    $env:TF_VAR_entra_graph_client_secret = Get-DotEnv 'ENTRA_GRAPH_CLIENT_SECRET'
     # Optional direct members (version-02 N10): stored as a secret and mounted into the MCP service.
     $usersYaml = Join-Path $Root "config/env/$EnvName/users.yaml"
     $env:TF_VAR_users_yaml_path = if (Test-Path $usersYaml) { "../../config/env/$EnvName/users.yaml" } else { '' }
@@ -210,10 +208,6 @@ switch ($Step) {
     }
     'plan' {
         Set-TerraformEnv
-        # Terraform (secrets.tf) still reads groups.yaml for the unused groups-yaml secret.
-        if (-not (Test-Path (Join-Path $Root "config/env/$EnvName/groups.yaml"))) {
-            throw "missing config/env/$EnvName/groups.yaml (still read by Terraform; content unused)"
-        }
         # With a config store bucket, Cloud Run reads its config from there: an active bundle must
         # exist first, or the new MCP revision fails closed at startup.
         if ($BundleRoot -and -not (Test-Native 'gcloud' @('storage', 'objects', 'describe', "$BundleRoot/current"))) {

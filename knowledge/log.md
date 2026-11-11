@@ -30,6 +30,10 @@
   FR-IDN-002, FR-AUTHZ-005, FR-CFG-002, FR-IDN-003, NFR-PORT-001, NFR-PRIV-003 and NFR-SEC-004 edited and back to
   `draft`; the seven rule sets edited and back to `draft`. Team `owners` are GitHub handles that CODEOWNERS must
   match. CH-0005 dropped (superseded). Follow-up: remove the unused groups and Graph secrets from infra/gcp.
+- **Update**: the user removed the Entra groups and deployed CH-0009/CH-0011 to GCP dev (images, db, config). The user
+  approved CH-0012 (recorded by Claude on the user's instruction). CH-0012 done: infra/gcp no longer creates, grants
+  or mounts the `groups-yaml` and `entra-graph-secret` secrets; `gcp_deploy.ps1` no longer needs `groups.yaml`. GCP dev
+  needs `-Step plan` + `apply` (user).
 
 - **Creation**: NFR-OPS-002 continuous deployment to GCP dev (`draft`) and change record CH-0010: a GitHub workflow (bash on
   Linux runners) deploys every merge to `main`, running only the steps the changes need, in order. `gcp_deploy.ps1`

@@ -48,18 +48,6 @@ variable "entra_client_secret" {
   sensitive = true
 }
 
-variable "entra_graph_client_secret" {
-  description = "Optional: Graph fallback for group overage. Empty = no fallback (fail closed)."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "groups_yaml_path" {
-  description = "Git-ignored GroupMap for this env (tenant group IDs), stored in Secret Manager."
-  type        = string
-}
-
 variable "users_yaml_path" {
   description = "Optional git-ignored UserMap for this env (direct members: emails + object IDs), stored in Secret Manager and mounted into the MCP service. Empty = none. gcp_deploy.ps1 sets it when config/env/<env>/users.yaml exists."
   type        = string

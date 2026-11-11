@@ -8,6 +8,7 @@
 - [CH-0006: Test the components that have no automated verification](CH-0006.md) - Offline tests for compose, the workspace, user_agent and infra_gcp, so their trace claims are checked on every run.
 - [CH-0009: Rename team roles and scope them to their team](CH-0009.md) - The team roles developer and lead become member and approver, and a team role grants access only within its own team, which closes today's cross-team leak.
 - [CH-0011: Membership from app roles only](CH-0011.md) - Entra groups are dropped from the access model; platform, team and workflow roles come only from Entra app roles (plus direct members), so no group IDs or group map exist anywhere.
+- [CH-0012: Remove the group map and Graph secrets from GCP](CH-0012.md) - Terraform stops creating, granting and mounting the unused groups-yaml and entra-graph-secret secrets, and the deploy script stops requiring groups.yaml.
 
 ## Open
 
