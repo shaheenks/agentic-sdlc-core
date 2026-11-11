@@ -57,7 +57,7 @@ Code: `libs/sdlc_auth`
 - [NFR-PORT-001: Tenant-agnostic identity](../requirements/non-functional/NFR-PORT-001.md) - Takes tenant, client and authority host from configuration.
 - [NFR-REL-002: Stable MCP sessions](../requirements/non-functional/NFR-REL-002.md) - Keys the MCP session on user token and conversation only.
 - [NFR-SEC-003: Strict token validation](../requirements/non-functional/NFR-SEC-003.md) - Implements the token checks.
-- [NFR-SEC-004: Fail closed](../requirements/non-functional/NFR-SEC-004.md) - Fails closed on missing groups and unreachable signing keys.
+- [NFR-SEC-004: Fail closed](../requirements/non-functional/NFR-SEC-004.md) - Fails closed when the signing keys cannot be reached.
 - [NFR-SEC-006: Calls are made as the user](../requirements/non-functional/NFR-SEC-006.md) - Provides the user-token passthrough agents use.
 
 # Verification

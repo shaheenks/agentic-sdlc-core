@@ -7,12 +7,9 @@ tags:
 - requirement
 - non-functional
 - security
-status: stable
+status: draft
 priority: must
 implementation: live
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T21:30:44+05:30'
 sources:
 - id: rules
   resource: ../../rules/index.md
@@ -26,5 +23,8 @@ When identity or configuration cannot be verified, the system shall refuse rathe
 # Acceptance criteria
 
 - The MCP server refuses to start without valid configuration and the Entra tenant and client IDs.
-- A token without groups (overage) yields no groups.
 - If the signing keys (JWKS) cannot be reached, every request is refused.
+
+# Notes
+
+The overage rule (a token without groups yields no groups) is stated once, in [FR-IDN-002](../functional/FR-IDN-002.md) (CH-0002).

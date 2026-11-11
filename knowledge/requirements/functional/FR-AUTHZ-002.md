@@ -7,12 +7,9 @@ tags:
 - requirement
 - functional
 - authorization
-status: stable
+status: draft
 priority: must
 implementation: live
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T21:10:40+05:30'
 sources:
 - id: rules
   resource: ../../rules/index.md
@@ -30,4 +27,8 @@ The system shall re-check authorization on every tool call, including limits on 
 
 - Calling a tool that was filtered from the listing is refused.
 - Argument limits are unioned across the teams that constrain a tool; a team that does not constrain it never widens access.
-- Roles with `tools.unconstrained: true` (admin) skip argument limits; a deny wins over any allow.
+- Roles with `tools.unconstrained: true` (admin) skip argument limits.
+
+# Notes
+
+"A deny wins over any allow" is stated once, in [NFR-SEC-002](../non-functional/NFR-SEC-002.md) (CH-0002).

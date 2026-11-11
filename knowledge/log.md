@@ -7,6 +7,9 @@
 - **Update**: CH-0001 done. FR-KNOW-006, FR-KNOW-007 and FR-CONN-003 are `built`, satisfied by ingest_loaders,
   sdlc_connectors, ingest_bootstrap, core_mcp and config. FR-KNOW-001, FR-KNOW-004 and FR-CONN-002 lose the split-out
   parts and are back to `draft`. Version-03 P8 names the three requirements as its live-check targets.
+- **Update**: CH-0002 done. FR-AUTHZ-001, FR-AUTHZ-002, FR-AUTHZ-005, FR-SURF-002, NFR-REL-001 and NFR-SEC-004 drop
+  criteria that NFR-MAINT-002, NFR-MAINT-004, NFR-SEC-002, NFR-SEC-009, FR-CFG-003 and FR-IDN-002 already state, and
+  are back to `draft`.
 
 - **Creation**: NFR-OPS-002 continuous deployment to GCP dev (`draft`) and change record CH-0010: a GitHub workflow (bash on
   Linux runners) deploys every merge to `main`, running only the steps the changes need, in order. `gcp_deploy.ps1`

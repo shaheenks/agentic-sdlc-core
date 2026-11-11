@@ -7,12 +7,9 @@ tags:
 - requirement
 - functional
 - authorization
-status: stable
+status: draft
 priority: must
 implementation: live
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T21:10:40+05:30'
 sources:
 - id: rules
   resource: ../../rules/index.md
@@ -30,4 +27,7 @@ The system shall grant access to knowledge only through each source's access rul
 
 - `Source.access` accepts `teams`, `roles`, `groups` (the source's own group alias) or `everyone: true`; nothing else grants data access.
 - A user outside a source's access rule gets no rows from it in search or graph results.
-- A new source has persona-matrix `data_rows` and a CODEOWNERS rule.
+
+# Notes
+
+Matrix `data_rows` and CODEOWNERS rules for new sources are stated once, in [NFR-MAINT-002](../non-functional/NFR-MAINT-002.md) and [NFR-MAINT-004](../non-functional/NFR-MAINT-004.md) (CH-0002).
