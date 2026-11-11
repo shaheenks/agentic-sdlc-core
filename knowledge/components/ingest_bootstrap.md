@@ -15,6 +15,7 @@ satisfies:
 - /requirements/functional/FR-KNOW-001
 - /requirements/functional/FR-KNOW-003
 - /requirements/functional/FR-KNOW-004
+- /requirements/functional/FR-KNOW-007
 - /requirements/non-functional/NFR-REL-004
 - /requirements/non-functional/NFR-SEC-009
 verified_by:
@@ -53,7 +54,8 @@ Code: `ingest/bootstrap`
 
 - [FR-KNOW-001: Ingest declared sources](../requirements/functional/FR-KNOW-001.md) - Runs the pipeline and tags rows with source and classification.
 - [FR-KNOW-003: Knowledge graph queries](../requirements/functional/FR-KNOW-003.md) - Extracts entities and relations per chunk.
-- [FR-KNOW-004: PDF ingestion](../requirements/functional/FR-KNOW-004.md) - Reads PDF text and page ranges; OCR only when the source opts in.
+- [FR-KNOW-004: PDF ingestion](../requirements/functional/FR-KNOW-004.md) - Reads PDF text and page ranges.
+- [FR-KNOW-007: OCR for scanned PDFs](../requirements/functional/FR-KNOW-007.md) - Sends text-less pages to the model only for opted-in sources and caches the output.
 - [NFR-REL-004: Repeatable data changes](../requirements/non-functional/NFR-REL-004.md) - Skips unchanged content by hash.
 - [NFR-SEC-009: External content is untrusted](../requirements/non-functional/NFR-SEC-009.md) - Cleans extraction output before it is stored.
 

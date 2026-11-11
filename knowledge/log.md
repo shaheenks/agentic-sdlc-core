@@ -2,6 +2,12 @@
 
 ## 2026-11-11
 
+- **Update**: the user approved CH-0001, CH-0002, FR-KNOW-006, FR-KNOW-007 and FR-CONN-003 (recorded by Claude on the
+  user's instruction).
+- **Update**: CH-0001 done. FR-KNOW-006, FR-KNOW-007 and FR-CONN-003 are `built`, satisfied by ingest_loaders,
+  sdlc_connectors, ingest_bootstrap, core_mcp and config. FR-KNOW-001, FR-KNOW-004 and FR-CONN-002 lose the split-out
+  parts and are back to `draft`. Version-03 P8 names the three requirements as its live-check targets.
+
 - **Creation**: NFR-OPS-002 continuous deployment to GCP dev (`draft`) and change record CH-0010: a GitHub workflow (bash on
   Linux runners) deploys every merge to `main`, running only the steps the changes need, in order. `gcp_deploy.ps1`
   stays for Windows next to a new `gcp_deploy.sh`; both read one manifest and a parity test keeps them equal. NFR-MAINT-003

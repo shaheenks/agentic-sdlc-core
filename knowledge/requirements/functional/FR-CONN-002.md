@@ -7,12 +7,9 @@ tags:
 - requirement
 - functional
 - connections
-status: stable
+status: draft
 priority: must
 implementation: live
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T21:28:01+05:30'
 sources:
 - id: rules
   resource: ../../rules/index.md
@@ -34,4 +31,4 @@ The system shall call external systems with the caller's own connection, only af
 
 # Notes
 
-GitHub and Bitbucket Cloud are live. Atlassian (Jira, Confluence) and Data Center editions are built and not yet checked live (inventory gap 6).
+This requirement covers the GitHub and Bitbucket Cloud connections, which are live. Atlassian (Jira, Confluence) and Data Center connections are [FR-CONN-003](FR-CONN-003.md) (modified by CH-0001).

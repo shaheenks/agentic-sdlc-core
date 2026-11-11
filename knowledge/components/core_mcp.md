@@ -22,6 +22,7 @@ satisfies:
 - /requirements/functional/FR-CFG-004
 - /requirements/functional/FR-CONN-001
 - /requirements/functional/FR-CONN-002
+- /requirements/functional/FR-CONN-003
 - /requirements/functional/FR-DOC-001
 - /requirements/functional/FR-IDN-001
 - /requirements/functional/FR-IDN-003
@@ -90,6 +91,7 @@ Code: `mcp_servers/core_mcp`
 - [FR-CFG-004: Admin view of the running configuration](../requirements/functional/FR-CFG-004.md) - `config_info` admin tool.
 - [FR-CONN-001: Users connect their own accounts](../requirements/functional/FR-CONN-001.md) - `/connections/` API.
 - [FR-CONN-002: Tools act as the user](../requirements/functional/FR-CONN-002.md) - Connected tools load the caller's connection after the policy check.
+- [FR-CONN-003: Atlassian and Data Center connections](../requirements/functional/FR-CONN-003.md) - `jira_get_issue` and `confluence_get_page` with the caller's `atlassian` connection.
 - [FR-DOC-001: Reviewed document flow](../requirements/functional/FR-DOC-001.md) - Saves the finished document and its review as artifacts.
 - [FR-IDN-001: Sign-in with Entra ID](../requirements/functional/FR-IDN-001.md) - Answers 401 without a valid token, audits `auth_failure`, serves `whoami`.
 - [FR-IDN-003: Users can see their own access](../requirements/functional/FR-IDN-003.md) - `whoami(explain)` for the caller; `config_explain` for admins.

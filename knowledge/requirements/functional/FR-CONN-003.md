@@ -7,9 +7,12 @@ tags:
 - requirement
 - functional
 - connections
-status: draft
+status: stable
+verified:
+- by: human:shaheenks
+  at: '2026-11-11T11:49:13+05:30'
 priority: should
-implementation: planned
+implementation: built
 sources:
 - id: inventory
   resource: ../../../docs/FEATURE_INVENTORY.md
@@ -34,4 +37,4 @@ The system shall let users connect their Atlassian Cloud account and their Bitbu
 
 # Notes
 
-Split out of [FR-CONN-002](FR-CONN-002.md) by [CH-0001](../../changes/CH-0001.md). The code is built and tested against fake APIs only (inventory gap 6). `implementation` is `planned` while this concept is a draft and becomes `built` when CH-0001 is done; it becomes `live` after the P8 live check.
+Split out of [FR-CONN-002](FR-CONN-002.md) by [CH-0001](../../changes/CH-0001.md). The code is built and tested against fake APIs only (inventory gap 6). It becomes `live` after the P8 live check.

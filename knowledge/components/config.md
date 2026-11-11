@@ -18,9 +18,11 @@ satisfies:
 - /requirements/functional/FR-AUTHZ-005
 - /requirements/functional/FR-CFG-001
 - /requirements/functional/FR-CONN-001
+- /requirements/functional/FR-CONN-003
 - /requirements/functional/FR-IDN-002
 - /requirements/functional/FR-IDN-004
 - /requirements/functional/FR-KNOW-001
+- /requirements/functional/FR-KNOW-006
 - /requirements/functional/FR-SKILL-001
 - /requirements/functional/FR-TEAM-001
 - /requirements/non-functional/NFR-PRIV-003
@@ -60,9 +62,11 @@ No other component.
 - [FR-AUTHZ-005: Data access granted per source](../requirements/functional/FR-AUTHZ-005.md) - Source access rules and classifications.
 - [FR-CFG-001: Access declared in configuration](../requirements/functional/FR-CFG-001.md) - Is the declared access model.
 - [FR-CONN-001: Users connect their own accounts](../requirements/functional/FR-CONN-001.md) - Connection catalog.
+- [FR-CONN-003: Atlassian and Data Center connections](../requirements/functional/FR-CONN-003.md) - The `atlassian` connection and Data Center editions.
 - [FR-IDN-002: Membership from groups, app roles and direct members](../requirements/functional/FR-IDN-002.md) - Group map and direct-member list per environment.
 - [FR-IDN-004: Revocation of access](../requirements/functional/FR-IDN-004.md) - Block list per environment.
 - [FR-KNOW-001: Ingest declared sources](../requirements/functional/FR-KNOW-001.md) - Source definitions.
+- [FR-KNOW-006: Atlassian and Bitbucket sources](../requirements/functional/FR-KNOW-006.md) - Confluence, Jira and Bitbucket source types.
 - [FR-SKILL-001: Skills served per user](../requirements/functional/FR-SKILL-001.md) - Skill catalog and grants.
 - [FR-TEAM-001: Team customization of behaviour](../requirements/functional/FR-TEAM-001.md) - Team add-ons and flow defaults.
 - [NFR-PRIV-003: Tenant data stays out of the repository](../requirements/non-functional/NFR-PRIV-003.md) - Tenant files are git-ignored; only examples are committed.
