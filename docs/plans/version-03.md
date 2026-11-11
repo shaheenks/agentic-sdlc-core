@@ -8,6 +8,8 @@ Other milestones remain a proposal, confirmed one by one.
 [../designs/workflow-platform.md](../designs/workflow-platform.md), with its requirements in change record CH-0008 (draft).
 P6 builds FR-WFL-002 to FR-WFL-005, FR-IDN-005 and NFR-REL-005. P7 builds FR-WRITE-001. P8 and P9 build FR-KNOW-008 to
 FR-KNOW-010 and FR-SURF-004. The implementation workflow (FR-WFL-006) has no milestone yet.
+**Implementation plan (draft, 2026-11-11):** [version-04.md](version-04.md) builds the whole design in phases W0 to W9,
+starting with the pending change records. It takes over P6 and the design parts of P8 and P9.
 
 Follows [version-02.md](archive/version-02.md). Architecture: [../ARCHITECTURE.md](../ARCHITECTURE.md); feature status
 (reconciliation baseline, 2026-11-08): [../FEATURE_INVENTORY.md](../FEATURE_INVENTORY.md); GCP runbook:

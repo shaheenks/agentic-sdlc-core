@@ -82,7 +82,7 @@ actions are added without changing the platform.
 
 | System | Role |
 |---|---|
-| Microsoft Entra ID | The only identity provider: sign-in, groups, app roles, workload identities |
+| Microsoft Entra ID | The only identity provider: sign-in, app roles (all membership; groups are not used), workload identities |
 | Gemini on Vertex AI | The model for agents, embeddings, graph extraction, OCR and image understanding |
 | Gemini Enterprise | A2A surface for users, with the user's Entra token. On GCP, also sessions and the optional Agent Registry |
 | Microsoft Copilot and other third-party agent platforms | A2A surfaces for users, with the user's Entra token |

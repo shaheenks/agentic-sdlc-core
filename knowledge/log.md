@@ -2,6 +2,14 @@
 
 ## 2026-11-11
 
+- **Creation**: NFR-OPS-002 continuous deployment to GCP dev (`draft`) and change record CH-0010: a GitHub workflow (bash on
+  Linux runners) deploys every merge to `main`, running only the steps the changes need, in order. `gcp_deploy.ps1`
+  stays for Windows next to a new `gcp_deploy.sh`; both read one manifest and a parity test keeps them equal. NFR-MAINT-003
+  edited to scope "no secrets" to the `ci` checks; back to `draft`.
+- **Creation**: change record CH-0011 (`draft`): membership from app roles only. It drops Entra groups and the group map,
+  supersedes CH-0005, and lists seven requirement edits to apply on approval. Team `owners` become the GitHub handles
+  that CODEOWNERS lists (design D15).
+
 - **Creation**: change record CH-0008 (`draft`), the workflow platform design baseline, and the target design
   `docs/designs/workflow-platform.md`. Added 15 draft requirements: FR-WFL-001 to FR-WFL-006, FR-IDN-005,
   FR-SURF-004, FR-KNOW-008 to FR-KNOW-010, FR-CONV-002, NFR-REL-005, NFR-SEC-012 and NFR-SEC-013.

@@ -11,3 +11,5 @@
 - [CH-0007: Check the specification tooling](CH-0007.md) - The bundle's own tooling gets a requirement, stricter lint rules and its own tests.
 - [CH-0008: Workflow platform design baseline](CH-0008.md) - The finalized POC design becomes the specification. There are four workflow classes, event intake, enrichment and delivery, workflow identity, team-scoped platform and team roles, a sandboxed ADK implementation agent, harness catalogs and knowledge extensions.
 - [CH-0009: Rename team roles and scope them to their team](CH-0009.md) - The team roles developer and lead become member and approver, and a team role grants access only within its own team, which closes today's cross-team leak.
+- [CH-0010: Continuous deployment to GCP dev](CH-0010.md) - A GitHub workflow deploys every merge to main to GCP dev, running only the deployment steps the changes need, in a fixed order.
+- [CH-0011: Membership from app roles only](CH-0011.md) - Entra groups are dropped from the access model; platform, team and workflow roles come only from Entra app roles (plus direct members), so no group IDs or group map exist anywhere.
