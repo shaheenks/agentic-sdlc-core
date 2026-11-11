@@ -71,6 +71,65 @@ access:
 """
 DIRECT_DEV_OID = "aaaaaaaa-0000-0000-0000-000000000001"
 
+# Fixture-only tools (CH-0003): the policy engine's argument limits, role inheritance, denies and
+# audit are tested on two tools that exist only in tests. The real catalog has no team-constrained
+# tool. `fixture_review` is a developer tool, `fixture_approve` a lead tool; both take a `repo`
+# that each team limits to its own repositories. The test MCP server registers echo versions.
+FIXTURE_TOOLS_YAML = """  # fixture-only (tests/support/config.py)
+  fixture_review:  { server: core-mcp, risk: medium, args: { repo: { type: string } } }
+  fixture_approve: { server: core-mcp, risk: high,   args: { repo: { type: string } } }
+"""
+FIXTURE_REPOS = {
+    "payments": ["payments-api", "payments-ui"],
+    "sdlc-platform": ["agentic-sdlc-core"],
+    "webapp": ["full-stack-fastapi-template"],
+}
+FIXTURE_APPROVE_TEAMS = ("payments", "webapp")  # sdlc-platform does not limit fixture_approve
+_TEAM_DENY = re.compile(r"(    deny: \[\][^\n]*\n)")
+
+
+def add_fixture_tools(config_dir: Path) -> None:
+    tools = config_dir / "tools.yaml"
+    tools.write_text(tools.read_text(encoding="utf-8") + FIXTURE_TOOLS_YAML, encoding="utf-8")
+    roles = config_dir / "roles.yaml"
+    text = roles.read_text(encoding="utf-8")
+    text = text.replace("allow: [jira_get_issue,", "allow: [fixture_review, jira_get_issue,", 1)
+    text = text.replace(
+        "    inherits: [developer]\n",
+        "    inherits: [developer]\n    tools:  { allow: [fixture_approve] }\n",
+        1,
+    )
+    assert "fixture_review" in text and "fixture_approve" in text, "roles.yaml layout changed"
+    roles.write_text(text, encoding="utf-8")
+    for team, repos in FIXTURE_REPOS.items():
+        tools_limited = ["fixture_review"]
+        if team in FIXTURE_APPROVE_TEAMS:
+            tools_limited.append("fixture_approve")
+        block = "    constraints:\n" + "".join(
+            f"      {tool}:\n        args:\n          repo: {{ in: [{', '.join(repos)}] }}\n"
+            for tool in tools_limited
+        )
+        path = config_dir / "teams" / f"{team}.yaml"
+        text, n = _TEAM_DENY.subn(lambda m, b=block: m.group(1) + b, path.read_text("utf-8"))
+        assert n == 1, f"{path.name}: expected one policy/tools/deny line"
+        path.write_text(text, encoding="utf-8")
+
+
+def fixture_result(tool: str, **inputs) -> dict:
+    """What the fixture tools return (tests monkeypatch it to make a tool fail)."""
+    return {"fixture": True, "tool": tool, "inputs": inputs}
+
+
+def fixture_review(repo: str, ref: str = "main") -> dict:
+    """(Test fixture) Echo a review request."""
+    return fixture_result("fixture_review", repo=repo, ref=ref)
+
+
+def fixture_approve(repo: str, design_id: str) -> dict:
+    """(Test fixture) Echo an approval."""
+    return fixture_result("fixture_approve", repo=repo, design_id=design_id)
+
+
 # The repo sources read gs://<config store>/source_docs/<id>/ (version-02 N14); tests have no
 # GCS, so they read the same documents from SAMPLES_DIR (folder names below).
 SAMPLE_FOLDERS = {
@@ -90,9 +149,10 @@ def use_sample_folders(config_dir: Path) -> None:
         path.write_text(text, encoding="utf-8")
 
 
-def make_config_dir(tmp_path: Path) -> Path:
+def make_config_dir(tmp_path: Path, fixture_tools: bool = True) -> Path:
     """Private, mutable copies of config/ and skills/ (skill paths resolve next to config/);
-    env/local/groups.yaml uses the test group IDs."""
+    env/local/groups.yaml uses the test group IDs. fixture_tools=False keeps the real catalog
+    (the persona matrix pins the real access model)."""
     dst = tmp_path / "config"
     shutil.copytree(REPO_CONFIG, dst)
     shutil.copytree(REPO_ROOT / "skills", tmp_path / "skills")
@@ -106,4 +166,6 @@ def make_config_dir(tmp_path: Path) -> Path:
     )
     (dst / "sources" / "platform-infra.yaml").write_text(TEST_PLATFORM_INFRA, encoding="utf-8")
     use_sample_folders(dst)
+    if fixture_tools:
+        add_fixture_tools(dst)
     return dst

@@ -7,51 +7,26 @@ rows:
   - { persona: nobody,        tool: list_skills,     expect: deny }
   - { persona: viewer,        tool: list_skills,     expect: allow }
   - { persona: viewer,        tool: load_skill,      expect: allow }
-  - { persona: viewer,        tool: review_code,     args: { repo: payments-api },   expect: deny }
-  # payments developer: payments repos only, no approvals, no admin tools
-  - { persona: payments-dev,  tool: review_code,     args: { repo: payments-api },   expect: allow }
-  - { persona: payments-dev,  tool: review_code,     args: { repo: payments-ui },    expect: allow }
-  - { persona: payments-dev,  tool: review_code,     args: { repo: platform-infra }, expect: deny }
-  - { persona: payments-dev,  tool: review_code,     args: {},                       expect: deny }
-  - { persona: payments-dev,  tool: generate_tests,  args: { repo: payments-api },   expect: allow }
-  - { persona: payments-dev,  tool: approve_design,  args: { repo: payments-api },   expect: deny }
+  # developers: the user-connection tools, no admin tools (team argument limits: tests/policy/test_authorize.py)
   - { persona: payments-dev,  tool: config_info,     expect: deny }
-  # payments lead: approvals within payments
-  - { persona: payments-lead, tool: approve_design,  args: { repo: payments-api },   expect: allow }
-  - { persona: payments-lead, tool: approve_design,  args: { repo: platform-ci },    expect: deny }
-  # platform developer: platform repos only
-  - { persona: platform-dev,  tool: review_code,     args: { repo: agentic-sdlc-core }, expect: allow }
-  - { persona: platform-dev,  tool: review_code,     args: { repo: payments-api },   expect: deny }
-  - { persona: platform-dev,  tool: generate_tests,  args: { repo: agentic-sdlc-core }, expect: allow }
-  - { persona: platform-dev,  tool: generate_tests,  args: { repo: platform-ci },    expect: deny }   # old repo name
-  # member of two teams: union of repos
-  - { persona: multi-team-dev, tool: review_code,    args: { repo: payments-api },   expect: allow }
-  - { persona: multi-team-dev, tool: review_code,    args: { repo: agentic-sdlc-core }, expect: allow }
-  - { persona: multi-team-dev, tool: review_code,    args: { repo: secret-repo },    expect: deny }
+  - { persona: payments-lead, tool: config_info,     expect: deny }
+  - { persona: platform-dev,  tool: github_get_file, args: { repo: agentic-sdlc-core }, expect: allow }
+  - { persona: multi-team-dev, tool: bitbucket_get_file, args: { repo: payments-api }, expect: allow }
   # admin: whole catalog, unconstrained
   - { persona: admin,         tool: config_info,     expect: allow }
   - { persona: admin,         tool: config_explain,  expect: allow }
-  - { persona: admin,         tool: review_code,     args: { repo: any-repo },       expect: allow }
-  - { persona: admin,         tool: approve_design,  args: { repo: platform-ci },    expect: allow }
   # Entra app roles only, no groups (version-03 P2 E1; full equivalence: tests/policy/test_app_roles.py)
   - { persona: approle-viewer,       tool: search_knowledge, expect: allow }
-  - { persona: approle-viewer,       tool: review_code,     args: { repo: payments-api },   expect: deny }
-  - { persona: approle-payments-dev, tool: review_code,     args: { repo: payments-api },   expect: allow }
-  - { persona: approle-payments-dev, tool: review_code,     args: { repo: agentic-sdlc-core }, expect: deny }
-  - { persona: approle-payments-lead, tool: approve_design, args: { repo: payments-api },   expect: allow }
-  - { persona: approle-platform-dev, tool: review_code,     args: { repo: agentic-sdlc-core }, expect: allow }
+  - { persona: approle-viewer,       tool: github_get_file, args: { repo: payments-api }, expect: deny }
+  - { persona: approle-payments-dev, tool: jira_get_issue,  expect: allow }
+  - { persona: approle-payments-lead, tool: config_info,    expect: deny }
+  - { persona: approle-platform-dev, tool: github_get_file, args: { repo: agentic-sdlc-core }, expect: allow }
   - { persona: approle-admin,        tool: config_explain,  expect: allow }
-  - { persona: mixed-dev,            tool: review_code,     args: { repo: agentic-sdlc-core }, expect: allow }
-  - { persona: mixed-dev,            tool: review_code,     args: { repo: payments-ui },    expect: allow }
+  - { persona: mixed-dev,            tool: confluence_get_page, expect: allow }
   - { persona: unknown-app-role,     tool: search_knowledge, expect: deny }
-  # webapp team (app roles only): its own repo, nobody else's
-  - { persona: approle-webapp-dev,   tool: review_code,     args: { repo: full-stack-fastapi-template }, expect: allow }
-  - { persona: approle-webapp-dev,   tool: generate_tests,  args: { repo: full-stack-fastapi-template }, expect: allow }
-  - { persona: approle-webapp-dev,   tool: review_code,     args: { repo: payments-api },   expect: deny }
-  - { persona: approle-webapp-dev,   tool: approve_design,  args: { repo: full-stack-fastapi-template }, expect: deny }   # lead only
-  - { persona: approle-webapp-lead,  tool: approve_design,  args: { repo: full-stack-fastapi-template }, expect: allow }
-  - { persona: platform-dev,         tool: review_code,     args: { repo: full-stack-fastapi-template }, expect: deny }
-  - { persona: payments-dev,         tool: review_code,     args: { repo: full-stack-fastapi-template }, expect: deny }
+  # webapp team (app roles only)
+  - { persona: approle-webapp-dev,   tool: github_get_file, args: { repo: full-stack-fastapi-template }, expect: allow }
+  - { persona: approle-webapp-lead,  tool: config_explain,  expect: deny }
   # catalog tools implemented in later stages (rows keep their grants under test)
   - { persona: nobody,        tool: ping,              expect: allow }
   - { persona: viewer,        tool: get_agent_context, expect: allow }
@@ -80,7 +55,7 @@ rows:
   - { persona: nobody,        tool: graph_query,       expect: deny }
   - { persona: admin,         tool: graph_query,       expect: allow }
   - { persona: infra-reader,  tool: graph_query,       expect: allow }
-  - { persona: infra-reader,  tool: generate_tests,    args: { repo: platform-infra }, expect: deny }  # source group grants data, not developer tools
+  - { persona: infra-reader,  tool: github_get_file,   args: { repo: platform-infra }, expect: deny }  # source group grants data, not developer tools
   # version-01 M6: tools that use the user's own connection (developers and above)
   - { persona: viewer,        tool: jira_get_issue,      expect: deny }
   - { persona: payments-dev,  tool: jira_get_issue,      expect: allow }
@@ -93,14 +68,13 @@ rows:
   - { persona: platform-dev,  tool: bitbucket_get_file,  args: { repo: ws/infra }, expect: allow }
 
   # version-02 N10: direct members from users.yaml (no Entra groups)
-  - { persona: direct-payments-dev, tool: review_code,  args: { repo: payments-api },   expect: allow }
-  - { persona: direct-payments-dev, tool: review_code,  args: { repo: platform-infra }, expect: deny }
   - { persona: direct-payments-dev, tool: graph_query,  expect: allow }
-  - { persona: direct-payments-dev, tool: approve_design, args: { repo: payments-api }, expect: deny }
+  - { persona: direct-payments-dev, tool: jira_get_issue, expect: allow }
+  - { persona: direct-payments-dev, tool: config_info,  expect: deny }
   - { persona: direct-viewer,       tool: search_knowledge, expect: allow }
-  - { persona: direct-viewer,       tool: review_code,  args: { repo: payments-api },   expect: deny }
   - { persona: pending-user,        tool: graph_query,  expect: deny }
-  - { persona: pending-user,        tool: review_code,  args: { repo: platform-infra }, expect: deny }
+  - { persona: pending-user,        tool: github_get_file, args: { repo: platform-infra }, expect: deny }
+  - { persona: direct-viewer,       tool: jira_get_issue, expect: deny }
 
 # Skill visibility (Stage 4). expect: visible | hidden. Every skill needs rows.
 skill_rows:

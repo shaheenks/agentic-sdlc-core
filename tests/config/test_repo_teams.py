@@ -32,8 +32,7 @@ def test_sdlc_platform_members_come_from_app_roles_and_users_yaml():
     assert team["addons"]["skills"] == {
         "infra-change-review": {"path": "skills/teams/sdlc-platform/infra-change-review"}
     }
-    repos = {t: c["args"]["repo"]["in"] for t, c in team["policy"]["tools"]["constraints"].items()}
-    assert repos == {"review_code": ["agentic-sdlc-core"], "generate_tests": ["agentic-sdlc-core"]}
+    assert "constraints" not in team["policy"]["tools"]  # no constrained tool (CH-0003)
 
 
 def test_sdlc_platform_sources():
@@ -58,9 +57,7 @@ def test_webapp_team():
         {"app_role": "SDLC.Webapp.Developer", "roles": ["developer"]},
         {"app_role": "SDLC.Webapp.Lead", "roles": ["lead"]},
     ]
-    repos = {t: c["args"]["repo"]["in"] for t, c in team["policy"]["tools"]["constraints"].items()}
-    limited = ("review_code", "generate_tests", "approve_design")
-    assert repos == {t: ["full-stack-fastapi-template"] for t in limited}
+    assert "constraints" not in team["policy"]["tools"]  # no constrained tool (CH-0003)
     addons = team["addons"]
     tags = {name: s.get("tags", []) for name, s in addons["skills"].items()}
     assert tags == {

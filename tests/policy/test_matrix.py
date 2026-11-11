@@ -18,7 +18,8 @@ ROWS = yaml.safe_load((HERE / "matrix.yaml").read_text(encoding="utf-8"))["rows"
 
 @pytest.fixture(scope="module")
 def snap(tmp_path_factory):
-    return load_snapshot(make_config_dir(tmp_path_factory.mktemp("cfg")), "local", TEST_ENV)
+    config_dir = make_config_dir(tmp_path_factory.mktemp("cfg"), fixture_tools=False)
+    return load_snapshot(config_dir, "local", TEST_ENV)
 
 
 def _row_id(row: dict) -> str:

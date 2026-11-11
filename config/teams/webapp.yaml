@@ -15,16 +15,6 @@ membership:
 policy:
   tools:
     deny: []
-    constraints:
-      review_code:
-        args:
-          repo: { in: [full-stack-fastapi-template] }
-      generate_tests:
-        args:
-          repo: { in: [full-stack-fastapi-template] }
-      approve_design:
-        args:
-          repo: { in: [full-stack-fastapi-template] }
 addons:                              # visible only to members of this team
   skills:
     webapp-coding-standards: { path: skills/teams/webapp/webapp-coding-standards }

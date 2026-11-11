@@ -13,7 +13,7 @@ def snap(config_dir):
 
 
 def test_default_deny_for_ungranted_tool(snap):
-    decision = authorize(resolve(snap, ["eng-all"]), "review_code", {"repo": "payments-api"})
+    decision = authorize(resolve(snap, ["eng-all"]), "fixture_review", {"repo": "payments-api"})
     assert not decision.allowed and decision.matched_rule == DEFAULT_DENY
 
 
@@ -39,30 +39,30 @@ def test_allowed_without_limits_names_granting_rule(snap):
     ],
 )
 def test_argument_limits(snap, args, allowed, reason_part):
-    decision = authorize(resolve(snap, ["payments-devs"]), "review_code", args)
+    decision = authorize(resolve(snap, ["payments-devs"]), "fixture_review", args)
     assert decision.allowed is allowed
     assert reason_part in decision.reason
-    assert "teams/payments.yaml#policy/tools/constraints/review_code" in decision.matched_rule
+    assert "teams/payments.yaml#policy/tools/constraints/fixture_review" in decision.matched_rule
 
 
 def test_admin_is_not_limited(snap):
     policy = resolve(snap, ["platform-admins", "payments-devs"])
-    assert authorize(policy, "review_code", {"repo": "anything"}).allowed
+    assert authorize(policy, "fixture_review", {"repo": "anything"}).allowed
     assert authorize(policy, "config_explain", {"groups": []}).allowed
 
 
 def test_deny_wins_and_names_the_deny_rule(config_dir):
     teams = config_dir / "teams/payments.yaml"
-    teams.write_text(teams.read_text().replace("deny: []", "deny: [generate_tests]"))
+    teams.write_text(teams.read_text().replace("deny: []", "deny: [fixture_review]"))
     snap = load_snapshot(config_dir, "local", TEST_ENV)
     decision = authorize(
-        resolve(snap, ["payments-devs"]), "generate_tests", {"repo": "payments-api"}
+        resolve(snap, ["payments-devs"]), "fixture_review", {"repo": "payments-api"}
     )
     assert not decision.allowed
     assert decision.matched_rule == "teams/payments.yaml#policy/tools/deny"
 
 
 def test_visible_tools(snap):
-    registered = ["ping", "whoami", "review_code", "config_info", "not_in_catalog"]
+    registered = ["ping", "whoami", "fixture_review", "config_info", "not_in_catalog"]
     assert visible_tools(resolve(snap, ["eng-all"]), registered) == ["ping", "whoami"]
     assert visible_tools(resolve(snap, ["platform-admins"]), registered) == registered[:4]

@@ -40,7 +40,6 @@ from sdlc_core_mcp.connected_tools import Connected, connection_problems, make_c
 from sdlc_core_mcp.connections_api import add_connection_routes
 from sdlc_core_mcp.identity import request_identity
 from sdlc_core_mcp.knowledge_tools import Knowledge, make_knowledge_tools
-from sdlc_core_mcp.sdlc_tools import SDLC_TOOLS
 from sdlc_core_mcp.team_tools import make_team_tools
 from sdlc_core_mcp.telemetry import setup_tracing
 
@@ -148,7 +147,6 @@ def build_server(
     artifacts = artifacts or Artifacts(store=None, knowledge=None)  # tools answer "not configured"
     for fn in [
         *core,
-        *SDLC_TOOLS,
         *make_admin_tools(store, cache),
         *knowledge_tools,
         *connected_tools,

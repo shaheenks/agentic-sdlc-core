@@ -47,7 +47,7 @@ flowchart TB
         AUTH[AuthN<br/>Entra JWT validation<br/>libs/sdlc_auth]
         RES[Resolver<br/>groups → teams → roles<br/>→ EffectivePolicy<br/>libs/sdlc_config]
         ENF[Enforcement<br/>tools/list filter · call authz<br/>arg constraints<br/>libs/sdlc_policy]
-        TOOLS[Tools<br/>whoami · skills · team context<br/>search_knowledge · graph_query<br/>artifacts · connected tools<br/>review_code … stubs]
+        TOOLS[Tools<br/>whoami · skills · team context<br/>search_knowledge · graph_query<br/>artifacts · connected tools]
         AUD[(Audit log<br/>sdlc.audit JSON)]
         AUTH --> RES --> ENF --> TOOLS
         ENF -. every decision .-> AUD

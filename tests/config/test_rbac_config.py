@@ -22,10 +22,10 @@ def test_repo_rbac_config_loads(config_dir):
     assert {"viewer", "developer", "lead", "admin"} <= set(snap.roles)
     assert snap.roles["developer"].inherits == ("viewer",)
     assert snap.roles["admin"].unconstrained and "*" in snap.roles["admin"].tools_allow
-    assert snap.tools["review_code"].args == {"repo"}
+    assert snap.tools["fixture_review"].args == {"repo"}
     assert set(snap.teams) >= {"payments", "sdlc-platform"}
     payments = snap.teams["payments"]
-    assert payments.constraints["review_code"]["repo"] == {"payments-api", "payments-ui"}
+    assert payments.constraints["fixture_review"]["repo"] == {"payments-api", "payments-ui"}
     assert payments.membership[0].rule == "teams/payments.yaml#membership[0]"
     assert payments.membership[0].team == "payments"
     assert str(snap.bindings[0].ref) == "everyone:*"
@@ -114,7 +114,7 @@ def test_app_role_bindings_are_accepted(config_dir):
         ),
         (
             "teams/payments.yaml",
-            lambda d: d["policy"]["tools"]["constraints"]["review_code"]["args"].update(
+            lambda d: d["policy"]["tools"]["constraints"]["fixture_review"]["args"].update(
                 branch={"in": ["main"]}
             ),
             "argument 'branch' is not declared",

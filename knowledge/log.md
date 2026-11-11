@@ -17,6 +17,10 @@
   `tests/infra/test_compose.py`, `test_workspace.py`, `test_terraform.py` (new dev dependency `python-hcl2`) and
   `tests/agent/test_user_agent.py` now verify compose, workspace, infra_gcp and user_agent. infra_gcp is no longer
   verified by a workflow file.
+- **Deprecation**: the user approved CH-0003 (recorded by Claude on the user's instruction). CH-0003 done: `review_code`,
+  `generate_tests` and `approve_design` removed from the code, `tools.yaml`, `roles.yaml`, the team files and the
+  persona matrix; FR-ACT-001 `deprecated` and `parked`. Policy tests use two fixture-only tools. GCP dev needs
+  `-Step images` and `-Step config` together.
 
 - **Creation**: NFR-OPS-002 continuous deployment to GCP dev (`draft`) and change record CH-0010: a GitHub workflow (bash on
   Linux runners) deploys every merge to `main`, running only the steps the changes need, in order. `gcp_deploy.ps1`

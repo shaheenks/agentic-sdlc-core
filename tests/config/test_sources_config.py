@@ -165,7 +165,7 @@ def test_source_group_grants_data_without_team(config_dir):
         "group:infra-readers <- sources/platform-infra.yaml#access/groups",
     )
     assert set(policy.readable_sources) == {"eng-standards", "platform-infra"}
-    assert policy.allows("graph_query") and not policy.allows("review_code")
+    assert policy.allows("graph_query") and not policy.allows("fixture_review")
 
 
 def test_source_group_alone_has_no_knowledge_tool(config_dir):

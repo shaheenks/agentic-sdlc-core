@@ -13,7 +13,6 @@ rate-limits every `tools/call`, and audits every decision (`sdlc.audit`).
 | `artifact_tools.py`, `artifacts_api.py` | `save/list/read/delete_artifact` (owner only, versions); HTTP `/artifacts/` (list, download, versions, DELETE) |
 | `connected_tools.py`, `connections_api.py` | `jira_get_issue`, `confluence_get_page`, `github_get_file`, `bitbucket_get_file` with the user's own PAT; HTTP `/connections/` |
 | `admin_tools.py` | `config_info`, `config_explain` (admin only) |
-| `sdlc_tools.py` | `review_code`, `generate_tests`, `approve_design`: **stubs** that echo their inputs (they demonstrate RBAC and argument limits) |
 | `audit.py`, `auth_audit.py`, `correlation.py`, `telemetry.py` | Audit records, `auth_failure`, request / conversation ids, OpenTelemetry |
 | `reconcile_cli.py` | `sdlc-reconcile-connections [--apply]` |
 

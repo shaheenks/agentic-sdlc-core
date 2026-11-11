@@ -12,7 +12,6 @@ verified:
   at: '2026-11-10T21:58:37+05:30'
 resource: ../../mcp_servers/core_mcp
 satisfies:
-- /requirements/functional/FR-ACT-001
 - /requirements/functional/FR-ART-001
 - /requirements/functional/FR-ART-002
 - /requirements/functional/FR-ART-003
@@ -64,7 +63,7 @@ Code: `mcp_servers/core_mcp`
 
 - Token validation and block-list check on every request; rejected requests are audited by `auth_audit`.
 - Policy middleware (`audit.py`): `tools/list` filtering, per-call authorization with argument limits, rate limits, audit records.
-- Tools: identity (`ping`, `whoami`), skills, team context, knowledge search and graph, artifacts, connected tools, admin tools, SDLC stubs.
+- Tools: identity (`ping`, `whoami`), skills, team context, knowledge search and graph, artifacts, connected tools and admin tools.
 - HTTP APIs: `/connections/` and `/artifacts/`.
 - `sdlc-reconcile-connections` CLI.
 - OpenTelemetry tracing and correlation ids.
@@ -81,7 +80,6 @@ Code: `mcp_servers/core_mcp`
 
 # Requirements
 
-- [FR-ACT-001: SDLC action tools](../requirements/functional/FR-ACT-001.md) - `review_code`, `generate_tests`, `approve_design` stubs.
 - [FR-ART-001: Save and manage artifacts](../requirements/functional/FR-ART-001.md) - `save/list/read/delete_artifact`, owner taken from the token.
 - [FR-ART-002: Artifact versions](../requirements/functional/FR-ART-002.md) - `replaces` / `base_version` handling.
 - [FR-ART-003: Download and review artifacts in the chat](../requirements/functional/FR-ART-003.md) - `/artifacts/` download API and numbered reads.

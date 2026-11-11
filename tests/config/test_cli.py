@@ -1,6 +1,7 @@
 """Stage 3e: sdlc-config explain / diff."""
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -33,7 +34,7 @@ def test_explain_persona(config_dir, capsys):
     )
     assert code == 0
     assert "payments       <- teams/payments.yaml#membership[0]" in out
-    assert "review_code        repo in [payments-api, payments-ui]" in out
+    assert re.search(r"fixture_review +repo in \[payments-api, payments-ui\]", out)
 
 
 def test_explain_groups_json_reports_unknown(config_dir, capsys):
@@ -49,7 +50,7 @@ def test_explain_groups_json_reports_unknown(config_dir, capsys):
     )
     view = json.loads(out)
     assert code == 0 and view["unknown_groups"] == ["ghosts"]
-    assert set(view["tools"]) >= {"whoami", "list_skills"} and "review_code" not in view["tools"]
+    assert set(view["tools"]) >= {"whoami", "list_skills"} and "fixture_review" not in view["tools"]
 
 
 def test_explain_unknown_persona_fails(config_dir, capsys):
@@ -89,7 +90,7 @@ def test_diff_between_revisions(tmp_path, config_dir, capsys):
     )
     roles = repo / "config/roles.yaml"
     roles.write_text(
-        roles.read_text().replace("tools:  { allow: [approve_design] }", "tools:  { allow: [] }")
+        roles.read_text().replace("tools:  { allow: [fixture_approve] }", "tools:  { allow: [] }")
     )
 
     code, out = run(
@@ -105,10 +106,10 @@ def test_diff_between_revisions(tmp_path, config_dir, capsys):
     )
     assert code == 1
     assert (
-        "payments-dev:\n  ~ review_code  (repo in [payments-api, payments-ui] -> "
+        "payments-dev:\n  ~ fixture_review  (repo in [payments-api, payments-ui] -> "
         "repo in [payments-api, payments-ledger, payments-ui])" in out
     )
-    assert "payments-lead:" in out and "  - approve_design" in out
+    assert "payments-lead:" in out and "  - fixture_approve" in out
     assert "platform-dev:" not in out  # unchanged personas are not listed
 
     code, out = run(

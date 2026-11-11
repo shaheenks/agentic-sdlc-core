@@ -14,7 +14,6 @@ Use this skill when the user wants test cases for a requirement, a user story, o
 3. Write test cases in a table: `ID | Scenario | Given | When | Then | Type`, where Type is
    `happy`, `edge`, `failure` or `security`. Cover every class and boundary at least once.
 4. Add at least one case for invalid or unauthorized input when the feature has access rules.
-5. If the user asked for code and a `generate_tests` tool is available, call it with the repo
-   and target instead of writing test code yourself.
+5. If the user asked for code, write the test code in the chat, following the cases in the table.
 
 Keep cases independent and deterministic. Do not invent behaviour: ask.

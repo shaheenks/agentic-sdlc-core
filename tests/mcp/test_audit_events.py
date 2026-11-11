@@ -28,8 +28,8 @@ async def test_tools_list_is_audited(base_url, entra, caplog):
     [record] = audit_events(caplog, "tools_list")
     assert record["oid"] == "aaaaaaaa-0000-0000-0000-00000000000a"
     assert record["teams"] == ["payments"] and "developer" in record["roles"]
-    assert "review_code" in record["visible"] and "config_info" not in record["visible"]
-    assert record["hidden_count"] >= 3  # approve_design, config_info, config_explain
+    assert "fixture_review" in record["visible"] and "config_info" not in record["visible"]
+    assert record["hidden_count"] >= 3  # fixture_approve, config_info, config_explain
     assert record["outcome"] == "ok" and record["config_version"].startswith("local-")
 
 

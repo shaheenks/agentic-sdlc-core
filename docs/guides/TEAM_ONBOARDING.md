@@ -19,7 +19,7 @@ A team **changes behaviour, never permissions** (version-03 P10):
 | add instructions to the agent (`AGENT_ADDENDUM.md`) | grant a tool that its members' roles don't have |
 | add its own skills (coding standards, checklists, templates, lenses) | give anyone access to another team's sources |
 | set document-flow defaults (template, brief questions, lenses) | raise the platform's caps (lenses, LLM calls, re-reviews) |
-| limit tool arguments, e.g. `review_code` only on its own repo | widen another team's argument limits |
+| limit tool arguments, e.g. `github_get_file` only on its own repo | widen another team's argument limits |
 | own a knowledge source and decide who reads it | read data above its members' classification ceiling |
 
 What a member may do comes from their **roles** (`viewer`, `developer`, `lead`, `admin` in
@@ -66,10 +66,7 @@ membership:
     roles: [lead]
 policy:
   tools:
-    constraints:                   # members may use these tools only on their own repo
-      review_code:    { args: { repo: { in: [full-stack-fastapi-template] } } }
-      generate_tests: { args: { repo: { in: [full-stack-fastapi-template] } } }
-      approve_design: { args: { repo: { in: [full-stack-fastapi-template] } } }
+    deny: []                       # optional: team denies; `constraints` can limit tool arguments
 addons:
   skills: { ... }                  # step 4
   flows: { document: { ... } }     # step 5
@@ -187,7 +184,7 @@ access:
 | `tests/policy/personas.yaml` | a persona per new role, e.g. `approle-webapp-dev` | matrix rows need someone to test |
 | `tests/policy/matrix.yaml` `skill_rows` | each new skill: visible to members and admin, hidden to others | every skill needs rows |
 | `tests/policy/matrix.yaml` `data_rows` | the new source: readable by members and admin, not by others | every source needs rows |
-| `tests/policy/matrix.yaml` `rows` | `review_code` etc. on the team repo: allow for members, deny for others | pins the argument limits |
+| `tests/policy/matrix.yaml` `rows` | the new personas on the tools their roles grant (and any argument limits the team sets) | pins who gets which tool |
 | `tests/config/test_repo_teams.py` | the team in `test_teams`; a pin test for the team and its source | the team list is pinned |
 | `tests/config/test_skills_config.py`, `test_sources_config.py` | the new skill and source names (also in the admin case of `test_data_resolution`) | both lists are pinned |
 | `tests/config/test_users_config.py` | any example user added to `users.yaml.example` | the example's users are pinned |
@@ -260,8 +257,6 @@ If something is missing, send the admin the output of `whoami(explain=true)`.
   asks you to confirm a brief (this locks the document to your team), drafts it from the team
   template, and runs the reviewers, including the team lens (`webapp-api-lens` for designs).
   The result is saved as an artifact only you can see.
-- **Review tools** (`review_code`, `generate_tests`, and `approve_design` for leads) work only on
-  your team's repo.
 
 ### Change the team's skills
 

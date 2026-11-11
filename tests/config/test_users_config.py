@@ -110,7 +110,7 @@ def test_direct_member_gets_team_roles_limits_skills_and_sources(config_dir):
     assert policy.user == "direct-dev"
     assert policy.teams == {"payments": ("env/local/users.yaml#users/direct-dev/teams/payments",)}
     assert policy.roles["developer"] == ("env/local/users.yaml#users/direct-dev/teams/payments",)
-    assert policy.tools["review_code"].constraints == {"repo": {"payments-api", "payments-ui"}}
+    assert policy.tools["fixture_review"].constraints == {"repo": {"payments-api", "payments-ui"}}
     assert policy.sees_skill("pci-checklist")
     assert "payments-code" in policy.readable_sources
     assert policy.explain()["user"] == "direct-dev"
@@ -119,7 +119,8 @@ def test_direct_member_gets_team_roles_limits_skills_and_sources(config_dir):
 def test_direct_membership_unions_with_groups(config_dir):
     policy = resolve(load(config_dir), ["eng-all", "platform-devs"], (), "direct-dev")
     assert set(policy.teams) == {"payments", "sdlc-platform"}
-    assert policy.tools["review_code"].constraints["repo"] >= {"payments-api", "agentic-sdlc-core"}
+    repos = policy.tools["fixture_review"].constraints["repo"]
+    assert repos >= {"payments-api", "agentic-sdlc-core"}
 
 
 def test_global_role_binding(config_dir):

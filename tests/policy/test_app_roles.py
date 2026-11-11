@@ -69,7 +69,7 @@ def test_team_app_role_alone_is_enough(snap):
     """A team app role without SDLC.User still gives the team role (developer inherits viewer)."""
     p = policy(snap, "approle-team-only")
     assert set(p.teams) == {"payments"} and "viewer" in p.roles
-    repos = p.tools["review_code"].constraints["repo"]
+    repos = p.tools["fixture_review"].constraints["repo"]
     assert set(repos) == {"payments-api", "payments-ui"}
 
 

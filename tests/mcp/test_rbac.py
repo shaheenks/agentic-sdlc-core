@@ -34,7 +34,7 @@ VIEWER = (
 )  # registered
 # version-01 M6: read with the user's own connection (registered even when connections are off)
 CONNECTED = {"jira_get_issue", "confluence_get_page", "github_get_file", "bitbucket_get_file"}
-DEVELOPER = VIEWER | {"review_code", "generate_tests"} | CONNECTED
+DEVELOPER = VIEWER | {"fixture_review"} | CONNECTED
 
 
 def client(base_url: str, token: str) -> Client:
@@ -52,9 +52,9 @@ async def tools_for(base_url, entra, persona) -> set[str]:
         ("nobody", BASICS),
         ("viewer", VIEWER),
         ("payments_dev", DEVELOPER),
-        ("payments_lead", DEVELOPER | {"approve_design"}),
+        ("payments_lead", DEVELOPER | {"fixture_approve"}),
         ("platform_dev", DEVELOPER),
-        ("admin", DEVELOPER | {"approve_design", "config_info", "config_explain"}),
+        ("admin", DEVELOPER | {"fixture_approve", "config_info", "config_explain"}),
     ],
 )
 async def test_tools_list_is_filtered_per_persona(base_url, entra, persona, expected):
@@ -63,24 +63,22 @@ async def test_tools_list_is_filtered_per_persona(base_url, entra, persona, expe
 
 async def test_payments_dev_calls_within_limits_only(base_url, entra):
     async with client(base_url, entra.token(groups=PERSONAS["payments_dev"])) as c:
-        ok = (await c.call_tool("review_code", {"repo": "payments-api"})).data
-        assert ok["stub"] is True and ok["inputs"]["repo"] == "payments-api"
+        ok = (await c.call_tool("fixture_review", {"repo": "payments-api"})).data
+        assert ok["fixture"] is True and ok["inputs"]["repo"] == "payments-api"
         with pytest.raises(ToolError, match="repo='platform-infra' is not allowed"):
-            await c.call_tool("review_code", {"repo": "platform-infra"})
+            await c.call_tool("fixture_review", {"repo": "platform-infra"})
         # Hidden tools cannot be called either
         with pytest.raises(ToolError, match="not granted"):
-            await c.call_tool("approve_design", {"repo": "payments-api", "design_id": "d1"})
+            await c.call_tool("fixture_approve", {"repo": "payments-api", "design_id": "d1"})
         with pytest.raises(ToolError, match="not granted"):
             await c.call_tool("config_info", {})
 
 
 async def test_platform_dev_gets_platform_repos(base_url, entra):
     async with client(base_url, entra.token(groups=PERSONAS["platform_dev"])) as c:
-        assert (
-            await c.call_tool("generate_tests", {"repo": "agentic-sdlc-core", "target": "x"})
-        ).data
+        assert (await c.call_tool("fixture_review", {"repo": "agentic-sdlc-core"})).data
         with pytest.raises(ToolError, match="not allowed"):
-            await c.call_tool("generate_tests", {"repo": "payments-api", "target": "x"})
+            await c.call_tool("fixture_review", {"repo": "payments-api"})
 
 
 async def test_admin_tools(base_url, entra, store):
@@ -91,12 +89,12 @@ async def test_admin_tools(base_url, entra, store):
         explained = (
             await c.call_tool("config_explain", {"groups": ["eng-all", "payments-devs", "ghosts"]})
         ).data
-        assert explained["tools"]["review_code"]["constraints"] == {
+        assert explained["tools"]["fixture_review"]["constraints"] == {
             "repo": ["payments-api", "payments-ui"]
         }
         assert explained["unknown_groups"] == ["ghosts"]
         # admin is unconstrained
-        assert (await c.call_tool("review_code", {"repo": "any-repo"})).data["stub"]
+        assert (await c.call_tool("fixture_review", {"repo": "any-repo"})).data["fixture"]
 
 
 async def test_whoami_explain_shows_own_policy(base_url, entra):
@@ -106,8 +104,8 @@ async def test_whoami_explain_shows_own_policy(base_url, entra):
     assert me["groups"] == ["eng-all", "payments-devs"]
     assert me["non_guid_group_claims"] == 1  # E10: on-prem style group name flagged
     assert set(me["policy"]["teams"]) == {"payments"}
-    assert me["policy"]["tools"]["review_code"]["constraint_sources"] == [
-        "teams/payments.yaml#policy/tools/constraints/review_code"
+    assert me["policy"]["tools"]["fixture_review"]["constraint_sources"] == [
+        "teams/payments.yaml#policy/tools/constraints/fixture_review"
     ]
 
 
@@ -129,9 +127,9 @@ async def test_app_roles_survive_group_overage(base_url, entra):
         me = (await c.call_tool("whoami", {"explain": True})).data
         assert me["groups"] == [] and me["group_source"] == "overage_unresolved"
         assert set(me["policy"]["teams"]) == {"payments"}
-        assert (await c.call_tool("review_code", {"repo": "payments-api"})).data
+        assert (await c.call_tool("fixture_review", {"repo": "payments-api"})).data
         with pytest.raises(ToolError, match="not allowed"):
-            await c.call_tool("review_code", {"repo": "agentic-sdlc-core"})
+            await c.call_tool("fixture_review", {"repo": "agentic-sdlc-core"})
 
 
 async def test_users_yaml_grants_access_after_group_overage_without_app_roles(base_url, entra):
@@ -145,18 +143,18 @@ async def test_users_yaml_grants_access_after_group_overage_without_app_roles(ba
         assert me["policy"]["teams"] == {
             "payments": ["env/local/users.yaml#users/direct-dev/teams/payments"]
         }
-        assert (await c.call_tool("review_code", {"repo": "payments-api"})).data
+        assert (await c.call_tool("fixture_review", {"repo": "payments-api"})).data
         with pytest.raises(ToolError, match="not allowed"):
-            await c.call_tool("review_code", {"repo": "agentic-sdlc-core"})
+            await c.call_tool("fixture_review", {"repo": "agentic-sdlc-core"})
 
 
 async def test_audit_records_decision_and_rule(base_url, entra, caplog):
     caplog.set_level("INFO", logger="sdlc.audit")
     token = entra.token(oid="aaaaaaaa-0000-0000-0000-00000000000a", groups=PERSONAS["payments_dev"])
     async with client(base_url, token) as c:
-        await c.call_tool("review_code", {"repo": "payments-api"})
+        await c.call_tool("fixture_review", {"repo": "payments-api"})
         with pytest.raises(ToolError):
-            await c.call_tool("review_code", {"repo": "platform-infra"})
+            await c.call_tool("fixture_review", {"repo": "platform-infra"})
         with pytest.raises(ToolError):
             await c.call_tool("config_info", {})
     records = [json.loads(r.getMessage()) for r in caplog.records if r.name == "sdlc.audit"]
@@ -168,7 +166,8 @@ async def test_audit_records_decision_and_rule(base_url, entra, caplog):
     ]
     assert records[0]["teams"] == ["payments"]
     assert {"developer", "viewer", "signed-in"} <= set(records[0]["roles"])
-    assert "teams/payments.yaml#policy/tools/constraints/review_code" in records[1]["matched_rule"]
+    rule = "teams/payments.yaml#policy/tools/constraints/fixture_review"
+    assert rule in records[1]["matched_rule"]
     assert records[2]["matched_rule"] == "default-deny"
     assert all(
         "platform-infra"
@@ -182,10 +181,10 @@ def test_startup_fails_if_catalog_constrains_missing_parameter(config_dir, entra
 
     tools = config_dir / "tools.yaml"
     doc = yaml.safe_load(tools.read_text())
-    doc["tools"]["review_code"]["args"]["branch"] = {"type": "string"}  # not a tool parameter
+    doc["tools"]["github_get_file"]["args"]["branch"] = {"type": "string"}  # not a tool parameter
     tools.write_text(yaml.safe_dump(doc))
     store = ConfigStore(lambda: load_snapshot(config_dir, "local", TEST_ENV))
-    with pytest.raises(ValueError, match=r"review_code: args \['branch'\]"):
+    with pytest.raises(ValueError, match=r"github_get_file: args \['branch'\]"):
         build_server(store, entra.verifier())
 
 
@@ -194,9 +193,9 @@ async def test_direct_member_from_users_yaml(base_url, entra):
     token = entra.token(oid=DIRECT_DEV_OID, groups=[], upn="renamed@example.com")
     async with client(base_url, token) as c:
         me = (await c.call_tool("whoami", {"explain": True})).data
-        ok = (await c.call_tool("review_code", {"repo": "payments-api"})).data
+        ok = (await c.call_tool("fixture_review", {"repo": "payments-api"})).data
         with pytest.raises(ToolError):
-            await c.call_tool("review_code", {"repo": "platform-infra"})
+            await c.call_tool("fixture_review", {"repo": "platform-infra"})
     assert me["user"] == "direct-dev" and me["groups"] == []
     assert me["policy"]["teams"] == {
         "payments": ["env/local/users.yaml#users/direct-dev/teams/payments"]

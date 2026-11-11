@@ -103,17 +103,17 @@ async def test_skills_list_is_recorded(base_url, entra, caplog):
 
 
 async def test_unexpected_error_details_and_traceback(base_url, entra, caplog, monkeypatch):
-    import sdlc_core_mcp.sdlc_tools as sdlc_tools
+    import tests.support.config as fixture_config
 
     def broken(tool, **inputs):
         raise RuntimeError("backend exploded: connection reset by peer")
 
-    monkeypatch.setattr(sdlc_tools, "_stub", broken)
+    monkeypatch.setattr(fixture_config, "fixture_result", broken)
     caplog.set_level("INFO", logger="sdlc.audit")
     caplog.set_level("INFO", logger="sdlc.mcp")  # same level: set_level also sets the handler level
     async with client(base_url, entra, [G_ENG_ALL, G_PAYMENTS_DEVS]) as c:
         with pytest.raises(ToolError):
-            await c.call_tool("review_code", {"repo": "payments-api"})
+            await c.call_tool("fixture_review", {"repo": "payments-api"})
     [call] = events(caplog, "tool_call")
     assert call["outcome"] == "error"
     assert call["error_type"] == "builtins.RuntimeError"

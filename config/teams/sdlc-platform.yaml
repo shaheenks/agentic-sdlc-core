@@ -16,13 +16,6 @@ membership:
 policy:
   tools:
     deny: []
-    constraints:
-      review_code:
-        args:
-          repo: { in: [agentic-sdlc-core] }
-      generate_tests:
-        args:
-          repo: { in: [agentic-sdlc-core] }
 addons:                              # visible only to members of this team
   skills:
     infra-change-review: { path: skills/teams/sdlc-platform/infra-change-review }

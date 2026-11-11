@@ -28,12 +28,10 @@ roles:
   developer:
     inherits: [viewer]
     # *_get_*: read with the user's own connected account (version-01 M6)
-    tools:  { allow: [generate_tests, review_code,
-                      jira_get_issue, confluence_get_page, github_get_file, bitbucket_get_file] }
+    tools:  { allow: [jira_get_issue, confluence_get_page, github_get_file, bitbucket_get_file] }
     skills: { allow: ["tag:engineering"] }
   lead:
     inherits: [developer]
-    tools:  { allow: [approve_design] }
     data:   { max_classification: confidential }
   admin:
     inherits: [lead]

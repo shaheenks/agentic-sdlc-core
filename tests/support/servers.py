@@ -16,6 +16,7 @@ from sdlc_auth.entra import entra_issuer
 from sdlc_config import ConfigStore
 from sdlc_core_mcp.server import build_server
 
+from tests.support.config import fixture_approve, fixture_review
 from tests.support.entra import TENANT, FakeEntra
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -62,4 +63,7 @@ def build_test_mcp_server(
         base_url=f"http://127.0.0.1:{port}",
         resource_name="sdlc-mcp",
     )
-    return build_server(store, auth, connected=connected)
+    server = build_server(store, auth, connected=connected)
+    for fn in (fixture_review, fixture_approve):  # fixture-only catalog tools (CH-0003)
+        server.tool(fn)
+    return server
