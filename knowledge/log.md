@@ -1,5 +1,11 @@
 # Change log
 
+## 2026-11-12
+
+- **Update**: the user switched the Entra tenant to app roles only (new roles assigned, old roles, groups claim,
+  groups and the Graph secret removed) and deployed CH-0003, CH-0009, CH-0011 and CH-0012 to GCP dev (images, db,
+  config, plan + apply). FR-AUTHZ-006 stays `built` until its live check.
+
 ## 2026-11-11
 
 - **Update**: the user approved CH-0001, CH-0002, FR-KNOW-006, FR-KNOW-007 and FR-CONN-003 (recorded by Claude on the
