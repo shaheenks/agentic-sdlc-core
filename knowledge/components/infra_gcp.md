@@ -54,7 +54,7 @@ Code: `infra/gcp`
 - [NFR-PORT-003: Local and cloud parity](../requirements/non-functional/NFR-PORT-003.md) - Is the cloud deployment of the same components.
 - [NFR-PRIV-004: Bounded data retention](../requirements/non-functional/NFR-PRIV-004.md) - Artifact bucket lifecycle.
 - [NFR-SEC-007: Secrets handling](../requirements/non-functional/NFR-SEC-007.md) - Secret Manager secrets and their access.
-- [NFR-SEC-010: Least-privilege runtime](../requirements/non-functional/NFR-SEC-010.md) - One service account per workload with scoped IAM.
+- [NFR-SEC-010: Least-privilege runtime](../requirements/non-functional/NFR-SEC-010.md) - One service account per workload with scoped IAM; `sdlc-mcp-native` has invoker IAM on (CH-0013).
 
 # Verification
 

@@ -12,6 +12,11 @@ output "mcp_url" {
   value = "https://${local.mcp_host}/mcp"
 }
 
+output "mcp_native_url" {
+  description = "MCP server with invoker IAM (CH-0013); empty unless native_enabled."
+  value       = var.native_enabled ? "https://${local.mcp_native_host}/mcp" : ""
+}
+
 output "session_engine" {
   description = "Agent Engine that stores agent conversations."
   value       = google_vertex_ai_reasoning_engine.sessions.id

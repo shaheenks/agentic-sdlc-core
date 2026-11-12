@@ -142,3 +142,20 @@ def test_no_group_map_or_graph_secret():
     gone = ("groups-yaml", "groups_yaml_path", "entra-graph-secret", "entra_graph_client_secret")
     for name in gone:
         assert name not in text, name
+
+
+def test_native_mcp_requires_invoker_iam(tf):
+    """CH-0013: sdlc-mcp-native is the same service with invoker IAM on (no public access); the
+    main service keeps today's setting. Cloud Run then checks the caller's Google ID token."""
+    services = json.dumps(tf.locals["mcp_services"])
+    assert "native = {name = local.mcp_native_name" in services.replace('\\"', '"')
+    assert "public = false" in services and "public = true" in services
+    mcp = tf.resource("google_cloud_run_v2_service", "mcp")
+    assert mcp["for_each"] == "${local.mcp_services}"
+    assert mcp["invoker_iam_disabled"] == "${each.value.public}"
+
+
+def test_nothing_grants_public_invoke(tf):
+    """No resource makes a service public with allUsers / allAuthenticatedUsers (comments aside)."""
+    text = json.dumps([body for _, _, body in tf.resources])
+    assert "allUsers" not in text and "allAuthenticatedUsers" not in text

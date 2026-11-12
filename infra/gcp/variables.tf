@@ -140,3 +140,9 @@ variable "agent_platform_apis" {
   type        = bool
   default     = false
 }
+
+variable "native_enabled" {
+  description = "GCP-native hosting (design D17): add sdlc-mcp-native, the same MCP server with invoker IAM on (CH-0013). Shares the database, buckets and config bundle with this environment."
+  type        = bool
+  default     = false
+}

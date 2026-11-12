@@ -2,6 +2,9 @@
 
 ## 2026-11-12
 
+- **Update**: the user approved CH-0013 (recorded by Claude on the user's instruction). CH-0013 done: `sdlc-mcp-native` (invoker
+  IAM on) next to `sdlc-mcp-dev`, sharing its backend and config, behind `native_enabled`. NFR-SEC-010 edited, back to
+  `draft`. GCP dev needs plan + apply (user).
 - **Update**: WN.0 read-only spike: the Agent Platform APIs are enabled in GCP dev (user applied Terraform); gcloud and the
   Terraform provider support Agent Registry, Agent Gateway, Agent Runtime and IAP on Cloud Run, so CH-0015 uses
   Terraform instead of scripts. Live checks move into the phases that build each part.

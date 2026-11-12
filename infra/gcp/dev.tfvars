@@ -8,6 +8,7 @@ config_store_bucket   = "sdlc-config-store-a7484d8b"   # source content for inge
 artifact_store_bucket = "sdlc-artifact-store-a7484d8b" # temporary files and agent artefacts (storage.tf)
 cloud_trace           = true                           # version-02 N4: agent + MCP spans to Cloud Trace
 agent_platform_apis   = true                           # design D17 (WN.0 spike): IAP, Agent Registry, Agent Identity, gateway
+native_enabled        = true                           # design D17 (CH-0013): sdlc-mcp-native, invoker IAM on
 ingest_schedule       = "0 2 * * *"                    # version-02 N1: nightly ingest, 02:00 (schedules.tf)
 reconcile_schedule    = "30 3 * * *"                   # version-02 N3: reconcile user connections, 03:30
 schedule_time_zone    = "Asia/Kolkata"

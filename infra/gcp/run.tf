@@ -119,11 +119,20 @@ locals {
 
 # --- MCP server ------------------------------------------------------------------------------------
 
+# `main` is the public service (Entra token only). `native` (CH-0013, var.native_enabled) runs the same image
+# and config with invoker IAM on: Cloud Run checks the caller's Google ID token in X-Serverless-Authorization
+# before the request reaches the server, which still reads only the Entra token in Authorization.
+moved {
+  from = google_cloud_run_v2_service.mcp
+  to   = google_cloud_run_v2_service.mcp["main"]
+}
+
 resource "google_cloud_run_v2_service" "mcp" {
-  name                 = local.mcp_name
+  for_each             = local.mcp_services
+  name                 = each.value.name
   location             = var.region
   ingress              = "INGRESS_TRAFFIC_ALL"
-  invoker_iam_disabled = true
+  invoker_iam_disabled = each.value.public
   deletion_protection  = var.deletion_protection
 
   template {
@@ -143,7 +152,8 @@ resource "google_cloud_run_v2_service" "mcp" {
         limits = { cpu = "1", memory = "1Gi" }
       }
       dynamic "env" {
-        for_each = local.mcp_env
+        # each service advertises its own URL in the RFC 9728 metadata
+        for_each = merge(local.mcp_env, { MCP_PUBLIC_URL = "https://${each.value.host}" })
         content {
           name  = env.key
           value = env.value

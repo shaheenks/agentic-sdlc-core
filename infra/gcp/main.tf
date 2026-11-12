@@ -34,6 +34,14 @@ locals {
   mcp_name = "sdlc-mcp-${var.env}"
   app_host = "${local.app_name}-${data.google_project.this.number}.${var.region}.run.app"
   mcp_host = "${local.mcp_name}-${data.google_project.this.number}.${var.region}.run.app"
+  # GCP-native hosting (design D17, CH-0013): the same MCP server as a second service that only allowed
+  # Google identities can invoke (Cloud Run IAM); the Entra token still decides per-user access.
+  mcp_native_name = "sdlc-mcp-native"
+  mcp_native_host = "${local.mcp_native_name}-${data.google_project.this.number}.${var.region}.run.app"
+  mcp_services = merge(
+    { main = { name = local.mcp_name, host = local.mcp_host, public = true } },
+    var.native_enabled ? { native = { name = local.mcp_native_name, host = local.mcp_native_host, public = false } } : {},
+  )
 
   registry = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.sdlc.repository_id}"
   images = {

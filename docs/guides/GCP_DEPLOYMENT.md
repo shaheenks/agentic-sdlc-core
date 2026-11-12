@@ -179,6 +179,24 @@ by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on 
   registered on `sdlc-client` next to the local and tunnel callbacks. Sign in on that deterministic host: the OAuth
   redirect and cookie domain use it, not the hashed `status.url`.
 
+### GCP-native MCP service (CH-0013, design D17)
+
+With `native_enabled = true` (dev), Terraform adds **`sdlc-mcp-native`**: the same image, service account,
+database, secrets and config bundle as `sdlc-mcp-<env>`, but with **invoker IAM on**. Cloud Run checks the
+caller's Google ID token, sent in `X-Serverless-Authorization`, before the request reaches the server; the
+server itself still reads only the Entra token in `Authorization`. Nobody is granted `run.invoker` yet:
+CH-0014 grants it to the agent's identity and CH-0016 to the UI service account. Project owners can call it
+for checks:
+
+```bash
+URL=$(terraform -chdir=infra/gcp output -raw mcp_native_url)
+curl -s -o /dev/null -w "%{http_code}\n" "$URL"                                   # 403: no Google identity
+curl -s -o /dev/null -w "%{http_code}\n" -H "X-Serverless-Authorization: Bearer $(gcloud auth print-identity-token)" "$URL"   # 401: no Entra token
+```
+
+The service is declared with `for_each` over `local.mcp_services` (`main`, `native`); a `moved` block keeps the
+existing `sdlc-mcp-<env>` in place, so the first plan shows a move and one new service, nothing destroyed.
+
 ## 6. Configuration on GCP
 
 - **Config bundles from the config store bucket (version-02 N13)**, when `config_store_bucket` is set (dev:

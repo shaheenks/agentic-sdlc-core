@@ -7,12 +7,9 @@ tags:
 - requirement
 - non-functional
 - security
-status: stable
+status: draft
 priority: must
 implementation: live
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T21:30:44+05:30'
 sources:
 - id: rules
   resource: ../../rules/index.md
@@ -28,3 +25,8 @@ Each service shall run with only the credentials, environment and database right
 - Only MCP servers and ingest get database credentials.
 - Agent containers get an explicit environment allow-list, never the whole `.env`.
 - Database roles are separated: `sdlc_owner` (migrations), `sdlc_app` (read-only except its own artifact rows) and `sdlc_ingest` (writes).
+- On GCP-native hosting, the MCP server accepts calls only from allowed Google identities (Cloud Run invoker IAM); per-user access is still decided by the Entra token.
+
+# Notes
+
+Edited by CH-0013: invoker IAM on the native MCP service (design D17).
