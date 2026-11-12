@@ -20,6 +20,7 @@ from fastmcp.exceptions import ToolError
 from psycopg.errors import UniqueViolation
 from sdlc_artifacts import (
     MAX_LIVE_PER_USER,
+    MAX_VERSIONS_PER_DOCUMENT,
     ArtifactInputError,
     ArtifactStore,
     ArtifactStoreError,
@@ -150,11 +151,23 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
                         f"is {latest}. Tell the user and ask how to proceed; do not overwrite it"
                     )
                 version = latest + 1
-            if await db.count_live(conn) >= MAX_LIVE_PER_USER:
-                audit_artifact(ident, "artifact_change", action, document_id, "limit")
+                # a new version adds no document, so only the version limit applies (CH-0004)
+                if await db.count_versions(conn, replaces) >= MAX_VERSIONS_PER_DOCUMENT:
+                    audit_artifact(
+                        ident, "artifact_change", action, document_id, "limit", limit="versions"
+                    )
+                    raise ToolError(
+                        f"this document already has {MAX_VERSIONS_PER_DOCUMENT} versions (the "
+                        "limit): save the text as a new document, or delete this one with "
+                        "delete_artifact first"
+                    )
+            elif await db.count_live(conn) >= MAX_LIVE_PER_USER:
+                audit_artifact(
+                    ident, "artifact_change", action, document_id, "limit", limit="documents"
+                )
                 raise ToolError(
-                    f"you have {MAX_LIVE_PER_USER} saved documents and versions (the limit): "
-                    "delete some with delete_artifact first"
+                    f"you have {MAX_LIVE_PER_USER} saved documents (the limit): delete some with "
+                    "delete_artifact first"
                 )
             try:
                 row = await db.insert(
@@ -204,7 +217,8 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
         await _drop_objects(ident.principal.oid, expired)
         return {
             "artifacts": [public_row(r) for r in rows],
-            "limit": MAX_LIVE_PER_USER,
+            "limit": MAX_LIVE_PER_USER,  # documents
+            "versions_per_document": MAX_VERSIONS_PER_DOCUMENT,
             "retention_days": artifacts.retention_days,
         }
 

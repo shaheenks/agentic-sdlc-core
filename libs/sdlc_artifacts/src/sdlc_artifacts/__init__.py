@@ -8,6 +8,7 @@ package stores bytes under `artifacts/<owner oid>/<artifact id>` and checks name
 from sdlc_artifacts.limits import (
     MAX_BYTES,
     MAX_LIVE_PER_USER,
+    MAX_VERSIONS_PER_DOCUMENT,
     MEDIA_TYPES,
     ArtifactInputError,
     validate,
@@ -25,6 +26,7 @@ from sdlc_artifacts.store import (
 __all__ = [
     "MAX_BYTES",
     "MAX_LIVE_PER_USER",
+    "MAX_VERSIONS_PER_DOCUMENT",
     "MEDIA_TYPES",
     "ArtifactInputError",
     "ArtifactStore",

@@ -44,7 +44,7 @@ Plan references in brackets: Stage N (version-00), M/H (version-01 / version-00 
 | 15 | **Config lifecycle** | Immutable bundles (git SHA + hash), last-known-good reload, rollback by pointer, GCS store polled on GCP | ✅ Live |
 | 16 | **Revocation** | Block list (401 on next request), reconcile job for stale PATs | ✅ Live |
 | 17 | **Deployment** | Docker Compose locally (+ Cloudflare Tunnel); Terraform on GCP dev (Cloud Run, Cloud SQL, Agent Engine, GCS, Secret Manager, Scheduler) | ✅ Live (dev only; staging dropped) |
-| 18 | **SDLC actions** (review code, generate tests, approve design) | Tools exist to prove RBAC and argument limits | ⚪ Stub |
+| 18 | **SDLC actions** (review code, generate tests, approve design) | Stubs removed 2026-11-11 (CH-0003); real actions come with the write tools | ⛔ Retired |
 | 19 | **Autonomous agents** (CI / ops) + event intake | Webhook / alert-driven agents with workload identity, read + report back | 📝 Planned (P6) |
 | 20 | **Write tools** (create issue, comment, PR) with UI confirmation | — | 📝 Planned (P7) |
 
@@ -108,7 +108,7 @@ Plan references in brackets: Stage N (version-00), M/H (version-01 / version-00 
 | `sdlc_db` | `scoped()` RLS context, `owner_scoped()` for artifacts; vector, keyword (`tsvector`), RRF fusion, graph walk; Gemini embedder (one input per call) + HashEmbedder for CI; `sdlc-db bootstrap` / `migrate` | ✅ Live |
 | `sdlc_connectors` | `HttpClient` (host allowlist on every request + redirect); providers (Cloud vs Data Center); per-user secret store (file / Secret Manager); connection service; Jira/ADF text conversion; reconcile | ✅ Live (Cloud); 🟢 DC |
 | `sdlc_secrets` | `{env: X}` / `{secret: x}` references, Secret Manager REST, 5-min cache | ✅ Live |
-| `sdlc_artifacts` | Content store `file://` / `gs://`, limits (text only, 1 MiB, 50 per user, name rules), retention | ✅ Live |
+| `sdlc_artifacts` | Content store `file://` / `gs://`, limits (text only, 1 MiB per version, 50 documents per user, 10 versions per document, name rules), retention | ✅ Live |
 | `sdlc_web` | Agent web app behind oauth2-proxy; token re-validation + user binding to `oid`; AG-UI `/agui`; A2A `/a2a` (A2A 0.3, owner-checked tasks/contexts) + public agent card; `/threads` list/delete; client `sdlc_`/`temp:`/`app:`/`user:` state stripped; SSE keep-alive; session retention (SQLite) / Agent Engine TTL; dev tools off unless `SDLC_DEV_TOOLS` | ✅ Live |
 | `sdlc_agent` | `with_team_context`, `set_active_team`, `goldfish_review` (parallel isolated reviewers, synthesizer → Blocker/Major/Nit), A2UI card builder (strict v0.9 validation) | ✅ Live |
 | `sdlc_events`, `sdlc_runner` | CloudEvents, adapter verifiers, Pub/Sub publisher; runtime consumer | 📝 Planned (P6) |
@@ -206,7 +206,7 @@ Plan references in brackets: Stage N (version-00), M/H (version-01 / version-00 
 | 5 | ~~ARCHITECTURE.md §2–3 centred adk web~~ fixed 2026-11-08 (chat, A2A, artifacts, EGM flow sections added); component and GCP READMEs updated the same day | ARCHITECTURE.md §2–5 |
 | 6 | Connectors never checked live: Jira/Confluence (Cloud and DC), Bitbucket DC, Bitbucket git source, PDF OCR | version-03 P8, Q3 |
 | 7 | Placeholder component folders with no code: `ingest/chunkers`, `ingest/embedders`, `ingest/extractors` | `ingest/` |
-| 8 | Open decisions: artifact versions vs the 50-artifact limit; renaming on a new version; F6 review fixes need a live recheck | version-03 F6 |
+| 8 | ~~Artifact versions vs the 50-artifact limit~~ decided 2026-11-12 (CH-0004: 50 documents, 10 versions each). Open: renaming on a new version; F6 review fixes need a live recheck | version-03 F6 |
 | 9 | `sdlc-config diff` shows permissions only, not team flow defaults | version-03 G7 |
 | 10 | A2A task/context owner maps are per instance (works today at 1 instance; breaks with scale-out) | version-03 C5 |
 | 11 | Rate limits are in memory per MCP instance (shared store needed if `sdlc-mcp` scales out) | version-03 P3 |

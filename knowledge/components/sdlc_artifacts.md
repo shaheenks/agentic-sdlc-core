@@ -39,7 +39,7 @@ No other component.
 
 # Requirements
 
-- [FR-ART-001: Save and manage artifacts](../requirements/functional/FR-ART-001.md) - Stores content and enforces the artifact limits.
+- [FR-ART-001: Save and manage artifacts](../requirements/functional/FR-ART-001.md) - Stores content and holds the artifact limits (1 MiB per version, 50 documents per user, 10 versions per document).
 - [NFR-SEC-011: Browser-facing hardening](../requirements/non-functional/NFR-SEC-011.md) - Restricts artifacts to text media types served as attachments.
 
 # Verification

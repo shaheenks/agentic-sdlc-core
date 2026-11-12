@@ -7,12 +7,9 @@ tags:
 - requirement
 - functional
 - artifacts
-status: stable
+status: draft
 priority: must
 implementation: live
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T21:13:57+05:30'
 sources:
 - id: rules
   resource: ../../rules/index.md
@@ -30,4 +27,4 @@ The system shall store documents the assistant saves for a user and restrict the
 
 - The owner is the token `oid`, never a tool argument.
 - Another user's artifact id answers 'artifact not found'.
-- Artifacts are text only, at most 1 MiB each and 50 per user.
+- Artifacts are text only, at most 1 MiB per version and 50 documents per user. A document counts once, however many versions it has.

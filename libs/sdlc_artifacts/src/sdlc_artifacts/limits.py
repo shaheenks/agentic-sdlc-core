@@ -6,8 +6,9 @@ the limits are about abuse and storage, not about making content safe to display
 
 import re
 
-MAX_BYTES = 1024 * 1024  # 1 MiB per artifact
-MAX_LIVE_PER_USER = 50
+MAX_BYTES = 1024 * 1024  # 1 MiB per version
+MAX_LIVE_PER_USER = 50  # documents per user; a document counts once (CH-0004)
+MAX_VERSIONS_PER_DOCUMENT = 10  # live versions of one document (CH-0004)
 # media type -> allowed file extensions
 MEDIA_TYPES: dict[str, tuple[str, ...]] = {
     "text/markdown": (".md", ".markdown"),

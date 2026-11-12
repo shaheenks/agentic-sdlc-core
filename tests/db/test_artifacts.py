@@ -165,14 +165,53 @@ async def test_bad_input_and_no_role_are_refused(mcp, entra):
         await call(url, entra, ALICE, "list_artifacts", roles=())
 
 
-async def test_live_limit(mcp, entra, monkeypatch):
+async def test_document_limit_counts_documents_not_versions(mcp, entra, monkeypatch, caplog):
+    """CH-0004: a document counts once against the per-user limit, however many versions."""
+    caplog.set_level("INFO", logger="sdlc.audit")
     url, _, _ = mcp
     carol = str(uuid.uuid4())
     monkeypatch.setattr(artifact_tools, "MAX_LIVE_PER_USER", 2)
-    for i in range(2):
-        await call(url, entra, carol, "save_artifact", {"name": f"r{i}.md", "content": "x"})
-    with pytest.raises(ToolError, match="the limit"):
-        await call(url, entra, carol, "save_artifact", {"name": "r2.md", "content": "x"})
+    monkeypatch.setattr(artifact_tools, "MAX_VERSIONS_PER_DOCUMENT", 3)
+
+    def save(**kw):
+        return call(url, entra, carol, "save_artifact", {"content": "x", **kw})
+
+    for name in ("a.md", "b.md"):  # two documents with three versions each: six rows, allowed
+        doc = (await save(name=name))["id"]
+        for base in (1, 2):
+            await save(name=name, replaces=doc, base_version=base)
+    listed = await call(url, entra, carol, "list_artifacts")
+    assert len(listed["artifacts"]) == 2
+    assert (listed["limit"], listed["versions_per_document"]) == (2, 3)
+
+    with pytest.raises(ToolError, match="you have 2 saved documents"):
+        await save(name="c.md")
+    limits = [r for r in audit(caplog, "artifact_change") if r["outcome"] == "limit"]
+    assert [(r["action"], r["limit"]) for r in limits] == [("create", "documents")]
+
+
+async def test_version_limit_per_document(mcp, entra, monkeypatch, caplog):
+    """CH-0004: a document keeps at most MAX_VERSIONS_PER_DOCUMENT versions; the refusal says
+    to save a new document or delete this one."""
+    caplog.set_level("INFO", logger="sdlc.audit")
+    url, _, _ = mcp
+    gus = str(uuid.uuid4())
+    monkeypatch.setattr(artifact_tools, "MAX_VERSIONS_PER_DOCUMENT", 2)
+
+    def save(**kw):
+        return call(url, entra, gus, "save_artifact", {"name": "d.md", "content": "x", **kw})
+
+    doc = (await save())["id"]
+    await save(replaces=doc, base_version=1)
+    with pytest.raises(ToolError, match="already has 2 versions.*new document.*delete_artifact"):
+        await save(replaces=doc, base_version=2)
+    limits = [r for r in audit(caplog, "artifact_change") if r["outcome"] == "limit"]
+    assert [(r["action"], r["artifact_id"], r["limit"]) for r in limits] == [
+        ("update", doc, "versions")
+    ]
+    listed = (await call(url, entra, gus, "list_artifacts"))["artifacts"]
+    assert [(a["id"], a["version"]) for a in listed] == [(doc, 2)]  # nothing saved
+    assert (await save(name="e.md"))["version"] == 1  # a new document is still fine
 
 
 async def test_expired_artifacts_disappear_and_their_content_is_removed(mcp, entra):

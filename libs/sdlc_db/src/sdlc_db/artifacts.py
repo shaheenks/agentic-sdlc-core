@@ -85,8 +85,21 @@ async def delete_expired(conn: AsyncConnection) -> list[str]:
 
 
 async def count_live(conn: AsyncConnection) -> int:
-    """Live rows (every version counts: the limit is about storage)."""
-    cur = await conn.execute("SELECT count(*) FROM artifacts WHERE expires_at > now()")
+    """The caller's live documents: a document counts once, however many versions it has."""
+    cur = await conn.execute(
+        "SELECT count(DISTINCT document_id) FROM artifacts WHERE expires_at > now()"
+    )
+    return (await cur.fetchone())[0]
+
+
+async def count_versions(conn: AsyncConnection, document_id: str) -> int:
+    """Live versions of one of the caller's documents (0: missing, expired or not theirs)."""
+    key = parse_id(document_id)
+    if key is None:
+        return 0
+    cur = await conn.execute(
+        "SELECT count(*) FROM artifacts WHERE document_id = %s AND expires_at > now()", (key,)
+    )
     return (await cur.fetchone())[0]
 
 

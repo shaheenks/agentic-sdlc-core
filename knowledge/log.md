@@ -2,6 +2,9 @@
 
 ## 2026-11-12
 
+- **Update**: the user approved CH-0004 with a cap of 10 versions (recorded by Claude on the user's instruction). CH-0004
+  done: 50 documents per user (a document counts once) and 10 versions per document. FR-ART-001 and FR-ART-002 edited
+  and back to `draft`.
 - **Update**: the user approved CH-0007 and NFR-MAINT-005 (recorded by Claude on the user's instruction). CH-0007 done:
   `okf_bundle.py` has tests (`tests/knowledge`), the lint rejects a `verified_by` that is not a test and a code-backed
   requirement whose criteria are `to be defined`, and pytest runs the lint on the real bundle. NFR-MAINT-005 `live`.

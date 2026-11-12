@@ -99,7 +99,7 @@ tests, then the changes that move config.
 | W0.5 | CH-0007 specification tooling checks | Needs W0.2 and W0.3 first (its new rules fail on today's bundle) | `pytest tests/knowledge` passes; a workflow file in `verified_by` fails the lint | ✅ done 2026-11-12 |
 | W0.6 | CH-0011 membership from app roles only (supersedes CH-0005, which becomes `dropped`) | Removes groups, the group map and the overage path before W1 extends identity with app-only tokens. Switches in the same Entra window as CH-0009 | Every former group persona's access is reproduced by app roles; no `group:` or `groups.yaml` remains; groups claim off (user) | ✅ done 2026-11-11; groups removed from Entra, GCP dev deployed, infra/gcp group + Graph secrets removed (CH-0012) 2026-11-12 (user) |
 | W0.8 | CH-0010 continuous deployment to GCP dev | Every later milestone ships through it. First comes a shared deploy manifest, read by `gcp_deploy.ps1` (Windows) and a new `gcp_deploy.sh` (GitHub Actions, Linux), plus a parity test | A config-only merge runs only `config` and the smoke checks; a code merge runs images, plan, apply and smoke; a destructive plan waits for approval | proposed |
-| W0.7 | CH-0004 artifact limit counts documents | Independent; can run any time in W0 | New `tests/db/test_artifacts.py` cases pass | proposed |
+| W0.7 | CH-0004 artifact limit counts documents | Independent; can run any time in W0 | New `tests/db/test_artifacts.py` cases pass | ✅ done 2026-11-12 (10 versions per document); GCP dev needs `-Step images` (user) |
 
 ## W1 — Workflow model, identity and service connections
 
