@@ -2,6 +2,9 @@
 
 ## 2026-11-12
 
+- **Update**: the user approved CH-0007 and NFR-MAINT-005 (recorded by Claude on the user's instruction). CH-0007 done:
+  `okf_bundle.py` has tests (`tests/knowledge`), the lint rejects a `verified_by` that is not a test and a code-backed
+  requirement whose criteria are `to be defined`, and pytest runs the lint on the real bundle. NFR-MAINT-005 `live`.
 - **Update**: the user switched the Entra tenant to app roles only (new roles assigned, old roles, groups claim,
   groups and the Graph secret removed) and deployed CH-0003, CH-0009, CH-0011 and CH-0012 to GCP dev (images, db,
   config, plan + apply). FR-AUTHZ-006 stays `built` until its live check.

@@ -16,6 +16,7 @@ satisfies:
 - /requirements/non-functional/NFR-MAINT-002
 - /requirements/non-functional/NFR-MAINT-003
 - /requirements/non-functional/NFR-MAINT-004
+- /requirements/non-functional/NFR-MAINT-005
 - /requirements/non-functional/NFR-PORT-003
 verified_by:
 - tests/policy/test_codeowners.py
@@ -43,6 +44,7 @@ Code: `.github`
 - [NFR-MAINT-002: Access rules are covered by tests](../requirements/non-functional/NFR-MAINT-002.md) - Runs the tests that require matrix rows and CODEOWNERS rules.
 - [NFR-MAINT-003: CI runs without secrets](../requirements/non-functional/NFR-MAINT-003.md) - Runs with placeholders only: no secrets, no cloud calls.
 - [NFR-MAINT-004: Permission changes are reviewable](../requirements/non-functional/NFR-MAINT-004.md) - Attaches the per-persona diff and routes review by CODEOWNERS.
+- [NFR-MAINT-005: The specification is traced and checked](../requirements/non-functional/NFR-MAINT-005.md) - Job `knowledge` runs the bundle lint on every push and pull request.
 - [NFR-PORT-003: Local and cloud parity](../requirements/non-functional/NFR-PORT-003.md) - Keeps `infra/gcp` valid with Terraform checks.
 
 # Verification
