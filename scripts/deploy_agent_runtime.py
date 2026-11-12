@@ -1,0 +1,173 @@
+"""Deploy the user agent to Agent Runtime (design D17, CH-0014). Run by the user.
+
+    uv run --env-file .env python scripts/deploy_agent_runtime.py --env dev [--dry-run]
+
+What it does:
+1. Refuses uncommitted changes: the engine is labelled with the git commit, so a version is always a
+   commit. Rollback = check out an older commit and deploy again.
+2. Stages a source package in `.build/agent_runtime/<commit>/` (git-ignored): the `user_agent`
+   package (agents/user_agent), the shared libraries it imports (`sdlc_agent`, `sdlc_auth`), and
+   `requirements.txt` exported from uv.lock (pinned third-party packages only).
+3. Creates the engine `sdlc-user-agent-<env>`, or updates it in place, with Agent Identity, the
+   entry point `user_agent.runtime_app:app` and the environment below. No secrets: the agent only
+   holds Entra tenant and client ids (not secret) and calls the MCP server with the user's token.
+4. Prints the engine and its identity. Grant that identity invoker on sdlc-mcp-native with
+   `agent_runtime_principal` in infra/gcp/<env>.tfvars, then plan + apply.
+
+Environment of the engine:
+  SDLC_MCP_URL             https://<sdlc-mcp-native>/mcp   (terraform output mcp_native_url)
+  SDLC_MCP_IAM_AUDIENCE    https://<sdlc-mcp-native>       (Cloud Run IAM audience, N5)
+  ENTRA_TENANT_ID, ENTRA_API_CLIENT_ID, ENTRA_AUTHORITY_HOST (from .env; re-validate user tokens)
+  SDLC_AGENT_MODEL, GOOGLE_GENAI_USE_VERTEXAI=TRUE
+"""
+
+import argparse
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+REGION = "asia-southeast1"
+PROJECTS = {"dev": "sdlc-demo-env01"}
+PACKAGES = {  # source folder -> package name in the deployed tarball
+    ROOT / "agents" / "user_agent": "user_agent",
+    ROOT / "libs" / "sdlc_agent" / "src" / "sdlc_agent": "sdlc_agent",
+    ROOT / "libs" / "sdlc_auth" / "src" / "sdlc_auth": "sdlc_auth",
+}
+ENV_FROM_DOTENV = ("ENTRA_TENANT_ID", "ENTRA_API_CLIENT_ID", "ENTRA_AUTHORITY_HOST")
+
+
+def git(*args: str) -> str:
+    git_exe = shutil.which("git") or "git"
+    return subprocess.run(  # noqa: S603 (fixed git command)
+        [git_exe, "-C", str(ROOT), *args], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+
+def terraform_output(name: str) -> str:
+    tf = shutil.which("terraform") or "terraform"
+    out = subprocess.run(  # noqa: S603 (read-only `terraform output`)
+        [tf, f"-chdir={ROOT / 'infra' / 'gcp'}", "output", "-raw", name],
+        capture_output=True,
+        text=True,
+    )
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
+def stage(commit: str) -> Path:
+    target = ROOT / ".build" / "agent_runtime" / commit
+    if target.exists():
+        shutil.rmtree(target)
+    target.mkdir(parents=True)
+    for source, name in PACKAGES.items():
+        shutil.copytree(
+            source,
+            target / name,
+            ignore=shutil.ignore_patterns(
+                "__pycache__", "*.pyc", "pyproject.toml", "README.md", "Dockerfile"
+            ),
+        )
+    uv = shutil.which("uv") or "uv"
+    reqs = subprocess.run(  # noqa: S603 (fixed uv command)
+        [
+            uv,
+            "export",
+            "--package",
+            "sdlc-user-agent",
+            "--no-dev",
+            "--no-hashes",
+            "--no-emit-workspace",
+            "--frozen",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    (target / "requirements.txt").write_text(reqs, encoding="utf-8")
+    return target
+
+
+def engine_env(args, environ) -> dict[str, str]:
+    mcp_url = args.mcp_url or terraform_output("mcp_native_url")
+    if not mcp_url:
+        sys.exit("no MCP URL: pass --mcp-url or apply infra/gcp with native_enabled = true first")
+    env = {
+        "SDLC_MCP_URL": mcp_url,
+        "SDLC_MCP_IAM_AUDIENCE": mcp_url.removesuffix("/mcp"),
+        "SDLC_AGENT_MODEL": args.model,
+        "GOOGLE_GENAI_USE_VERTEXAI": "TRUE",
+    }
+    for name in ENV_FROM_DOTENV:
+        if environ.get(name):
+            env[name] = environ[name]
+    missing = [n for n in ("ENTRA_TENANT_ID", "ENTRA_API_CLIENT_ID") if not env.get(n)]
+    if missing:
+        sys.exit(f"missing {', '.join(missing)} (run with `uv run --env-file .env`)")
+    return env
+
+
+def main(argv=None) -> int:
+    import os
+
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--env", default="dev", choices=sorted(PROJECTS))
+    parser.add_argument("--region", default=REGION)
+    parser.add_argument("--model", default=os.environ.get("SDLC_AGENT_MODEL", "gemini-3.8-flash"))
+    parser.add_argument("--mcp-url", default="", help="default: terraform output mcp_native_url")
+    parser.add_argument(
+        "--allow-dirty", action="store_true", help="deploy uncommitted code (tests only)"
+    )
+    parser.add_argument("--dry-run", action="store_true", help="stage and print, deploy nothing")
+    args = parser.parse_args(argv)
+
+    if git("status", "--porcelain") and not args.allow_dirty:
+        sys.exit("uncommitted changes: commit first (the engine version is the commit)")
+    commit = git("rev-parse", "--short=12", "HEAD")
+    folder = stage(commit)
+    env = engine_env(args, os.environ)
+    name = f"sdlc-user-agent-{args.env}"
+    print(f"staged {folder.relative_to(ROOT)} (commit {commit}); engine {name} in {args.region}")
+    print(
+        "environment: "
+        + ", ".join(f"{k}={v}" for k, v in env.items() if not k.startswith("ENTRA_"))
+    )
+    if args.dry_run:
+        return 0
+
+    import vertexai
+    from vertexai import types
+
+    client = vertexai.Client(project=PROJECTS[args.env], location=args.region)
+    config = {
+        "display_name": name,
+        "description": "SDLC user agent (agents/user_agent) behind its runtime guard (CH-0014)",
+        "source_packages": [str(folder / p) for p in PACKAGES.values()],
+        "entrypoint_module": "user_agent.runtime_app",
+        "entrypoint_object": "app",
+        "requirements_file": str(folder / "requirements.txt"),
+        "python_version": "3.12",
+        "env_vars": env,
+        "identity_type": types.IdentityType.AGENT_IDENTITY,
+        "labels": {"git_commit": commit, "env": args.env},
+    }
+    existing = [e for e in client.agent_engines.list() if e.api_resource.display_name == name]
+    if existing:
+        engine = client.agent_engines.update(name=existing[0].api_resource.name, config=config)
+        print(f"updated {engine.api_resource.name}")
+    else:
+        engine = client.agent_engines.create(config=config)
+        print(f"created {engine.api_resource.name}")
+    spec = engine.api_resource.spec
+    identity = getattr(spec, "effective_identity", None) if spec else None
+    print(f"agent identity: {identity or '(not reported yet; describe the engine)'}")
+    if identity and not identity.endswith("gserviceaccount.com"):
+        print(
+            f'set in infra/gcp/{args.env}.tfvars: agent_runtime_principal = "principal://{identity}"'
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

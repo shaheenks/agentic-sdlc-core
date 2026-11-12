@@ -2585,15 +2585,17 @@ version = "0.1.0"
 source = { virtual = "agents/user_agent" }
 dependencies = [
     { name = "google-adk", extra = ["mcp"] },
+    { name = "google-cloud-aiplatform" },
     { name = "sdlc-agent" },
-    { name = "sdlc-auth" },
+    { name = "sdlc-auth", extra = ["server"] },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "google-adk", extras = ["mcp"], specifier = ">=2.10" },
+    { name = "google-cloud-aiplatform", specifier = ">=1.148.1,<2" },
     { name = "sdlc-agent", editable = "libs/sdlc_agent" },
-    { name = "sdlc-auth", editable = "libs/sdlc_auth" },
+    { name = "sdlc-auth", extras = ["server"], editable = "libs/sdlc_auth" },
 ]
 
 [[package]]

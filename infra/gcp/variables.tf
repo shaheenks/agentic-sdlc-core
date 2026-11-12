@@ -146,3 +146,9 @@ variable "native_enabled" {
   type        = bool
   default     = false
 }
+
+variable "agent_runtime_principal" {
+  description = "Agent Identity of the user agent on Agent Runtime (CH-0014), as printed by scripts/deploy_agent_runtime.py: principal://agents.global.<org>.system.id.goog/resources/aiplatform/projects/<n>/locations/<region>/reasoningEngines/<id>. Empty = no grant yet."
+  type        = string
+  default     = ""
+}

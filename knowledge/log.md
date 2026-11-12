@@ -2,6 +2,9 @@
 
 ## 2026-11-12
 
+- **Update**: the user approved CH-0014 (recorded by Claude on the user's instruction). CH-0014 done: the user agent's Agent
+  Runtime app with the shared runtime guard, the Cloud Run IAM header, `deploy_agent_runtime.py` and the invoker grant
+  on `sdlc-mcp-native`. NFR-PORT-003 edited, back to `draft`. Deploy and apply are the user's.
 - **Update**: the user approved CH-0013 (recorded by Claude on the user's instruction). CH-0013 done: `sdlc-mcp-native` (invoker
   IAM on) next to `sdlc-mcp-dev`, sharing its backend and config, behind `native_enabled`. NFR-SEC-010 edited, back to
   `draft`. GCP dev needs plan + apply (user).

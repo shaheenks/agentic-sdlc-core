@@ -18,6 +18,7 @@ satisfies:
 - /requirements/non-functional/NFR-SEC-001
 - /requirements/non-functional/NFR-SEC-006
 verified_by:
+- tests/agent/test_runtime_app.py
 - tests/agent/test_user_agent.py
 - tests/e2e/test_stage2_agent.py
 sources:
@@ -38,6 +39,9 @@ Code: `agents/user_agent`
 - Loads per-session team instructions through `sdlc_agent.with_team_context`.
 - Offers the local tools `goldfish_review` and `set_active_team`.
 - Attaches A2UI cards to tool results for A2A clients.
+- `runtime_app.py` (CH-0014): the Agent Runtime entry point (`stream_query`, `list_threads`,
+  `delete_thread`), which runs the shared runtime guard before the agent and binds the user's
+  token for the call only.
 
 # Depends on
 

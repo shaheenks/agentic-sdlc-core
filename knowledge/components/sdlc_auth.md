@@ -42,7 +42,10 @@ Code: `libs/sdlc_auth`
 - `EntraTokenVerifier`: v2 issuer, audience, scope, tenant, signature, expiry; block-list check.
 - `Principal` from validated claims, including app roles.
 - Membership from the `roles` claim only; a `groups` claim is ignored (CH-0011).
-- `get_user_token` and `agent_header_provider` for ADK agents.
+- `get_user_token` and `agent_header_provider` for ADK agents; with `SDLC_MCP_IAM_AUDIENCE`
+  the provider also sends the agent's Google ID token in `X-Serverless-Authorization` for
+  Cloud Run IAM (CH-0014), never in `Authorization`.
+- `verifier_from_env`: the Entra verifier agents use (shared by `sdlc_web` and the runtime app).
 
 # Depends on
 

@@ -23,3 +23,6 @@ tfplan
 .bundles/
 # Partial clones of https git sources (sdlc-ingest)
 .cache/
+
+# staged deploy packages (scripts/deploy_agent_runtime.py)
+.build/

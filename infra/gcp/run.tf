@@ -547,3 +547,14 @@ resource "google_cloud_run_v2_job" "reconcile" {
 
   depends_on = [google_secret_manager_secret_version.s, google_secret_manager_secret_iam_member.w]
 }
+
+# The user agent on Agent Runtime may invoke the native MCP server (CH-0014). Cloud Run checks its
+# Google ID token (X-Serverless-Authorization); the user's Entra token still decides what it may do.
+resource "google_cloud_run_v2_service_iam_member" "mcp_native_agent" {
+  count    = var.native_enabled && var.agent_runtime_principal != "" ? 1 : 0
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.mcp["native"].name
+  role     = "roles/run.invoker"
+  member   = var.agent_runtime_principal
+}

@@ -7,12 +7,9 @@ tags:
 - requirement
 - non-functional
 - portability
-status: stable
+status: draft
 priority: should
 implementation: live
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T21:45:18+05:30'
 sources:
 - id: inventory
   resource: ../../../docs/FEATURE_INVENTORY.md
@@ -31,7 +28,10 @@ The same components shall run locally under Docker Compose and on GCP without co
 - Local: Docker Compose (Postgres, MCP server, agent, oauth2-proxy).
 - GCP dev: Cloud Run, Cloud SQL with pgvector, GCS and Secret Manager, provisioned with Terraform.
 - `infra/gcp` stays valid when shared code changes.
+- GCP-native hosting: the agent runs on Agent Runtime behind the same entry checks as local (`sdlc_agent.runtime_guard`); local compose runs the same agent code in a container.
 
 # Notes
 
 Only the dev environment exists on GCP; staging was dropped for version-03.
+
+Edited by CH-0014: the agent on Agent Runtime (design D17).

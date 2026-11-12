@@ -40,7 +40,8 @@ Code: `libs/sdlc_web`
 
 # Responsibilities
 
-- `EntraUserBindingMiddleware`: token re-validation, user binding, client state stripping.
+- `EntraUserBindingMiddleware`: token re-validation, user binding, client state stripping
+  (state rules from `sdlc_agent.runtime_guard`, shared with the Agent Runtime app).
 - `/agui` (AG-UI) and `/a2a` (A2A 0.3) with a public agent card.
 - `/threads`: list and delete the caller's conversations.
 - Conversation stores: SQLite with idle retention; Agent Engine sessions on GCP.

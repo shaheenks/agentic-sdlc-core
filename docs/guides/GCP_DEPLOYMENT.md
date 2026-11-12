@@ -197,6 +197,24 @@ curl -s -o /dev/null -w "%{http_code}\n" -H "X-Serverless-Authorization: Bearer 
 The service is declared with `for_each` over `local.mcp_services` (`main`, `native`); a `moved` block keeps the
 existing `sdlc-mcp-<env>` in place, so the first plan shows a move and one new service, nothing destroyed.
 
+### User agent on Agent Runtime (CH-0014, design D17)
+
+1. Commit, then deploy (the engine version is the commit; nothing secret is sent):
+
+   ```powershell
+   uv run --env-file .env python scripts/deploy_agent_runtime.py --env dev --dry-run   # stage and show
+   uv run --env-file .env python scripts/deploy_agent_runtime.py --env dev
+   ```
+
+   It creates or updates `sdlc-user-agent-dev` with Agent Identity, the entry point
+   `user_agent.runtime_app:app` and `SDLC_MCP_URL` / `SDLC_MCP_IAM_AUDIENCE` from `terraform output mcp_native_url`.
+2. It prints the engine's identity. Put it in `infra/gcp/dev.tfvars` as `agent_runtime_principal = "principal://..."`,
+   then plan + apply: that adds one grant, `run.invoker` on `sdlc-mcp-native` for that identity.
+3. Check: a `stream_query` call with a user's Entra token answers, and the MCP `tool_call` audit records show that
+   user's `oid`. A call without a token, or with another user's `session_id`, is refused.
+
+Each engine update keeps its identity; a new engine (after a delete) gets a new one, so update the variable.
+
 ## 6. Configuration on GCP
 
 - **Config bundles from the config store bucket (version-02 N13)**, when `config_store_bucket` is set (dev:

@@ -10,6 +10,10 @@ Agents never substitute a service token: with no user token, no Authorization he
 and the MCP server answers 401 (fail closed).
 """
 
+import os
+import threading
+import time
+from collections.abc import Callable
 from contextvars import ContextVar, Token
 from typing import Any
 
@@ -77,10 +81,54 @@ def agent_session_id(context: Any = None) -> str | None:
     return str(session_id) if session_id else None
 
 
+# GCP-native hosting (CH-0014, design D17 N5): the MCP server can sit behind Cloud Run invoker IAM.
+# Cloud Run then checks a Google ID token for this workload in X-Serverless-Authorization, so the
+# user's Entra token keeps `Authorization` and the MCP server reads only that. Off unless
+# SDLC_MCP_IAM_AUDIENCE (the MCP service URL) is set: local compose and dev send nothing extra.
+IAM_HEADER = "X-Serverless-Authorization"
+IAM_AUDIENCE_ENV = "SDLC_MCP_IAM_AUDIENCE"
+_ID_TOKEN_TTL = 45 * 60  # Google ID tokens live 60 minutes; refresh well before
+
+
+class _IdTokenCache:
+    """One Google ID token per audience for this process, refreshed before it expires. The token
+    is the agent's own identity (ADC: Agent Identity on Agent Runtime), never the user's."""
+
+    def __init__(self, fetch: Callable[[str], str] | None = None):
+        self._fetch = fetch or _fetch_id_token
+        self._tokens: dict[str, tuple[str, float]] = {}
+        self._lock = threading.Lock()
+
+    def get(self, audience: str) -> str:
+        with self._lock:
+            token, fetched = self._tokens.get(audience, ("", 0.0))
+            if not token or time.monotonic() - fetched > _ID_TOKEN_TTL:
+                token = self._fetch(audience)
+                self._tokens[audience] = (token, time.monotonic())
+            return token
+
+
+def _fetch_id_token(audience: str) -> str:
+    from google.auth.transport.requests import Request  # only where the IAM header is enabled
+    from google.oauth2 import id_token
+
+    return id_token.fetch_id_token(Request(), audience)
+
+
+_id_tokens = _IdTokenCache()
+
+
 def agent_header_provider(context: Any = None) -> dict[str, str]:
-    """ADK McpToolset `header_provider`: the user's token plus the conversation id."""
+    """ADK McpToolset `header_provider`: the user's token plus the conversation id, and (when
+    SDLC_MCP_IAM_AUDIENCE is set) the agent's Google ID token for Cloud Run IAM. Nothing at all
+    without a user token: the agent never calls the MCP server on its own behalf."""
     headers = bearer_header_provider(context)
+    if not headers:
+        return headers
     session_id = agent_session_id(context)
-    if headers and session_id:  # only alongside a user token
+    if session_id:
         headers[AGENT_SESSION_HEADER] = session_id
+    audience = os.environ.get(IAM_AUDIENCE_ENV, "")
+    if audience:
+        headers[IAM_HEADER] = f"Bearer {_id_tokens.get(audience)}"
     return headers

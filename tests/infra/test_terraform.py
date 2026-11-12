@@ -159,3 +159,18 @@ def test_nothing_grants_public_invoke(tf):
     """No resource makes a service public with allUsers / allAuthenticatedUsers (comments aside)."""
     text = json.dumps([body for _, _, body in tf.resources])
     assert "allUsers" not in text and "allAuthenticatedUsers" not in text
+
+
+def test_only_the_agent_identity_may_invoke_the_native_mcp(tf):
+    """CH-0014: one invoker grant on sdlc-mcp-native, to the user agent's Agent Identity from a
+    variable (empty = no grant), never to a broad principal."""
+    grants = [
+        (n, b)
+        for t, n, b in tf.resources
+        if t == "google_cloud_run_v2_service_iam_member" and "mcp" in json.dumps(b)
+    ]
+    assert [n for n, _ in grants] == ["mcp_native_agent"]
+    _, grant = grants[0]
+    assert grant["member"] == "${var.agent_runtime_principal}"
+    assert unquote(grant["role"]) == "roles/run.invoker"
+    assert 'mcp[\\"native\\"]' in json.dumps(grant["name"]) or "native" in grant["name"]

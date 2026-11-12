@@ -12,7 +12,7 @@ from pathlib import Path
 import uvicorn
 from fastmcp.server.auth import TokenVerifier
 from google.adk.cli.fast_api import get_fast_api_app
-from sdlc_auth.entra import DEFAULT_AUTHORITY_HOST, EntraTokenVerifier
+from sdlc_auth.entra import verifier_from_env  # shared with the Agent Runtime app (CH-0014)
 
 from sdlc_web.keepalive import DEFAULT_INTERVAL, SseKeepAliveMiddleware
 from sdlc_web.middleware import EntraUserBindingMiddleware
@@ -101,20 +101,6 @@ def create_app(
     )
     # quiet streams (long tools such as goldfish_review) would be dropped by proxies
     return SseKeepAliveMiddleware(bound, interval=keepalive_seconds)
-
-
-def verifier_from_env() -> EntraTokenVerifier:
-    tenant = os.environ.get("ENTRA_TENANT_ID", "")
-    client = os.environ.get("ENTRA_API_CLIENT_ID", "")
-    if not tenant or not client:
-        raise SystemExit("ENTRA_TENANT_ID and ENTRA_API_CLIENT_ID must be set (fail closed)")
-    return EntraTokenVerifier(
-        tenant_id=tenant,
-        audience=[client, f"api://{client}"],
-        required_scopes=[os.environ.get("SDLC_REQUIRED_SCOPE", "access_as_user")],
-        # agents never read config/: the (sovereign-cloud) login host comes from the env (E7)
-        authority_host=os.environ.get("ENTRA_AUTHORITY_HOST") or DEFAULT_AUTHORITY_HOST,
-    )
 
 
 def main() -> None:

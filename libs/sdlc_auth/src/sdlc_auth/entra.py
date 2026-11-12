@@ -8,6 +8,7 @@ the server answer 401 + WWW-Authenticate. On top of that we require:
 """
 
 import logging
+import os
 from collections.abc import Callable
 
 from fastmcp.server.auth import AccessToken
@@ -76,3 +77,19 @@ class EntraTokenVerifier(JWTVerifier):
                 log.warning("token rejected: user oid=%s is blocked (%s)", claims["oid"], reason)
                 return None
         return access
+
+
+def verifier_from_env() -> "EntraTokenVerifier":
+    """The verifier agents use to re-validate the forwarded user token. Agents never read config/,
+    so the values come from the environment: ENTRA_TENANT_ID, ENTRA_API_CLIENT_ID (missing values
+    stop startup: fail closed), optional SDLC_REQUIRED_SCOPE and ENTRA_AUTHORITY_HOST (E7)."""
+    tenant = os.environ.get("ENTRA_TENANT_ID", "")
+    client = os.environ.get("ENTRA_API_CLIENT_ID", "")
+    if not tenant or not client:
+        raise SystemExit("ENTRA_TENANT_ID and ENTRA_API_CLIENT_ID must be set (fail closed)")
+    return EntraTokenVerifier(
+        tenant_id=tenant,
+        audience=[client, f"api://{client}"],
+        required_scopes=[os.environ.get("SDLC_REQUIRED_SCOPE", "access_as_user")],
+        authority_host=os.environ.get("ENTRA_AUTHORITY_HOST") or DEFAULT_AUTHORITY_HOST,
+    )

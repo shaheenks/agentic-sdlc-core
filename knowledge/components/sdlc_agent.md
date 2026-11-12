@@ -37,6 +37,8 @@ Code: `libs/sdlc_agent`
 - `set_active_team`: locks a team in server-side session state after checking membership.
 - `goldfish_review`: parallel isolated reviewers and a synthesizer.
 - A2UI card builder with strict validation.
+- `runtime_guard` (CH-0014): token check, `oid` binding and client-state cleaning shared by
+  `sdlc_web` and the Agent Runtime app.
 
 # Depends on
 

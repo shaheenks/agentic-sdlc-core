@@ -36,6 +36,7 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode
 
 from fastmcp.server.auth import TokenVerifier
+from sdlc_agent.runtime_guard import UNTRUSTED_STATE_PREFIXES
 from sdlc_auth import principal_from_claims
 from sdlc_auth.adk import USER_TOKEN_STATE_KEY, reset_request_token, set_request_token
 
@@ -56,10 +57,8 @@ _DEV_EMPTY_LISTINGS = re.compile(
 _RUN_PATHS = {"/run", "/run_sse"}
 AGUI_STATE_PATH = "/agents/state"  # registered by ag_ui_adk next to the run endpoint
 ME_PATH = "/me"  # the caller's display name + sign-in name (chat app navbar)
-# State keys a client may never set: per-invocation (temp:, where a token could live), shared
-# scopes (app:, user:), server-owned keys (sdlc_, e.g. the active team, version-03 G9), plus the
-# user-token key itself.
-_UNTRUSTED_STATE_PREFIXES = ("temp:", "app:", "user:", "sdlc_")
+# State keys a client may never set: one list for every entry point (CH-0014).
+_UNTRUSTED_STATE_PREFIXES = UNTRUSTED_STATE_PREFIXES
 
 _request_oid: ContextVar[str | None] = ContextVar("sdlc_request_oid", default=None)
 

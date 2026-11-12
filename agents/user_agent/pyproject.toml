@@ -7,8 +7,9 @@ description = "Interactive ADK root agent (chat app)"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "google-adk[mcp]>=2.10",  # MCP toolset is an optional extra in ADK 2
+    "google-cloud-aiplatform>=1.148.1,<2",  # Agent Runtime sessions (CH-0014)
     "sdlc-agent",
-    "sdlc-auth",
+    "sdlc-auth[server]",  # the runtime app re-validates the user token
 ]
 
 [tool.uv]

@@ -30,6 +30,8 @@ Code: `scripts`
 
 - `entra_setup.ps1`: idempotent Entra provisioning including app roles.
 - `gcp_deploy.ps1`: state, base, config, images, plan, apply, db, ingest, urls.
+- `deploy_agent_runtime.py` (CH-0014): stages the user agent as a source package and creates or
+  updates its Agent Runtime engine with Agent Identity; run by the user.
 - `mcp_whoami.py`, `a2a_client.py`, `make_sample_pdfs.py`, `okf_bundle.py`.
 
 # Depends on
