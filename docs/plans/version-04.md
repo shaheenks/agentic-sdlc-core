@@ -163,7 +163,7 @@ docker compose stays the local twin. W5 then ships the workflows onto this platf
 
 | # | Record | What | Exit gate | Status |
 |---|---|---|---|---|
-| WN.0 | - | Spike (user enables the APIs): IAP on Cloud Run, Agent Registry, gateway egress to a Cloud Run MCP keeping both auth headers, streaming custom methods on Agent Runtime, MSAL silent SSO under IAP | Each item confirmed or a fallback decided | read-only checks done 2026-11-12; APIs in Terraform (`agent_platform_apis`, user applies); decisions N5 (both tokens at MCP), N6 (custom streaming method) |
+| WN.0 | - | Spike (user enables the APIs): IAP on Cloud Run, Agent Registry, gateway egress to a Cloud Run MCP keeping both auth headers, streaming custom methods on Agent Runtime, MSAL silent SSO under IAP | Each item confirmed or a fallback decided | ✅ read-only part done 2026-11-12: APIs enabled (Terraform), gcloud and provider support confirmed; live checks (headers through the gateway, streaming, MSAL under IAP) move into WN.2 to WN.4; decisions N5, N6 |
 | WN.1 | CH-0013 | MCP server on Cloud Run, IAM-only (`native.tf`) | 403 without IAM, 401 without Entra token; dev unchanged | proposed |
 | WN.2 | CH-0014 | User agent on Agent Runtime (runtime guard, header provider, deploy script) | Chat call answers as the user; other users' sessions refused | proposed |
 | WN.3 | CH-0015 | Agent Registry and Agent Gateway, allowlist from config | Tool outside the allowlist refused at the gateway | proposed |

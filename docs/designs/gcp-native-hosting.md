@@ -98,8 +98,18 @@ header for IAM when it is present.
 - **Agent Registry:** Public Preview.
 - **Agent Identity:** SPIFFE principals per agent. There is no documented forwarding of the user's credential to
   a downstream MCP server, so our own token passthrough stays.
-- **In `sdlc-demo-env01`:** the registry, agent identity, IAP, Model Armor and network services APIs are
-  available but not enabled. The managed gateway's header handling is checked in the WN.0 spike.
+- **In `sdlc-demo-env01` (WN.0, 2026-11-12):**
+  - the IAP, Agent Registry, Agent Identity (and credentials), network services and Model Armor APIs are enabled
+    by Terraform (`agent_platform_apis`);
+  - `gcloud` 586 has `agent-registry` (services, agents, mcp-servers, endpoints, bindings), `agent-identity`
+    (auth-providers) and `network-services agent-gateways` (import, export from YAML); all answer in
+    `asia-southeast1`, with no resources yet;
+  - the Terraform provider (google 7.46.1) has `google_network_services_agent_gateway`,
+    `google_agent_registry_service`, `_agent`, `_mcp_server`, `_endpoint` and `_binding`,
+    `google_vertex_ai_reasoning_engine`, Cloud Run `iap_enabled` and `google_iap_web_cloud_run_service_iam_member`,
+    so every piece can be Terraform;
+  - still to check live, with test resources: the gateway passing both auth headers, streaming from the custom
+    method, and MSAL silent SSO under IAP. Each is checked in the phase that builds it (WN.2, WN.3, WN.4).
 
 ## 7. Risks
 

@@ -2,6 +2,9 @@
 
 ## 2026-11-12
 
+- **Update**: WN.0 read-only spike: the Agent Platform APIs are enabled in GCP dev (user applied Terraform); gcloud and the
+  Terraform provider support Agent Registry, Agent Gateway, Agent Runtime and IAP on Cloud Run, so CH-0015 uses
+  Terraform instead of scripts. Live checks move into the phases that build each part.
 - **Update**: GCP-native design decisions N5 (Entra token and Cloud Run IAM token both on MCP calls) and N6 (custom
   streaming method on Agent Runtime; session service alternatives later). infra/gcp enables the Agent Platform APIs
   behind `agent_platform_apis` (on in dev) for the WN.0 spike.
