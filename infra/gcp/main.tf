@@ -17,6 +17,16 @@ locals {
     # version-02 N4: Cloud Trace (no cost while cloud_trace = false)
     "cloudtrace.googleapis.com",
   ]
+  # GCP-native hosting (design D17, phase WN): APIs only, no resources. Enabled with
+  # agent_platform_apis = true; they stay enabled when it is switched off again.
+  agent_platform_services = [
+    "iap.googleapis.com",                      # IAP on Cloud Run (UI sign-in)
+    "agentregistry.googleapis.com",            # Agent Registry (preview)
+    "agentidentity.googleapis.com",            # Agent Identity (SPIFFE principal per agent)
+    "agentidentitycredentials.googleapis.com", # credentials for agent identities
+    "networkservices.googleapis.com",          # Agent Gateway
+    "modelarmor.googleapis.com",               # optional prompt and response screening
+  ]
 
   # Cloud Run's deterministic URLs (https://<service>-<project number>.<region>.run.app), known
   # before the services exist, so each service can be configured with its own public URL.
@@ -55,7 +65,7 @@ locals {
 }
 
 resource "google_project_service" "apis" {
-  for_each           = toset(local.services)
+  for_each           = toset(concat(local.services, var.agent_platform_apis ? local.agent_platform_services : []))
   service            = each.value
   disable_on_destroy = false
 }

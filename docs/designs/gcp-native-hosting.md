@@ -28,6 +28,8 @@ artifacts bucket.
 | N2 | Identity at Google | Users are Cloud Identity accounts with Entra SSO; IAP admits them by a Cloud Identity group. |
 | N3 | Rollout | A new environment `native` beside dev, in the same project. Dev keeps running until a cutover decision (CH-0017). |
 | N4 | Local | Docker compose stays the local twin (oauth2-proxy, the agent in a container, `sdlc_web`). Only the hosting differs; agent and MCP code are shared. |
+| N5 | MCP perimeter | Both tokens on every call to the MCP server: the Entra token in `Authorization` (read by the MCP code for per-user access), and the caller's Google ID token in `X-Serverless-Authorization` (checked by Cloud Run IAM before the request reaches the code). Chosen over a public service, where the gateway could be bypassed, and over internal ingress with Private Service Connect. |
+| N6 | Agent entry point | A custom streaming method on Agent Runtime (`stream_query(message, session_id, user_token)`) so the token check and session ownership run before the agent. Alternatives for the session service are explored later. |
 
 Rejected for now:
 - **Google identity end to end:** the MCP server would trust Google tokens, and membership would come from Cloud

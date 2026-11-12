@@ -2,6 +2,9 @@
 
 ## 2026-11-12
 
+- **Update**: GCP-native design decisions N5 (Entra token and Cloud Run IAM token both on MCP calls) and N6 (custom
+  streaming method on Agent Runtime; session service alternatives later). infra/gcp enables the Agent Platform APIs
+  behind `agent_platform_apis` (on in dev) for the WN.0 spike.
 - **Creation**: design `docs/designs/gcp-native-hosting.md` (decision D17, plan phase WN) and change records CH-0013 to
   CH-0017 (`draft`): IAP, the user agent on Agent Runtime, the MCP server on Cloud Run with IAM-only access, Agent
   Registry and Agent Gateway, in a new `native` environment. New draft NFR-SEC-015 (layered access control).

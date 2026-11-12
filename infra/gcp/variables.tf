@@ -134,3 +134,9 @@ variable "cloud_trace" {
   type        = bool
   default     = false
 }
+
+variable "agent_platform_apis" {
+  description = "Enable the APIs for GCP-native hosting (design D17): IAP, Agent Registry, Agent Identity, Agent Gateway (network services) and Model Armor. APIs only, no resources."
+  type        = bool
+  default     = false
+}
