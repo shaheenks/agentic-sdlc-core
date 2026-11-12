@@ -84,6 +84,7 @@ W0 Foundation (pending records) ──► W1 Workflow model, identity, service c
 | W7 | FR-WFL-006, NFR-SEC-012 | W2, W8 |
 | W8 | NFR-SEC-014 | W1 |
 | W9 | FR-KNOW-008 to FR-KNOW-010, NFR-QUAL-001 | W0 (CH-0001) |
+| WN | GCP-native hosting (`native` env): NFR-SEC-015 | W0; the WN.0 spike; CH-0010 for WN.5 |
 
 ## W0 — Foundation: the pending change records
 
@@ -152,6 +153,22 @@ then, admin alerts use the admins' Jira queue.
 | W5.1 | Un-park version-03 P2 E4: federated credentials, so each workflow's Cloud Run service account is trusted by its Entra app (FR-IDN-005: no client secrets on GCP). Entra changes by the user | A workflow on GCP gets an app-only token without a client secret | proposed |
 | W5.2 | Terraform (applied by the CI deploy from W0.8, merged as code; a destructive plan waits for the user's approval): topics and subscriptions (filters, ordering, dead letter); services for the gateway, enrichment, runtimes and delivery, with one service account each; the notification channel; Secret Manager entries for service connections; Cloud Run egress settings | `plan` shows only the new resources; `apply` passes | proposed |
 | W5.3 | Rollout through the CI deploy: images, plan and apply, `db` (`agent_runs`) and `config` (new kinds, roles, connections) run automatically on merge | The W3.1 and W4.3 gates pass on GCP dev | proposed |
+
+## WN — GCP-native hosting (proposed 2026-11-12)
+
+Design: [gcp-native-hosting.md](../designs/gcp-native-hosting.md), decision D17. IAP in place of oauth2-proxy,
+the user agent on Agent Runtime, the MCP server on Cloud Run with IAM-only access, Agent Registry and the managed
+Agent Gateway. Entra app-role RBAC stays the per-user authority. Built as a new environment `native` beside dev;
+docker compose stays the local twin. W5 then ships the workflows onto this platform.
+
+| # | Record | What | Exit gate | Status |
+|---|---|---|---|---|
+| WN.0 | - | Spike (user enables the APIs): IAP on Cloud Run, Agent Registry, gateway egress to a Cloud Run MCP keeping both auth headers, streaming custom methods on Agent Runtime, MSAL silent SSO under IAP | Each item confirmed or a fallback decided | read-only checks done 2026-11-12: APIs available, not enabled |
+| WN.1 | CH-0013 | MCP server on Cloud Run, IAM-only (`native.tf`) | 403 without IAM, 401 without Entra token; dev unchanged | proposed |
+| WN.2 | CH-0014 | User agent on Agent Runtime (runtime guard, header provider, deploy script) | Chat call answers as the user; other users' sessions refused | proposed |
+| WN.3 | CH-0015 | Agent Registry and Agent Gateway, allowlist from config | Tool outside the allowlist refused at the gateway | proposed |
+| WN.4 | CH-0016 | UI on Cloud Run with IAP, MSAL, AG-UI adapter to Agent Runtime | Group members chat; identity mismatch refused | proposed |
+| WN.5 | CH-0017 | Hardening, CI target, cutover decision | Negative checklist passes on `native` | proposed |
 
 ## W6 — Catalogs for coding harnesses
 

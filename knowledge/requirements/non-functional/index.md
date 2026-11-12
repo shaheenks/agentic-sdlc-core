@@ -64,3 +64,4 @@
 - [NFR-SEC-012: Sandboxed code execution](NFR-SEC-012.md) - Code written by agents runs only in ephemeral sandboxes with no production access.
 - [NFR-SEC-013: Agents hold no external-system credentials](NFR-SEC-013.md) - Autonomous agents never hold credentials for external systems; server-side components use them after the policy check.
 - [NFR-SEC-014: MCP backends can be segregated per workflow](NFR-SEC-014.md) - A workflow can get its own MCP backend that serves only its tools and holds only its credentials, under the same config and policy.
+- [NFR-SEC-015: Layered access control on Google Cloud](NFR-SEC-015.md) - On Google Cloud, IAP, Cloud Run IAM and Agent Gateway add perimeter, workload and tool layers in front of the per-user authorization in the MCP server, each failing closed and none granting more than config.

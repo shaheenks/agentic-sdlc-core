@@ -20,3 +20,8 @@
 
 - [CH-0008: Workflow platform design baseline](CH-0008.md) - The finalized POC design becomes the specification. There are four workflow classes, event intake, enrichment and delivery, workflow identity, team-scoped platform and team roles, a sandboxed ADK implementation agent, harness catalogs and knowledge extensions.
 - [CH-0010: Continuous deployment to GCP dev](CH-0010.md) - A GitHub workflow deploys every merge to main to GCP dev, running only the deployment steps the changes need, in a fixed order.
+- [CH-0013: MCP server on Cloud Run with IAM-only access (native env)](CH-0013.md) - A new environment `native` runs the existing MCP server as a Cloud Run service that only allowed Google identities can invoke; the Entra token keeps deciding per-user access.
+- [CH-0014: User agent on Agent Runtime](CH-0014.md) - The existing user agent is deployed to Agent Runtime behind a wrapper that verifies the user's Entra token, owns sessions per user and forwards the token to the MCP server with the agent's identity.
+- [CH-0015: Agent Registry and Agent Gateway for the native stack](CH-0015.md) - The agent and MCP server are registered in Agent Registry, and the managed Agent Gateway allows only the user agent to reach the MCP server, for the tools config declares.
+- [CH-0016: Chat UI on Cloud Run behind IAP](CH-0016.md) - The CopilotKit UI runs on Cloud Run with IAP sign-in, gets the user's Entra token by silent SSO, checks it matches the IAP user, and talks to the agent on Agent Runtime.
+- [CH-0017: Native stack hardening, CI target and cutover decision](CH-0017.md) - Least-privilege identities and negative tests for the native stack, the CI deploy target for it, and the decision whether users move from dev to native.

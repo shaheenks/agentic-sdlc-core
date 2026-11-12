@@ -367,6 +367,7 @@ Answered by the user on 2026-11-11:
 | D14 | Deploying to GCP dev | Every merge to `main` is deployed by a GitHub workflow that runs only the steps its changes need, in a fixed order, using bash on Linux runners. PowerShell stays for Windows; both scripts share one manifest and are kept equal by a parity test (NFR-OPS-002, CH-0010). |
 | D15 | Team owners | Team `owners` in config are the GitHub handles that CODEOWNERS lists, so review routing and config name the same people (CH-0011). |
 | D16 | Groups | Dropped. All membership comes from Entra app roles (CH-0011). |
+| D17 | GCP-native hosting | IAP signs users in, the user agent runs on Agent Runtime, the MCP server on Cloud Run with IAM-only access, both registered in Agent Registry and governed by the managed Agent Gateway. Entra app-role RBAC stays the per-user authority (layered access control, NFR-SEC-015). Built as a new environment `native` beside dev; replaces D6 "optional" for the native stack ([gcp-native-hosting.md](gcp-native-hosting.md), CH-0013 to CH-0017). |
 | D13 | Admin alert channel | A Jira queue for the platform admins, or an email message. Which one is used, and its target, is declared in platform configuration (FR-WFL-005). |
 
 No design questions are open.

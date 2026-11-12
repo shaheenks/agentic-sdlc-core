@@ -2,6 +2,9 @@
 
 ## 2026-11-12
 
+- **Creation**: design `docs/designs/gcp-native-hosting.md` (decision D17, plan phase WN) and change records CH-0013 to
+  CH-0017 (`draft`): IAP, the user agent on Agent Runtime, the MCP server on Cloud Run with IAM-only access, Agent
+  Registry and Agent Gateway, in a new `native` environment. New draft NFR-SEC-015 (layered access control).
 - **Update**: the user approved CH-0004 with a cap of 10 versions (recorded by Claude on the user's instruction). CH-0004
   done: 50 documents per user (a document counts once) and 10 versions per document. FR-ART-001 and FR-ART-002 edited
   and back to `draft`.
