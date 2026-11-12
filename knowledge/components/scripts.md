@@ -32,6 +32,8 @@ Code: `scripts`
 - `gcp_deploy.ps1`: state, base, config, images, plan, apply, db, ingest, urls.
 - `deploy_agent_runtime.py` (CH-0014): stages the user agent as a source package and creates or
   updates its Agent Runtime engine with Agent Identity; run by the user.
+- `agent_runtime_query.py` (CH-0014): asks the agent on Agent Runtime a question with a user's token and
+  prints each event with its arrival time (streaming check), then the user's conversations.
 - `mcp_whoami.py`, `a2a_client.py`, `make_sample_pdfs.py`, `okf_bundle.py`.
 
 # Depends on

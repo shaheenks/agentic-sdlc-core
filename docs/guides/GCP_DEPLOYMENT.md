@@ -210,7 +210,8 @@ existing `sdlc-mcp-<env>` in place, so the first plan shows a move and one new s
    `user_agent.runtime_app:app` and `SDLC_MCP_URL` / `SDLC_MCP_IAM_AUDIENCE` from `terraform output mcp_native_url`.
 2. It prints the engine's identity. Put it in `infra/gcp/dev.tfvars` as `agent_runtime_principal = "principal://..."`,
    then plan + apply: that adds one grant, `run.invoker` on `sdlc-mcp-native` for that identity.
-3. Check: a `stream_query` call with a user's Entra token answers, and the MCP `tool_call` audit records show that
+3. Check with `uv run python scripts/agent_runtime_query.py --token <a test user's Entra token> "Call whoami"`:
+   events print with their arrival time (spread over time = streaming); a `stream_query` call with a user's Entra token answers, and the MCP `tool_call` audit records show that
    user's `oid`. A call without a token, or with another user's `session_id`, is refused.
 
 Each engine update keeps its identity; a new engine (after a delete) gets a new one, so update the variable.
