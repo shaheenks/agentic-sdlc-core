@@ -81,7 +81,6 @@ Plan references in brackets: Stage N (version-00), M/H (version-01 / version-00 
 | `jira_get_issue`, `confluence_get_page` (user's Atlassian PAT) | per config | 🟢 Built (no live Atlassian site) | M6 |
 | `github_get_file`, `bitbucket_get_file` (user's PAT, `repo` arg limits) | per config | ✅ Live (Cloud); 🟢 Bitbucket DC | M6 |
 | `config_info`, `config_explain(groups, app_roles)` | admin | ✅ Live | Stage 3 |
-| `review_code`, `generate_tests`, `approve_design` (`repo` arg limits) | developer / lead | ⚪ Stub (echo inputs) | Stage 3 |
 | `claim_event` (event dedupe for runtimes) | service roles | 📝 Planned | P6 E3 |
 
 **Server features**
@@ -200,7 +199,7 @@ Plan references in brackets: Stage N (version-00), M/H (version-01 / version-00 
 
 | # | Item | Where |
 |---|---|---|
-| 1 | `review_code`, `generate_tests`, `approve_design` are stubs (docs now say so; real implementations not planned yet) | [sdlc_tools.py](../mcp_servers/core_mcp/src/sdlc_core_mcp/sdlc_tools.py) |
+| 1 | ~~`review_code`, `generate_tests`, `approve_design` are stubs~~ removed 2026-11-11 (CH-0003; FR-ACT-001 retired) | `config/tools.yaml` |
 | 2 | ~~ARCHITECTURE.md said `search_knowledge` "stays vector-only"~~ fixed 2026-11-08 (keyword search section added) | ARCHITECTURE.md §5 |
 | 3 | ~~ARCHITECTURE.md §6 / §8 described config as "Pub/Sub reload" / "baked into the image"~~ fixed 2026-11-08 (GCS bundle, polled) | ARCHITECTURE.md §6, §8 |
 | 4 | ~~ARCHITECTURE.md §8 listed Cloud Trace as planned and identity as WIF~~ fixed 2026-11-08 | ARCHITECTURE.md §8 |

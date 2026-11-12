@@ -17,6 +17,8 @@ satisfies:
 - /requirements/non-functional/NFR-PORT-002
 - /requirements/non-functional/NFR-PORT-003
 - /requirements/non-functional/NFR-SEC-010
+verified_by:
+- tests/infra/test_compose.py
 ---
 
 # Purpose
@@ -50,4 +52,4 @@ Code: `docker-compose.yml`
 
 # Verification
 
-No automated tests cover this component.
+- `tests/infra/test_compose.py`

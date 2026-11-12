@@ -6,16 +6,17 @@
 
 .DESCRIPTION
   Creates or updates:
-    - app sdlc-mcp (API): identifier URI, access_as_user scope, v2 tokens, groups claim,
-      app roles ($AppRoles, version-03 P2 E1), Azure CLI pre-authorized (dev testing),
-      assignment required
-    - optional: app roles for -AppRoleUser (default SDLC.User + SDLC.Payments.Developer)
-    - security groups sdlc-eng-all, sdlc-payments-devs, sdlc-payments-leads,
-      sdlc-platform-devs, sdlc-platform-admins
-    - memberships: user A = eng-all + payments-devs, user B = eng-all + platform-devs
-    - app assignments: groups (P1/P2) or the two test users (Free tier)
+    - app sdlc-mcp (API): identifier URI, access_as_user scope, v2 tokens, NO groups claim
+      (membership comes from app roles only, CH-0011), app roles ($AppRoles), Azure CLI
+      pre-authorized (dev testing), assignment required
+    - app role assignments: user A = SDLC.User + SDLC.Payments.Member, user B = SDLC.User +
+      SDLC.Platform.Member, admin = SDLC.User + SDLC.Admin, and -AppRoleUser with
+      -AppRoleUserRoles. Assignments are only added; remove old ones in the portal.
     - app sdlc-client (web, for oauth2-proxy in Stage 2d): redirect URI, access_as_user
       permission + admin consent, optional client secret
+
+  It creates no Entra groups and never deletes anything: remove old app roles (disable first),
+  old assignments, GroupMember.Read.All and the groups by hand.
 
   Why a script: on Windows `az` is az.cmd, so every argument goes through cmd.exe. JSON
   bodies and OData filters with parentheses get mangled. This script passes JSON via
@@ -25,57 +26,51 @@
   az login --tenant <tenant> --allow-no-subscriptions
   .\scripts\entra_setup.ps1 -TestUserA ad.paul@contoso.onmicrosoft.com -TestUserB ad.b@contoso.onmicrosoft.com -DryRun
   .\scripts\entra_setup.ps1 -TestUserA ... -TestUserB ... -AdminUser <upn> -NewClientSecret -WriteLocalFiles
-  .\scripts\entra_setup.ps1 -TestUserA ... -TestUserB ... -AppRoleUser <upn> -AppRoleUserRoles SDLC.User,SDLC.Platform.Developer
+  .\scripts\entra_setup.ps1 -TestUserA ... -TestUserB ... -AppRoleUser <upn> -AppRoleUserRoles SDLC.User,SDLC.Platform.Member
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$TestUserA,   # eng-all + payments-devs
-    [Parameter(Mandatory = $true)][string]$TestUserB,   # eng-all + platform-devs
-    [string]$AdminUser = '',                             # optional: eng-all + platform-admins (admin role)
+    [Parameter(Mandatory = $true)][string]$TestUserA,   # SDLC.User + SDLC.Payments.Member
+    [Parameter(Mandatory = $true)][string]$TestUserB,   # SDLC.User + SDLC.Platform.Member
+    [string]$AdminUser = '',                             # optional: SDLC.User + SDLC.Admin
     [string]$IdentifierUri = '',   # default api://<sdlc-mcp appId> (matches config/platform.yaml)
     # oauth2-proxy callbacks: local + public (Cloudflare Tunnel). Existing URIs are kept.
     [string[]]$RedirectUri = @('http://localhost:4180/oauth2/callback', 'https://app-sdlc-dev.shaheenks.co.in/oauth2/callback'),
     [switch]$NewClientSecret,   # create a new sdlc-client secret (printed once / written to .env)
-    [switch]$WriteLocalFiles,   # update .env and config/env/local/groups.yaml with the real IDs
+    [switch]$WriteLocalFiles,   # update .env with the real IDs
     [switch]$DryRun,            # read-only: print planned changes, modify nothing
     [switch]$NoAzCliPreAuth,    # prod/enterprise: no Azure CLI pre-authorization (removes it if present)
-    # app roles (version-03 P2 E1): optional user who gets app roles assigned (no groups needed)
+    # optional extra user who gets these app roles assigned
     [string]$AppRoleUser = '',
-    [string[]]$AppRoleUserRoles = @('SDLC.User', 'SDLC.Payments.Developer')
+    [string[]]$AppRoleUserRoles = @('SDLC.User', 'SDLC.Payments.Member')
 )
 
 $ErrorActionPreference = 'Stop'
 $GraphBase = 'https://graph.microsoft.com/v1.0'
 $AzCliClientId = '04b07795-8ddb-461a-bbee-02f9e1bf7b46'   # Azure CLI (pre-authorized for dev tokens)
-$DefaultAccessRole = '00000000-0000-0000-0000-000000000000'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$GroupNames = [ordered]@{
-    'eng-all'         = 'sdlc-eng-all'
-    'payments-devs'   = 'sdlc-payments-devs'
-    'payments-leads'  = 'sdlc-payments-leads'
-    'platform-devs'   = 'sdlc-platform-devs'
-    'platform-admins' = 'sdlc-platform-admins'
-}
-$Memberships = @(
-    @{ User = $TestUserA; Groups = @('eng-all', 'payments-devs') },
-    @{ User = $TestUserB; Groups = @('eng-all', 'platform-devs') }
+$Assignments = @(
+    @{ User = $TestUserA; Roles = @('SDLC.User', 'SDLC.Payments.Member') },
+    @{ User = $TestUserB; Roles = @('SDLC.User', 'SDLC.Platform.Member') }
 )
-if ($AdminUser) { $Memberships += @{ User = $AdminUser; Groups = @('eng-all', 'platform-admins') } }
-# App roles on sdlc-mcp (version-03 P2 E1): value = description. They appear in the access
-# token's `roles` claim (never cut by group overage). config/ grants them as `app_role: <value>`;
-# tests/policy/test_app_roles.py checks that both lists match. Roles are only added or updated
-# here, never removed (Entra needs a role disabled before it can be deleted: do that by hand).
+if ($AdminUser) { $Assignments += @{ User = $AdminUser; Roles = @('SDLC.User', 'SDLC.Admin') } }
+if ($AppRoleUser) { $Assignments += @{ User = $AppRoleUser; Roles = $AppRoleUserRoles } }
+# App roles on sdlc-mcp: value = description. They appear in the access token's `roles` claim
+# and are the only source of membership besides users.yaml (CH-0011). config/ grants them as
+# `app_role: <value>`; tests/policy/test_app_roles.py checks that both lists match. Roles are
+# only added or updated here, never removed (Entra needs a role disabled before it can be
+# deleted: do that by hand).
 $AppRoles = [ordered]@{
-    'SDLC.User'               = 'SDLC viewer: knowledge search, skills, own artifacts (as group eng-all)'
-    'SDLC.Admin'              = 'SDLC admin: every tool and skill (as group platform-admins)'
-    'SDLC.Payments.Developer' = 'Payments team developer (as group payments-devs)'
-    'SDLC.Payments.Lead'      = 'Payments team lead (as group payments-leads)'
-    'SDLC.Platform.Developer' = 'SDLC platform team developer'
-    'SDLC.Platform.Lead'      = 'SDLC platform team lead'
-    'SDLC.Webapp.Developer'   = 'Webapp team developer'
-    'SDLC.Webapp.Lead'        = 'Webapp team lead'
+    'SDLC.User'              = 'SDLC viewer: knowledge search, skills, own artifacts'
+    'SDLC.Admin'             = 'SDLC admin: every tool and skill'
+    'SDLC.Payments.Member'   = 'Payments team member'
+    'SDLC.Payments.Approver' = 'Payments team approver'
+    'SDLC.Platform.Member'   = 'SDLC platform team member'
+    'SDLC.Platform.Approver' = 'SDLC platform team approver'
+    'SDLC.Webapp.Member'     = 'Webapp team member'
+    'SDLC.Webapp.Approver'   = 'Webapp team approver'
 }
-foreach ($r in $AppRoleUserRoles) {
+foreach ($r in @($Assignments | ForEach-Object { $_.Roles })) {
     if (-not $AppRoles.Contains($r)) { throw "unknown app role $r (defined: $($AppRoles.Keys -join ', '))" }
 }
 
@@ -134,11 +129,6 @@ function Get-Single($Items, [string]$What) {
 $account = Invoke-AzJson account show
 $TenantId = $account.tenantId
 Write-Host "Tenant $TenantId as $($account.user.name)$(if ($DryRun) { '  (DRY RUN)' })" -ForegroundColor Green
-$skus = @((Invoke-Graph GET '/subscribedSkus').value)
-$plans = @($skus | ForEach-Object { $_.servicePlans } | ForEach-Object { $_.servicePlanName })
-$IsPremium = [bool]($plans -match '^AAD_PREMIUM')
-$GroupClaims = if ($IsPremium) { 'ApplicationGroup' } else { 'SecurityGroup' }
-Write-Host "Entra tier: $(if ($IsPremium) { 'P1/P2' } else { 'Free' }) -> groupMembershipClaims=$GroupClaims, assign $(if ($IsPremium) { 'groups' } else { 'users' }) to sdlc-mcp"
 
 # ---------------------------------------------------------------- 1. API app: sdlc-mcp
 Write-Host "`n[1] App sdlc-mcp" -ForegroundColor Green
@@ -185,12 +175,13 @@ if ($currentUris -contains $IdentifierUri) {
     } | Out-Null
 }
 
-# 1b. scope + v2 tokens + groups claim (scope must exist before it can be pre-authorized)
-Invoke-Change 'set access_as_user scope, v2 access tokens, groups claim' {
+# 1b. scope + v2 tokens, groups claim off (scope must exist before it can be pre-authorized).
+#     Membership comes from app roles only (CH-0011): tokens carry no `groups` claim.
+Invoke-Change 'set access_as_user scope, v2 access tokens, no groups claim' {
     Invoke-Graph PATCH "/applications/$($api.id)" @{
         api                   = $apiSettings
-        groupMembershipClaims = $GroupClaims
-        optionalClaims        = @{ accessToken = @(@{ name = 'groups' }); idToken = @(); saml2Token = @() }
+        groupMembershipClaims = 'None'
+        optionalClaims        = @{ accessToken = @(); idToken = @(); saml2Token = @() }
     } | Out-Null
 } | Out-Null
 # 1c. pre-authorize Azure CLI (dev: az account get-access-token for the whoami check).
@@ -207,7 +198,7 @@ Invoke-Change $preAuthDescription {
 } | Out-Null
 
 # 1d. app roles (version-03 P2 E1): keep existing ids, add missing roles, leave other roles alone.
-#     allowedMemberTypes User = users and (P1/P2 tenants) groups can be assigned.
+#     allowedMemberTypes User: users are assigned (no groups, CH-0011).
 $currentRoles = @(if ($api) { $api.appRoles } else { @() })
 $AppRoleIds = @{}
 $desiredRoles = @()
@@ -241,66 +232,24 @@ if (-not $apiSp) {
 if ($apiSp -and $apiSp.appRoleAssignmentRequired) {
     Write-Host '  assignment required: ok'
 } else {
-    Invoke-Change 'require assignment (only assigned users/groups can get tokens)' {
+    Invoke-Change 'require assignment (only assigned users can get tokens)' {
         Invoke-Graph PATCH "/servicePrincipals/$($apiSp.id)" @{ appRoleAssignmentRequired = $true } | Out-Null
     } | Out-Null
 }
 
-# ---------------------------------------------------------------- 2. groups, members, assignments
-Write-Host "`n[2] Groups and test users" -ForegroundColor Green
-$GroupIds = [ordered]@{}
-foreach ($alias in $GroupNames.Keys) {
-    $name = $GroupNames[$alias]
-    $g = Get-Single (Invoke-AzJson ad group list --display-name $name) "group $name"
-    if (-not $g) {
-        $g = Invoke-Change "create security group $name" {
-            Invoke-AzJson ad group create --display-name $name --mail-nickname $name
-        }
-    }
-    $GroupIds[$alias] = if ($g) { $g.id } else { "<new $name id>" }
-    Write-Host ("  {0,-16} {1,-22} {2}" -f $alias, $name, $GroupIds[$alias])
-}
-
-$UserIds = @{}
-foreach ($m in $Memberships) {
-    $u = Invoke-AzJson ad user show --id $m.User
-    $UserIds[$m.User] = $u.id
-    foreach ($alias in $m.Groups) {
-        $gid = $GroupIds[$alias]
-        $isMember = if ($gid -like '<new*') { $false } else {
-            (Invoke-AzJson ad group member check --group $gid --member-id $u.id).value
-        }
-        if ($isMember) { Write-Host "  $($m.User) in $($GroupNames[$alias]): ok" }
-        else { Invoke-Change "add $($m.User) to $($GroupNames[$alias])" {
-            Invoke-Az ad group member add --group $gid --member-id $u.id | Out-Null } | Out-Null }
-    }
-}
-
-$assigned = if ($apiSp) { @((Invoke-Graph GET "/servicePrincipals/$($apiSp.id)/appRoleAssignedTo").value | ForEach-Object { $_.principalId }) } else { @() }
-$toAssign = if ($IsPremium) { @($GroupIds.Values) } else { @($UserIds.Values) }
-foreach ($principalId in $toAssign) {
-    if ($assigned -contains $principalId) { Write-Host "  assignment $principalId : ok"; continue }
-    Invoke-Change "assign $principalId to sdlc-mcp" {
-        Invoke-Graph POST "/servicePrincipals/$($apiSp.id)/appRoleAssignedTo" @{
-            principalId = $principalId; resourceId = $apiSp.id; appRoleId = $DefaultAccessRole
-        } | Out-Null
-    } | Out-Null
-}
-
-# 2b. app role assignments (version-03 P2 E1): a user with app roles only, no sdlc groups.
-#     Only adds; remove an assignment in the portal (Enterprise apps > sdlc-mcp > Users and groups).
-if ($AppRoleUser) {
-    $roleUser = Invoke-AzJson ad user show --id $AppRoleUser
-    $userAssignments = if ($apiSp) {
-        @((Invoke-Graph GET "/servicePrincipals/$($apiSp.id)/appRoleAssignedTo").value |
-            Where-Object { $_.principalId -eq $roleUser.id } | ForEach-Object { $_.appRoleId })
-    } else { @() }
-    foreach ($value in $AppRoleUserRoles) {
+# ---------------------------------------------------------------- 2. app role assignments
+# Only adds; remove an assignment in the portal (Enterprise apps > sdlc-mcp > Users and groups).
+Write-Host "`n[2] App role assignments" -ForegroundColor Green
+$assignedTo = if ($apiSp) { @((Invoke-Graph GET "/servicePrincipals/$($apiSp.id)/appRoleAssignedTo").value) } else { @() }
+foreach ($a in $Assignments) {
+    $u = Invoke-AzJson ad user show --id $a.User
+    $have = @($assignedTo | Where-Object { $_.principalId -eq $u.id } | ForEach-Object { $_.appRoleId })
+    foreach ($value in $a.Roles) {
         $roleId = $AppRoleIds[$value]
-        if ($userAssignments -contains $roleId) { Write-Host "  $AppRoleUser has $value : ok"; continue }
-        Invoke-Change "assign app role $value to $AppRoleUser" {
+        if ($have -contains $roleId) { Write-Host "  $($a.User) has $value : ok"; continue }
+        Invoke-Change "assign app role $value to $($a.User)" {
             Invoke-Graph POST "/servicePrincipals/$($apiSp.id)/appRoleAssignedTo" @{
-                principalId = $roleUser.id; resourceId = $apiSp.id; appRoleId = $roleId
+                principalId = $u.id; resourceId = $apiSp.id; appRoleId = $roleId
             } | Out-Null
         } | Out-Null
     }
@@ -391,15 +340,6 @@ if ($WriteLocalFiles -and -not $DryRun) {
     }
     [IO.File]::WriteAllText($envPath, $envText, (New-Object Text.UTF8Encoding $false))
     Write-Host "  updated $envPath"
-
-    $groupsPath = Join-Path $RepoRoot 'config\env\local\groups.yaml'   # git-ignored
-    if (-not (Test-Path $groupsPath)) { Copy-Item "$groupsPath.example" $groupsPath }
-    $yaml = [IO.File]::ReadAllText($groupsPath)
-    foreach ($alias in $GroupIds.Keys) {
-        $yaml = $yaml -replace "(?m)^(\s*$([regex]::Escape($alias)):\s*\{\s*id:\s*`")[^`"]*(`")", "`${1}$($GroupIds[$alias])`${2}"
-    }
-    [IO.File]::WriteAllText($groupsPath, $yaml, (New-Object Text.UTF8Encoding $false))
-    Write-Host "  updated $groupsPath"
 } elseif ($ClientSecret -and -not $DryRun) {
     Write-Host "  ENTRA_CLIENT_SECRET=$ClientSecret   <- copy into .env now; it is not shown again" -ForegroundColor Yellow
 }

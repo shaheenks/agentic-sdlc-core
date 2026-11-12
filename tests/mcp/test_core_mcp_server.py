@@ -107,50 +107,50 @@ async def test_load_unknown_skill_is_rejected(base_url, entra, name):
             await c.call_tool("load_skill", {"name": name})
 
 
-async def test_whoami_differs_by_group_membership(base_url, entra, store):
-    payments = entra.token(upn="pat@corp.test", groups=[G_ENG_ALL, G_PAYMENTS_DEVS])
-    platform = entra.token(
-        upn="lee@corp.test",
-        groups=[G_ENG_ALL, G_PLATFORM_DEVS, "12345678-0000-0000-0000-00000000dead"],
-    )
+async def test_whoami_differs_by_app_roles(base_url, entra, store):
+    payments = entra.token(upn="pat@corp.test", roles=[G_ENG_ALL, G_PAYMENTS_DEVS])
+    platform = entra.token(upn="lee@corp.test", roles=[G_ENG_ALL, G_PLATFORM_DEVS])
     async with client(base_url, payments) as c:
-        pat = (await c.call_tool("whoami", {})).data
+        pat = (await c.call_tool("whoami", {"explain": True})).data
     async with client(base_url, platform) as c:
-        lee = (await c.call_tool("whoami", {})).data
-    assert pat["upn"] == "pat@corp.test" and pat["groups"] == ["eng-all", "payments-devs"]
-    assert lee["groups"] == ["eng-all", "platform-devs"] and lee["unmapped_group_count"] == 1
+        lee = (await c.call_tool("whoami", {"explain": True})).data
+    assert pat["upn"] == "pat@corp.test" and pat["app_roles"] == sorted(
+        [G_ENG_ALL, G_PAYMENTS_DEVS]
+    )
+    assert set(pat["policy"]["teams"]) == {"payments"}
+    assert set(lee["policy"]["teams"]) == {"sdlc-platform"}
     assert pat["oid"] != lee["oid"]
-    assert pat["group_source"] == "token"
+    assert "groups" not in pat and "group_source" not in pat  # CH-0011
     assert pat["config_version"] == store.current().version
 
 
-async def test_overage_user_without_graph_gets_no_groups(base_url, entra):
-    token = entra.token(omit=["groups"], _claim_names={"groups": "src1"})
-    async with client(base_url, token) as c:
-        me = (await c.call_tool("whoami", {})).data
-    assert me["groups"] == [] and me["group_source"] == "overage_unresolved"
+async def test_config_reload_changes_app_role_mapping(base_url, entra, store, config_dir):
+    token = entra.token(roles=[G_PAYMENTS_DEVS])
+    team_file = config_dir / "teams/payments.yaml"
+    original = team_file.read_text()
 
-
-async def test_config_reload_changes_group_mapping(base_url, entra, store, config_dir):
-    token = entra.token(groups=[G_PAYMENTS_DEVS])
-    groups_file = config_dir / "env/local/groups.yaml"
-    original = groups_file.read_text()
-
-    # Renaming an alias that teams still reference is rejected; the old version keeps serving.
+    # A team role in a global binding is rejected; the old version keeps serving.
     good_version = store.current().version
-    groups_file.write_text(original.replace("payments-devs:", "payments-eng:"))
-    assert store.reload() is False
-    assert "unknown group alias 'payments-devs'" in store.last_error
-    assert store.current().version == good_version
-
-    # Remapping the alias to a different Entra group is valid: the old group ID no longer maps.
-    groups_file.write_text(
-        original.replace(G_PAYMENTS_DEVS, "12345678-aaaa-bbbb-cccc-000000000002")
+    roles_file = config_dir / "roles.yaml"
+    roles_original = roles_file.read_text()
+    roles_file.write_text(
+        roles_original.replace(
+            "roles:\n  signed-in:",
+            "  - app_role: SDLC.X\n    roles: [member]\nroles:\n  signed-in:",
+            1,
+        )
     )
+    assert store.reload() is False
+    assert "is a platform role" in store.last_error
+    assert store.current().version == good_version
+    roles_file.write_text(roles_original)
+
+    # Moving the team to another app role value: the old value no longer grants the team.
+    team_file.write_text(original.replace("SDLC.Payments.Member", "SDLC.Payments.Engineer"))
     assert store.reload()
     async with client(base_url, token) as c:
-        me = (await c.call_tool("whoami", {})).data
-    assert me["groups"] == [] and me["unmapped_group_count"] == 1
+        me = (await c.call_tool("whoami", {"explain": True})).data
+    assert me["policy"]["teams"] == {}
     assert me["config_version"] == store.current().version
 
 

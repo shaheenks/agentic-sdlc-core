@@ -7,13 +7,13 @@ tags:
 - requirement
 - non-functional
 - maintainability
-status: stable
+status: draft
 priority: must
 implementation: live
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T21:45:18+05:30'
 sources:
+- id: change
+  resource: ../../changes/CH-0010.md
+  title: CH-0010 Continuous deployment to GCP dev
 - id: rules
   resource: ../../rules/index.md
   title: Project rules (rule sets)
@@ -21,9 +21,14 @@ sources:
 
 # Statement
 
-Continuous integration shall run without secrets or calls to cloud services.
+The checks and tests in continuous integration shall run without secrets or calls to cloud services. Only the deployment workflow reaches the cloud.
 
 # Acceptance criteria
 
-- Tests pass without `.env`, using placeholder Entra IDs, the example group map, a hash embedder and fake Entra tokens.
-- CI covers lint, config validation, the permission diff, UI checks, database tests and Terraform checks.
+- Tests pass without `.env`, using placeholder Entra IDs, example tenant files, a hash embedder and fake Entra tokens.
+- The `ci` workflow covers lint, config validation, the permission diff, UI checks, database tests and Terraform checks, and holds no secret and no cloud credential.
+- The deploy workflow (NFR-OPS-002) is a separate workflow. It runs only on `main`, after `ci` passes, and gets its GCP access through Workload Identity Federation, never a stored key.
+
+# Notes
+
+Modified by CH-0010.

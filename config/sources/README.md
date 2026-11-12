@@ -73,9 +73,9 @@ PDFs (H10): add `**/*.pdf` to `include`; optional `spec.ingest.pdf: {ocr: none|g
 
 Access (`access`, the ONLY grant for this data; any one entry is enough):
 - `teams: [<team>]`: members of the team (team membership comes from `teams/<team>.yaml`).
-- `groups: [<alias>]`: members of an Entra group, independent of teams. Give a source its own Entra group
-  (alias in `config/env/<env>/groups.yaml`, e.g. `infra-readers` on `platform-infra`) when its readers are not a team.
-- `roles: [<role>]`: holders of a role (e.g. `admin`).
+- `roles: [<role>]`: holders of a platform role (e.g. `admin`), or of a team role in the source's owner team.
+  A source whose readers are not a team gets its own audience: a platform role bound to its own app role
+  (Entra groups are not used, CH-0011).
 - `everyone: true`: every signed-in user.
 
 The caller's role ceiling still applies on top: a source above the caller's `max_classification` stays unreadable,

@@ -23,7 +23,7 @@ import re
 from fastmcp import FastMCP
 from fastmcp.server.auth import TokenVerifier
 from sdlc_artifacts import ArtifactStoreError, object_key
-from sdlc_auth import GroupResolver, principal_from_claims
+from sdlc_auth import principal_from_claims
 from sdlc_config import ConfigStore, PolicyCache
 from sdlc_db import artifacts as db
 from sdlc_db import owner_scoped
@@ -52,7 +52,6 @@ def add_artifact_routes(
     artifacts: Artifacts,
     verifier: TokenVerifier,
     store: ConfigStore,
-    group_resolver: GroupResolver | None,
     cache: PolicyCache,
 ) -> None:
     async def caller(request: Request, tool: str) -> Identity | Response:
@@ -64,9 +63,7 @@ def add_artifact_routes(
             principal = principal_from_claims(access.claims)
         except ValueError:
             return JSONResponse({"detail": "not a user token"}, status_code=401)
-        ident = await resolve_identity(
-            principal, store.current(), group_resolver, cache, new_request_id()
-        )
+        ident = await resolve_identity(principal, store.current(), cache, new_request_id())
         if not ident.policy.allows(tool):
             return JSONResponse({"detail": "artifacts are not available to you"}, status_code=403)
         if not artifacts.enabled:

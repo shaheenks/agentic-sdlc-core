@@ -8,7 +8,7 @@ spec:
   type: gcs
   location: gs://sdlc-config-store-a7484d8b/source_docs/payments-incidents/   # config store bucket (one-time move from samples/, version-02 N14)
   include: ["**/*.md"]
-  classification: confidential        # readable only by roles cleared for confidential (lead, admin)
+  classification: confidential        # readable only by roles cleared for confidential (approver in payments, admin)
   ingest:
     chunking: { strategy: markdown, max_tokens: 400, overlap: 0 }
     graph:

@@ -8,8 +8,7 @@ from dataclasses import dataclass
 
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_access_token, get_context
-from sdlc_auth import GroupResolver, Principal, effective_group_ids, principal_from_claims
-from sdlc_auth.groups import GroupSource
+from sdlc_auth import Principal, principal_from_claims
 from sdlc_config import EffectivePolicy, PolicyCache, Snapshot
 
 _STATE_KEY = "sdlc_identity"
@@ -18,9 +17,6 @@ _STATE_KEY = "sdlc_identity"
 @dataclass(frozen=True)
 class Identity:
     principal: Principal
-    group_aliases: tuple[str, ...]
-    unmapped_group_count: int
-    group_source: GroupSource
     snapshot: Snapshot
     policy: EffectivePolicy
     request_id: str = ""  # correlates all audit records (and server logs) of one request
@@ -36,15 +32,13 @@ def current_principal() -> Principal | None:
 async def resolve_identity(
     principal: Principal,
     snapshot: Snapshot,
-    group_resolver: GroupResolver | None,
     cache: PolicyCache,
     request_id: str = "",
 ) -> Identity:
-    group_ids, source = await effective_group_ids(principal, group_resolver)
-    aliases, unmapped = snapshot.groups.aliases_for(group_ids)
+    """Membership from app roles and users.yaml only (CH-0011)."""
     user = snapshot.users.alias_for(principal.oid)  # oid only, never the email claim
-    policy = cache.get(snapshot, aliases, principal.app_roles, user)
-    return Identity(principal, aliases, unmapped, source, snapshot, policy, request_id, user)
+    policy = cache.get(snapshot, principal.app_roles, user)
+    return Identity(principal, snapshot, policy, request_id, user)
 
 
 async def remember_identity(identity: Identity) -> None:

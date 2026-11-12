@@ -77,8 +77,8 @@ def env(entra, store, monkeypatch):
         yield url, fake, reads
 
 
-def headers(entra, oid, groups=DEV, csrf=True):
-    h = {"X-Forwarded-Access-Token": entra.token(oid=oid, groups=groups)}
+def headers(entra, oid, roles=DEV, csrf=True):
+    h = {"X-Forwarded-Access-Token": entra.token(oid=oid, roles=roles)}
     if csrf:
         h["X-SDLC-Connections"] = "1"
     return h
@@ -150,8 +150,8 @@ def test_connect_status_and_disconnect_without_ever_returning_the_token(env, ent
     assert PAT not in caplog.text
 
 
-async def call(url, entra, oid, tool, args, groups=DEV):
-    async with Client(f"{url}/mcp", auth=entra.token(oid=oid, groups=groups)) as client:
+async def call(url, entra, oid, tool, args, roles=DEV):
+    async with Client(f"{url}/mcp", auth=entra.token(oid=oid, roles=roles)) as client:
         return await client.call_tool(tool, args, raise_on_error=False)
 
 
@@ -204,7 +204,7 @@ async def test_denied_callers_never_read_the_user_secret(env, entra):
     url, _, reads = env
     connect(url, headers(entra, OID_A))
     reads.clear()
-    viewer = await call(url, entra, OID_A, "jira_get_issue", {"key": "PAY-7"}, groups=[G_ENG_ALL])
+    viewer = await call(url, entra, OID_A, "jira_get_issue", {"key": "PAY-7"}, roles=[G_ENG_ALL])
     assert viewer.is_error and "not permitted" in str(viewer.content)
     assert reads == []  # the policy check ran first; the secret store was not touched
 

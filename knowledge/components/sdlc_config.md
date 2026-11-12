@@ -17,6 +17,7 @@ satisfies:
 - /requirements/functional/FR-AUTHZ-003
 - /requirements/functional/FR-AUTHZ-004
 - /requirements/functional/FR-AUTHZ-005
+- /requirements/functional/FR-AUTHZ-006
 - /requirements/functional/FR-CFG-001
 - /requirements/functional/FR-CFG-002
 - /requirements/functional/FR-CFG-003
@@ -68,10 +69,11 @@ Code: `libs/sdlc_config`
 - [FR-AUTHZ-003: Role hierarchy with classification ceilings](../requirements/functional/FR-AUTHZ-003.md) - Resolves role inheritance and classification ceilings.
 - [FR-AUTHZ-004: Per-user rate limits](../requirements/functional/FR-AUTHZ-004.md) - Resolves rate limits from the platform baseline and team limits.
 - [FR-AUTHZ-005: Data access granted per source](../requirements/functional/FR-AUTHZ-005.md) - Resolves readable sources from `Source.access`.
+- [FR-AUTHZ-006: Team roles are scoped to their team](../requirements/functional/FR-AUTHZ-006.md) - Holds roles per scope (platform or team), checks team skills and source roles in their own team, computes the ceiling per source, and rejects a role used as both a platform and a team role.
 - [FR-CFG-001: Access declared in configuration](../requirements/functional/FR-CFG-001.md) - Validates all configuration.
 - [FR-CFG-002: Explain and diff effective permissions](../requirements/functional/FR-CFG-002.md) - `explain` and `diff` commands.
 - [FR-CFG-003: Immutable config bundles with rollback](../requirements/functional/FR-CFG-003.md) - Bundles and `ConfigStore`.
-- [FR-IDN-002: Membership from groups, app roles and direct members](../requirements/functional/FR-IDN-002.md) - Maps groups, app roles and direct members to teams and roles.
+- [FR-IDN-002: Membership from app roles and direct members](../requirements/functional/FR-IDN-002.md) - Maps app roles and direct members to teams and scoped roles; rejects `group:` identities.
 - [FR-IDN-003: Users can see their own access](../requirements/functional/FR-IDN-003.md) - Produces the explanation of a policy.
 - [FR-SKILL-001: Skills served per user](../requirements/functional/FR-SKILL-001.md) - Resolves the skills a caller may see.
 - [FR-SKILL-002: Skill naming and layout](../requirements/functional/FR-SKILL-002.md) - Validates skill names and layout.

@@ -3,10 +3,7 @@ type: Rule Set
 title: Runtime config
 description: "How services load configuration at runtime: ConfigStore, bundles, activation, rollback and the GCP config store."
 tags: [rules]
-status: stable
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T22:53:19+05:30'
+status: draft
 ---
 
 Binding working rules for contributors and coding agents, moved word for word from `CLAUDE.md` on 2026-11-10.
@@ -21,7 +18,7 @@ See "Runtime Config Exposure" in docs/plans/archive/version-00.md.
 - `sdlc-config compile --env <env> --out <root> [--activate]` produces an immutable bundle (version = git SHA +
   content hash); `sdlc-config activate <version> --root <root>` moves the `current` pointer; `SDLC_CONFIG_BUNDLES=<root>`
   makes services load bundles instead of the folder. Bundles never contain secrets (`${VAR}` stays unresolved until
-  load) but do contain the tenant `groups.yaml`: keep bundle roots out of git (`.bundles/`). Dev uses the watched folder.
+  load) but do contain the tenant `users.yaml`: keep bundle roots out of git (`.bundles/`). Dev uses the watched folder.
 - Startup fails closed without a valid bundle; reload keeps the last-known-good. Rollback = move the `current` pointer.
 - GCP (version-02 N13): with `config_store_bucket` set, the MCP service and ingest job read bundles from
   `gs://<bucket>/bundles/<env>/` (mounted read-only); the MCP server polls `current` (`SDLC_CONFIG_POLL_SECONDS`, 60).

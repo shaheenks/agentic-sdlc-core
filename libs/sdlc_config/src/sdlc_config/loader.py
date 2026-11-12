@@ -1,6 +1,6 @@
 """Load config files → substitute ${VAR} → validate (schema + cross-refs) → Snapshot.
 
-Kinds loaded so far: Platform, GroupMap (Stage 2); RoleSet, ToolCatalog, Team (Stage 3);
+Kinds loaded so far: Platform (Stage 2); RoleSet, ToolCatalog, Team (Stage 3);
 SkillCatalog + Team add-ons (Stage 4); Source (Stage 5).
 Skill packages (SKILL.md) and team instructions (AGENT_ADDENDUM.md) are read from <repo>/skills
 and are part of the snapshot and its version.
@@ -25,7 +25,6 @@ from sdlc_config.errors import ConfigError
 from sdlc_config.hosts import host_allowed, url_host
 from sdlc_config.model import (
     ConnectionDef,
-    GroupMap,
     IdentityRef,
     PlatformConfig,
     RoleBinding,
@@ -67,7 +66,6 @@ class _Kind:
 
 _KINDS: dict[str, _Kind] = {
     "Platform": _Kind("platform.schema.json", "platform.yaml"),
-    "GroupMap": _Kind("groupmap.schema.json", "env/{env}/groups.yaml"),
     "RoleSet": _Kind("roleset.schema.json", "roles.yaml"),
     "ToolCatalog": _Kind("toolcatalog.schema.json", "tools.yaml"),
     "Team": _Kind("team.schema.json", "teams/*.yaml", many=True),
@@ -80,7 +78,7 @@ _KINDS: dict[str, _Kind] = {
 
 
 # Files that a deployment may mount outside config/ (Cloud Run mounts one secret per folder, and
-# config/env/<env>/ already holds groups.yaml): kind -> env var with the file's path.
+# config/env/<env>/ may hold other tenant files): kind -> env var with the file's path.
 _PATH_OVERRIDES = {"UserMap": "SDLC_USERS_FILE"}
 
 
@@ -102,6 +100,9 @@ def load_snapshot(
     config_keys: set[str] = set()  # raw_files keys relative to config_dir (the rest: repo root)
     docs: dict[str, list[tuple[str, dict]]] = {}
 
+    if not (config_dir / "env" / env).is_dir():
+        # every environment has a folder (its git-ignored tenant files live there): fail on typos
+        problems.append(f"env/{env}: unknown environment (no config/env/{env}/ folder)")
     for kind, spec in _KINDS.items():
         schema_path = config_dir / "schemas" / spec.schema
         override = _path_override(kind, environ)
@@ -146,20 +147,19 @@ def load_snapshot(
         raise ConfigError(problems)
 
     platform = _build_platform(docs["Platform"][0][1], problems)
-    groups = _build_groups(docs["GroupMap"][0][1], env, problems)
-    aliases = set(groups.alias_by_id.values())
     tools = _build_tools(docs["ToolCatalog"][0][1], problems)
-    roles, bindings = _build_roles(docs["RoleSet"][0][1], tools, aliases, platform, problems)
+    roles, bindings = _build_roles(docs["RoleSet"][0][1], tools, platform, problems)
     repo_root = config_dir.parent  # skill paths in config are relative to the repo root
     teams, addon_skills = _build_teams(
-        docs["Team"], roles, tools, aliases, repo_root, raw_files, problems, platform
+        docs["Team"], roles, tools, repo_root, raw_files, problems, platform
     )
     skills = _build_skills(
         docs["SkillCatalog"][0][1], addon_skills, roles, teams, repo_root, raw_files, problems
     )
     _check_document_flows(platform, teams, skills, problems)
     users, bindings, teams = _build_users(docs["UserMap"], env, roles, teams, bindings, problems)
-    sources = _build_sources(docs["Source"], platform, teams, roles, aliases, problems)
+    _check_role_scopes(bindings, teams, problems)
+    sources = _build_sources(docs["Source"], platform, teams, roles, problems)
     connections = _build_connections(docs["ConnectionCatalog"], platform, problems)
     for tool in tools.values():
         if tool.user_connection and tool.user_connection not in connections:
@@ -175,7 +175,6 @@ def load_snapshot(
         env=env,
         loaded_at=datetime.now(UTC),
         platform=platform,
-        groups=groups,
         roles=MappingProxyType(roles),
         bindings=bindings,
         tools=MappingProxyType(tools),
@@ -215,10 +214,28 @@ def _read_doc(path, rel, kind, schema, environ, dummy_env, raw_files, problems) 
         problems.append(f"{rel}: expected kind '{kind}', got {doc.get('kind')!r}")
         return None
     doc = _substitute(doc, environ, dummy_env, rel, problems)
+    for where in _group_identities(doc):
+        problems.append(
+            f"{rel}: {where}: Entra groups are no longer used (CH-0011); grant the roles to an "
+            "app role (`app_role: SDLC.<...>`) or a users.yaml entry instead"
+        )
     for err in sorted(Draft202012Validator(schema).iter_errors(doc), key=lambda e: e.path):
         where = "/".join(str(p) for p in err.absolute_path) or "(root)"
         problems.append(f"{rel}: {where}: {err.message}")
     return doc
+
+
+def _group_identities(doc: dict) -> list[str]:
+    """Places that still name an Entra group: bindings, team membership and Source.access."""
+    found = []
+    for key in ("bindings", "membership"):
+        for i, entry in enumerate(doc.get(key) or []):
+            if isinstance(entry, dict) and "group" in entry:
+                found.append(f"{key}[{i}]/group")
+    access = doc.get("access")
+    if isinstance(access, dict) and "groups" in access:
+        found.append("access/groups")
+    return found
 
 
 def _substitute(node: Any, environ: Mapping[str, str], dummy: bool, rel: str, problems: list):
@@ -242,7 +259,7 @@ def _substitute(node: Any, environ: Mapping[str, str], dummy: bool, rel: str, pr
     return node
 
 
-# --- Platform / GroupMap (Stage 2) ------------------------------------------------------------
+# --- Platform (Stage 2) -------------------------------------------------------------------
 
 
 def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
@@ -264,13 +281,10 @@ def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
         jwks_uri=ident["jwks_uri"],
         audience=tuple(ident["audience"]),
         required_scopes=tuple(ident["required_scopes"]),
-        groups_overage_fallback=ident["groups"]["overage_fallback"],
-        groups_cache_ttl_seconds=ident["groups"]["cache_ttl_seconds"],
         classification_levels=levels,
         default_max_classification=default_max,
         default_calls_per_minute=doc["defaults"].get("rate_limit", {}).get("calls_per_minute"),
         authority_host=ident["authority_host"],
-        graph_host=ident["graph_host"],
         embedding_model=doc["knowledge"]["embedding"]["model"],
         embedding_dimensions=doc["knowledge"]["embedding"]["dimensions"],
         graph_model=doc["knowledge"].get("graph", {}).get("model", ""),
@@ -283,22 +297,6 @@ def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
         team_skill_tags=frozenset(doc.get("skills", {}).get("team_tags", [])),
         document_flow=MappingProxyType(dict(doc.get("flows", {}).get("document", {}))),
     )
-
-
-def _build_groups(doc: dict, env: str, problems: list[str]) -> GroupMap:
-    alias_by_id: dict[str, str] = {}
-    for alias, entry in doc["groups"].items():
-        gid = entry["id"].lower()
-        if gid in alias_by_id:
-            problems.append(
-                f"env/{env}/groups.yaml: group id {gid} is mapped by both "
-                f"'{alias_by_id[gid]}' and '{alias}'"
-            )
-        alias_by_id[gid] = alias
-    return GroupMap(alias_by_id=MappingProxyType(alias_by_id))
-
-
-# --- ToolCatalog / RoleSet / Team (Stage 3) ---------------------------------------------------
 
 
 def _build_tools(doc: dict, problems: list[str]) -> dict[str, ToolDef]:
@@ -345,20 +343,19 @@ def _build_connections(conn_docs, platform, problems) -> dict[str, ConnectionDef
     return out
 
 
+# --- ToolCatalog / RoleSet / Team (Stage 3) ---------------------------------------------------
+
+
 EVERYONE = IdentityRef("everyone", "*")
 
 
 def _identity(entry: dict) -> IdentityRef:
     if entry.get("everyone"):
         return EVERYONE
-    if "group" in entry:
-        return IdentityRef("group", entry["group"])
     return IdentityRef("app_role", entry["app_role"])
 
 
-def _check_binding(ref: IdentityRef, roles, rel: str, where: str, aliases, known_roles, problems):
-    if ref.kind == "group" and ref.value not in aliases:
-        problems.append(f"{rel}: {where}: unknown group alias '{ref.value}' (not in groups.yaml)")
+def _check_binding(roles, rel: str, where: str, known_roles, problems):
     for role in roles:
         if role not in known_roles:
             problems.append(f"{rel}: {where}: unknown role '{role}'")
@@ -372,7 +369,7 @@ def _check_tools(names, rel: str, where: str, tools, problems, allow_wildcard: b
             problems.append(f"{rel}: {where}: unknown tool '{name}' (not in tools.yaml)")
 
 
-def _build_roles(doc, tools, aliases, platform, problems):
+def _build_roles(doc, tools, platform, problems):
     rel = "roles.yaml"
     known = set(doc["roles"])
     roles = {}
@@ -402,7 +399,7 @@ def _build_roles(doc, tools, aliases, platform, problems):
     bindings = []
     for i, entry in enumerate(doc.get("bindings", [])):
         ref, where = _identity(entry), f"bindings[{i}]"
-        _check_binding(ref, entry["roles"], rel, where, aliases, known, problems)
+        _check_binding(entry["roles"], rel, where, known, problems)
         bindings.append(RoleBinding(ref, tuple(entry["roles"]), f"{rel}#{where}"))
     return roles, tuple(bindings)
 
@@ -447,13 +444,13 @@ def _build_users(user_docs, env, roles, teams, bindings, problems):
             if team not in teams:
                 problems.append(f"{rel}: {where}: unknown team '{team}'")
                 continue
-            _check_binding(ref, team_roles, rel, where, set(), roles, problems)
+            _check_binding(team_roles, rel, where, roles, problems)
             if oid:  # pending entries are validated but grant nothing, not even in explain
                 rule = RoleBinding(ref, tuple(team_roles), f"{rel}#{where}", team)
                 extra_members.setdefault(team, []).append(rule)
         if entry.get("roles"):
             where = f"users/{alias}/roles"
-            _check_binding(ref, entry["roles"], rel, where, set(), roles, problems)
+            _check_binding(entry["roles"], rel, where, roles, problems)
             if oid:
                 extra_bindings.append(RoleBinding(ref, tuple(entry["roles"]), f"{rel}#{where}"))
     teams = {
@@ -467,6 +464,20 @@ def _build_users(user_docs, env, roles, teams, bindings, problems):
         default_team=MappingProxyType(default_team),
     )
     return users, bindings + tuple(extra_bindings), teams
+
+
+def _check_role_scopes(bindings, teams, problems: list[str]) -> None:
+    """CH-0009: a role is either a platform role (global bindings, users.yaml `roles`) or a team
+    role (team membership, users.yaml `teams`), never both, so every grant has one scope."""
+    platform = {role: b.rule for b in bindings for role in b.roles}
+    for team in teams.values():
+        for member in team.membership:
+            for role in member.roles:
+                if role in platform:
+                    problems.append(
+                        f"{member.rule}: role '{role}' is a platform role (granted by "
+                        f"{platform[role]}); a team membership may only grant team roles"
+                    )
 
 
 def _inheritance_cycles(roles: dict[str, RoleDef]) -> list[list[str]]:
@@ -488,7 +499,7 @@ def _inheritance_cycles(roles: dict[str, RoleDef]) -> list[list[str]]:
     return cycles
 
 
-def _build_teams(team_docs, roles, tools, aliases, repo_root, raw_files, problems, platform):
+def _build_teams(team_docs, roles, tools, repo_root, raw_files, problems, platform):
     teams: dict[str, TeamDef] = {}
     addon_skills: list[SkillDef] = []
     for rel, doc in team_docs:
@@ -498,13 +509,10 @@ def _build_teams(team_docs, roles, tools, aliases, repo_root, raw_files, problem
         if name in teams:
             problems.append(f"{rel}: duplicate team '{name}' (also in {teams[name].source})")
             continue
-        for owner in doc["metadata"].get("owners", []):
-            if owner not in aliases:
-                problems.append(f"{rel}: metadata/owners: unknown group alias '{owner}'")
         membership = []
         for i, entry in enumerate(doc["membership"]):
             ref, where = _identity(entry), f"membership[{i}]"
-            _check_binding(ref, entry["roles"], rel, where, aliases, roles, problems)
+            _check_binding(entry["roles"], rel, where, roles, problems)
             membership.append(RoleBinding(ref, tuple(entry["roles"]), f"{rel}#{where}", name))
         tool_policy = doc.get("policy", {}).get("tools", {})
         deny = tool_policy.get("deny", [])
@@ -723,7 +731,7 @@ def _check_document_flows(platform, teams, skills, problems) -> None:
 # --- Sources (Stage 5) --------------------------------------------------------------------------
 
 
-def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> dict[str, SourceDef]:
+def _build_sources(source_docs, platform, teams, roles, problems) -> dict[str, SourceDef]:
     sources: dict[str, SourceDef] = {}
     for rel, doc in source_docs:
         meta, spec, access = doc["metadata"], doc["spec"], doc["access"]
@@ -745,9 +753,6 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
         for role in access.get("roles", []):
             if role not in roles:
                 problems.append(f"{rel}: access/roles: unknown role '{role}'")
-        for group in access.get("groups", []):
-            if group not in aliases:
-                problems.append(f"{rel}: access/groups: unknown group alias '{group}'")
         if spec["type"] == "git" and not spec.get("ref"):
             problems.append(f"{rel}: spec/ref: required for git sources (pin a commit)")
         if spec["type"] != "git" and spec.get("ref"):
@@ -839,7 +844,6 @@ def _build_sources(source_docs, platform, teams, roles, aliases, problems) -> di
             relation_types=relation_types if graph.get("enabled") else (),
             access_teams=frozenset(access.get("teams", [])),
             access_roles=frozenset(access.get("roles", [])),
-            access_groups=frozenset(access.get("groups", [])),
             access_everyone=bool(access.get("everyone")),
             description=meta.get("description", ""),
         )

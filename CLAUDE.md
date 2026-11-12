@@ -1,7 +1,7 @@
 # Agentic SDLC
 
 ADK-based SDLC agents composed from skills. Central MCP server(s) serve skills, tools and
-knowledge, and enforce Entra ID identity + group-based RBAC defined in `config/`. Postgres +
+knowledge, and enforce Entra ID identity + app-role-based RBAC defined in `config/`. Postgres +
 pgvector stores embeddings and the knowledge graph. Local: docker compose. Prod: GCP.
 
 Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Built features and their status:
@@ -35,13 +35,13 @@ satisfies, and the generated traceability matrix. Conventions: [knowledge/conven
 
 ## Always
 These hold for every change. The full rules, with their reasons and exceptions, are in the rule sets below.
-- **Access is declared, not coded.** All access lives in `config/`; never hardcode roles, groups, tool lists or data scopes.
+- **Access is declared, not coded.** All access lives in `config/`; never hardcode roles, app roles, tool lists or data scopes.
   Authorization lives in the MCP server, never in prompts or agent code. Deny by default; when identity or config cannot
   be verified, fail closed.
 - **Calls are made as the user.** Agents forward the user's bearer token; never use a service token for user calls. All DB
   reads go through `sdlc_db` under row-level security.
 - **Nothing sensitive leaves its place.** Never commit secrets, tenant IDs, app IDs, group IDs or test-user UPNs
-  (`config/env/*/groups.yaml`, `users.yaml`, `blocked.yaml` are git-ignored). Never log raw tokens or argument values.
+  (`config/env/*/users.yaml` and `blocked.yaml` are git-ignored). Never log raw tokens or argument values.
 - **Cloud and tenant actions belong to the user.** Do not create or change GCP resources unless asked, and do not run
   `terraform` or `gcp_deploy.ps1` yourself. Any Entra change needs the user's confirmation for that action; check
   `az account show` first and say which account read-only queries run as.

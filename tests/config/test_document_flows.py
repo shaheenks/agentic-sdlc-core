@@ -26,7 +26,7 @@ def payments_flow(mutate):
 
 def test_platform_only_without_a_team(config_dir):
     snap = load(config_dir)
-    policy = resolve(snap, ["eng-all", "payments-devs"])
+    policy = resolve(snap, ["SDLC.User", "SDLC.Payments.Member"])
     flow = document_flow(snap, policy, None)
     assert flow["team"] is None and flow["types"] == {}
     assert flow["lenses"][0] == "lens-zoom-out" and flow["max_lenses"] == 6
@@ -34,7 +34,7 @@ def test_platform_only_without_a_team(config_dir):
 
 def test_the_locked_team_adds_its_types(config_dir):
     snap = load(config_dir)
-    policy = resolve(snap, ["eng-all", "payments-devs"])
+    policy = resolve(snap, ["SDLC.User", "SDLC.Payments.Member"])
     flow = document_flow(snap, policy, "payments")
     assert flow["types"]["design"] == {
         "template": "payments-design-template",
@@ -43,7 +43,7 @@ def test_the_locked_team_adds_its_types(config_dir):
     }
     assert flow["types"]["user-story"]["brief"] == "payments-story-questions"
     # a team the caller is not in gives platform defaults only
-    other = resolve(snap, ["eng-all", "platform-devs"])
+    other = resolve(snap, ["SDLC.User", "SDLC.Platform.Member"])
     assert document_flow(snap, other, "payments")["types"] == {}
 
 
@@ -53,7 +53,7 @@ def test_team_caps_only_lower(config_dir):
         payments_flow(lambda f: f.update(max_lenses=3, max_rereviews=0)),
     )
     snap = load(config_dir)
-    flow = document_flow(snap, resolve(snap, ["eng-all", "payments-devs"]), "payments")
+    flow = document_flow(snap, resolve(snap, ["SDLC.User", "SDLC.Payments.Member"]), "payments")
     assert (flow["max_lenses"], flow["max_rereviews"], flow["max_llm_calls_per_reviewer"]) == (
         3,
         0,

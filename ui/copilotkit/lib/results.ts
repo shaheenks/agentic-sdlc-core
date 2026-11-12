@@ -23,7 +23,6 @@ export type GraphEntity = { name: string; type: string; source: string };
 export type Identity = {
   name?: string;
   upn?: string;
-  groups: string[];
   appRoles: string[];
   teams: string[];
   roles: string[];
@@ -121,7 +120,6 @@ export function identity(raw: unknown): Identity | null {
   return {
     name: str(payload.name),
     upn: str(payload.upn),
-    groups: strings(payload.groups),
     appRoles: strings(payload.app_roles),
     teams: names(policy.teams),
     roles: names(policy.roles),

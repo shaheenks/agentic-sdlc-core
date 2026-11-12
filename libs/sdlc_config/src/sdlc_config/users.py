@@ -102,7 +102,7 @@ def sync(
 
 def dump_user_map(doc: dict) -> str:
     """users.yaml with one flow-style (JSON-like) line per user, so each entry reads at a glance
-    and diffs per user: `paul: {email: paul@x.com, oid: ..., teams: {sdlc-platform: [lead]}}`."""
+    and diffs per user: `paul: {email: paul@x.com, oid: ..., teams: {sdlc-platform: [member]}}`."""
     head = {k: v for k, v in doc.items() if k != "users"}
     out = yaml.safe_dump(head, sort_keys=False, allow_unicode=True)
     users = doc.get("users") or {}

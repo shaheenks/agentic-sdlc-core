@@ -124,7 +124,7 @@ async def run_elephant(base_url, model, token, **options) -> dict:
 
 
 def payments_dev(entra) -> str:
-    return entra.token(groups=[G_ENG_ALL, G_PAYMENTS_DEVS])
+    return entra.token(roles=[G_ENG_ALL, G_PAYMENTS_DEVS])
 
 
 async def test_isolated_reviewers_as_the_user_under_the_parent_conversation(
@@ -194,7 +194,7 @@ async def test_default_lenses_need_a_viewer(base_url, entra, model):
     ]
     # no sdlc groups: signed in, but no lens is visible, so no reviewer runs
     model.seen.clear()
-    result = await run_elephant(base_url, model, entra.token(groups=[]))
+    result = await run_elephant(base_url, model, entra.token(roles=[]))
     assert {lens["status"] for lens in result["lenses"]} == {"unavailable"}
     assert result["counts"] == {"blocker": 0, "major": 0, "nit": 0}
     assert not [s for s in model.seen if "Goldfish reviewer" in s["system"]]

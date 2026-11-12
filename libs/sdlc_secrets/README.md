@@ -24,7 +24,7 @@ secrets.invalidate({"secret": "jira-payments-token"})     # after a 401: re-read
   `roles/secretmanager.secretAccessor` on each secret it reads.
 - Values are cached per reference for 5 minutes, so rotation needs no redeploy.
 - `SecretValue` has a masked `repr`/`str` and cannot be pickled. Errors name the secret, never the value.
-- Secrets needed before a service can start (DB passwords, Entra values, `groups.yaml`) stay Cloud Run env/file
+- Secrets needed before a service can start (DB passwords, Entra values, `users.yaml` without bundles) stay Cloud Run env/file
   mounts; this library is for connector and downstream credentials.
 
 Tests: `tests/secrets/`.

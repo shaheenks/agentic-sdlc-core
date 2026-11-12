@@ -14,6 +14,7 @@ resource: ../../ingest/loaders
 satisfies:
 - /requirements/functional/FR-KNOW-001
 - /requirements/functional/FR-KNOW-004
+- /requirements/functional/FR-KNOW-006
 - /requirements/non-functional/NFR-SEC-008
 verified_by:
 - tests/ingest/test_loaders.py
@@ -50,6 +51,7 @@ Code: `ingest/loaders`
 
 - [FR-KNOW-001: Ingest declared sources](../requirements/functional/FR-KNOW-001.md) - Reads every supported source type and leaves out natively restricted items.
 - [FR-KNOW-004: PDF ingestion](../requirements/functional/FR-KNOW-004.md) - Yields PDF files alongside text files.
+- [FR-KNOW-006: Atlassian and Bitbucket sources](../requirements/functional/FR-KNOW-006.md) - Confluence and Jira loaders (native restrictions skipped) and Bitbucket Cloud and Data Center git remotes.
 - [NFR-SEC-008: Controlled egress](../requirements/non-functional/NFR-SEC-008.md) - Remote sources are reached only through the allowlisted HTTP client.
 
 # Verification

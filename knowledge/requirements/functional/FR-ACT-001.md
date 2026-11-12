@@ -7,12 +7,9 @@ tags:
 - requirement
 - functional
 - sdlc-actions
-status: stable
+status: deprecated
 priority: should
-implementation: stub
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T21:28:01+05:30'
+implementation: parked
 sources:
 - id: inventory
   resource: ../../../docs/FEATURE_INVENTORY.md
@@ -27,3 +24,9 @@ The system shall provide tools that review code, generate tests and approve desi
 
 - `review_code`, `generate_tests` and `approve_design` exist in the catalog and enforce `repo` argument limits.
 - Real behaviour is to be defined; today they echo their inputs (inventory gap 1).
+
+# Notes
+
+Retired by CH-0003 on 2026-11-11: the three tools only echoed their input and were removed from
+the catalog, the roles, the teams and the code. Real action tools come with the write tools
+(version-03 P7, FR-WRITE-001) under new IDs. This ID is not reused.

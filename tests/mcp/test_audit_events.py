@@ -21,15 +21,15 @@ def audit_events(caplog, event: str) -> list[dict]:
 async def test_tools_list_is_audited(base_url, entra, caplog):
     caplog.set_level("INFO", logger="sdlc.audit")
     token = entra.token(
-        oid="aaaaaaaa-0000-0000-0000-00000000000a", groups=[G_ENG_ALL, G_PAYMENTS_DEVS]
+        oid="aaaaaaaa-0000-0000-0000-00000000000a", roles=[G_ENG_ALL, G_PAYMENTS_DEVS]
     )
     async with Client(f"{base_url}/mcp", auth=token) as c:
         await c.list_tools()
     [record] = audit_events(caplog, "tools_list")
     assert record["oid"] == "aaaaaaaa-0000-0000-0000-00000000000a"
-    assert record["teams"] == ["payments"] and "developer" in record["roles"]
-    assert "review_code" in record["visible"] and "config_info" not in record["visible"]
-    assert record["hidden_count"] >= 3  # approve_design, config_info, config_explain
+    assert record["teams"] == ["payments"] and "member@payments" in record["roles"]
+    assert "fixture_review" in record["visible"] and "config_info" not in record["visible"]
+    assert record["hidden_count"] >= 3  # fixture_approve, config_info, config_explain
     assert record["outcome"] == "ok" and record["config_version"].startswith("local-")
 
 

@@ -1,11 +1,11 @@
 ---
 name: ledger-design-review
-description: Review a design that changes the payments ledger (double-entry integrity, idempotency, reconciliation) - payments leads.
+description: Review a design that changes the payments ledger (double-entry integrity, idempotency, reconciliation) - payments approvers.
 ---
 
-# Ledger design review (payments leads)
+# Ledger design review (payments approvers)
 
-Use this skill when a payments lead reviews a design that changes how money movements are recorded.
+Use this skill when a payments approver reviews a design that changes how money movements are recorded.
 
 ## Checklist
 1. **Double entry:** every movement posts balanced debit and credit entries; no in-place edits.

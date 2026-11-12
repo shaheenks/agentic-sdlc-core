@@ -6,12 +6,12 @@ from fastmcp.exceptions import ToolError
 
 from tests.support.entra import G_ENG_ALL, G_PAYMENTS_DEVS, G_PLATFORM_DEVS
 
-G_PAYMENTS_LEADS = "00000000-0000-0000-0000-000000000003"
-G_PLATFORM_ADMINS = "00000000-0000-0000-0000-000000000005"
+G_PAYMENTS_LEADS = "SDLC.Payments.Approver"
+G_PLATFORM_ADMINS = "SDLC.Admin"
 
 
 def client(base_url, entra, groups):
-    return Client(f"{base_url}/mcp", auth=entra.token(groups=groups))
+    return Client(f"{base_url}/mcp", auth=entra.token(roles=groups))
 
 
 async def skills_of(base_url, entra, groups) -> set[str]:

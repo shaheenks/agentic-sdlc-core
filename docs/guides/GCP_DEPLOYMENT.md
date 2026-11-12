@@ -11,7 +11,7 @@ Related: [ARCHITECTURE.md](../ARCHITECTURE.md) §7–8 (environments), [infra/RE
 
 **GCP is the `dev` environment** (version-01 M7, 2026-10-28): project **`sdlc-demo-env01`**, region
 **`asia-southeast1`** (`infra/gcp/dev.tfvars`, state `gs://sdlc-demo-env01-tf-state` prefix `dev`,
-`config/env/dev/groups.yaml`). **The user runs Terraform and `gcp_deploy.ps1`.**
+optional `config/env/dev/users.yaml`). **The user runs Terraform and `gcp_deploy.ps1`.**
 
 | Item | State (2026-11-08) |
 |---|---|
@@ -23,7 +23,7 @@ Related: [ARCHITECTURE.md](../ARCHITECTURE.md) §7–8 (environments), [infra/RE
 | Artifact store | Bucket `sdlc-artifact-store-a7484d8b`, `objectUser` for `sdlc-mcp` only (version-03 P5 F4, 2026-11-06) |
 | Agent Engine sessions (`sessions.tf`, version-01 M8) | Applied 2026-10-30; conversations checked in the browser |
 | Cloud Trace (`cloud_trace = true`, version-02 N4) | On; one chat turn = one trace, no prompt or argument values (2026-11-05) |
-| Entra | Dev callback on `sdlc-client`; app roles on `sdlc-mcp` (version-03 P2 E1, 2026-11-07); Graph overage fallback off |
+| Entra | Dev callback on `sdlc-client`; app roles on `sdlc-mcp` (version-03 P2 E1, 2026-11-07); membership from app roles only (CH-0011; groups removed 2026-11-11) |
 
 **Not yet in Terraform:** source credentials as Secret Manager secrets (no private source today), custom hostnames,
 CI deploy stages, Cloud SQL private IP (version-03 P3).
@@ -84,7 +84,7 @@ flowchart LR
     MCP -- "user connection secrets" --> USM[(Secret Manager<br/>sdlc-dev-user-*)]
     MCP -. "JWKS" .-> ENTRA
     AG -. "JWKS" .-> ENTRA
-    SM[(Secret Manager)] -. "env + groups.yaml file" .-> APP & MCP & J1 & J2
+    SM[(Secret Manager)] -. "env" .-> APP & MCP & J1 & J2
     AR[(Artifact Registry<br/>sdlc)] -. images .-> RUN
 ```
 
@@ -138,9 +138,9 @@ sequenceDiagram
 |---|---|---|
 | `main.tf` | `google_project_service` (Run, Cloud SQL Admin, Secret Manager, Artifact Registry, Vertex AI, IAM, Resource Manager), Artifact Registry `sdlc` | Locals compute the deterministic URLs `https://<service>-<project number>.<region>.run.app` before the services exist, so each service is configured with its own public URL (`MCP_PUBLIC_URL`, OAuth redirect). Enable `cloudresourcemanager.googleapis.com` by hand before the first plan |
 | `sql.tf` | Instance `sdlc-<env>` (PG 17, Enterprise, `db-g1-small`, zonal, 10 GB autoresize, backups on, `ENCRYPTED_ONLY`), database `sdlc`, user `postgres` | Public IP for the connector only, no authorized networks |
-| `secrets.tf` | Generated passwords (`admin`, `owner`, `app`, `ingest`), cookie secret; 7–8 secrets + versions `sdlc-<env>-*` | Entra client secret, optional Graph secret, `groups.yaml` and optional `users.yaml` come from local git-ignored files |
+| `secrets.tf` | Generated passwords (`admin`, `owner`, `app`, `ingest`), cookie secret; 6–7 secrets + versions `sdlc-<env>-*` | Entra client secret and optional `users.yaml` come from local git-ignored files (no group map or Graph secret since CH-0012) |
 | `iam.tf` | Service accounts `sdlc-<env>-mcp`, `-app`, `-jobs`; project roles; per-secret accessor bindings; custom role `sdlcUserSecrets_<env>` | See §5 |
-| `run.tf` | Services `sdlc-mcp-<env>`, `sdlc-app-<env>`; jobs `sdlc-db-setup-<env>`, `sdlc-ingest-<env>` | Secrets as env vars (`version = latest`); `groups.yaml` as a file at `/app/config/env/<env>/`; Cloud SQL socket at `/cloudsql` |
+| `run.tf` | Services `sdlc-mcp-<env>`, `sdlc-app-<env>`; jobs `sdlc-db-setup-<env>`, `sdlc-ingest-<env>` | Secrets as env vars (`version = latest`); Cloud SQL socket at `/cloudsql` |
 | `sessions.tf` | Agent Engine `sdlc-sessions-<env>` (`google_vertex_ai_reasoning_engine`, version-01 M8) | Session store only (no deployed code, no memory bank); the agent gets its full resource name in `SDLC_SESSION_SERVICE_URI` |
 | `storage.tf` | Bucket `config_store_bucket` (dev: `sdlc-config-store-a7484d8b`, region, uniform access, public access prevention enforced, versioning, last 5 old versions kept); `objectViewer` for `sdlc-<env>-jobs` | Content for `gcs` sources (former `samples/`); created only when the variable is set; uploads by people with `gcloud storage cp`; `force_destroy` follows `deletion_protection` |
 | `storage.tf` | Bucket `artifact_store_bucket` (dev: `sdlc-artifact-store-a7484d8b`): no versioning, no soft delete, objects deleted after `artifact_retention_days` (7); `objectUser` for `sdlc-<env>-mcp` only (`artifact_store_mcp`) | Artifact content (version-03 P5) under `artifacts/<oid>/<id>`, written and read only by the MCP server (`SDLC_ARTIFACT_STORE`); ADK's artifact service stays `memory://` |
@@ -154,10 +154,10 @@ by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on 
 
 | Workload | Service account | Project roles | Secrets it can read |
 |---|---|---|---|
-| `sdlc-mcp` | `sdlc-<env>-mcp` | Cloud SQL Client, Vertex AI User, `sdlcUserSecrets_<env>` (condition: names starting `sdlc-<env>-user-`) | `pg-app-password`, `groups-yaml`, `entra-graph-secret` and `users-yaml` (if set); users' connection secrets |
+| `sdlc-mcp` | `sdlc-<env>-mcp` | Cloud SQL Client, Vertex AI User, `sdlcUserSecrets_<env>` (condition: names starting `sdlc-<env>-user-`) | `pg-app-password` and `users-yaml` (if set); users' connection secrets |
 | `sdlc-app` | `sdlc-<env>-app` | Vertex AI User (Gemini and Agent Engine sessions) | `oauth2-cookie`, `entra-client-secret` |
-| jobs | `sdlc-<env>-jobs` | Cloud SQL Client, Vertex AI User; Storage Object Viewer on `gcs_source_buckets` | `pg-admin-password`, `pg-owner-password`, `pg-app-password`, `pg-ingest-password`, `groups-yaml` |
-| reconcile job (N3) | `sdlc-<env>-reconcile` | Cloud SQL Client (advisory lock only), `sdlcUserSecrets_<env>` (same name condition as the MCP), `sdlcSecretsList_<env>` (secret names/labels, unconditioned: list is checked on the project); Object Viewer on the config store | `pg-app-password`, `groups-yaml` |
+| jobs | `sdlc-<env>-jobs` | Cloud SQL Client, Vertex AI User; Storage Object Viewer on `gcs_source_buckets` | `pg-admin-password`, `pg-owner-password`, `pg-app-password`, `pg-ingest-password` |
+| reconcile job (N3) | `sdlc-<env>-reconcile` | Cloud SQL Client (advisory lock only), `sdlcUserSecrets_<env>` (same name condition as the MCP), `sdlcSecretsList_<env>` (secret names/labels, unconditioned: list is checked on the project); Object Viewer on the config store | `pg-app-password` |
 | Cloud Scheduler (if a schedule is set) | `sdlc-<env>-scheduler` | Cloud Run Invoker on the scheduled jobs only | none |
 
 - **No key files**: Vertex AI, Agent Engine, Secret Manager and Cloud SQL use each workload's service identity.
@@ -173,8 +173,8 @@ by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on 
   unverified until the first Connections save on GCP.
 - **Secrets** live in Secret Manager. Their values are also in the Terraform state (GCS bucket with uniform access
   and no public access) and in a saved plan file (git-ignored, deleted by `apply`).
-- **Tenant-specific values** (tenant ID, app IDs, client secret, group IDs) are read from `.env` and
-  `config/env/<env>/groups.yaml` at deploy time and never committed.
+- **Tenant-specific values** (tenant ID, app IDs, client secret) are read from `.env` at deploy time and never
+  committed; `users.yaml` (object IDs) travels in the config bundle.
 - **Entra**: the dev callback `https://sdlc-app-dev-<project number>.asia-southeast1.run.app/oauth2/callback` is
   registered on `sdlc-client` next to the local and tunnel callbacks. Sign in on that deterministic host: the OAuth
   redirect and cookie domain use it, not the hashed `status.url`.
@@ -185,7 +185,7 @@ by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on 
   `sdlc-config-store-a7484d8b`). The MCP service and the ingest job mount `gs://<bucket>/bundles/<env>/`
   read-only (Cloud Storage volume, second generation execution environment) at `/app/config-bundles` with
   `SDLC_CONFIG_BUNDLES`, and load the bundle `current` names. A bundle is immutable and hash-verified and carries
-  config, skills and the tenant `groups.yaml` / `users.yaml`, so their secret mounts are not used. The MCP server
+  config, skills and the tenant `users.yaml`, so its secret mount is not used. The MCP server
   checks `current` every 60 s (`SDLC_CONFIG_POLL_SECONDS`) and reloads; a broken pointer or bundle is refused and
   the last good version kept. Ingest resolves relative `local_folder` locations (none today) against the
   image (`SDLC_SOURCES_ROOT=/app`).
@@ -197,8 +197,7 @@ by `gcs` sources: the jobs service account gets `roles/storage.objectViewer` on 
     refuses to run until a bundle is active (a new MCP revision without one fails closed).
   - Who reads it: the MCP and jobs service accounts (`objectViewer`). Who writes: people, with their own access.
 - Without `config_store_bucket`: `config/` and `skills/` are baked into the images at build time (one config
-  version per release); file watching is off (`SDLC_CONFIG_WATCH=false`); `groups.yaml` comes from Secret Manager
-  as a mounted file. A config change needs `images` + `plan` + `apply`.
+  version per release); file watching is off (`SDLC_CONFIG_WATCH=false`). A config change needs `images` + `plan` + `apply`.
 - Direct members (version-02 N10, optional, **only without bundles**): if `config/env/<env>/users.yaml` exists, `gcp_deploy.ps1` sets
   `TF_VAR_users_yaml_path`; Terraform stores it as secret `sdlc-<env>-users-yaml` and mounts it into the MCP service
   only, at `/app/config-users/users.yaml` (its own folder: Cloud Run mounts one secret per folder), with
@@ -240,13 +239,13 @@ From the repo root, in PowerShell (Docker Desktop running, `gcloud` signed in, T
 
 ## 8. Verification
 
-On dev, with the test users (payments developer, platform developer, payments lead, admin, and an account with no
-sdlc groups):
+On dev, with the test users (payments member, platform member, payments approver, admin, and an account with no
+sdlc app roles):
 
 1. Sign in at the `app_url`: `/chat/` (CopilotKit) and `/dev-ui/` (ADK) load.
 2. `whoami` shows each user's own teams and roles; tool lists differ per persona.
 3. Skills and team context per user (`list_skills`, `get_agent_context`).
-4. After ingest: `search_knowledge` and `graph_query` return only each user's sources; the payments lead also sees
+4. After ingest: `search_knowledge` and `graph_query` return only each user's sources; the payments approver also sees
    the confidential incidents.
 5. Conversations (after the M8 apply): start a chat, deploy a new revision, and check the conversation is still
    listed in `/dev-ui/` for the same user and not for another.

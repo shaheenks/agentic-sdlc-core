@@ -3,7 +3,7 @@
 from sdlc_config.errors import ConfigError
 from sdlc_config.flows import document_flow
 from sdlc_config.loader import load_snapshot
-from sdlc_config.model import GroupMap, PlatformConfig, Snapshot
+from sdlc_config.model import PlatformConfig, Snapshot
 from sdlc_config.resolver import (
     EffectivePolicy,
     PolicyCache,
@@ -24,7 +24,6 @@ __all__ = [
     "document_flow",
     "resolve",
     "skill_decision",
-    "GroupMap",
     "PlatformConfig",
     "Snapshot",
     "load_snapshot",

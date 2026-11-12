@@ -1,18 +1,25 @@
 """Resolve a principal's identities into an EffectivePolicy (plan: resolution steps 1-5).
 
-identities (group aliases + Entra app roles + the user alias from users.yaml, matched by oid)
-  -> teams (membership) + global bindings -> roles, expanded through `inherits`
-  -> allowed tools (role allows, "*" = whole catalog) minus denies (role + team); deny wins
-  -> argument limits: unioned across the member teams that constrain a tool;
-     tools granted by an `unconstrained` role get none.
-  -> skills (step 6): global skills granted by role (name, "tag:<tag>", "*") and, when the skill
-     sets `access`, held by one of its roles or teams; plus member teams' add-on skills (with
-     their `access` roles). A "*" skill grant (admin) also covers every team's add-ons.
+identities (Entra app roles + the user alias from users.yaml, matched by oid; no Entra groups)
+  -> teams (membership) + global bindings -> SCOPED roles (CH-0009): a global binding gives a
+     platform role; a team membership gives a role in that team only (`approver@payments`).
+     `inherits` expands within the same scope. Platform roles count in every team.
+  -> allowed tools (any held role allows, "*" = whole catalog) minus denies (role + team); deny
+     wins
+  -> argument limits: unioned across the teams whose roles grant the tool and that constrain it
+     (for a tool a platform role grants: every member team that constrains it); tools granted by
+     an `unconstrained` role get none. A team that grants nothing never widens or narrows a tool.
+  -> skills (step 6): global skills granted by any held role (name, "tag:<tag>", "*") and, when
+     the skill sets `access`, held by one of its roles or teams; plus member teams' add-on
+     skills, whose `access` roles must be held in that team (or as platform roles). A "*" skill
+     grant (admin) also covers every team's add-ons.
   -> agent context (step 8): member teams' instructions (AGENT_ADDENDUM) and context.
   -> data (step 7): allowed sources = sources whose `access` matches the caller's teams, roles
-     or group aliases, or that set `everyone: true` (the ONLY grant for data; a source can have
-     its own Entra group, independent of teams); max classification = highest level across the
-     caller's roles (platform default otherwise). Postgres RLS enforces both on every query.
+     (platform roles, or roles held in the source's owner team), or that set `everyone: true`
+     (the ONLY grant for data; a source with its own audience grants a platform role bound to
+     its own app role). The ceiling is PER SOURCE: the highest level among the platform
+     roles and the roles held in the source's owner team (platform default otherwise).
+     Postgres RLS enforces both on every query.
 Every role, grant, deny and limit records the config rule it came from.
 """
 
@@ -23,11 +30,20 @@ from types import MappingProxyType
 
 from sdlc_config.model import IdentityRef, Snapshot
 
+PLATFORM = None  # scope of roles from global bindings (roles.yaml, users.yaml `roles`)
+
+Scope = str | None  # None = platform, else a team name
+
+
+def scoped_name(scope: Scope, role: str) -> str:
+    """How a held role is shown: `admin` (platform) or `approver@payments` (team)."""
+    return role if scope is PLATFORM else f"{role}@{scope}"
+
 
 @dataclass(frozen=True)
 class ToolPermission:
     tool: str
-    allowed_by: tuple[str, ...]  # e.g. "role:developer <- teams/payments.yaml#membership[0]"
+    allowed_by: tuple[str, ...]  # e.g. "role:member@payments <- teams/payments.yaml#membership[0]"
     # arg -> allowed values; None = no limits
     constraints: Mapping[str, frozenset[str]] | None = None
     constraint_sources: tuple[str, ...] = ()
@@ -36,7 +52,7 @@ class ToolPermission:
 @dataclass(frozen=True)
 class SkillGrant:
     skill: str
-    granted_by: tuple[str, ...]  # e.g. "role:developer <- ..." or "team:payments <- ..."
+    granted_by: tuple[str, ...]  # e.g. "role:member@payments <- ..." or "team:payments <- ..."
     team: str | None = None  # set for team add-ons
 
 
@@ -50,20 +66,24 @@ class TeamInstructions:
 @dataclass(frozen=True)
 class EffectivePolicy:
     config_version: str
-    group_aliases: tuple[str, ...]
     app_roles: tuple[str, ...]
     teams: Mapping[str, tuple[str, ...]]  # team -> membership rules that matched
-    roles: Mapping[str, tuple[str, ...]]  # role -> reasons (binding/membership rule or inherits)
+    # held role, scoped ("admin", "approver@payments") -> reasons (binding/membership or inherits)
+    roles: Mapping[str, tuple[str, ...]]
     tools: Mapping[str, ToolPermission]  # allowed tools only
     denied: Mapping[str, tuple[str, ...]] = field(default_factory=dict)  # tool -> deny rules
     skills: Mapping[str, SkillGrant] = field(default_factory=dict)  # visible skills only
     agent_instructions: tuple[TeamInstructions, ...] = ()
     context: Mapping[str, Mapping[str, str]] = field(default_factory=dict)  # team -> values
     data_sources: Mapping[str, tuple[str, ...]] = field(default_factory=dict)  # id -> grant rules
+    # Highest ceiling over all scopes (shown to users); reads use the per-source ceilings.
     max_classification: str = "public"
     max_classification_rank: int = 0
     # Current classification rank of each granted source (from this config version).
     source_classification: Mapping[str, int] = field(default_factory=dict)
+    # Ceiling (level name) per granted source: platform roles + roles held in its owner team.
+    source_ceilings: Mapping[str, str] = field(default_factory=dict)
+    source_ceiling_ranks: Mapping[str, int] = field(default_factory=dict)
     user: str | None = None  # users.yaml alias (direct member), matched by the token oid
     # Per-user calls per minute: scope ("*" = all tools, or a tool) -> (limit, rule it came from).
     # Most generous of the user's teams; "*" falls back to platform defaults/rate_limit.
@@ -72,19 +92,27 @@ class EffectivePolicy:
     data_tools: tuple[str, ...] = ()
     # users.yaml default_team, only while the user is a member of it (G9; guidance, grants nothing)
     default_team: str | None = None
+    # (scope, role) pairs behind `roles`, for checks that need the scope
+    held_roles: frozenset[tuple[Scope, str]] = frozenset()
 
     @property
     def readable_sources(self) -> tuple[str, ...]:
-        """Granted sources at or below the caller's ceiling, by the CURRENT config. This is what the
-        RLS context carries, so raising a source's classification takes effect on the next request
-        without re-ingesting (rows keep their own stamp as a second check; a lowered
-        classification applies once ingest re-stamps the rows: fail closed). A source without a
-        known classification is not readable."""
+        """Granted sources at or below the caller's ceiling FOR THAT SOURCE, by the CURRENT
+        config. This is what the RLS context carries, so raising a source's classification takes
+        effect on the next request without re-ingesting (rows keep their own stamp as a second
+        check against the same per-source ceiling; a lowered classification applies once ingest
+        re-stamps the rows: fail closed). A source without a known classification is not
+        readable."""
         return tuple(
             sid
             for sid in sorted(self.data_sources)
-            if self.source_classification.get(sid, 1 << 30) <= self.max_classification_rank
+            if self.source_classification.get(sid, 1 << 30)
+            <= self.source_ceiling_ranks.get(sid, -1)
         )
+
+    def roles_in(self, team: str | None) -> frozenset[str]:
+        """Role names that count in `team`: platform roles plus roles held in that team."""
+        return frozenset(r for s, r in self.held_roles if s is PLATFORM or s == team)
 
     def allows(self, tool: str) -> bool:
         return tool in self.tools
@@ -100,6 +128,7 @@ class EffectivePolicy:
         data = {
             "sources": {sid: list(r) for sid, r in sorted(self.data_sources.items())},
             "max_classification": self.max_classification,
+            "ceilings": dict(sorted(self.source_ceilings.items())),
             "tools": list(self.data_tools),
             "readable": list(self.readable_sources) if self.data_tools else [],
         }
@@ -115,7 +144,6 @@ class EffectivePolicy:
         """JSON-friendly view for whoami(explain) / config_explain / CLI."""
         return {
             "config_version": self.config_version,
-            "group_aliases": list(self.group_aliases),
             "app_roles": list(self.app_roles),
             "user": self.user,
             "teams": {t: list(r) for t, r in sorted(self.teams.items())},
@@ -154,61 +182,74 @@ class EffectivePolicy:
 
 def resolve(
     snapshot: Snapshot,
-    group_aliases: Iterable[str],
     app_roles: Iterable[str] = (),
     user: str | None = None,
 ) -> EffectivePolicy:
-    """`user` is the caller's users.yaml alias (Snapshot.users.alias_for(oid)), if any."""
-    aliases, roles_claim = tuple(sorted(set(group_aliases))), tuple(sorted(set(app_roles)))
+    """`app_roles` from the token's `roles` claim; `user` is the caller's users.yaml alias
+    (Snapshot.users.alias_for(oid)), if any."""
+    if isinstance(app_roles, str):
+        raise TypeError("app_roles must be a collection of role values, not a string")
+    roles_claim = tuple(sorted(set(app_roles)))
     # Every resolved principal is a signed-in user, so `everyone` bindings always apply.
     ids = {IdentityRef("everyone", "*")}
-    ids |= {IdentityRef("group", a) for a in aliases}
     ids |= {IdentityRef("app_role", r) for r in roles_claim}
     if user:
         ids.add(IdentityRef("user", user))
 
-    # 1-3: teams and directly granted roles
+    # 1-3: teams and directly granted roles, each in its scope
     team_rules: dict[str, list[str]] = {}
-    role_reasons: dict[str, list[str]] = {}
+    held: dict[tuple[Scope, str], list[str]] = {}
     for binding in snapshot.bindings:
         if binding.ref in ids:
             for role in binding.roles:
-                role_reasons.setdefault(role, []).append(binding.rule)
+                held.setdefault((PLATFORM, role), []).append(binding.rule)
     for team in snapshot.teams.values():
         for member in team.membership:
             if member.ref in ids:
                 team_rules.setdefault(team.name, []).append(member.rule)
                 for role in member.roles:
-                    role_reasons.setdefault(role, []).append(member.rule)
+                    held.setdefault((team.name, role), []).append(member.rule)
 
-    # 4: expand inherits (the loader rejects cycles; `seen` guards anyway)
-    pending, seen = list(role_reasons), set()
+    # 4: expand inherits within each scope (the loader rejects cycles; `seen` guards anyway)
+    pending, seen = list(held), set()
     while pending:
-        role = pending.pop()
-        if role in seen:
+        scope, role = pending.pop()
+        if (scope, role) in seen:
             continue
-        seen.add(role)
+        seen.add((scope, role))
         for parent in snapshot.roles[role].inherits:
-            reason = f"inherited from role:{role}"
-            if reason not in role_reasons.setdefault(parent, []):
-                role_reasons[parent].append(reason)
-            pending.append(parent)
+            reason = f"inherited from role:{scoped_name(scope, role)}"
+            if reason not in held.setdefault((scope, parent), []):
+                held[(scope, parent)].append(reason)
+            pending.append((scope, parent))
+
+    def origin(key: tuple[Scope, str]) -> str:
+        return f"role:{scoped_name(*key)} <- {held[key][0]}"
 
     # 5: allowed tools, denies, argument limits
     catalog = snapshot.tools
     allowed_by: dict[str, list[str]] = {}
     unconstrained: set[str] = set()
+    granting_teams: dict[str, set[str]] = {}
+    platform_granted: set[str] = set()
     denied: dict[str, list[str]] = {}
-    for role in sorted(role_reasons):
+    for key in sorted(held, key=lambda k: (k[0] or "", k[1])):
+        scope, role = key
         definition = snapshot.roles[role]
-        origin = f"role:{role} <- {role_reasons[role][0]}"
         granted = catalog.keys() if "*" in definition.tools_allow else definition.tools_allow
         for tool in granted:
-            allowed_by.setdefault(tool, []).append(origin)
+            if origin(key) not in allowed_by.setdefault(tool, []):
+                allowed_by[tool].append(origin(key))
             if definition.unconstrained:
                 unconstrained.add(tool)
+            elif scope is PLATFORM:
+                platform_granted.add(tool)
+            else:
+                granting_teams.setdefault(tool, set()).add(scope)
         for tool in definition.tools_deny:
-            denied.setdefault(tool, []).append(f"role:{role} deny")
+            rule = f"role:{role} deny"
+            if rule not in denied.setdefault(tool, []):
+                denied[tool].append(rule)
     for team in team_rules:
         for tool in snapshot.teams[team].tools_deny:
             denied.setdefault(tool, []).append(f"{snapshot.teams[team].source}#policy/tools/deny")
@@ -220,7 +261,9 @@ def resolve(
         limits: dict[str, set[str]] = {}
         sources: list[str] = []
         if tool not in unconstrained:
-            for team in sorted(team_rules):
+            limiting = set(team_rules) if tool in platform_granted else set()
+            limiting |= granting_teams.get(tool, set())
+            for team in sorted(limiting):
                 rule = snapshot.teams[team].constraints.get(tool)
                 if rule:
                     sources.append(f"{snapshot.teams[team].source}#policy/tools/constraints/{tool}")
@@ -237,7 +280,8 @@ def resolve(
             constraint_sources=tuple(sources),
         )
 
-    skills = _resolve_skills(snapshot, role_reasons, team_rules)
+    held_roles = frozenset(held)
+    skills = _resolve_skills(snapshot, held, held_roles, team_rules)
     instructions = tuple(
         TeamInstructions(
             team,
@@ -253,16 +297,20 @@ def resolve(
         if snapshot.teams[team].context
     }
 
-    data_sources = _resolve_sources(snapshot, aliases, role_reasons, team_rules)
-    max_level, max_rank = _max_classification(snapshot, role_reasons)
+    data_sources = _resolve_sources(snapshot, held_roles, team_rules)
+    ceilings = {
+        sid: _ceiling(snapshot, held_roles, snapshot.sources[sid].owner_team)
+        for sid in data_sources
+    }
+    max_level, max_rank = _ceiling(snapshot, held_roles, None, every_scope=True)
 
     return EffectivePolicy(
         config_version=snapshot.version,
-        group_aliases=aliases,
         app_roles=roles_claim,
         user=user,
         teams=MappingProxyType({t: tuple(r) for t, r in team_rules.items()}),
-        roles=MappingProxyType({r: tuple(why) for r, why in role_reasons.items()}),
+        roles=MappingProxyType({scoped_name(*k): tuple(why) for k, why in held.items()}),
+        held_roles=held_roles,
         tools=MappingProxyType(tools),
         denied=MappingProxyType({t: tuple(r) for t, r in denied.items() if t in catalog}),
         skills=MappingProxyType(skills),
@@ -274,6 +322,8 @@ def resolve(
         source_classification=MappingProxyType(
             {sid: snapshot.sources[sid].classification_rank for sid in data_sources}
         ),
+        source_ceilings=MappingProxyType({sid: level for sid, (level, _) in ceilings.items()}),
+        source_ceiling_ranks=MappingProxyType({sid: rank for sid, (_, rank) in ceilings.items()}),
         rate_limits=MappingProxyType(_rate_limits(snapshot, team_rules)),
         data_tools=tuple(t for t in sorted(tools) if catalog[t].data_scoped),
         default_team=(
@@ -301,22 +351,25 @@ def _rate_limits(snapshot, team_rules) -> dict[str, tuple[int, str]]:
     return limits
 
 
-def _resolve_sources(snapshot, aliases, role_reasons, team_rules) -> dict[str, tuple[str, ...]]:
-    held_roles, member_teams, groups = set(role_reasons), set(team_rules), set(aliases)
+def _roles_in(held_roles: frozenset[tuple[Scope, str]], team: Scope) -> set[tuple[Scope, str]]:
+    """Held (scope, role) pairs that count in `team`: platform roles plus that team's roles."""
+    return {(s, r) for s, r in held_roles if s is PLATFORM or s == team}
+
+
+def _resolve_sources(snapshot, held_roles, team_rules) -> dict[str, tuple[str, ...]]:
+    member_teams = set(team_rules)
     grants: dict[str, tuple[str, ...]] = {}
     for source in snapshot.sources.values():
+        roles_here = _roles_in(held_roles, source.owner_team)
         reasons = (
             [
                 f"team:{t} <- {source.source}#access/teams"
                 for t in sorted(member_teams & source.access_teams)
             ]
             + [
-                f"role:{r} <- {source.source}#access/roles"
-                for r in sorted(held_roles & source.access_roles)
-            ]
-            + [
-                f"group:{g} <- {source.source}#access/groups"
-                for g in sorted(groups & source.access_groups)
+                f"role:{scoped_name(s, r)} <- {source.source}#access/roles"
+                for s, r in sorted(roles_here, key=lambda k: (k[0] or "", k[1]))
+                if r in source.access_roles
             ]
             + ([f"everyone <- {source.source}#access/everyone"] if source.access_everyone else [])
         )
@@ -325,11 +378,13 @@ def _resolve_sources(snapshot, aliases, role_reasons, team_rules) -> dict[str, t
     return grants
 
 
-def _max_classification(snapshot, role_reasons) -> tuple[str, int]:
+def _ceiling(snapshot, held_roles, team: Scope, every_scope: bool = False) -> tuple[str, int]:
+    """Highest classification among the roles that count in `team` (or in any scope)."""
     platform = snapshot.platform
+    counted = held_roles if every_scope else _roles_in(held_roles, team)
     levels = [
         snapshot.roles[r].max_classification
-        for r in role_reasons
+        for _, r in counted
         if r in snapshot.roles and snapshot.roles[r].max_classification
     ]
     level = max(
@@ -338,28 +393,36 @@ def _max_classification(snapshot, role_reasons) -> tuple[str, int]:
     return level, platform.classification_rank(level)
 
 
-def _resolve_skills(snapshot: Snapshot, role_reasons, team_rules) -> dict[str, SkillGrant]:
-    held_roles, member_teams = set(role_reasons), set(team_rules)
+def _resolve_skills(snapshot: Snapshot, held, held_roles, team_rules) -> dict[str, SkillGrant]:
+    member_teams = set(team_rules)
+    every_role = {r for _, r in held_roles}
+
+    def origin(key) -> str:
+        return f"role:{scoped_name(*key)} <- {held[key][0]}"
+
+    ordered = sorted(held_roles, key=lambda k: (k[0] or "", k[1]))
     grants: dict[str, SkillGrant] = {}
     for skill in snapshot.skills.values():
-        if skill.team is None:  # global skill: needs a role grant
+        if skill.team is None:  # global skill: needs a role grant (any scope)
             reasons = [
-                f"role:{role} <- {role_reasons[role][0]}"
-                for role in sorted(held_roles)
-                if _role_grants_skill(snapshot.roles[role].skills_allow, skill.name, skill.tags)
+                origin(key)
+                for key in ordered
+                if _role_grants_skill(snapshot.roles[key[1]].skills_allow, skill.name, skill.tags)
             ]
-        elif skill.team in member_teams:  # team add-on: needs membership ...
-            reasons = [f"team:{skill.team} <- {team_rules[skill.team][0]}"]
-        else:  # ... or a role granting every skill ("*"), e.g. admin oversight
-            reasons = [
-                f"role:{role} <- {role_reasons[role][0]}"
-                for role in sorted(held_roles)
-                if "*" in snapshot.roles[role].skills_allow
-            ]
+            roles_for_access = every_role
+        else:
+            if skill.team in member_teams:  # team add-on: needs membership ...
+                reasons = [f"team:{skill.team} <- {team_rules[skill.team][0]}"]
+            else:  # ... or a role granting every skill ("*"), e.g. admin oversight
+                reasons = [
+                    origin(key) for key in ordered if "*" in snapshot.roles[key[1]].skills_allow
+                ]
+            # its `access` roles count only when held in the skill's own team (or platform-wide)
+            roles_for_access = {r for _, r in _roles_in(held_roles, skill.team)}
         if not reasons:
             continue
         if skill.access_roles or skill.access_teams:
-            if not (held_roles & skill.access_roles or member_teams & skill.access_teams):
+            if not (roles_for_access & skill.access_roles or member_teams & skill.access_teams):
                 continue
             reasons.append(f"access <- {skill.source}")
         grants[skill.name] = SkillGrant(skill.name, tuple(reasons), skill.team)
@@ -386,22 +449,21 @@ def skill_decision(snapshot: Snapshot, policy: EffectivePolicy, name: str) -> Sk
     skill = snapshot.skills.get(name)
     if skill is None:
         return SkillDecision(False, "not-found", f"no skill named '{name}' in config")
-    held = set(policy.roles)
-    wildcard = any("*" in snapshot.roles[r].skills_allow for r in held if r in snapshot.roles)
+    held = {r for _, r in policy.held_roles if r in snapshot.roles}
+    wildcard = any("*" in snapshot.roles[r].skills_allow for r in held)
     if skill.team is not None and skill.team not in policy.teams and not wildcard:
         return SkillDecision(
             False, skill.source, f"team add-on of '{skill.team}'; caller is not a member"
         )
     if skill.team is None and not any(
-        _role_grants_skill(snapshot.roles[r].skills_allow, skill.name, skill.tags)
-        for r in held
-        if r in snapshot.roles
+        _role_grants_skill(snapshot.roles[r].skills_allow, skill.name, skill.tags) for r in held
     ):
         via = ", ".join([f"'{name}'", *(f"'tag:{t}'" for t in sorted(skill.tags)), "'*'"])
         return SkillDecision(False, "default-deny", f"no role of the caller grants {via}")
     needs = []
     if skill.access_roles:
-        needs.append(f"roles {sorted(skill.access_roles)}")
+        where = f" in team '{skill.team}'" if skill.team is not None else ""
+        needs.append(f"roles {sorted(skill.access_roles)}{where}")
     if skill.access_teams:
         needs.append(f"teams {sorted(skill.access_teams)}")
     return SkillDecision(
@@ -410,9 +472,9 @@ def skill_decision(snapshot: Snapshot, policy: EffectivePolicy, name: str) -> Sk
 
 
 class PolicyCache:
-    """EffectivePolicy per (config version, group aliases, app roles, users.yaml alias).
+    """EffectivePolicy per (config version, app roles, users.yaml alias).
 
-    Policies depend only on identities and config, so users with the same groups and no
+    Policies depend only on identities and config, so users with the same app roles and no
     users.yaml entry share an entry; a direct member gets their own. A new config version
     never sees an older version's entries.
     """
@@ -425,16 +487,15 @@ class PolicyCache:
     def get(
         self,
         snapshot: Snapshot,
-        group_aliases: Iterable[str],
         app_roles: Iterable[str] = (),
         user: str | None = None,
     ) -> EffectivePolicy:
-        key = (snapshot.version, frozenset(group_aliases), frozenset(app_roles), user)
+        key = (snapshot.version, frozenset(app_roles), user)
         with self._lock:
             hit = self._entries.get(key)
         if hit is not None:
             return hit
-        policy = resolve(snapshot, key[1], key[2], key[3])
+        policy = resolve(snapshot, key[1], key[2])
         with self._lock:
             if len(self._entries) >= self._max or any(
                 k[0] != snapshot.version for k in self._entries

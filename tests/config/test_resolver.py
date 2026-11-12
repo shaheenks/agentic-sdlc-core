@@ -3,6 +3,7 @@
 import pytest
 import yaml
 from sdlc_config import PolicyCache, load_snapshot, resolve
+from sdlc_config.resolver import skill_decision
 
 from tests.support.entra import TEST_ENV
 
@@ -21,7 +22,7 @@ VIEWER_TOOLS = {
     "read_artifact",
     "delete_artifact",
 }
-DEV_TOOLS = VIEWER_TOOLS | {"generate_tests", "review_code"}
+DEV_TOOLS = VIEWER_TOOLS | {"fixture_review"}
 # version-01 M6: read with the user's own connected account
 DEV_TOOLS |= {"jira_get_issue", "confluence_get_page", "github_get_file", "bitbucket_get_file"}
 PAYMENTS_REPOS = {"payments-api", "payments-ui"}
@@ -46,52 +47,52 @@ def test_no_mapped_identities_means_signed_in_basics_only(snap):
 
 
 def test_eng_all_is_viewer_only(snap):
-    policy = resolve(snap, ["eng-all"])
+    policy = resolve(snap, ["SDLC.User"])
     assert set(policy.tools) == VIEWER_TOOLS
     assert policy.roles["viewer"] == ("roles.yaml#bindings[1]",)
-    assert not policy.allows("review_code")
+    assert not policy.allows("fixture_review")
 
 
 def test_payments_developer(snap):
-    policy = resolve(snap, ["eng-all", "payments-devs"])
+    policy = resolve(snap, ["SDLC.User", "SDLC.Payments.Member"])
     assert set(policy.teams) == {"payments"}
     assert set(policy.tools) == DEV_TOOLS
-    review = policy.tools["review_code"]
+    review = policy.tools["fixture_review"]
     assert review.constraints == {"repo": PAYMENTS_REPOS}
     assert review.constraint_sources == (
-        "teams/payments.yaml#policy/tools/constraints/review_code",
+        "teams/payments.yaml#policy/tools/constraints/fixture_review",
     )
-    assert review.allowed_by == ("role:developer <- teams/payments.yaml#membership[0]",)
-    # viewer comes both from the global binding and by inheritance from developer
-    assert set(policy.roles["viewer"]) == {
-        "roles.yaml#bindings[1]",
-        "inherited from role:developer",
-    }
-    assert "approve_design" not in policy.tools
+    assert review.allowed_by == ("role:member@payments <- teams/payments.yaml#membership[0]",)
+    # viewer from the global binding (platform), and by inheritance in the team's scope (CH-0009)
+    assert policy.roles["viewer"] == ("roles.yaml#bindings[1]",)
+    assert policy.roles["viewer@payments"] == ("inherited from role:member@payments",)
+    assert "fixture_approve" not in policy.tools
 
 
-def test_payments_lead_gets_approve_design_within_payments(snap):
-    policy = resolve(snap, ["eng-all", "payments-leads"])
-    assert policy.tools["approve_design"].constraints == {"repo": PAYMENTS_REPOS}
-    assert {"lead", "developer", "viewer"} <= set(policy.roles)
+def test_payments_lead_gets_fixture_approve_within_payments(snap):
+    policy = resolve(snap, ["SDLC.User", "SDLC.Payments.Approver"])
+    assert policy.tools["fixture_approve"].constraints == {"repo": PAYMENTS_REPOS}
+    assert {"approver@payments", "member@payments", "viewer@payments", "viewer"} <= set(
+        policy.roles
+    )
 
 
 def test_platform_developer_gets_platform_repos(snap):
-    policy = resolve(snap, ["eng-all", "platform-devs"])
-    assert policy.tools["review_code"].constraints == {"repo": PLATFORM_REPOS}
+    policy = resolve(snap, ["SDLC.User", "SDLC.Platform.Member"])
+    assert policy.tools["fixture_review"].constraints == {"repo": PLATFORM_REPOS}
     assert set(policy.teams) == {"sdlc-platform"}
 
 
 def test_member_of_two_teams_gets_union_of_limits(snap):
-    policy = resolve(snap, ["payments-devs", "platform-devs"])
-    assert policy.tools["review_code"].constraints == {"repo": PAYMENTS_REPOS | PLATFORM_REPOS}
-    assert len(policy.tools["review_code"].constraint_sources) == 2
+    policy = resolve(snap, ["SDLC.Payments.Member", "SDLC.Platform.Member"])
+    assert policy.tools["fixture_review"].constraints == {"repo": PAYMENTS_REPOS | PLATFORM_REPOS}
+    assert len(policy.tools["fixture_review"].constraint_sources) == 2
 
 
 def test_admin_gets_whole_catalog_unconstrained(snap):
-    policy = resolve(snap, ["eng-all", "platform-admins", "payments-devs"])
+    policy = resolve(snap, ["SDLC.User", "SDLC.Admin", "SDLC.Payments.Member"])
     assert set(policy.tools) == set(snap.tools)  # "*" = every catalog tool
-    assert policy.tools["review_code"].constraints is None  # admin is unconstrained
+    assert policy.tools["fixture_review"].constraints is None  # admin is unconstrained
     assert policy.allows("config_explain") and policy.allows("config_info")
 
 
@@ -102,55 +103,96 @@ def test_unknown_aliases_are_ignored(snap):
 def test_team_deny_wins_over_role_allow(config_dir):
     edit_yaml(
         config_dir / "teams/payments.yaml",
-        lambda d: d["policy"]["tools"].update(deny=["review_code"]),
+        lambda d: d["policy"]["tools"].update(deny=["fixture_review"]),
     )
     snap = load_snapshot(config_dir, "local", TEST_ENV)
-    policy = resolve(snap, ["payments-devs"])
-    assert "review_code" not in policy.tools
-    assert policy.denied["review_code"] == ("teams/payments.yaml#policy/tools/deny",)
+    policy = resolve(snap, ["SDLC.Payments.Member"])
+    assert "fixture_review" not in policy.tools
+    assert policy.denied["fixture_review"] == ("teams/payments.yaml#policy/tools/deny",)
     # the deny belongs to the payments team: platform developers keep the tool
-    assert resolve(snap, ["platform-devs"]).allows("review_code")
+    assert resolve(snap, ["SDLC.Platform.Member"]).allows("fixture_review")
 
 
 def test_role_deny_wins_even_over_admin_wildcard(config_dir):
     edit_yaml(
         config_dir / "roles.yaml",
-        lambda d: d["roles"]["viewer"]["tools"].update(deny=["approve_design"]),
+        lambda d: d["roles"]["viewer"]["tools"].update(deny=["fixture_approve"]),
     )
     snap = load_snapshot(config_dir, "local", TEST_ENV)
-    policy = resolve(snap, ["eng-all", "platform-admins"])
-    assert "approve_design" not in policy.tools
-    assert policy.denied["approve_design"] == ("role:viewer deny",)
+    policy = resolve(snap, ["SDLC.User", "SDLC.Admin"])
+    assert "fixture_approve" not in policy.tools
+    assert policy.denied["fixture_approve"] == ("role:viewer deny",)
 
 
 def test_app_role_identities(config_dir):
     edit_yaml(
         config_dir / "teams/payments.yaml",
-        lambda d: d["membership"].append(
-            {"app_role": "SDLC.Payments.Developer", "roles": ["developer"]}
-        ),
+        lambda d: d["membership"].append({"app_role": "SDLC.Payments.Member", "roles": ["member"]}),
     )
     snap = load_snapshot(config_dir, "local", TEST_ENV)
-    policy = resolve(snap, [], app_roles=["SDLC.Payments.Developer"])
+    policy = resolve(snap, app_roles=["SDLC.Payments.Member"])
     assert set(policy.teams) == {"payments"}
-    assert policy.tools["review_code"].constraints == {"repo": PAYMENTS_REPOS}
+    assert policy.tools["fixture_review"].constraints == {"repo": PAYMENTS_REPOS}
 
 
 def test_explain_is_json_friendly(snap):
     import json
 
-    view = resolve(snap, ["eng-all", "payments-devs"]).explain()
-    assert json.loads(json.dumps(view))["tools"]["review_code"]["constraints"] == {
+    view = resolve(snap, ["SDLC.User", "SDLC.Payments.Member"]).explain()
+    assert json.loads(json.dumps(view))["tools"]["fixture_review"]["constraints"] == {
         "repo": sorted(PAYMENTS_REPOS)
     }
 
 
 def test_policy_cache_shares_by_identity_and_version(snap, config_dir):
     cache = PolicyCache()
-    a = cache.get(snap, ["payments-devs", "eng-all"])
-    assert cache.get(snap, ["eng-all", "payments-devs"]) is a  # order does not matter
-    assert cache.get(snap, ["eng-all"]) is not a
+    a = cache.get(snap, ["SDLC.Payments.Member", "SDLC.User"])
+    assert cache.get(snap, ["SDLC.User", "SDLC.Payments.Member"]) is a  # order does not matter
+    assert cache.get(snap, ["SDLC.User"]) is not a
     (config_dir / "tools.yaml").write_text((config_dir / "tools.yaml").read_text() + "\n# v2\n")
     newer = load_snapshot(config_dir, "local", TEST_ENV)
-    b = cache.get(newer, ["payments-devs", "eng-all"])
+    b = cache.get(newer, ["SDLC.Payments.Member", "SDLC.User"])
     assert b is not a and b.config_version == newer.version
+
+
+# --- team roles are scoped to their team (CH-0009) --------------------------------------------
+
+CROSS_TEAM = ["SDLC.User", "SDLC.Webapp.Approver", "SDLC.Payments.Member"]
+
+
+def test_cross_team_roles_are_held_per_team(snap):
+    policy = resolve(snap, CROSS_TEAM)
+    assert {"approver@webapp", "member@webapp", "member@payments", "viewer"} <= set(policy.roles)
+    assert "approver@payments" not in policy.roles and "approver" not in policy.roles
+    assert policy.roles_in("payments") >= {"member", "viewer"}
+    assert "approver" not in policy.roles_in("payments")
+    assert "approver" in policy.roles_in("webapp")
+
+
+def test_approver_only_team_skill_needs_the_role_in_that_team(snap):
+    policy = resolve(snap, CROSS_TEAM)
+    assert not policy.sees_skill("ledger-design-review")  # payments approvers only
+    assert policy.sees_skill("pci-checklist")  # payments members
+    decision = skill_decision(snap, policy, "ledger-design-review")
+    assert not decision.allowed
+    assert decision.reason == "access requires roles ['approver'] in team 'payments'"
+    # a payments approver sees it
+    assert resolve(snap, ["SDLC.User", "SDLC.Payments.Approver"]).sees_skill("ledger-design-review")
+
+
+def test_ceiling_is_per_source_owner_team(snap):
+    policy = resolve(snap, CROSS_TEAM)
+    assert policy.source_ceilings["payments-code"] == "internal"
+    assert policy.source_ceilings["webapp-code"] == "confidential"
+    assert policy.max_classification == "confidential"  # shown to the user: the highest
+    assert "payments-incidents" in policy.data_sources  # granted to the payments team ...
+    assert "payments-incidents" not in policy.readable_sources  # ... but confidential
+    explained = policy.explain()["data"]
+    assert explained["ceilings"]["payments-incidents"] == "internal"
+
+
+def test_platform_roles_count_in_every_team(snap):
+    admin = resolve(snap, ["SDLC.Admin"])
+    assert admin.sees_skill("ledger-design-review")
+    assert admin.source_ceilings["payments-incidents"] == "restricted"
+    assert "payments-incidents" in admin.readable_sources

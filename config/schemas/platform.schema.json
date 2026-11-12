@@ -11,12 +11,11 @@
     "identity": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["provider", "tenant_id", "authority_host", "graph_host", "issuer", "jwks_uri", "audience", "required_scopes", "groups"],
+      "required": ["provider", "tenant_id", "authority_host", "issuer", "jwks_uri", "audience", "required_scopes"],
       "properties": {
         "provider": { "const": "entra" },
         "tenant_id": { "$ref": "#/$defs/guid" },
         "authority_host": { "type": "string", "pattern": "^https://[^/]+$", "description": "Entra login host (E7)" },
-        "graph_host": { "type": "string", "pattern": "^https://[^/]+$", "description": "Microsoft Graph host (E7)" },
         "issuer": { "type": "string", "pattern": "^https://" },
         "jwks_uri": { "type": "string", "pattern": "^https://" },
         "audience": {
@@ -26,16 +25,6 @@
         "required_scopes": {
           "type": "array", "minItems": 1, "uniqueItems": true,
           "items": { "type": "string", "minLength": 1 }
-        },
-        "groups": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["claim", "overage_fallback", "cache_ttl_seconds"],
-          "properties": {
-            "claim": { "const": "groups" },
-            "overage_fallback": { "enum": ["graph_transitive_member_of", "none"] },
-            "cache_ttl_seconds": { "type": "integer", "minimum": 0 }
-          }
         }
       }
     },

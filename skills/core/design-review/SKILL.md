@@ -1,11 +1,11 @@
 ---
 name: design-review
-description: Review a technical design for correctness, risks, operability and security before it is approved (leads).
+description: Review a technical design for correctness, risks, operability and security before it is approved (approvers).
 ---
 
 # Design review
 
-Use this skill when a lead asks for a review of a design document or proposal.
+Use this skill when an approver asks for a review of a design document or proposal.
 
 ## Checklist
 1. **Problem and scope:** is the problem clear? Are non-goals stated?
@@ -17,5 +17,4 @@ Use this skill when a lead asks for a review of a design document or proposal.
 
 ## Output
 A short verdict (`approve`, `approve with changes`, `needs rework`), then findings grouped as
-**blocking**, **should fix**, **nice to have**, each with a concrete suggestion. If an
-`approve_design` tool is available and the verdict is `approve`, offer to record the approval.
+**blocking**, **should fix**, **nice to have**, each with a concrete suggestion.

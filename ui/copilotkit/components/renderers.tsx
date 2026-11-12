@@ -175,7 +175,6 @@ function IdentityCard({ result }: { result: unknown }) {
   const facts = [
     me.teams.length > 0 && count(me.teams.length, "team"),
     me.roles.length > 0 && count(me.roles.length, "role"),
-    me.groups.length > 0 && count(me.groups.length, "group"),
   ].filter(Boolean);
   return (
     <CompactCard
@@ -188,7 +187,6 @@ function IdentityCard({ result }: { result: unknown }) {
     >
       {row("Teams", me.teams)}
       {row("Roles", me.roles)}
-      {row("Groups", me.groups)}
       {row("App roles", me.appRoles)}
     </CompactCard>
   );

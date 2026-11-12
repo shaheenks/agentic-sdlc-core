@@ -1,18 +1,15 @@
 ---
 type: Functional Requirement
-title: Membership from groups, app roles and direct members
+title: Membership from app roles and direct members
 description: A user's teams and roles come from Entra groups, Entra app roles and the per-environment direct-member list, combined as a union.
 area: Identity
 tags:
 - requirement
 - functional
 - identity
-status: stable
+status: draft
 priority: must
 implementation: live
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T21:10:40+05:30'
 sources:
 - id: rules
   resource: ../../rules/index.md
@@ -24,11 +21,14 @@ sources:
 
 # Statement
 
-The system shall derive a user's teams and roles from Entra group membership, Entra app roles and direct membership declared per environment, and combine them as a union.
+The system shall derive a user's teams and roles from Entra app roles and direct membership declared per environment, and combine them as a union.
 
 # Acceptance criteria
 
-- Group object IDs are mapped to aliases only in `config/env/<env>/groups.yaml`.
-- App roles arrive in the token `roles` claim and each app-role persona resolves exactly like its group twin.
+- App roles arrive in the token `roles` claim.
 - Direct members (`users.yaml`) are matched on `oid` only; an entry without `oid` grants nothing.
-- A token that omits groups (overage) yields no groups; app roles still apply.
+- A `groups` claim is ignored if present: a token with groups but no app roles and no `users.yaml` entry gets only the signed-in basics.
+
+# Notes
+
+Edited by CH-0011: Entra groups and the group map are dropped (design D16).

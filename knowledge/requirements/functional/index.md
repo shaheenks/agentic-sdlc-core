@@ -50,7 +50,7 @@
 ## Identity
 
 - [FR-IDN-001: Sign-in with Entra ID](FR-IDN-001.md) - Every surface requires a valid Microsoft Entra ID sign-in; there is no other identity provider.
-- [FR-IDN-002: Membership from groups, app roles and direct members](FR-IDN-002.md) - A user's teams and roles come from Entra groups, Entra app roles and the per-environment direct-member list, combined as a union.
+- [FR-IDN-002: Membership from app roles and direct members](FR-IDN-002.md) - A user's teams and roles come from Entra groups, Entra app roles and the per-environment direct-member list, combined as a union.
 - [FR-IDN-003: Users can see their own access](FR-IDN-003.md) - A user can ask what they are allowed to do and why; only admins can view another user's policy.
 - [FR-IDN-004: Revocation of access](FR-IDN-004.md) - A blocked user loses access on the next request and their stored connections are removed by a reconcile job.
 - [FR-IDN-005: Workflow identity](FR-IDN-005.md) - Autonomous workflows authenticate with their own Entra workload identity and are authorized like any principal.
@@ -60,7 +60,7 @@
 - [FR-KNOW-001: Ingest declared sources](FR-KNOW-001.md) - Sources declared in configuration are loaded, chunked, embedded and tagged with their source and classification.
 - [FR-KNOW-002: Knowledge search with citations](FR-KNOW-002.md) - Users search their team's knowledge and get answers with citations to the exact place.
 - [FR-KNOW-003: Knowledge graph queries](FR-KNOW-003.md) - Users can follow relations between entities extracted from their sources.
-- [FR-KNOW-004: PDF ingestion](FR-KNOW-004.md) - PDFs are ingested with page-level citations; OCR is opt-in per source.
+- [FR-KNOW-004: PDF ingestion](FR-KNOW-004.md) - PDFs are ingested from their text layer with page-level citations.
 - [FR-KNOW-005: Scheduled ingest](FR-KNOW-005.md) - Ingest runs on a schedule in the cloud environment.
 - [FR-KNOW-006: Atlassian and Bitbucket sources](FR-KNOW-006.md) - Confluence spaces, Jira projects and Bitbucket repositories, Cloud and Data Center, can be declared and ingested as sources.
 - [FR-KNOW-007: OCR for scanned PDFs](FR-KNOW-007.md) - PDFs without a text layer are read with model OCR, only for sources that opt in.

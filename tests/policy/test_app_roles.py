@@ -1,9 +1,9 @@
-"""version-03 P2 E1: Entra app roles grant exactly what the matching groups grant.
+"""Entra app roles are the only source of membership besides users.yaml (CH-0011).
 
-Each app-role persona (tests/policy/personas.yaml) must resolve to the same permissions as its
-group twin: teams, roles, tools + argument limits, skills, readable data, rate limits and team
-context. Only the "why" (matched rule names) may differ. The role values must also be defined
-on the sdlc-mcp app by scripts/entra_setup.ps1, or no token can ever carry them."""
+Before groups were removed, test_app_role_personas_match_group_personas proved that every group
+persona had an app-role twin with the same access (version-03 P2 E1, last run at c645f6e). The
+role values must also be defined on the sdlc-mcp app by scripts/entra_setup.ps1, or no token can
+ever carry them."""
 
 import re
 from pathlib import Path
@@ -18,16 +18,6 @@ from tests.support.entra import TEST_ENV
 
 PERSONAS = load_personas(Path(__file__).parent / "personas.yaml")
 
-TWINS = {
-    "approle-viewer": "viewer",
-    "approle-payments-dev": "payments-dev",
-    "approle-payments-lead": "payments-lead",
-    "approle-platform-dev": "platform-dev",
-    "approle-admin": "admin",
-    "mixed-dev": "multi-team-dev",
-    "unknown-app-role": "nobody",
-}
-
 
 @pytest.fixture(scope="module")
 def snap(tmp_path_factory):
@@ -36,47 +26,28 @@ def snap(tmp_path_factory):
 
 def policy(snap, name: str) -> EffectivePolicy:
     p = PERSONAS[name]
-    return resolve(snap, p.groups, p.app_roles, p.user)
-
-
-def granted(p: EffectivePolicy) -> dict:
-    """What a policy grants, without the rule names that explain it."""
-    return {
-        "teams": sorted(p.teams),
-        "roles": sorted(p.roles),
-        "tools": {
-            name: {arg: sorted(v) for arg, v in t.constraints.items()} if t.constraints else None
-            for name, t in p.tools.items()
-        },
-        "denied": sorted(p.denied),
-        "skills": {name: g.team for name, g in p.skills.items()},
-        "readable": p.readable_sources,
-        "max_classification": p.max_classification,
-        "data_tools": sorted(p.data_tools),
-        "rate_limits": {scope: limit for scope, (limit, _) in p.rate_limits.items()},
-        "instructions": [i.team for i in p.agent_instructions],
-        "context": {t: dict(c) for t, c in p.context.items()},
-    }
-
-
-@pytest.mark.parametrize("approle,group", TWINS.items())
-def test_app_role_personas_match_group_personas(snap, approle, group):
-    assert PERSONAS[approle].app_roles, approle
-    assert granted(policy(snap, approle)) == granted(policy(snap, group))
+    return resolve(snap, p.app_roles, p.user)
 
 
 def test_team_app_role_alone_is_enough(snap):
-    """A team app role without SDLC.User still gives the team role (developer inherits viewer)."""
-    p = policy(snap, "approle-team-only")
-    assert set(p.teams) == {"payments"} and "viewer" in p.roles
-    repos = p.tools["review_code"].constraints["repo"]
+    """A team app role without SDLC.User still gives the team role (member inherits viewer, in
+    the team's scope only: CH-0009)."""
+    p = policy(snap, "team-only")
+    assert set(p.teams) == {"payments"} and "viewer@payments" in p.roles
+    assert "viewer" not in p.roles
+    repos = p.tools["fixture_review"].constraints["repo"]
     assert set(repos) == {"payments-api", "payments-ui"}
 
 
 def test_reasons_name_the_app_role_rule(snap):
-    p = policy(snap, "approle-payments-dev")
-    assert p.teams["payments"] == ("teams/payments.yaml#membership[2]",)  # SDLC.Payments.Developer
-    assert "roles.yaml#bindings[2]" in p.roles["viewer"]  # SDLC.User
+    p = policy(snap, "payments-member")
+    assert p.teams["payments"] == ("teams/payments.yaml#membership[0]",)  # SDLC.Payments.Member
+    assert "roles.yaml#bindings[1]" in p.roles["viewer"]  # SDLC.User
+
+
+def test_unknown_app_role_grants_only_signed_in(snap):
+    p = policy(snap, "unknown-app-role")
+    assert set(p.roles) == {"signed-in"} and not p.teams
 
 
 def _config_app_roles() -> set[str]:

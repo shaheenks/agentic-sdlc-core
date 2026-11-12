@@ -37,7 +37,7 @@ Code: `scripts`
 # Requirements
 
 - [FR-CFG-003: Immutable config bundles with rollback](../requirements/functional/FR-CFG-003.md) - Publishes and rolls back config bundles on GCP.
-- [FR-IDN-002: Membership from groups, app roles and direct members](../requirements/functional/FR-IDN-002.md) - Defines the Entra app roles the configuration references.
+- [FR-IDN-002: Membership from app roles and direct members](../requirements/functional/FR-IDN-002.md) - Defines the Entra app roles the configuration references.
 - [NFR-PRIV-003: Tenant data stays out of the repository](../requirements/non-functional/NFR-PRIV-003.md) - Takes tenant user names on the command line, never from the repository.
 
 # Verification

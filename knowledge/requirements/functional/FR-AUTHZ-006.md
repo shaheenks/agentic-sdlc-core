@@ -9,7 +9,7 @@ tags:
 - authorization
 status: draft
 priority: must
-implementation: planned
+implementation: built
 sources:
 - id: design
   resource: ../../../docs/designs/workflow-platform.md
@@ -33,4 +33,4 @@ The system shall apply a team role only to the resources of the team that grants
 
 # Notes
 
-Today the resolver merges every team's roles into one set, so a team role leaks across teams: for skills gated by role, for sources gated by role, and for the classification ceiling. That is a defect against this requirement once approved. [CH-0009](../../changes/CH-0009.md) fixes it. Connected tools are not affected: they use the user's own credentials, so dependent-system access is already user-scoped.
+Built by [CH-0009](../../changes/CH-0009.md): the resolver holds roles per scope (platform or team), the ceiling is computed per source, and RLS compares each row with its own source's ceiling (migration 008). It becomes `live` after the GCP dev rollout is checked. Connected tools are not affected: they use the user's own credentials, so dependent-system access is already user-scoped.

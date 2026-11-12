@@ -1,15 +1,17 @@
 # Entra ID setup (Stage 2, kept current)
 
-This guide registers the apps, groups and test users that the MCP server's identity checks
+This guide registers the apps, app roles and test users that the MCP server's identity checks
 need. Run it once per environment (tenant). You need **Application Administrator** (or
-Cloud Application Administrator) plus rights to create groups. A **Global Administrator** or
-**Privileged Role Administrator** is needed for admin consent.
+Cloud Application Administrator). A **Global Administrator** or **Privileged Role Administrator** is
+needed for admin consent.
+
+Membership comes **only from Entra app roles** (the token's `roles` claim) and the optional, git-ignored
+`config/env/<env>/users.yaml`. Entra groups are not used (CH-0011): no group map, no `groups` claim.
 
 > **Windows (cmd / PowerShell): use the script instead of the bash commands below.**
 > On Windows `az` is `az.cmd`, so cmd.exe re-parses every argument and breaks inline JSON
 > bodies and filters containing `(` `)`. [`scripts/entra_setup.ps1`](../../scripts/entra_setup.ps1)
-> does steps 1–3 idempotently, passes JSON via temp files, detects Free vs P1, and has
-> `-DryRun`:
+> does steps 1–3 idempotently, passes JSON via temp files, and has `-DryRun`:
 > ```powershell
 > az login --tenant <tenant> --allow-no-subscriptions
 > .\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> -DryRun           # preview
@@ -36,17 +38,16 @@ az account show --query "{tenant:tenantId, user:user.name}" -o table
 - **Test users:** users you create in the tenant (`user@<tenant>.onmicrosoft.com`) are used
   only in step 5 (`whoami`). They don't need admin roles.
 
-**Which tier are you on?** Check under Entra admin center → Overview → License. Free tenants
-**cannot assign groups to apps**, so use the *Free tier* variants marked below.
+App roles are assigned to users, which works on every tier (Free included).
 
 ## What gets created
 
 | Object | Purpose |
 |---|---|
-| App `sdlc-mcp` (API) | The resource. Tokens for it carry `aud=<sdlc-mcp client id>`, `scp=access_as_user`, `groups` and, for users assigned an app role, `roles` (§2b). The MCP server validates these. |
+| App `sdlc-mcp` (API) | The resource. Tokens for it carry `aud=<sdlc-mcp client id>`, `scp=access_as_user` and the user's app roles in `roles` (§2). The MCP server validates these. |
 | App `sdlc-client` (web) | Signs users in for adk web via oauth2-proxy (Stage 2d) and requests `sdlc-mcp/access_as_user`. Redirect URIs: `http://localhost:4180/oauth2/callback`, `https://app-sdlc-dev.shaheenks.co.in/oauth2/callback` (tunnel) and the GCP staging callback (see GCP_DEPLOYMENT.md). |
-| Security groups | `sdlc-eng-all`, `sdlc-payments-devs`, `sdlc-payments-leads`, `sdlc-platform-devs`, `sdlc-platform-admins`. Mapped to aliases in `config/env/<env>/groups.yaml`. |
-| Test users | A payments developer, a platform developer, an admin and (optionally) a payments lead: different groups → different `whoami`. UPNs are passed on the command line, never stored in the repo. |
+| App roles on `sdlc-mcp` | `SDLC.User`, `SDLC.Admin`, `SDLC.<Team>.Member` / `.Approver` (§2). Config grants them as `app_role: <value>`. |
+| Test users | A payments member, a platform member, an admin and (optionally) a payments approver: different app roles → different `whoami`. UPNs are passed on the command line, never stored in the repo. |
 
 ## 1. API app: `sdlc-mcp`
 
@@ -72,11 +73,11 @@ az rest --method PATCH --url "https://graph.microsoft.com/v1.0/applications/$API
     }],
     \"preAuthorizedApplications\": [{\"appId\": \"$AZ_CLI_CLIENT\", \"delegatedPermissionIds\": [\"$SCOPE_ID\"]}]
   },
-  \"groupMembershipClaims\": \"ApplicationGroup\",
-  \"optionalClaims\": {\"accessToken\": [{\"name\": \"groups\"}]}
+  \"groupMembershipClaims\": \"None\",
+  \"optionalClaims\": {\"accessToken\": []}
 }"
 
-# Enterprise app (service principal). Only assigned users/groups can get tokens for it.
+# Enterprise app (service principal). Only assigned users can get tokens for it.
 API_SP_ID=$(az ad sp create --id $API_APP_ID --query id -o tsv)
 az ad sp update --id $API_SP_ID --set appRoleAssignmentRequired=true
 echo "ENTRA_TENANT_ID=$TENANT_ID"; echo "ENTRA_API_CLIENT_ID=$API_APP_ID"
@@ -89,92 +90,41 @@ Notes:
 - **Identifier URI `api://<client id>`**: Entra's default app policy rejects custom URIs such as
   `api://sdlc-mcp` unless they use a verified domain. `config/platform.yaml` expects
   `api://${ENTRA_API_CLIENT_ID}`, so no config change is needed per tenant.
-- **`groupMembershipClaims: ApplicationGroup`** puts only groups *assigned to this app* in the
-  token. That keeps tokens small and avoids group overage. Assigning groups to an enterprise app
-  requires **Entra ID P1/P2**.
-  - *Free tier:* use `"SecurityGroup"` instead. The token then carries all of the user's
-    security groups, which is fine for small tenants. Configure the Graph fallback (step 4) if
-    any user may exceed 200 groups. Change it with:
-    `az ad app update --id $API_APP_ID --set groupMembershipClaims=SecurityGroup`
+- **`groupMembershipClaims: None`**: tokens carry no `groups` claim. The server would ignore it anyway
+  (membership comes from app roles only), and without it tokens stay small.
 - **Azure CLI pre-authorization** is a dev convenience: it lets you test with
   `az account get-access-token` before the web sign-in (2d) exists. Remove it in prod.
 
-## 2. Groups and test users
+## 2. App roles and test users
 
-> Windows script: `-AdminUser <upn>` adds a third user to `sdlc-eng-all` + `sdlc-platform-admins` (admin role,
-> e.g. for `config_info` / `config_explain`) and assigns it to `sdlc-mcp`.
->
-> **Nested groups (gap E2):** app assignment is not inherited through nested groups. Assign the leaf groups
-> (or use Entra app roles; bindings accept `app_role:`), and make sure the `groups` claim carries object IDs,
-> not on-prem names: `whoami` reports `non_guid_group_claims` when names are emitted.
+App roles are defined on `sdlc-mcp`, assigned to users on its enterprise app, and arrive in the access
+token's **`roles`** claim. Role values are not secrets; config grants them as `app_role: <value>`.
 
-```bash
-# (the Windows script creates all five: + sdlc-payments-leads, sdlc-platform-admins)
-for g in sdlc-eng-all sdlc-payments-devs sdlc-platform-devs; do
-  az ad group create --display-name $g --mail-nickname $g --query "{name:displayName,id:id}" -o tsv
-done
-
-# Assign principals to the API app (default access role = all-zero GUID). Required because
-# appRoleAssignmentRequired=true: unassigned users cannot get tokens for sdlc-mcp.
-assign() {
-  az rest --method POST --url "https://graph.microsoft.com/v1.0/servicePrincipals/$API_SP_ID/appRoleAssignedTo" \
-    --headers "Content-Type=application/json" \
-    --body "{\"principalId\":\"$1\",\"resourceId\":\"$API_SP_ID\",\"appRoleId\":\"00000000-0000-0000-0000-000000000000\"}"
-}
-# P1/P2: assign the groups
-for g in sdlc-eng-all sdlc-payments-devs sdlc-platform-devs; do assign "$(az ad group show --group $g --query id -o tsv)"; done
-# Free tier: group assignment is not allowed; assign each test user instead
-assign "$(az ad user show --id userA@<tenant>.onmicrosoft.com --query id -o tsv)"
-assign "$(az ad user show --id userB@<tenant>.onmicrosoft.com --query id -o tsv)"
-
-# Test users (or reuse existing accounts). Membership: A = eng-all + payments, B = eng-all + platform.
-az ad group member add --group sdlc-eng-all       --member-id <user-A-oid>
-az ad group member add --group sdlc-payments-devs --member-id <user-A-oid>
-az ad group member add --group sdlc-eng-all       --member-id <user-B-oid>
-az ad group member add --group sdlc-platform-devs --member-id <user-B-oid>
-```
-
-Then copy `config/env/local/groups.yaml.example` to `config/env/local/groups.yaml` (git-ignored)
-and put in the real group object IDs. The aliases on the left stay the same; only the `id` values change:
-
-```bash
-for g in sdlc-eng-all sdlc-payments-devs sdlc-platform-devs; do
-  echo "$g $(az ad group show --group $g --query id -o tsv)"; done
-```
-
-## 2b. App roles (version-03 P2 E1)
-
-App roles are the enterprise alternative to groups. They are defined on `sdlc-mcp`, assigned to users
-(or, on P1/P2, to groups) on its enterprise app, and arrive in the access token's **`roles`** claim.
-Group overage never cuts that claim. Groups and app roles **work together**: a user gets the union of
-both. Role values are not secrets; config grants them as `app_role: <value>`.
-
-| App role | Grants (same as group) | Config |
+| App role | Grants | Config |
 |---|---|---|
-| `SDLC.User` | viewer (`eng-all`) | `roles.yaml` binding |
-| `SDLC.Admin` | admin (`platform-admins`) | `roles.yaml` binding |
-| `SDLC.Payments.Developer` / `SDLC.Payments.Lead` | payments developer / lead (`payments-devs` / `payments-leads`) | `teams/payments.yaml` membership |
-| `SDLC.Platform.Developer` / `SDLC.Platform.Lead` | sdlc-platform developer / lead (no group; otherwise users.yaml) | `teams/sdlc-platform.yaml` membership |
+| `SDLC.User` | viewer (platform role) | `roles.yaml` binding |
+| `SDLC.Admin` | admin (platform role) | `roles.yaml` binding |
+| `SDLC.Payments.Member` / `SDLC.Payments.Approver` | payments member / approver (team roles) | `teams/payments.yaml` membership |
+| `SDLC.Platform.Member` / `SDLC.Platform.Approver` | sdlc-platform member / approver | `teams/sdlc-platform.yaml` membership |
+| `SDLC.Webapp.Member` / `SDLC.Webapp.Approver` | webapp member / approver | `teams/webapp.yaml` membership |
 
 The script defines all of them (`$AppRoles`; `tests/policy/test_app_roles.py` checks that the list matches
-config) and, with `-AppRoleUser`, assigns roles to one user:
+config) and assigns them: test user A gets `SDLC.User` + `SDLC.Payments.Member`, user B `SDLC.User` +
+`SDLC.Platform.Member`, `-AdminUser` `SDLC.User` + `SDLC.Admin`, and `-AppRoleUser` the roles in
+`-AppRoleUserRoles`:
 
 ```powershell
 # tenant change: admin account, confirmed first. -DryRun shows the plan.
-.\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> -AppRoleUser <upn> `
-  -AppRoleUserRoles SDLC.User,SDLC.Payments.Developer -DryRun
+.\scripts\entra_setup.ps1 -TestUserA <upn> -TestUserB <upn> -AdminUser <upn> -DryRun
 ```
 
 Notes:
-- **Free tier:** only users can be assigned to app roles. Assigning **groups** needs Entra ID P1/P2, and
-  only direct members of an assigned group get the role (no nesting).
-- An app-role assignment also satisfies `appRoleAssignmentRequired`; such a user needs no default-access
-  assignment.
+- An app-role assignment also satisfies `appRoleAssignmentRequired`: an assigned user can get tokens.
 - New or removed roles show up at the user's **next token** (sign out and in, or wait for the refresh).
 - Removing a role: unassign it in the portal (Enterprise applications > sdlc-mcp > Users and groups). To
   delete a role definition, disable it on the app first (the script only adds or updates).
 - Check: `whoami(explain=true)` lists `app_roles` and the teams / roles they matched;
-  `uv run sdlc-config explain --groups "" --app-roles SDLC.User,SDLC.Payments.Developer` shows the same offline.
+  `uv run sdlc-config explain --app-roles SDLC.User,SDLC.Payments.Member` shows the same offline.
 
 ## 3. Client app: `sdlc-client` (needed for Stage 2d, web sign-in)
 
@@ -194,23 +144,20 @@ missing ones and keeps existing ones (`-DryRun` first). Afterwards check each en
 `az ad app show --id <client id> --query web.redirectUris -o json`. This is a tenant change: use the admin
 account only with explicit confirmation.
 
-## 4. Optional: Graph fallback for users with too many groups
+## 4. Moving a tenant from groups to app roles (CH-0009, CH-0011)
 
-> **Off by default** (version-03 P2, 2026-11-07): `config/platform.yaml` `identity.groups.overage_fallback: none`.
-> Use app roles (§2b) for users with many groups. To turn the fallback on, set it to
-> `graph_transitive_member_of` and follow the steps below.
+Before CH-0009 and CH-0011, membership also came from Entra groups, and the team roles were `developer` and
+`lead`. Switch an existing tenant in one window, as the admin account, with each step confirmed:
 
-This is only needed when a user's token can overflow (>200 groups, e.g. with `SecurityGroup`).
-Without it, such users get **no groups** (fail closed) and `whoami` reports `group_source: overage_unresolved`.
-
-```bash
-GRAPH=00000003-0000-0000-c000-000000000000
-GMRA=$(az ad sp show --id $GRAPH --query "appRoles[?value=='GroupMember.Read.All'].id" -o tsv)
-az ad app permission add --id $API_APP_ID --api $GRAPH --api-permissions $GMRA=Role
-az ad app permission admin-consent --id $API_APP_ID
-az ad app credential reset --id $API_APP_ID --display-name graph-groups --years 1 --query password -o tsv
-# -> .env: ENTRA_GRAPH_CLIENT_SECRET=<value>
-```
+1. Run `entra_setup.ps1` (`-DryRun` first). It adds the new app roles (`SDLC.<Team>.Member` / `.Approver`),
+   assigns them to the test users, and turns the `groups` claim off on `sdlc-mcp`.
+2. Give every other user the app roles that match their groups (portal: Enterprise applications > sdlc-mcp >
+   Users and groups), or list them in `users.yaml`.
+3. Publish the new config (`gcp_deploy.ps1 -Step config` on GCP). Users get their access back on their next
+   token.
+4. Then, by hand: unassign and disable the old app roles (`SDLC.<Team>.Developer` / `.Lead`), remove the
+   `GroupMember.Read.All` permission and the `graph-groups` secret from `sdlc-mcp`, remove the group
+   assignments, and delete the `sdlc-*` groups.
 
 ## 5. Fill `.env` and verify
 
@@ -219,7 +166,6 @@ ENTRA_TENANT_ID=<tenant id>
 ENTRA_API_CLIENT_ID=<sdlc-mcp client id>
 ENTRA_CLIENT_ID=<sdlc-client client id>          # Stage 2d
 ENTRA_CLIENT_SECRET=<sdlc-client secret>          # Stage 2d
-ENTRA_GRAPH_CLIENT_SECRET=                        # optional (step 4)
 ```
 
 ```bash
@@ -230,7 +176,7 @@ docker compose up -d --build --wait core-mcp
 az login --tenant $TENANT_ID --allow-no-subscriptions            # as user A
 uv run python scripts/mcp_whoami.py --token "$(az account get-access-token \
   --scope api://$API_APP_ID/access_as_user --query accessToken -o tsv)"
-# repeat as user B: groups must differ; a request with no/invalid token gets 401
+# repeat as user B: app roles and teams must differ; a request with no/invalid token gets 401
 ```
 
 ### Stage 2d: sign in through the web UI
@@ -271,19 +217,18 @@ For prod or enterprise tenants, remove the Azure CLI pre-authorization:
 Troubleshooting:
 - **401 with a real token:** decode it at https://jwt.ms and check that `iss` ends in `/v2.0`,
   `aud` is the `sdlc-mcp` client ID, `scp` contains `access_as_user`, and `tid` matches.
-- **`groups` missing or empty:** check that the group is assigned to the enterprise app, the user
-  is a member, and `groupMembershipClaims` is set. Sign out and in again to get a fresh token.
+- **`roles` missing or empty:** check that the user has an app-role assignment on the `sdlc-mcp`
+  enterprise app (not only the default access). Sign out and in again to get a fresh token.
 - **AADSTS65001 (consent):** run admin consent for `sdlc-client`, or re-check `preAuthorizedApplications`.
 
 ## 6. Network egress (E8)
 
-Outbound HTTPS each component needs (hosts come from `platform.yaml` `identity.authority_host` /
-`graph_host`; the commercial cloud is shown):
+Outbound HTTPS each component needs (the login host comes from `platform.yaml`
+`identity.authority_host`; the commercial cloud is shown):
 
 | Component | Destination | Why |
 |---|---|---|
 | MCP server | `login.microsoftonline.com` (`/<tenant>/discovery/v2.0/keys`) | JWKS: token signature keys (cached 1 h, re-fetched on an unknown `kid`) |
-| MCP server (optional) | `login.microsoftonline.com` (`/<tenant>/oauth2/v2.0/token`), `graph.microsoft.com` | Group-overage fallback (only with `ENTRA_GRAPH_CLIENT_SECRET`) |
 | Agent web app | `login.microsoftonline.com` (JWKS) | Re-validates the forwarded user token |
 | oauth2-proxy | `login.microsoftonline.com` (OIDC discovery, authorize redirect, token endpoint) | User sign-in |
 | MCP server, agent, ingest | Vertex AI (`aiplatform.googleapis.com`) or the Gemini API | Model calls and embeddings |
@@ -307,5 +252,4 @@ cut access on the next request:
 3. Also disable the account in Entra (and revoke its sessions) so no new tokens are issued; remove the
    entry once the account is disabled and old tokens have expired.
 
-Also add `blocked.yaml` to any environment that needs it (on GCP, as a Secret Manager file next to
-`groups.yaml`: planned with the 7b bundles).
+Also add `blocked.yaml` to any environment that needs it (on GCP it travels in the config bundle).

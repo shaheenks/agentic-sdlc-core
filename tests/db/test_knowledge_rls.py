@@ -30,7 +30,7 @@ from tests.support.servers import free_port, serve
 
 pytestmark = pytest.mark.skipif(bool(db.available()), reason=str(db.available()))
 
-G_PAYMENTS_LEADS = "00000000-0000-0000-0000-000000000003"
+G_PAYMENTS_LEADS = "SDLC.Payments.Approver"
 EMBEDDER = HashEmbedder()
 
 
@@ -86,9 +86,10 @@ def test_app_role_cannot_write(corpus):
 
 def test_forged_context_values_are_rejected(corpus):
     snap = corpus[1]
-    policy = resolve(snap, ["eng-all"])
+    policy = resolve(snap, ["SDLC.User"])
     object.__setattr__(policy, "data_sources", {"x},{payments-code": ()})
     object.__setattr__(policy, "source_classification", {"x},{payments-code": 0})
+    object.__setattr__(policy, "source_ceiling_ranks", {"x},{payments-code": 1})
     with pytest.raises(ValueError, match="invalid source id"):
         rls_settings(policy)
 
@@ -100,13 +101,19 @@ def test_forged_context_values_are_rejected(corpus):
     ("groups", "expected"),
     [
         ([], {"eng-standards"}),  # everyone: true, public
-        (["eng-all", "infra-readers"], {"eng-standards", "platform-infra"}),  # source group
-        (["eng-all"], {"eng-standards"}),
-        (["eng-all", "payments-devs"], {"eng-standards", "payments-code"}),  # not confidential
-        (["eng-all", "payments-leads"], {"eng-standards", "payments-code", "payments-incidents"}),
-        (["eng-all", "platform-devs"], {"eng-standards", "platform-infra"}),
+        (["SDLC.User", "SDLC.Infra.Reader"], {"eng-standards", "platform-infra"}),  # source group
+        (["SDLC.User"], {"eng-standards"}),
         (
-            ["platform-admins"],
+            ["SDLC.User", "SDLC.Payments.Member"],
+            {"eng-standards", "payments-code"},
+        ),  # not confidential
+        (
+            ["SDLC.User", "SDLC.Payments.Approver"],
+            {"eng-standards", "payments-code", "payments-incidents"},
+        ),
+        (["SDLC.User", "SDLC.Platform.Member"], {"eng-standards", "platform-infra"}),
+        (
+            ["SDLC.Admin"],
             {"eng-standards", "payments-code", "payments-incidents", "platform-infra"},
         ),
     ],
@@ -123,8 +130,8 @@ def test_search_returns_only_permitted_sources(corpus):
             [vec] = EMBEDDER.embed(["How are refunds retried after a timeout?"], "query")
             return await search(conn, resolve(snap, groups), vec, k=20)
 
-    dev = run(go(["eng-all", "payments-devs"]))
-    platform = run(go(["eng-all", "platform-devs"]))
+    dev = run(go(["SDLC.User", "SDLC.Payments.Member"]))
+    platform = run(go(["SDLC.User", "SDLC.Platform.Member"]))
     assert dev and {h.source_id for h in dev} <= {"eng-standards", "payments-code"}
     assert {h.source_id for h in platform} <= {"eng-standards", "platform-infra"}
     # hash embeddings only share words, so check membership, not exact ranking
@@ -146,7 +153,7 @@ def test_reingest_skips_changes_and_deletes(corpus):
     (folder / "security-baseline.md").unlink()
     report = run(_ingest(snapshot, config_dir.parent, ["eng-standards"]))[0]
     assert (report.files_changed, report.files_unchanged, report.files_deleted) == (1, 4, 1)
-    admin = resolve(snapshot, ["platform-admins"])
+    admin = resolve(snapshot, ["SDLC.Admin"])
     paths = {
         p
         for (p,) in app_query("SELECT path FROM documents WHERE source_id = 'eng-standards'", admin)
@@ -160,6 +167,33 @@ def test_reingest_skips_changes_and_deletes(corpus):
     }
 
 
+def test_team_role_ceiling_stays_in_its_team(corpus):
+    """CH-0009: an approver in webapp who is a member of payments keeps the internal ceiling on
+    payments sources; the webapp approver's confidential ceiling does not reach them."""
+    snap = corpus[1]
+    roles = ["SDLC.User", "SDLC.Webapp.Approver", "SDLC.Payments.Member"]
+    policy = resolve(snap, roles)
+    assert policy.source_ceilings["payments-code"] == "internal"
+    assert policy.source_ceilings["webapp-code"] == "confidential"
+    seen = sources_seen(policy)
+    assert "payments-code" in seen and "payments-incidents" not in seen
+
+
+def test_rows_are_checked_against_their_own_source_ceiling(corpus):
+    """Even with a source in allowed_sources and a high overall ceiling, a row above its own
+    source's ceiling stays hidden."""
+    with psycopg.connect(db.db_conninfo("app")) as conn:
+        conn.execute(
+            "SELECT set_config('app.allowed_sources', '{payments-incidents}', true),"
+            " set_config('app.source_ceilings', '{\"payments-incidents\": 1}', true),"
+            " set_config('app.max_classification_rank', '3', true)"
+        )
+        assert conn.execute("SELECT count(*) FROM chunks").fetchone()[0] == 0
+        conn.execute("SELECT set_config('app.source_ceilings', 'not json', true)")
+        with pytest.raises(psycopg.errors.InvalidTextRepresentation):
+            conn.execute("SELECT count(*) FROM chunks")
+
+
 def test_classification_change_applies_to_existing_rows(corpus):
     config_dir, _, _ = corpus
     source = config_dir / "sources/payments-code.yaml"
@@ -168,8 +202,8 @@ def test_classification_change_applies_to_existing_rows(corpus):
     )
     snapshot = load_snapshot(config_dir, "local", TEST_ENV)
     run(_ingest(snapshot, config_dir.parent, ["payments-code"]))
-    dev = resolve(snapshot, ["eng-all", "payments-devs"])  # ceiling internal
-    lead = resolve(snapshot, ["eng-all", "payments-leads"])  # ceiling confidential
+    dev = resolve(snapshot, ["SDLC.User", "SDLC.Payments.Member"])  # ceiling internal
+    lead = resolve(snapshot, ["SDLC.User", "SDLC.Payments.Approver"])  # ceiling confidential
     assert "payments-code" not in sources_seen(dev)
     assert "payments-code" in sources_seen(lead)
     source.write_text(
@@ -187,8 +221,8 @@ def test_raised_classification_applies_without_reingest(corpus):
     source.write_text(original.replace("classification: internal", "classification: confidential"))
     try:
         snapshot = load_snapshot(config_dir, "local", TEST_ENV)  # no ingest after this change
-        dev = resolve(snapshot, ["eng-all", "payments-devs"])
-        lead = resolve(snapshot, ["eng-all", "payments-leads"])
+        dev = resolve(snapshot, ["SDLC.User", "SDLC.Payments.Member"])
+        lead = resolve(snapshot, ["SDLC.User", "SDLC.Payments.Approver"])
         assert "payments-code" in dev.data_sources and "payments-code" not in dev.readable_sources
         assert "payments-code" not in sources_seen(dev)
         assert "payments-code" in sources_seen(lead)
@@ -205,7 +239,7 @@ def test_lowered_classification_waits_for_reingest(corpus):
     source.write_text(original.replace("classification: confidential", "classification: internal"))
     try:
         snapshot = load_snapshot(config_dir, "local", TEST_ENV)
-        dev = resolve(snapshot, ["eng-all", "payments-devs"])  # ceiling internal
+        dev = resolve(snapshot, ["SDLC.User", "SDLC.Payments.Member"])  # ceiling internal
         assert "payments-incidents" in dev.readable_sources  # config now allows it ...
         assert "payments-incidents" not in sources_seen(dev)  # ... rows still say confidential
     finally:
@@ -230,7 +264,7 @@ def knowledge_url(corpus, entra, store):
 
 
 async def ask(url, entra, groups, question):
-    async with Client(f"{url}/mcp", auth=entra.token(groups=groups)) as c:
+    async with Client(f"{url}/mcp", auth=entra.token(roles=groups)) as c:
         return (await c.call_tool("search_knowledge", {"query": question, "k": 10})).data
 
 

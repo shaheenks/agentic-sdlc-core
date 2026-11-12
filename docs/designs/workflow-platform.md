@@ -73,7 +73,9 @@ These carry over from the POC unchanged, and apply to every workflow class.
 - **Identity provider:** Microsoft Entra ID only. Users sign in with Entra. Workflows authenticate
   with app-only tokens of their own Entra app registration, using federated credentials on GCP
   (version-03 P2).
-- **Membership:** Entra security groups and Entra app roles, combined as a union (FR-IDN-002).
+- **Membership:** Entra app roles only, plus direct members by `oid` (FR-IDN-002, CH-0011).
+  Entra groups are not used, so there is no group map, no group ID in config or bundles, and no
+  token overage.
 - **Platform roles**, bound globally:
   - `viewer`: the common knowledge sources, skills and tools that every engineer shares.
   - `admin`: every platform capability, unconstrained, with the restricted ceiling.
@@ -323,7 +325,8 @@ Extensions:
 | Agent networking and policy (optional, to be evaluated) | Agent Gateway | — |
 | Implementation coding agent | Google ADK agent on Cloud Run Jobs | Docker one-off container |
 | Model | Gemini on Vertex AI | Gemini API or Vertex AI |
-| Identity | Microsoft Entra ID | Microsoft Entra ID (dev tenant) |
+| Identity | Microsoft Entra ID (app roles) | Microsoft Entra ID (dev tenant) |
+| Delivery pipeline | GitHub Actions (bash on Linux runners, `scripts/gcp_deploy.sh`) → GCP dev on every merge to `main`, through Workload Identity Federation | By hand: `scripts/gcp_deploy.ps1` on Windows, `scripts/gcp_deploy.sh` on Linux; one shared manifest |
 
 ## 9. Requirements
 
@@ -361,6 +364,9 @@ Answered by the user on 2026-11-11:
 | D8 | Where ops findings go per team | The Jira project differs per team and is declared in the team's configuration, as each workflow is built (FR-WFL-005). |
 | D9 | Role rename transition | Switch in one step: the new Entra app roles replace the old ones, and the tenant is updated at the same time (CH-0009). |
 | D12 | Service tokens per workflow | One set of service tokens per workflow, so each can be revoked, rotated and audited on its own (FR-CONN-004). |
+| D14 | Deploying to GCP dev | Every merge to `main` is deployed by a GitHub workflow that runs only the steps its changes need, in a fixed order, using bash on Linux runners. PowerShell stays for Windows; both scripts share one manifest and are kept equal by a parity test (NFR-OPS-002, CH-0010). |
+| D15 | Team owners | Team `owners` in config are the GitHub handles that CODEOWNERS lists, so review routing and config name the same people (CH-0011). |
+| D16 | Groups | Dropped. All membership comes from Entra app roles (CH-0011). |
 | D13 | Admin alert channel | A Jira queue for the platform admins, or an email message. Which one is used, and its target, is declared in platform configuration (FR-WFL-005). |
 
 No design questions are open.

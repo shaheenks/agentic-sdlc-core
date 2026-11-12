@@ -1,14 +1,13 @@
 # Review ownership (plan: "Governance"). GitHub resolves the LAST matching rule, so specific paths
-# come after the default. Each rule names the Entra group alias it stands for; while the repo has a
-# single maintainer every rule maps to @shaheenks. When GitHub teams exist, replace the handle with
-# the team that mirrors the alias (e.g. @org/payments-leads), per rule.
-# tests/policy/test_codeowners.py fails if a team or source file, or a security-critical path, has
-# no rule of its own.
+# come after the default. A team's rules list exactly the GitHub handles in its
+# config/teams/<team>.yaml metadata.owners (D15). tests/policy/test_codeowners.py fails if a team
+# or source file, or a security-critical path, has no rule of its own, or if a team's rules and
+# owners differ.
 
-# default (platform-admins)
+# default
 *                                   @shaheenks
 
-# --- platform-admins: access model, identity, enforcement, data layer, delivery -----------------
+# --- platform: access model, identity, enforcement, data layer, delivery ------------------------
 /config/platform.yaml               @shaheenks
 /config/roles.yaml                  @shaheenks
 /config/tools.yaml                  @shaheenks
@@ -40,7 +39,7 @@
 /config/teams/webapp.yaml           @shaheenks
 /skills/teams/webapp/               @shaheenks
 
-# --- sources: owners = the owner team's leads (Source metadata.owner_team) ----------------------
+# --- sources: owners = the owner team's owners (Source metadata.owner_team) ---------------------
 /config/sources/payments-code.yaml       @shaheenks
 /config/sources/payments-incidents.yaml  @shaheenks
 /config/sources/eng-standards.yaml       @shaheenks

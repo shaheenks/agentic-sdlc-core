@@ -8,11 +8,11 @@ tags:
 - non-functional
 - reliability
 status: stable
-priority: must
-implementation: live
 verified:
 - by: human:shaheenks
-  at: '2026-11-10T21:45:18+05:30'
+  at: '2026-11-11T16:02:28+05:30'
+priority: must
+implementation: live
 sources:
 - id: rules
   resource: ../../rules/index.md
@@ -27,4 +27,7 @@ The system shall keep serving the last valid configuration when a new one fails 
 
 - Reload keeps the last-known-good configuration.
 - One configuration snapshot is taken per request; policy is never cached across versions.
-- Rollback is done by moving the `current` pointer.
+
+# Notes
+
+Rollback by moving the `current` pointer is stated once, in [FR-CFG-003](../functional/FR-CFG-003.md) (CH-0002).

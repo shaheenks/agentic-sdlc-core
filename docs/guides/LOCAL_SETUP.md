@@ -17,13 +17,12 @@ configuration and database tools. Identity setup: [ENTRA_SETUP.md](ENTRA_SETUP.m
 ```powershell
 uv sync --all-packages                                   # every workspace member (plain `uv sync` installs only the root)
 copy .env.example .env                                   # fill in Entra IDs/secrets, DB passwords, Vertex settings
-copy config\env\local\groups.yaml.example config\env\local\groups.yaml   # real Entra group object IDs
 gcloud auth application-default login                    # Vertex AI credentials (re-run when they expire)
 uv run --env-file .env sdlc-config validate --env local  # config + env check
 ```
 
-`.env`, `config/env/*/groups.yaml`, `users.yaml` and `blocked.yaml` are git-ignored: never commit tenant
-IDs, group IDs, user names or secrets.
+`.env`, `config/env/*/users.yaml` and `blocked.yaml` are git-ignored: never commit tenant IDs, user names
+or secrets. Membership comes from Entra app roles (docs/guides/ENTRA_SETUP.md); there is no group map.
 
 ## Run the stack
 
@@ -93,7 +92,7 @@ suite against a pgvector service, and Terraform checks, with no secrets or cloud
 
 ```bash
 uv run --env-file .env sdlc-config validate --env local         # schemas + cross-references (--dummy-env: no Entra values)
-uv run sdlc-config explain --persona payments-dev               # effective permissions (--groups a,b  --app-roles X  --user <alias>  --json)
+uv run sdlc-config explain --persona payments-member            # effective permissions (--app-roles X,Y  --user <alias>  --json)
 uv run sdlc-config users sync --env local --check               # fill/check oids of users.yaml direct members (read-only az lookup; --write)
 uv run sdlc-config diff --from HEAD --to WORKTREE               # per-persona permission changes (review on config PRs)
 uv run --env-file .env sdlc-config compile --env local --out .bundles --activate   # immutable config bundle

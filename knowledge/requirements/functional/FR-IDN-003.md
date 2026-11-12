@@ -7,12 +7,9 @@ tags:
 - requirement
 - functional
 - identity
-status: stable
+status: draft
 priority: should
 implementation: live
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T21:10:40+05:30'
 sources:
 - id: rules
   resource: ../../rules/index.md
@@ -29,4 +26,8 @@ The system shall let each user view their own effective access with the rules th
 # Acceptance criteria
 
 - `whoami(explain=true)` shows only the caller's own view, including source rules.
-- `config_explain(groups, app_roles)` is available to the admin role only.
+- `config_explain(app_roles, user)` is available to the admin role only.
+
+# Notes
+
+Edited by CH-0011: the `groups` argument is removed.

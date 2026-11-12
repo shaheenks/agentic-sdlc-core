@@ -14,8 +14,10 @@ resource: ../../libs/sdlc_connectors
 satisfies:
 - /requirements/functional/FR-CONN-001
 - /requirements/functional/FR-CONN-002
+- /requirements/functional/FR-CONN-003
 - /requirements/functional/FR-IDN-004
 - /requirements/functional/FR-KNOW-001
+- /requirements/functional/FR-KNOW-006
 - /requirements/non-functional/NFR-SEC-008
 verified_by:
 - tests/connectors
@@ -50,8 +52,10 @@ Code: `libs/sdlc_connectors`
 
 - [FR-CONN-001: Users connect their own accounts](../requirements/functional/FR-CONN-001.md) - Stores, verifies and removes users' connections.
 - [FR-CONN-002: Tools act as the user](../requirements/functional/FR-CONN-002.md) - Calls providers with the user's own credential.
+- [FR-CONN-003: Atlassian and Data Center connections](../requirements/functional/FR-CONN-003.md) - Atlassian and Data Center providers, with the account check before a connection is saved.
 - [FR-IDN-004: Revocation of access](../requirements/functional/FR-IDN-004.md) - Reconcile removes credentials of blocked users and stale tokens.
 - [FR-KNOW-001: Ingest declared sources](../requirements/functional/FR-KNOW-001.md) - Gives loaders their HTTP client and content converters.
+- [FR-KNOW-006: Atlassian and Bitbucket sources](../requirements/functional/FR-KNOW-006.md) - HTTP client and the Jira and Confluence content converters used by the Atlassian loaders.
 - [NFR-SEC-008: Controlled egress](../requirements/non-functional/NFR-SEC-008.md) - Enforces the host allowlist on every request and redirect.
 
 # Verification

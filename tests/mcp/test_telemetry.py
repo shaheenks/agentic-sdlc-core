@@ -58,7 +58,7 @@ def test_audit_record_and_span_reference_each_other(caplog):
                 "request_id": "req-1",
                 "agent_session_id": "conv-1",
                 "oid": "aaaaaaaa-0000-0000-0000-00000000000a",
-                "tool": "review_code",
+                "tool": "fixture_review",
                 "args_hash": "sha256:abc",
                 "decision": "allow",
                 "outcome": "ok",
@@ -71,7 +71,7 @@ def test_audit_record_and_span_reference_each_other(caplog):
     [finished] = exporter.get_finished_spans()
     attrs = dict(finished.attributes)
     assert attrs["sdlc.request_id"] == "req-1" and attrs["sdlc.agent_session_id"] == "conv-1"
-    assert attrs["enduser.id"] == record["oid"] and attrs["sdlc.tool"] == "review_code"
+    assert attrs["enduser.id"] == record["oid"] and attrs["sdlc.tool"] == "fixture_review"
     assert attrs["sdlc.decision"] == "allow" and attrs["sdlc.outcome"] == "ok"
     assert not any("arg" in key for key in attrs)  # no argument values or hashes on spans
 

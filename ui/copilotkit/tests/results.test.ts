@@ -96,17 +96,15 @@ test("identity from whoami", () => {
     oid: "o",
     upn: "dev@example.com",
     name: "Dev",
-    groups: ["eng-all", "payments-devs"],
-    app_roles: [],
-    policy: { teams: ["payments"], roles: { developer: {}, viewer: {} } },
+    app_roles: ["SDLC.User", "SDLC.Payments.Member"],
+    policy: { teams: ["payments"], roles: { "member@payments": {}, viewer: {} } },
   });
   assert.deepEqual(me, {
     name: "Dev",
     upn: "dev@example.com",
-    groups: ["eng-all", "payments-devs"],
-    appRoles: [],
+    appRoles: ["SDLC.User", "SDLC.Payments.Member"],
     teams: ["payments"],
-    roles: ["developer", "viewer"],
+    roles: ["member@payments", "viewer"],
   });
   assert.equal(identity({ hello: 1 }), null);
 });

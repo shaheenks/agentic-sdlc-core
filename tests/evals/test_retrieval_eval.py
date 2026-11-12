@@ -127,7 +127,7 @@ def summary(tmp_path_factory):
 
     config_dir = make_config_dir(tmp_path_factory.mktemp("repo"))
     snap = load_snapshot(config_dir, "local", TEST_ENV)
-    policy = resolve(snap, ["platform-admins"])
+    policy = resolve(snap, ["SDLC.Admin"])
     embedder = GeminiEmbedder(snap.platform.embedding_model, snap.platform.embedding_dimensions)
     return report(run(evaluate(policy, embedder)))
 

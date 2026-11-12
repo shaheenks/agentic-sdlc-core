@@ -8,11 +8,11 @@ tags:
 - functional
 - authorization
 status: stable
-priority: must
-implementation: live
 verified:
 - by: human:shaheenks
-  at: '2026-11-10T21:10:40+05:30'
+  at: '2026-11-11T16:02:28+05:30'
+priority: must
+implementation: live
 sources:
 - id: arch
   resource: ../../../docs/ARCHITECTURE.md
@@ -32,5 +32,8 @@ The system shall list to each user only the tools their effective policy allows.
 # Acceptance criteria
 
 - Two personas with different roles receive different `tools/list` results from the same server.
-- Every catalog tool has persona-matrix rows in `tests/policy/matrix.yaml`; a test fails if one has none.
 - The listing is audited as `tools_list` with visible names and a hidden count.
+
+# Notes
+
+Persona-matrix coverage of every tool is stated once, in [NFR-MAINT-002](../non-functional/NFR-MAINT-002.md) (CH-0002).

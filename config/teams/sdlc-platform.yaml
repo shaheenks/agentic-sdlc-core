@@ -3,26 +3,19 @@ kind: Team
 metadata:
   name: sdlc-platform
   description: Builds and runs the SDLC agent platform (agents, MCP server, ingest, GCP infrastructure).
-  owners: [platform-admins]          # group aliases; also drive CODEOWNERS
-# No Entra group per role in this tenant: members come from Entra app roles (version-03 P2 E1)
-# or directly from the git-ignored config/env/<env>/users.yaml, e.g.
-# `teams: { sdlc-platform: [developer] }` (viewer, developer, lead or admin), matched by object ID
+  owners: ["@shaheenks"]             # GitHub handles; CODEOWNERS lists exactly these (D15)
+# Members come from Entra app roles (version-03 P2 E1) or directly from the git-ignored
+# config/env/<env>/users.yaml, e.g.
+# `teams: { sdlc-platform: [member] }` (member or approver), matched by object ID
 # (version-02 N10).
 membership:
-  - app_role: SDLC.Platform.Developer
-    roles: [developer]
-  - app_role: SDLC.Platform.Lead
-    roles: [lead]
+  - app_role: SDLC.Platform.Member
+    roles: [member]
+  - app_role: SDLC.Platform.Approver
+    roles: [approver]
 policy:
   tools:
     deny: []
-    constraints:
-      review_code:
-        args:
-          repo: { in: [agentic-sdlc-core] }
-      generate_tests:
-        args:
-          repo: { in: [agentic-sdlc-core] }
 addons:                              # visible only to members of this team
   skills:
     infra-change-review: { path: skills/teams/sdlc-platform/infra-change-review }

@@ -31,13 +31,13 @@ class Clock:
 
 def test_baseline_and_team_tool_limit(config_dir):
     snap = load_snapshot(config_dir, "local", TEST_ENV)
-    dev = resolve(snap, ["eng-all", "payments-devs"])
+    dev = resolve(snap, ["SDLC.User", "SDLC.Payments.Member"])
     assert dev.rate_limits["*"] == (120, "platform.yaml#defaults/rate_limit")
     assert dev.rate_limits["graph_query"] == (
         30,
         "teams/payments.yaml#policy/limits/tools/graph_query/calls_per_minute",
     )
-    platform = resolve(snap, ["eng-all", "platform-devs"])
+    platform = resolve(snap, ["SDLC.User", "SDLC.Platform.Member"])
     assert "graph_query" not in platform.rate_limits
 
 
@@ -49,7 +49,7 @@ def test_most_generous_team_wins_and_team_overall_replaces_baseline(config_dir):
         ),
     )
     snap = load_snapshot(config_dir, "local", TEST_ENV)
-    both = resolve(snap, ["eng-all", "payments-devs", "platform-devs"])
+    both = resolve(snap, ["SDLC.User", "SDLC.Payments.Member", "SDLC.Platform.Member"])
     assert both.rate_limits["graph_query"][0] == 90  # platform's 90 beats payments' 30
     assert both.rate_limits["*"] == (40, "teams/sdlc-platform.yaml#policy/limits/calls_per_minute")
     assert both.explain()["rate_limits"]["graph_query"]["calls_per_minute"] == 90
@@ -77,7 +77,9 @@ def policy(config_dir):
         config_dir / "teams/payments.yaml",
         lambda d: d["policy"]["limits"]["tools"].update(graph_query={"calls_per_minute": 2}),
     )
-    return resolve(load_snapshot(config_dir, "local", TEST_ENV), ["eng-all", "payments-devs"])
+    return resolve(
+        load_snapshot(config_dir, "local", TEST_ENV), ["SDLC.User", "SDLC.Payments.Member"]
+    )
 
 
 def test_limit_window_and_retry_after(policy):
@@ -133,7 +135,7 @@ def low_limit(config_dir, store):
 async def test_mcp_refuses_and_audits_over_limit_calls(low_limit, base_url, entra, caplog):
     caplog.set_level("INFO", logger="sdlc.audit")
     token = entra.token(
-        oid="cccccccc-0000-0000-0000-00000000000c", groups=[G_ENG_ALL, G_PAYMENTS_DEVS]
+        oid="cccccccc-0000-0000-0000-00000000000c", roles=[G_ENG_ALL, G_PAYMENTS_DEVS]
     )
     async with Client(f"{base_url}/mcp", auth=token) as c:
         await c.call_tool("ping", {})

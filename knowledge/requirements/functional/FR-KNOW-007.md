@@ -7,9 +7,12 @@ tags:
 - requirement
 - functional
 - knowledge
-status: draft
+status: stable
+verified:
+- by: human:shaheenks
+  at: '2026-11-11T11:49:13+05:30'
 priority: could
-implementation: planned
+implementation: built
 sources:
 - id: v03
   resource: ../../../docs/plans/version-03.md
@@ -32,4 +35,4 @@ The system shall extract text from scanned PDF pages with model OCR for sources 
 
 # Notes
 
-Split out of [FR-KNOW-004](FR-KNOW-004.md) by [CH-0001](../../changes/CH-0001.md). `implementation` is `planned` while this concept is a draft and becomes `built` when CH-0001 is done; it becomes `live` after the P8 live check.
+Split out of [FR-KNOW-004](FR-KNOW-004.md) by [CH-0001](../../changes/CH-0001.md). The code is built and tested (`tests/ingest/test_pdf.py`); it becomes `live` after the P8 live check.

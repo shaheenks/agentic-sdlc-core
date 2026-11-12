@@ -7,7 +7,7 @@ Add-ons may carry a tag from `platform.yaml` `skills.team_tags` (`goldfish-lens`
 
 | Team | Add-ons |
 |---|---|
-| `payments` | `pci-checklist`, `ledger-design-review` (lead), `payments-pci-lens` (goldfish-lens), `payments-story-questions` (brief-questions), `payments-design-template` (doc-template) |
+| `payments` | `pci-checklist`, `ledger-design-review` (approver), `payments-pci-lens` (goldfish-lens), `payments-story-questions` (brief-questions), `payments-design-template` (doc-template) |
 | `sdlc-platform` | `infra-change-review` |
 | `webapp` | `webapp-coding-standards`, `webapp-code-review`, `webapp-api-lens` (goldfish-lens), `webapp-design-template` (doc-template), `webapp-story-template` (doc-template) |
 

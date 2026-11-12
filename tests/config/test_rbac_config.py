@@ -19,17 +19,17 @@ def edit_yaml(path, mutate):
 
 def test_repo_rbac_config_loads(config_dir):
     snap = load(config_dir)
-    assert {"viewer", "developer", "lead", "admin"} <= set(snap.roles)
-    assert snap.roles["developer"].inherits == ("viewer",)
+    assert {"viewer", "member", "approver", "admin"} <= set(snap.roles)
+    assert snap.roles["member"].inherits == ("viewer",)
     assert snap.roles["admin"].unconstrained and "*" in snap.roles["admin"].tools_allow
-    assert snap.tools["review_code"].args == {"repo"}
+    assert snap.tools["fixture_review"].args == {"repo"}
     assert set(snap.teams) >= {"payments", "sdlc-platform"}
     payments = snap.teams["payments"]
-    assert payments.constraints["review_code"]["repo"] == {"payments-api", "payments-ui"}
+    assert payments.constraints["fixture_review"]["repo"] == {"payments-api", "payments-ui"}
     assert payments.membership[0].rule == "teams/payments.yaml#membership[0]"
     assert payments.membership[0].team == "payments"
     assert str(snap.bindings[0].ref) == "everyone:*"
-    assert str(snap.bindings[1].ref) == "group:eng-all"
+    assert str(snap.bindings[1].ref) == "app_role:SDLC.User"
 
 
 def test_app_role_bindings_are_accepted(config_dir):
@@ -39,16 +39,14 @@ def test_app_role_bindings_are_accepted(config_dir):
     )
     edit_yaml(
         config_dir / "teams/payments.yaml",
-        lambda d: d["membership"].append(
-            {"app_role": "SDLC.Payments.Developer", "roles": ["developer"]}
-        ),
+        lambda d: d["membership"].append({"app_role": "SDLC.Payments.Member", "roles": ["member"]}),
     )
     snap = load(config_dir)
     # users.yaml entries (kind "user") come after the declared ones
     declared = [b for b in snap.bindings if b.ref.kind != "user"]
     members = [m for m in snap.teams["payments"].membership if m.ref.kind != "user"]
     assert str(declared[-1].ref) == "app_role:SDLC.Admin"
-    assert str(members[-1].ref) == "app_role:SDLC.Payments.Developer"
+    assert str(members[-1].ref) == "app_role:SDLC.Payments.Member"
 
 
 @pytest.mark.parametrize(
@@ -62,11 +60,11 @@ def test_app_role_bindings_are_accepted(config_dir):
         (
             "roles.yaml",
             lambda d: d["bindings"].append({"group": "ghosts", "roles": ["viewer"]}),
-            "unknown group alias 'ghosts'",
+            "Entra groups are no longer used",
         ),
         (
             "roles.yaml",
-            lambda d: d["bindings"].append({"group": "eng-all", "roles": ["god"]}),
+            lambda d: d["bindings"].append({"app_role": "SDLC.User", "roles": ["god"]}),
             "unknown role 'god'",
         ),
         (
@@ -76,8 +74,13 @@ def test_app_role_bindings_are_accepted(config_dir):
         ),
         (
             "roles.yaml",
-            lambda d: d["roles"]["lead"].update(inherits=["boss"]),
+            lambda d: d["roles"]["approver"].update(inherits=["boss"]),
             "unknown role 'boss'",
+        ),
+        (  # CH-0009: a team role in a global binding makes `member` a platform role
+            "roles.yaml",
+            lambda d: d["bindings"].append({"app_role": "SDLC.X", "roles": ["member"]}),
+            "role 'member' is a platform role",
         ),
         (
             "roles.yaml",
@@ -87,7 +90,7 @@ def test_app_role_bindings_are_accepted(config_dir):
         (
             "roles.yaml",
             lambda d: d["bindings"].append(
-                {"group": "eng-all", "app_role": "X", "roles": ["viewer"]}
+                {"everyone": True, "app_role": "X", "roles": ["viewer"]}
             ),
             "bindings/",
         ),
@@ -99,13 +102,15 @@ def test_app_role_bindings_are_accepted(config_dir):
         ("tools.yaml", lambda d: d["tools"]["ping"].update(risk="extreme"), "tools/ping/risk"),
         (
             "teams/payments.yaml",
-            lambda d: d["membership"].append({"group": "payments-devs", "roles": ["overlord"]}),
+            lambda d: d["membership"].append(
+                {"app_role": "SDLC.Payments.Member", "roles": ["overlord"]}
+            ),
             "unknown role 'overlord'",
         ),
         (
             "teams/payments.yaml",
-            lambda d: d["metadata"].update(owners=["nobody"]),
-            "metadata/owners: unknown group alias 'nobody'",
+            lambda d: d["metadata"].update(owners=["payments-leads"]),  # D15: GitHub handles
+            "metadata/owners/0",
         ),
         (
             "teams/payments.yaml",
@@ -114,7 +119,7 @@ def test_app_role_bindings_are_accepted(config_dir):
         ),
         (
             "teams/payments.yaml",
-            lambda d: d["policy"]["tools"]["constraints"]["review_code"]["args"].update(
+            lambda d: d["policy"]["tools"]["constraints"]["fixture_review"]["args"].update(
                 branch={"in": ["main"]}
             ),
             "argument 'branch' is not declared",
@@ -156,7 +161,8 @@ def test_all_problems_reported_together(config_dir):
         config_dir / "roles.yaml", lambda d: d["roles"]["viewer"]["tools"]["allow"].append("a")
     )
     edit_yaml(
-        config_dir / "teams/sdlc-platform.yaml", lambda d: d["metadata"].update(owners=["zz"])
+        config_dir / "teams/sdlc-platform.yaml",
+        lambda d: d["membership"].append({"app_role": "SDLC.X", "roles": ["zz"]}),
     )
     with pytest.raises(ConfigError) as exc:
         load(config_dir)

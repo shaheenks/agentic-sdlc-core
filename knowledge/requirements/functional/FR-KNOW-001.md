@@ -8,11 +8,11 @@ tags:
 - functional
 - knowledge
 status: stable
-priority: must
-implementation: live
 verified:
 - by: human:shaheenks
-  at: '2026-11-10T21:13:57+05:30'
+  at: '2026-11-11T16:02:28+05:30'
+priority: must
+implementation: live
 sources:
 - id: inventory
   resource: ../../../docs/FEATURE_INVENTORY.md
@@ -31,10 +31,10 @@ The system shall ingest the sources declared in configuration and tag every stor
 
 # Acceptance criteria
 
-- Source types: local folder, git (pinned SHA or tracked branch), GCS, Confluence and Jira.
+- Source types: local folder, git on GitHub (pinned SHA or tracked branch) and GCS. Atlassian and Bitbucket sources are [FR-KNOW-006](FR-KNOW-006.md).
 - Unchanged content is skipped by hash and data of dropped sources is removed.
 - Items that are natively restricted in the source system are never ingested.
 
 # Notes
 
-Git on GitHub, GCS and local folders are live. Confluence, Jira and Bitbucket remotes are built against fake APIs and not yet checked live (inventory gap 6).
+Modified by CH-0001: the parts built but never checked live moved to FR-KNOW-006.

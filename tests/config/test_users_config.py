@@ -40,9 +40,9 @@ def test_default_team_applies_only_to_a_member(config_dir):
     edit_users(config_dir, lambda u: u["direct-dev"].update(default_team="payments"))
     snap = load(config_dir)
     assert snap.users.default_team["direct-dev"] == "payments"
-    assert resolve(snap, [], user="direct-dev").default_team == "payments"
+    assert resolve(snap, user="direct-dev").default_team == "payments"
     edit_users(config_dir, lambda u: u["direct-dev"].update(default_team="sdlc-platform"))
-    assert resolve(load(config_dir), [], user="direct-dev").default_team is None  # not a member
+    assert resolve(load(config_dir), user="direct-dev").default_team is None  # not a member
     edit_users(config_dir, lambda u: u["direct-dev"].update(default_team="marketing"))
     with pytest.raises(ConfigError, match="default_team: unknown team 'marketing'"):
         load(config_dir)
@@ -81,7 +81,7 @@ def test_users_file_path_override(config_dir, tmp_path):
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda u: u["direct-dev"].update(teams={"marketing": ["developer"]}), "unknown team"),
+        (lambda u: u["direct-dev"].update(teams={"marketing": ["member"]}), "unknown team"),
         (lambda u: u["direct-dev"].update(teams={"payments": ["god"]}), "unknown role 'god'"),
         (lambda u: u["direct-viewer"].update(roles=["auditor"]), "unknown role 'auditor'"),
         (
@@ -106,31 +106,33 @@ def test_bad_users_fail(config_dir, mutate, message):
 
 def test_direct_member_gets_team_roles_limits_skills_and_sources(config_dir):
     snap = load(config_dir)
-    policy = resolve(snap, [], (), "direct-dev")
+    policy = resolve(snap, (), "direct-dev")
     assert policy.user == "direct-dev"
     assert policy.teams == {"payments": ("env/local/users.yaml#users/direct-dev/teams/payments",)}
-    assert policy.roles["developer"] == ("env/local/users.yaml#users/direct-dev/teams/payments",)
-    assert policy.tools["review_code"].constraints == {"repo": {"payments-api", "payments-ui"}}
+    rule = "env/local/users.yaml#users/direct-dev/teams/payments"
+    assert policy.roles["member@payments"] == (rule,)
+    assert policy.tools["fixture_review"].constraints == {"repo": {"payments-api", "payments-ui"}}
     assert policy.sees_skill("pci-checklist")
     assert "payments-code" in policy.readable_sources
     assert policy.explain()["user"] == "direct-dev"
 
 
-def test_direct_membership_unions_with_groups(config_dir):
-    policy = resolve(load(config_dir), ["eng-all", "platform-devs"], (), "direct-dev")
+def test_direct_membership_unions_with_app_roles(config_dir):
+    policy = resolve(load(config_dir), ["SDLC.User", "SDLC.Platform.Member"], "direct-dev")
     assert set(policy.teams) == {"payments", "sdlc-platform"}
-    assert policy.tools["review_code"].constraints["repo"] >= {"payments-api", "agentic-sdlc-core"}
+    repos = policy.tools["fixture_review"].constraints["repo"]
+    assert repos >= {"payments-api", "agentic-sdlc-core"}
 
 
 def test_global_role_binding(config_dir):
-    policy = resolve(load(config_dir), [], (), "direct-viewer")
+    policy = resolve(load(config_dir), (), "direct-viewer")
     assert policy.teams == {}
     assert policy.roles["viewer"] == ("env/local/users.yaml#users/direct-viewer/roles",)
 
 
 def test_pending_user_grants_nothing(config_dir):
     snap = load(config_dir)
-    assert resolve(snap, [], (), "pending").roles.keys() == {"signed-in"}
+    assert resolve(snap, (), "pending").roles.keys() == {"signed-in"}
     assert all(m.ref.value != "pending" for t in snap.teams.values() for m in t.membership)
 
 
@@ -140,8 +142,8 @@ def test_team_may_have_only_direct_members(config_dir):
     doc["membership"] = []
     path.write_text(yaml.safe_dump(doc, sort_keys=False))
     snap = load(config_dir)
-    assert set(resolve(snap, ["payments-devs"]).teams) == set()
-    assert set(resolve(snap, [], (), "direct-dev").teams) == {"payments"}
+    assert set(resolve(snap, ["SDLC.Payments.Member"]).teams) == set()
+    assert set(resolve(snap, (), "direct-dev").teams) == {"payments"}
 
 
 def test_validate_warns_about_pending_users(config_dir, capsys):

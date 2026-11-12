@@ -13,9 +13,6 @@ tools:
   resolve_team:      { server: core-mcp, risk: low }    # version-03 P10 G9: the caller's own teams only
   search_knowledge:  { server: core-mcp, risk: low,    data_scoped: true }
   graph_query:       { server: core-mcp, risk: low,    data_scoped: true }
-  generate_tests:    { server: core-mcp, risk: low,    args: { repo: { type: string } } }
-  review_code:       { server: core-mcp, risk: medium, args: { repo: { type: string } } }
-  approve_design:    { server: core-mcp, risk: high,   args: { repo: { type: string } } }
   config_info:       { server: core-mcp, risk: high }    # admin only (via roles.admin "*")
   config_explain:    { server: core-mcp, risk: high }    # admin only; input: group aliases / app roles
   # version-01 M6: read-only tools that call an external system AS THE USER, with the user's own

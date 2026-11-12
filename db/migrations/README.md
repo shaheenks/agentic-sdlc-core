@@ -30,5 +30,9 @@ an applied migration must never be edited: add a new file instead.
 - `007_chunks_fulltext.sql` (version-03 P11): `chunks.content_tsv` (generated `simple`-config tsvector of
   heading + content) + GIN index for keyword search. Same table and rows: RLS and grants unchanged.
 
+- `008_source_ceilings.sql` (CH-0009): the classification ceiling is per source. `app_read` on the six data
+  tables compares each row with `sdlc.source_ceiling(source_id)` (from `app.source_ceilings`, a JSON object set
+  by `sdlc_db.scoped`) instead of one `max_classification_rank`. Missing source = `-1` = no rows.
+
 Every new data table needs `FORCE ROW LEVEL SECURITY`, a `source_id` + `classification_rank` column,
 and policies for both roles, plus rows in `tests/db`.

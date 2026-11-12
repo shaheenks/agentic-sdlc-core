@@ -1,6 +1,53 @@
 # Change log
 
+## 2026-11-12
+
+- **Update**: the user switched the Entra tenant to app roles only (new roles assigned, old roles, groups claim,
+  groups and the Graph secret removed) and deployed CH-0003, CH-0009, CH-0011 and CH-0012 to GCP dev (images, db,
+  config, plan + apply). FR-AUTHZ-006 stays `built` until its live check.
+
 ## 2026-11-11
+
+- **Update**: the user approved CH-0001, CH-0002, FR-KNOW-006, FR-KNOW-007 and FR-CONN-003 (recorded by Claude on the
+  user's instruction).
+- **Update**: CH-0001 done. FR-KNOW-006, FR-KNOW-007 and FR-CONN-003 are `built`, satisfied by ingest_loaders,
+  sdlc_connectors, ingest_bootstrap, core_mcp and config. FR-KNOW-001, FR-KNOW-004 and FR-CONN-002 lose the split-out
+  parts and are back to `draft`. Version-03 P8 names the three requirements as its live-check targets.
+- **Update**: CH-0002 done. FR-AUTHZ-001, FR-AUTHZ-002, FR-AUTHZ-005, FR-SURF-002, NFR-REL-001 and NFR-SEC-004 drop
+  criteria that NFR-MAINT-002, NFR-MAINT-004, NFR-SEC-002, NFR-SEC-009, FR-CFG-003 and FR-IDN-002 already state, and
+  are back to `draft`.
+- **Update**: the user re-reviewed and approved the nine requirements edited by CH-0001 and CH-0002: FR-KNOW-001,
+  FR-KNOW-004, FR-CONN-002, FR-AUTHZ-001, FR-AUTHZ-002, FR-AUTHZ-005, FR-SURF-002, NFR-REL-001 and NFR-SEC-004 are
+  `stable` again (recorded by Claude on the user's instruction).
+- **Update**: the user approved CH-0006 (recorded by Claude on the user's instruction). CH-0006 done: offline tests
+  `tests/infra/test_compose.py`, `test_workspace.py`, `test_terraform.py` (new dev dependency `python-hcl2`) and
+  `tests/agent/test_user_agent.py` now verify compose, workspace, infra_gcp and user_agent. infra_gcp is no longer
+  verified by a workflow file.
+- **Deprecation**: the user approved CH-0003 (recorded by Claude on the user's instruction). CH-0003 done: `review_code`,
+  `generate_tests` and `approve_design` removed from the code, `tools.yaml`, `roles.yaml`, the team files and the
+  persona matrix; FR-ACT-001 `deprecated` and `parked`. Policy tests use two fixture-only tools. GCP dev needs
+  `-Step images` and `-Step config` together.
+- **Update**: the user approved CH-0009 and CH-0011 (recorded by Claude on the user's instruction). CH-0009 done: team
+  roles renamed to `member` and `approver` (app roles `SDLC.<Team>.Member|Approver`) and scoped to their team, which
+  closes the cross-team leak. The classification ceiling is per source; migration 008 checks each row against its own
+  source's ceiling. FR-AUTHZ-006 is `built`. GCP dev needs the Entra app-role switch with `-Step images`, `-Step db`
+  and `-Step config` in one window.
+- **Update**: CH-0011 done: Entra groups and the group map are gone; membership comes from app roles and users.yaml only.
+  FR-IDN-002, FR-AUTHZ-005, FR-CFG-002, FR-IDN-003, NFR-PORT-001, NFR-PRIV-003 and NFR-SEC-004 edited and back to
+  `draft`; the seven rule sets edited and back to `draft`. Team `owners` are GitHub handles that CODEOWNERS must
+  match. CH-0005 dropped (superseded). Follow-up: remove the unused groups and Graph secrets from infra/gcp.
+- **Update**: the user removed the Entra groups and deployed CH-0009/CH-0011 to GCP dev (images, db, config). The user
+  approved CH-0012 (recorded by Claude on the user's instruction). CH-0012 done: infra/gcp no longer creates, grants
+  or mounts the `groups-yaml` and `entra-graph-secret` secrets; `gcp_deploy.ps1` no longer needs `groups.yaml`. GCP dev
+  needs `-Step plan` + `apply` (user).
+
+- **Creation**: NFR-OPS-002 continuous deployment to GCP dev (`draft`) and change record CH-0010: a GitHub workflow (bash on
+  Linux runners) deploys every merge to `main`, running only the steps the changes need, in order. `gcp_deploy.ps1`
+  stays for Windows next to a new `gcp_deploy.sh`; both read one manifest and a parity test keeps them equal. NFR-MAINT-003
+  edited to scope "no secrets" to the `ci` checks; back to `draft`.
+- **Creation**: change record CH-0011 (`draft`): membership from app roles only. It drops Entra groups and the group map,
+  supersedes CH-0005, and lists seven requirement edits to apply on approval. Team `owners` become the GitHub handles
+  that CODEOWNERS lists (design D15).
 
 - **Creation**: change record CH-0008 (`draft`), the workflow platform design baseline, and the target design
   `docs/designs/workflow-platform.md`. Added 15 draft requirements: FR-WFL-001 to FR-WFL-006, FR-IDN-005,

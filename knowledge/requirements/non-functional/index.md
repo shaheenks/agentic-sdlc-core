@@ -20,6 +20,7 @@
 ## Operability
 
 - [NFR-OPS-001: Production operations](NFR-OPS-001.md) - Custom hostnames, pipeline deploys, private database networking and alerting.
+- [NFR-OPS-002: Continuous deployment to GCP dev](NFR-OPS-002.md) - Every merge to main deploys to GCP dev from GitHub, running only the deployment steps its changes need, in a fixed order.
 
 ## Portability
 

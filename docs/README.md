@@ -8,7 +8,7 @@
 | How the system is designed | [ARCHITECTURE.md](ARCHITECTURE.md) (as built), [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md), [SECRETS_REVIEW.md](SECRETS_REVIEW.md) |
 | Where the design is going | [designs/workflow-platform.md](designs/workflow-platform.md) (target design: workflow classes, events, identity, knowledge) |
 | What is built, feature by feature | [FEATURE_INVENTORY.md](FEATURE_INVENTORY.md) |
-| What is planned and what was decided when | [plans/version-03.md](plans/version-03.md) (current), [plans/pending-task.md](plans/pending-task.md); closed plans in [plans/archive/](plans/archive/version-02.md) |
+| What is planned and what was decided when | [plans/version-03.md](plans/version-03.md) (current), [plans/version-04.md](plans/version-04.md) (draft: workflow platform), [plans/pending-task.md](plans/pending-task.md); closed plans in [plans/archive/](plans/archive/version-02.md) |
 | How to set something up or operate it | [guides/](#guides) |
 | The working rules for contributors and coding agents | [CLAUDE.md](../CLAUDE.md) (always-apply rules and routing), [knowledge/rules](../knowledge/rules/index.md) (rule sets per area) |
 

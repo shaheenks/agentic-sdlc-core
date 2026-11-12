@@ -126,7 +126,7 @@ def test_incremental_lifecycle(env):
 def test_search_returns_title_and_url(env):
     config_dir, snapshot = env
     ingest(env, [item("D", "# Delta runbook\nrestart the delta service", "Delta runbook")], {"D"})
-    policy = resolve(snapshot, ["eng-all"])
+    policy = resolve(snapshot, ["SDLC.User"])
     assert SOURCE in policy.readable_sources
     [vector] = EMBEDDER.embed(["# Delta runbook\nrestart the delta service"], "query")
 

@@ -18,9 +18,9 @@ from tests.support.graph import VocabularyExtractor
 pytestmark = pytest.mark.skipif(bool(db.available()), reason=str(db.available()))
 
 EMBEDDER = HashEmbedder()
-PAYMENTS_DEV = ["eng-all", "payments-devs"]
-PAYMENTS_LEAD = ["eng-all", "payments-leads"]
-PLATFORM_DEV = ["eng-all", "platform-devs"]
+PAYMENTS_DEV = ["SDLC.User", "SDLC.Payments.Member"]
+PAYMENTS_LEAD = ["SDLC.User", "SDLC.Payments.Approver"]
+PLATFORM_DEV = ["SDLC.User", "SDLC.Platform.Member"]
 # a query vector that matches nothing in particular: only the keyword ranking can find the chunk
 UNRELATED = EMBEDDER.embed(["zebra quartz violin"], "query")[0]
 
@@ -78,13 +78,13 @@ def test_keyword_hits_only_from_readable_sources(snap):
 
 def test_fusion_is_deterministic_and_off_means_vector_only(snap):
     query = "point_in_time_recovery_enabled backups"
-    first = run(_search(snap, ["platform-admins"], query))
-    again = run(_search(snap, ["platform-admins"], query))
+    first = run(_search(snap, ["SDLC.Admin"], query))
+    again = run(_search(snap, ["SDLC.Admin"], query))
     assert [(h.source_id, h.path, h.start_line) for h in first] == [
         (h.source_id, h.path, h.start_line) for h in again
     ]
     assert any(h.path.endswith("cloudsql.tf") for h in first)
-    off = run(_search(snap, ["platform-admins"], query, keyword=False))
+    off = run(_search(snap, ["SDLC.Admin"], query, keyword=False))
     assert {h.via for h in off} == {"vector"}
 
 

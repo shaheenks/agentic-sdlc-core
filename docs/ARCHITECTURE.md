@@ -25,7 +25,7 @@ rules, and the MCP server enforces them, backed by Postgres row-level security.
 ```mermaid
 flowchart TB
     subgraph Users["Users (Entra ID sign-in)"]
-        U1[Engineer / Lead / Admin]
+        U1[Member / Approver / Admin]
     end
 
     subgraph Surfaces["User surfaces"]
@@ -34,7 +34,7 @@ flowchart TB
         S3[Antigravity IDE<br/>direct MCP client]
     end
 
-    Entra[(Microsoft Entra ID<br/>single IdP<br/>groups claim)]
+    Entra[(Microsoft Entra ID<br/>single IdP<br/>app roles)]
 
     subgraph AgentTier["Agent tier"]
         A1[ADK root agent<br/>agents/user_agent]
@@ -47,7 +47,7 @@ flowchart TB
         AUTH[AuthN<br/>Entra JWT validation<br/>libs/sdlc_auth]
         RES[Resolver<br/>groups → teams → roles<br/>→ EffectivePolicy<br/>libs/sdlc_config]
         ENF[Enforcement<br/>tools/list filter · call authz<br/>arg constraints<br/>libs/sdlc_policy]
-        TOOLS[Tools<br/>whoami · skills · team context<br/>search_knowledge · graph_query<br/>artifacts · connected tools<br/>review_code … stubs]
+        TOOLS[Tools<br/>whoami · skills · team context<br/>search_knowledge · graph_query<br/>artifacts · connected tools]
         AUD[(Audit log<br/>sdlc.audit JSON)]
         AUTH --> RES --> ENF --> TOOLS
         ENF -. every decision .-> AUD
@@ -177,42 +177,43 @@ The security checkpoints in this flow are:
 
 ```mermaid
 flowchart LR
-    T[Entra token<br/>oid · groups · roles] --> GA[Group aliases<br/>env/&lt;env&gt;/groups.yaml]
-    T --> AR[App roles<br/>roles claim]
+    T[Entra token<br/>oid · roles] --> AR[App roles<br/>roles claim]
     T --> EV[Every signed-in user]
     T --> UA[User alias by oid<br/>env/&lt;env&gt;/users.yaml]
     UA --> TM
     UA --> GB
-    GA --> TM[Teams<br/>teams/*.yaml membership]
-    AR --> TM
-    GA --> GB[Global bindings<br/>roles.yaml]
-    AR --> GB
+    AR --> TM[Teams<br/>teams/*.yaml membership]
+    AR --> GB[Global bindings<br/>roles.yaml]
     EV --> GB
     TM --> R[Roles<br/>+ inherits]
     GB --> R
     R --> TL[Tools<br/>allow − deny<br/>+ arg constraints]
     R --> SKL[Skills<br/>global + team add-ons]
     TM --> SKL
-    R --> DT[Data<br/>max classification]
+    R --> DT[Data<br/>ceiling per source]
     TM --> SRCS[Sources<br/>Source.access]
     R --> SRCS
     TM --> CTX[Agent context<br/>team instructions]
     TL & SKL & DT & SRCS & CTX --> EP[[EffectivePolicy<br/>cached per identities + config version]]
 ```
 
-- **Identity** is the Entra `oid` plus group membership and, for enterprise tenants, Entra **app roles**
-  (`roles` claim). Entra is the only trusted issuer. Every signed-in user also matches `everyone: true`
+- **Identity** is the Entra `oid` plus Entra **app roles** (`roles` claim) and the optional users.yaml entry.
+  Entra groups are not used (CH-0011): a `groups` claim is ignored. Entra is the only trusted issuer. Every signed-in user also matches `everyone: true`
   bindings, which grant only the `signed-in` basics (`ping`, `whoami`).
-- **App roles** (version-03 P2 E1): `SDLC.User`, `SDLC.Admin`, `SDLC.Payments.Developer|Lead`,
-  `SDLC.Platform.Developer|Lead` on `sdlc-mcp` (`entra_setup.ps1`); each grants exactly what its group twin grants
-  and combines with groups (union). **Group overage** (token without `groups`) means no groups, only app roles
-  (fail closed); the Graph fallback is off (`platform.yaml` `overage_fallback: none`).
-- **Direct members** (version-02 N10): where the tenant has no group per team, `config/env/<env>/users.yaml`
+- **App roles** (version-03 P2 E1): `SDLC.User`, `SDLC.Admin`, `SDLC.<Team>.Member|Approver`
+  (payments, platform, webapp) on `sdlc-mcp` (`entra_setup.ps1`), assigned to users on its enterprise app.
+- **Direct members** (version-02 N10): for users without an app role assignment, `config/env/<env>/users.yaml`
   (git-ignored) adds users to teams (with team roles) and global roles. Admins list emails; `sdlc-config users sync`
   looks up each `oid` (read-only); the server matches tokens on `oid` only, never on an email claim, and an entry
   without an `oid` grants nothing. A user's policy is the union of their groups, app roles and users.yaml entry.
 - **Teams** define who belongs, which roles each group gets, and team add-ons (extra skills, extra agent instructions, tool argument limits).
 - **Roles** are reusable permission bundles. A role can inherit from another.
+- **Platform and team roles** (CH-0009): global bindings give platform roles (`signed-in`, `viewer`, `admin`); team
+  membership gives team roles (`member`, optional `approver`) that count **only in that team**
+  (`approver@payments`). Inheritance stays in the same scope, and platform roles count in every team. So an
+  approver-only add-on skill needs the approver role in its own team, and the classification ceiling is computed
+  per source: the highest among the platform roles and the roles held in the source's owner team. A role is
+  either a platform role or a team role, never both (validated).
 - **Data access** is granted only by each source's own `access` block. The sensitivity ceiling comes from roles.
 - **Deny wins**, and anything not explicitly allowed is denied.
 - **Block list (E3):** `config/env/<env>/blocked.yaml` refuses listed users on every request, even with a valid
@@ -384,7 +385,7 @@ traces stays off, and the store is never readable by other workloads.
 
 ```mermaid
 flowchart LR
-    DEV[Team lead / admin<br/>edits YAML] --> PR[Pull request<br/>CODEOWNERS review]
+    DEV[Team approver / admin<br/>edits YAML] --> PR[Pull request<br/>CODEOWNERS review]
     PR --> CI[CI: validate · persona diff · tests]
     CI --> BUILD[sdlc-config compile<br/>bundle + manifest<br/>version = git SHA + hash]
     BUILD --> STORE[(Bundle store<br/>local folder / GCS)]

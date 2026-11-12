@@ -3,28 +3,18 @@ kind: Team
 metadata:
   name: webapp
   description: Full-stack web app (FastAPI + SQLModel backend, React/TypeScript frontend) in full-stack-fastapi-template.
-  owners: [platform-admins]          # group aliases; also drive CODEOWNERS
-# No Entra group: members come from Entra app roles (version-03 P2 E1) or directly from the
-# git-ignored config/env/<env>/users.yaml, e.g. `teams: { webapp: [developer] }`, matched by
+  owners: ["@shaheenks"]             # GitHub handles; CODEOWNERS lists exactly these (D15)
+# Members come from Entra app roles (version-03 P2 E1) or directly from the
+# git-ignored config/env/<env>/users.yaml, e.g. `teams: { webapp: [member] }`, matched by
 # object ID (version-02 N10). Onboarding steps: docs/guides/TEAM_ONBOARDING.md.
 membership:
-  - app_role: SDLC.Webapp.Developer
-    roles: [developer]
-  - app_role: SDLC.Webapp.Lead
-    roles: [lead]
+  - app_role: SDLC.Webapp.Member
+    roles: [member]
+  - app_role: SDLC.Webapp.Approver
+    roles: [approver]
 policy:
   tools:
     deny: []
-    constraints:
-      review_code:
-        args:
-          repo: { in: [full-stack-fastapi-template] }
-      generate_tests:
-        args:
-          repo: { in: [full-stack-fastapi-template] }
-      approve_design:
-        args:
-          repo: { in: [full-stack-fastapi-template] }
 addons:                              # visible only to members of this team
   skills:
     webapp-coding-standards: { path: skills/teams/webapp/webapp-coding-standards }
