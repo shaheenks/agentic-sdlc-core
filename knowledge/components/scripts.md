@@ -14,7 +14,10 @@ resource: ../../scripts
 satisfies:
 - /requirements/functional/FR-CFG-003
 - /requirements/functional/FR-IDN-002
+- /requirements/non-functional/NFR-MAINT-005
 - /requirements/non-functional/NFR-PRIV-003
+verified_by:
+- tests/knowledge
 ---
 
 # Purpose
@@ -38,8 +41,9 @@ Code: `scripts`
 
 - [FR-CFG-003: Immutable config bundles with rollback](../requirements/functional/FR-CFG-003.md) - Publishes and rolls back config bundles on GCP.
 - [FR-IDN-002: Membership from app roles and direct members](../requirements/functional/FR-IDN-002.md) - Defines the Entra app roles the configuration references.
+- [NFR-MAINT-005: The specification is traced and checked](../requirements/non-functional/NFR-MAINT-005.md) - `okf_bundle.py`: lint, generated indexes and traceability matrix, drift hints.
 - [NFR-PRIV-003: Tenant data stays out of the repository](../requirements/non-functional/NFR-PRIV-003.md) - Takes tenant user names on the command line, never from the repository.
 
 # Verification
 
-No automated tests cover this component.
+- `tests/knowledge` (`okf_bundle.py`; the PowerShell scripts stay manual)

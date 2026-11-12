@@ -104,6 +104,13 @@ Rules the lint enforces:
 - Every component satisfies at least one requirement, and its `resource` and `verified_by` paths
   exist.
 - Every uv workspace member in `pyproject.toml` has a component concept.
+- A `verified_by` path is a test: it has a `tests` folder segment, or its file name starts with
+  `test_` or contains `.test.` or `.spec.` (CH-0007). A workflow file is not verification.
+- A `live`, `built` or `stub` requirement that is not `deprecated` does not say `to be defined`
+  in its acceptance criteria (text in backticks is ignored) (CH-0007).
+
+`tests/knowledge` tests `okf_bundle.py` on small bundles and runs the lint on the real bundle, so
+`uv run pytest` fails wherever the CI lint would.
 
 CI runs the lint on every push and pull request (job `knowledge`). On pull requests it also lists,
 as a hint for the reviewer, components whose code changed while their concept did not

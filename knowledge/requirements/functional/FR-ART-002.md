@@ -7,12 +7,9 @@ tags:
 - requirement
 - functional
 - artifacts
-status: stable
+status: draft
 priority: should
 implementation: live
-verified:
-- by: human:shaheenks
-  at: '2026-11-10T21:13:57+05:30'
 sources:
 - id: rules
   resource: ../../rules/index.md
@@ -30,7 +27,8 @@ The system shall keep versions of a document under one stable id and refuse a sa
 
 - `save_artifact(replaces=<id>, base_version=<n>)` adds the next version and is refused when `n` is not the latest.
 - Stored rows are immutable and older versions stay readable by `version`.
+- A document keeps at most 10 versions. Saving an 11th is refused and says to save it as a new document or delete it.
 
 # Notes
 
-Open decision: how versions count against the 50-artifact limit (inventory gap 8).
+Versions count against the per-document cap, not the per-user document limit (CH-0004, inventory gap 8 closed).

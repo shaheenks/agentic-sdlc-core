@@ -50,6 +50,29 @@ GENERATED_TYPES = {"Traceability Matrix"}  # written by `build`, never reviewed 
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 FENCE = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)  # examples are not links
 LOG_DATE = re.compile(r"^## (.*)$", re.MULTILINE)
+TBD = re.compile(r"to be defined", re.IGNORECASE)  # placeholder criteria (CH-0007)
+INLINE_CODE = re.compile(r"`[^`\n]*`")
+
+
+def configure(root: Path, bundle: Path | None = None) -> None:
+    """Point the checks at another repository root and bundle (tests lint temporary bundles)."""
+    global ROOT, BUNDLE, TRACE
+    ROOT = Path(root).resolve()
+    BUNDLE = Path(bundle).resolve() if bundle else ROOT / "knowledge"
+    TRACE = BUNDLE / "traceability.md"
+
+
+def is_test_path(ref: str) -> bool:
+    """A `verified_by` entry names tests: a `tests` folder, or a test file by its name."""
+    path = Path(ref)
+    name = path.name
+    return "tests" in path.parts or name.startswith("test_") or ".test." in name or ".spec." in name
+
+
+def section(body: str, heading: str) -> str:
+    """The text under a `# heading`, up to the next top-level heading."""
+    match = re.search(rf"^{re.escape(heading)}\n(.*?)(?=^# |\Z)", body, re.MULTILINE | re.DOTALL)
+    return match.group(1) if match else ""
 
 
 class Concept(NamedTuple):
@@ -177,6 +200,10 @@ def check_requirement(path: Path, meta: dict, body: str, kind: str) -> list[str]
     if meta.get("implementation") not in IMPLEMENTATION:
         errors.append(f"implementation must be one of {sorted(IMPLEMENTATION)}")
     errors += [f"missing section `{h}`" for h in REQ_HEADINGS if f"\n{h}\n" not in f"\n{body}"]
+    in_code = meta.get("implementation") in BUILT and meta.get("status") != "deprecated"
+    criteria = INLINE_CODE.sub("", section(body, "# Acceptance criteria"))  # quoting it is fine
+    if in_code and TBD.search(criteria):
+        errors.append("acceptance criteria say `to be defined`, but the code exists: state them")
     return errors
 
 
@@ -194,6 +221,8 @@ def check_component(path: Path, meta: dict, body: str) -> list[str]:
     for ref in meta.get("verified_by") or []:
         if not (ROOT / ref).exists():
             errors.append(f"verified_by: not found in the repository: {ref}")
+        elif not is_test_path(ref):
+            errors.append(f"verified_by: not a test (no `tests` folder or test file name): {ref}")
     # The body links are what OKF consumers follow, so they must say the same as the key.
     if (links := linked(path, body, REQ_ID)) != satisfies:
         errors.append(f"`satisfies` and the body's requirement links differ: {links ^ satisfies}")
@@ -426,6 +455,14 @@ def generated_files() -> dict[Path, str]:
     return files
 
 
+def build() -> None:
+    """Rewrite every generated file. Twice: the root index lists traceability.md, which the first
+    pass may create."""
+    for _ in range(2):
+        for path, text in generated_files().items():
+            path.write_text(text, encoding="utf-8", newline="\n")
+
+
 def stale() -> list[str]:
     return [
         f"{path.relative_to(ROOT)}: out of date (run `okf_bundle.py build`)"
@@ -470,10 +507,7 @@ def main() -> int:
     commands.add_parser("drift").add_argument("--base", default="origin/main")
     args = parser.parse_args()
     if args.command == "build" and not args.check:
-        # Twice: the root index lists traceability.md, which the first pass may create.
-        for _ in range(2):
-            for path, text in generated_files().items():
-                path.write_text(text, encoding="utf-8", newline="\n")
+        build()
         return 0
     if args.command == "drift":
         hints = drift(args.base)

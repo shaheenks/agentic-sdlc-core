@@ -7,9 +7,12 @@ tags:
 - requirement
 - non-functional
 - maintainability
-status: draft
+status: stable
+verified:
+- by: human:shaheenks
+  at: '2026-11-12T21:06:15+05:30'
 priority: should
-implementation: planned
+implementation: live
 sources:
 - id: conventions
   resource: ../../conventions.md
@@ -28,7 +31,7 @@ The knowledge bundle shall trace every built requirement to the components that 
 - `okf_bundle.py lint` runs in CI on every push and pull request, and inside `uv run pytest`.
 - The lint fails when a `live`, `built` or `stub` requirement has no component.
 - The lint fails when a `verified_by` path is not a test: it must sit in a `tests` folder or be a test file.
-- The lint fails when a `live`, `built` or `stub` requirement that is not `deprecated` says "to be defined" in its acceptance criteria.
+- The lint fails when a `live`, `built` or `stub` requirement that is not `deprecated` says `to be defined` in its acceptance criteria.
 - `okf_bundle.py` has its own tests in `tests/knowledge`, and they run without the real bundle.
 
 # Notes
