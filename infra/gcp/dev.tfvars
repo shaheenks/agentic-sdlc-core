@@ -14,4 +14,4 @@ ingest_schedule         = "0 2 * * *"                    # version-02 N1: nightl
 reconcile_schedule      = "30 3 * * *"                   # version-02 N3: reconcile user connections, 03:30
 schedule_time_zone      = "Asia/Kolkata"
 agent_runtime_principal = "principal://agents.global.org-595186085136.system.id.goog/resources/aiplatform/projects/279238348734/locations/asia-southeast1/reasoningEngines/8360677621515681792"
-agent_gateway_enforce   = true                           # CH-0015: IAP check enforced, fail closed (DRY_RUN checked live 2026-11-13)
+agent_gateway_enforce   = false                          # CH-0015: DRY_RUN; enforcing denied unregistered endpoints (Entra JWKS) 2026-11-13
