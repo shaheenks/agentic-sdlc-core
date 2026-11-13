@@ -65,6 +65,7 @@ resource "google_network_services_authz_extension" "iap" {
     { iapPolicyVersion = "V1" },
     var.agent_gateway_enforce ? {} : { iamEnforcementMode = "DRY_RUN" },
   )
+  depends_on = [google_project_service.apis]
 }
 
 resource "google_network_security_authz_policy" "gateway" {
@@ -81,6 +82,7 @@ resource "google_network_security_authz_policy" "gateway" {
       resources = [google_network_services_authz_extension.iap[0].id]
     }
   }
+  depends_on = [google_project_service.apis]
 }
 
 # The user agent may reach sdlc-mcp-native through the gateway, for the configured tools only.

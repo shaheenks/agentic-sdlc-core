@@ -25,6 +25,7 @@ locals {
     "agentidentity.googleapis.com",            # Agent Identity (SPIFFE principal per agent)
     "agentidentitycredentials.googleapis.com", # credentials for agent identities
     "networkservices.googleapis.com",          # Agent Gateway
+    "networksecurity.googleapis.com",          # authorization policy on the gateway (CH-0015)
     "modelarmor.googleapis.com",               # optional prompt and response screening
   ]
 
