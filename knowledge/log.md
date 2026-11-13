@@ -2,6 +2,8 @@
 
 ## 2026-11-13
 
+- **Update**: CH-0015 live on GCP dev in DRY_RUN: the agent's MCP traffic goes through the Agent Gateway, IAP grants each
+  request, and both auth headers reach `sdlc-mcp-native` unchanged (WN.0 item confirmed).
 - **Update**: CH-0015 fix: the gateway's authorization policy needs the Network Security API; added to the Agent Platform
   APIs, and the extension and policy now wait for the APIs.
 - **Update**: CH-0015 fix: the IAP authz extension needs `iapPolicyVersion` (apply failed with 400); set to `V1`, which
