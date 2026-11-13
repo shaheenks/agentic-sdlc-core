@@ -34,6 +34,7 @@ satisfies:
 - /requirements/non-functional/NFR-SEC-004
 - /requirements/non-functional/NFR-SEC-007
 - /requirements/non-functional/NFR-SEC-008
+- /requirements/non-functional/NFR-SEC-015
 verified_by:
 - tests/config
 - tests/policy/test_app_roles.py
@@ -86,6 +87,7 @@ Code: `libs/sdlc_config`
 - [NFR-SEC-004: Fail closed](../requirements/non-functional/NFR-SEC-004.md) - Startup fails closed on invalid configuration.
 - [NFR-SEC-007: Secrets handling](../requirements/non-functional/NFR-SEC-007.md) - Keeps secrets as references; bundles contain none.
 - [NFR-SEC-008: Controlled egress](../requirements/non-functional/NFR-SEC-008.md) - Defines the host allowlist.
+- [NFR-SEC-015: Layered access control on Google Cloud](../requirements/non-functional/NFR-SEC-015.md) - `sdlc-config gateway-policy`: the gateway's tool allowlist and registry tool spec, generated from `tools.yaml`.
 
 # Verification
 

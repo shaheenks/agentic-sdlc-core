@@ -152,3 +152,15 @@ variable "agent_runtime_principal" {
   type        = string
   default     = ""
 }
+
+variable "agent_gateway_enabled" {
+  description = "Agent Registry entry and Agent Gateway for the native stack (CH-0015). Needs native_enabled."
+  type        = bool
+  default     = false
+}
+
+variable "agent_gateway_enforce" {
+  description = "false = IAP decisions at the gateway are logged only (DRY_RUN, fail open); true = enforced (fail closed)."
+  type        = bool
+  default     = false
+}

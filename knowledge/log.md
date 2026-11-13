@@ -2,6 +2,10 @@
 
 ## 2026-11-13
 
+- **Update**: the user approved CH-0015 and NFR-SEC-015 (recorded by Claude on the user's instruction). CH-0015 done:
+  Agent Gateway, the registry entry for `sdlc-mcp-native`, the IAP check (starting in DRY_RUN) and the agent's
+  tool-scoped grant, all in Terraform; the allowlist is generated from `tools.yaml` by `sdlc-config gateway-policy`.
+  NFR-SEC-015 `built`. Apply, engine redeploy and enforcement are the user's.
 - **Update**: the user agent runs on Agent Runtime on GCP dev (CH-0014 live): the user's token is accepted, the answer streams,
   and `sdlc-mcp-native` audits the agent's tool calls as the user through Cloud Run IAM. WN.0 items for streaming and
   the agent identity confirmed.

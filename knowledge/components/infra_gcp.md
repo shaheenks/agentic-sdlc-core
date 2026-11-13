@@ -21,6 +21,7 @@ satisfies:
 - /requirements/non-functional/NFR-PRIV-004
 - /requirements/non-functional/NFR-SEC-007
 - /requirements/non-functional/NFR-SEC-010
+- /requirements/non-functional/NFR-SEC-015
 verified_by:
 - tests/infra/test_terraform.py
 ---
@@ -55,6 +56,7 @@ Code: `infra/gcp`
 - [NFR-PRIV-004: Bounded data retention](../requirements/non-functional/NFR-PRIV-004.md) - Artifact bucket lifecycle.
 - [NFR-SEC-007: Secrets handling](../requirements/non-functional/NFR-SEC-007.md) - Secret Manager secrets and their access.
 - [NFR-SEC-010: Least-privilege runtime](../requirements/non-functional/NFR-SEC-010.md) - One service account per workload with scoped IAM; `sdlc-mcp-native` has invoker IAM on (CH-0013).
+- [NFR-SEC-015: Layered access control on Google Cloud](../requirements/non-functional/NFR-SEC-015.md) - Agent Gateway (egress), the registry entry for `sdlc-mcp-native`, the IAP extension and policy, and the agent's tool-scoped `roles/iap.egressor` grant.
 
 # Verification
 

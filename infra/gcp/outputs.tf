@@ -46,3 +46,8 @@ output "artifact_store_bucket" {
   description = "Bucket for temporary files and agent artefacts (empty when not created)."
   value       = var.artifact_store_bucket == "" ? "" : "gs://${google_storage_bucket.artifact_store[0].name}"
 }
+
+output "agent_gateway" {
+  description = "Agent Gateway for the engine's outbound traffic (scripts/deploy_agent_runtime.py); empty when off."
+  value       = local.gateway_on ? google_network_services_agent_gateway.egress[0].id : ""
+}

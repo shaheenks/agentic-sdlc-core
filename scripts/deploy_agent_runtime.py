@@ -147,6 +147,12 @@ def main(argv=None) -> int:
     parser.add_argument("--model-location", default="global", help="Vertex AI region for Gemini")
     parser.add_argument("--mcp-url", default="", help="default: terraform output mcp_native_url")
     parser.add_argument(
+        "--agent-gateway", default="", help="default: terraform output agent_gateway (CH-0015)"
+    )
+    parser.add_argument(
+        "--no-gateway", action="store_true", help="deploy without the Agent Gateway (rollback)"
+    )
+    parser.add_argument(
         "--allow-dirty", action="store_true", help="deploy uncommitted code (tests only)"
     )
     parser.add_argument("--dry-run", action="store_true", help="stage and print, deploy nothing")
@@ -184,6 +190,10 @@ def main(argv=None) -> int:
         "identity_type": types.IdentityType.AGENT_IDENTITY,
         "labels": {"git_commit": commit, "env": args.env},
     }
+    gateway = "" if args.no_gateway else (args.agent_gateway or terraform_output("agent_gateway"))
+    if gateway:  # CH-0015: all outbound traffic through the Agent Gateway (IAP checks the tools)
+        config["agent_gateway_config"] = {"agent_to_anywhere_config": {"agent_gateway": gateway}}
+    print(f"agent gateway: {gateway or '(none: outbound traffic goes direct)'}")
     print(
         "class methods: "
         + ", ".join(f"{m['name']} ({m['api_mode']})" for m in config["class_methods"])

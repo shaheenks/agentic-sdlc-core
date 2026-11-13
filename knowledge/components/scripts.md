@@ -16,6 +16,7 @@ satisfies:
 - /requirements/functional/FR-IDN-002
 - /requirements/non-functional/NFR-MAINT-005
 - /requirements/non-functional/NFR-PRIV-003
+- /requirements/non-functional/NFR-SEC-015
 verified_by:
 - tests/knowledge
 ---
@@ -47,6 +48,7 @@ Code: `scripts`
 - [FR-IDN-002: Membership from app roles and direct members](../requirements/functional/FR-IDN-002.md) - Defines the Entra app roles the configuration references.
 - [NFR-MAINT-005: The specification is traced and checked](../requirements/non-functional/NFR-MAINT-005.md) - `okf_bundle.py`: lint, generated indexes and traceability matrix, drift hints.
 - [NFR-PRIV-003: Tenant data stays out of the repository](../requirements/non-functional/NFR-PRIV-003.md) - Takes tenant user names on the command line, never from the repository.
+- [NFR-SEC-015: Layered access control on Google Cloud](../requirements/non-functional/NFR-SEC-015.md) - `deploy_agent_runtime.py` attaches the engine to the Agent Gateway.
 
 # Verification
 

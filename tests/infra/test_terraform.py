@@ -174,3 +174,31 @@ def test_only_the_agent_identity_may_invoke_the_native_mcp(tf):
     assert grant["member"] == "${var.agent_runtime_principal}"
     assert unquote(grant["role"]) == "roles/run.invoker"
     assert 'mcp[\\"native\\"]' in json.dumps(grant["name"]) or "native" in grant["name"]
+
+
+def test_agent_gateway_is_config_driven_and_starts_in_dry_run(tf):
+    """CH-0015: the gateway, registry entry, IAP extension and policy exist only with
+    native_enabled and agent_gateway_enabled; the IAP check fails open only in DRY_RUN; the
+    agent's grant is roles/iap.egressor with a tool condition built from the generated policy."""
+    gated = [
+        ("google_network_services_agent_gateway", "egress"),
+        ("google_agent_registry_service", "mcp_native"),
+        ("google_network_services_authz_extension", "iap"),
+        ("google_network_security_authz_policy", "gateway"),
+    ]
+    for rtype, name in gated:
+        assert tf.resource(rtype, name)["count"] == "${local.gateway_on ? 1 : 0}", name
+    assert "var.native_enabled && var.agent_gateway_enabled" in tf.locals["gateway_on"]
+    gateway = tf.resource("google_network_services_agent_gateway", "egress")
+    assert unquote(gateway["google_managed"][0]["governed_access_path"]) == "AGENT_TO_ANYWHERE"
+    ext = tf.resource("google_network_services_authz_extension", "iap")
+    assert ext["fail_open"] == "${!var.agent_gateway_enforce}"
+    assert "DRY_RUN" in json.dumps(ext["metadata"])
+    grant = tf.resource("google_iap_agent_registry_mcp_server_iam_member", "agent")
+    assert unquote(grant["role"]) == "roles/iap.egressor"
+    assert grant["member"] == "${var.agent_runtime_principal}"
+    assert grant["condition"][0]["expression"] == "${local.gateway_tool_condition}"
+    assert "local.gateway_policy.tools" in tf.locals["gateway_tool_condition"]
+    registry = tf.resource("google_agent_registry_service", "mcp_native")
+    assert "local.gateway_policy.toolspec" in registry["mcp_server_spec"][0]["content"]
+    assert 'file("${path.module}/generated/gateway_policy.json")' in tf.locals["gateway_policy"]

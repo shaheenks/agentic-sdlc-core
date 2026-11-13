@@ -98,6 +98,15 @@ def main(argv: list[str] | None = None) -> int:
         "--check", action="store_true", help="also re-check existing object IDs against the emails"
     )
 
+    gw = sub.add_parser(
+        "gateway-policy",
+        help="Agent Gateway tool allowlist + Agent Registry tool spec from tools.yaml (CH-0015)",
+    )
+    common(gw)
+    gw.add_argument("--server", default="core-mcp", help="tools.yaml server (default core-mcp)")
+    gw.add_argument("--out", type=Path, help="write the policy file (default: print it)")
+    gw.add_argument("--check", type=Path, help="exit 1 if this file differs from config")
+
     args = parser.parse_args(argv)
     try:
         if args.command == "validate":
@@ -108,6 +117,8 @@ def main(argv: list[str] | None = None) -> int:
             return _bundle_command(args)
         if args.command == "users":
             return _users(args)
+        if args.command == "gateway-policy":
+            return _gateway_policy(args)
         return _diff(args)
     except ConfigError as e:
         print(e, file=sys.stderr)
@@ -168,6 +179,30 @@ def _check_secrets(snap, resolver=None) -> int:
         print(f"secrets: {kind}:{name} {outcome} (used by {', '.join(used_by)})")
     print(f"secrets: {len(refs) - failed}/{len(refs)} resolve (backend {resolver.store.name})")
     return 1 if failed else 0
+
+
+def _gateway_policy(args) -> int:
+    from sdlc_config.gateway import gateway_policy, render
+
+    snap = load_snapshot(args.config_dir, args.env, dummy_env=args.dummy_env)
+    try:
+        text = render(gateway_policy(snap, args.server))
+    except ValueError as e:
+        raise ConfigError([str(e)]) from None
+    if args.check:
+        current = args.check.read_text(encoding="utf-8") if args.check.exists() else ""
+        if current != text:
+            print(f"{args.check}: differs from config (run sdlc-config gateway-policy --out)")
+            return 1
+        print(f"{args.check}: matches config")
+        return 0
+    if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(text, encoding="utf-8", newline="\n")
+        print(f"wrote {args.out}")
+        return 0
+    print(text, end="")
+    return 0
 
 
 def _users(args) -> int:

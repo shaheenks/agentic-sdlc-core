@@ -1,0 +1,153 @@
+{
+  "server": "core-mcp",
+  "tools": [
+    "bitbucket_get_file",
+    "config_explain",
+    "config_info",
+    "confluence_get_page",
+    "delete_artifact",
+    "get_agent_context",
+    "github_get_file",
+    "graph_query",
+    "jira_get_issue",
+    "list_artifacts",
+    "list_skills",
+    "load_skill",
+    "ping",
+    "read_artifact",
+    "resolve_team",
+    "save_artifact",
+    "search_knowledge",
+    "whoami"
+  ],
+  "toolspec": {
+    "tools": [
+      {
+        "description": "bitbucket_get_file (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "bitbucket_get_file"
+      },
+      {
+        "description": "config_explain (risk high; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "config_explain"
+      },
+      {
+        "description": "config_info (risk high; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "config_info"
+      },
+      {
+        "description": "confluence_get_page (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "confluence_get_page"
+      },
+      {
+        "description": "delete_artifact (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "delete_artifact"
+      },
+      {
+        "description": "get_agent_context (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "get_agent_context"
+      },
+      {
+        "description": "github_get_file (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "github_get_file"
+      },
+      {
+        "description": "graph_query (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "graph_query"
+      },
+      {
+        "description": "jira_get_issue (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "jira_get_issue"
+      },
+      {
+        "description": "list_artifacts (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "list_artifacts"
+      },
+      {
+        "description": "list_skills (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "list_skills"
+      },
+      {
+        "description": "load_skill (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "load_skill"
+      },
+      {
+        "description": "ping (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "ping"
+      },
+      {
+        "description": "read_artifact (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "read_artifact"
+      },
+      {
+        "description": "resolve_team (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "resolve_team"
+      },
+      {
+        "description": "save_artifact (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "save_artifact"
+      },
+      {
+        "description": "search_knowledge (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "search_knowledge"
+      },
+      {
+        "description": "whoami (risk low; access per user is decided by the MCP server)",
+        "inputSchema": {
+          "type": "object"
+        },
+        "name": "whoami"
+      }
+    ]
+  }
+}

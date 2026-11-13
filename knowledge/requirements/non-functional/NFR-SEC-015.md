@@ -7,9 +7,12 @@ tags:
 - requirement
 - non-functional
 - security
-status: draft
+status: stable
+verified:
+- by: human:shaheenks
+  at: '2026-11-13T12:56:17+05:30'
 priority: should
-implementation: planned
+implementation: built
 sources:
 - id: design
   resource: ../../../docs/designs/gcp-native-hosting.md

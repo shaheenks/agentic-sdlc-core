@@ -216,6 +216,30 @@ existing `sdlc-mcp-<env>` in place, so the first plan shows a move and one new s
 
 Each engine update keeps its identity; a new engine (after a delete) gets a new one, so update the variable.
 
+### Agent Registry and Agent Gateway (CH-0015, design D17)
+
+With `agent_gateway_enabled = true` (dev), Terraform (`infra/gcp/gateway.tf`) adds:
+- the Google-managed Agent Gateway `sdlc-agents-<env>` (`AGENT_TO_ANYWHERE`, MCP) linked to the project's Agent
+  Registry;
+- the registry entry `sdlc-mcp-native` (its URL and tool spec);
+- an IAP authorization extension and policy on the gateway;
+- the agent's `roles/iap.egressor` on that registry entry, limited to the tools in
+  `infra/gcp/generated/gateway_policy.json` (plus `""`, which the MCP handshake needs).
+
+The tool list is generated from config; regenerate it after any `tools.yaml` change (a test fails until you do):
+
+```powershell
+uv run sdlc-config gateway-policy --dummy-env --out infra/gcp/generated/gateway_policy.json
+```
+
+Rollout:
+1. plan + apply. The IAP check starts in **DRY_RUN**: decisions are logged, nothing is blocked.
+2. Redeploy the engine; the script reads `terraform output agent_gateway` and attaches it for outbound traffic
+   (`--no-gateway` deploys without it, to roll back).
+3. Run `scripts/agent_runtime_query.py`. The answer must still work (both auth headers reach the MCP server
+   through the gateway), and the gateway's IAP logs show an allow for each tool the agent called.
+4. Set `agent_gateway_enforce = true` (fail closed), plan + apply, and check again.
+
 ## 6. Configuration on GCP
 
 - **Config bundles from the config store bucket (version-02 N13)**, when `config_store_bucket` is set (dev:
