@@ -45,6 +45,8 @@ def describe(event: dict) -> str:
         elif part.get("function_response") or part.get("functionResponse"):
             resp = part.get("function_response") or part.get("functionResponse")
             out.append(f"[tool result {resp.get('name')}]")
+    if isinstance(event.get("error"), dict):  # a refusal from the runtime app (CH-0019)
+        return f"refused: {event['error'].get('code')}: {event['error'].get('message')}"
     if event.get("error_code") or event.get("errorCode"):
         out.append(f"[error {event.get('error_code') or event.get('errorCode')}]")
     return f"{event.get('author', '?')}: " + (" ".join(out) or "(no content)")
@@ -66,6 +68,9 @@ async def run(args) -> int:
             print(f"{time.monotonic() - started:6.1f}s  {describe(event)}", flush=True)
         print(f"{count} events in {time.monotonic() - started:.1f}s")
     threads = await engine.list_threads(user_token=args.token)
+    if isinstance(threads, dict):
+        print(describe(threads))
+        return 1
     print("your conversations:")
     for thread in threads or []:
         print(f"  {thread['updatedAt']}  {thread['threadId']}  {thread['title']}")

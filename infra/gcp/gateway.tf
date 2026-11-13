@@ -8,8 +8,8 @@
 #
 # Rollout: agent_gateway_enabled creates everything with the IAP check in DRY_RUN (decisions are
 # logged, nothing is blocked). Set agent_gateway_enforce = true once the logs show the expected
-# allows and denies. The engine is attached by scripts/deploy_agent_runtime.py
-# (terraform output agent_gateway).
+# allows and denies, and no request shows `unregisteredEndpoint` (CH-0018). The engine is attached
+# by scripts/deploy_agent_runtime.py (terraform output agent_gateway).
 
 locals {
   gateway_on     = var.native_enabled && var.agent_gateway_enabled
@@ -98,4 +98,53 @@ resource "google_iap_agent_registry_mcp_server_iam_member" "agent" {
     description = "generated/gateway_policy.json (sdlc-config gateway-policy), plus the MCP handshake"
     expression  = local.gateway_tool_condition
   }
+}
+
+# The agent's other destinations (CH-0018). With AGENT_TO_ANYWHERE egress, everything the agent
+# calls goes through the gateway, and anything not registered is denied once enforced
+# (unregisteredEndpoint). These are the destinations the DRY_RUN audit log showed besides the MCP
+# server. No wildcard host and no unregistered-endpoint rule: each destination is named here.
+locals {
+  agent_egress = {
+    # Entra signing keys: the runtime app re-validates the user's token (CH-0014). The tenant id
+    # comes from .env through gcp_deploy.ps1, never from a committed file.
+    "entra-signing-keys" = {
+      url         = "${var.entra_authority_host}/${var.entra_tenant_id}/discovery/v2.0/keys"
+      description = "Entra signing keys (JWKS) for user token validation"
+    }
+    # Gemini (SDLC_MODEL_LOCATION=global in scripts/deploy_agent_runtime.py).
+    "vertex-ai-global" = {
+      url         = "https://aiplatform.mtls.googleapis.com"
+      description = "Gemini on Vertex AI (global endpoint)"
+    }
+    # Agent Runtime sessions, in the engine's region.
+    "vertex-ai-regional" = {
+      url         = "https://${var.region}-aiplatform.mtls.googleapis.com"
+      description = "Agent Runtime sessions in the engine's region"
+    }
+  }
+}
+
+resource "google_agent_registry_service" "agent_egress" {
+  for_each     = local.gateway_on ? local.agent_egress : {}
+  service_id   = each.key
+  location     = var.region
+  display_name = each.key
+  description  = each.value.description
+  interfaces {
+    url              = each.value.url
+    protocol_binding = "HTTP_JSON"
+  }
+  endpoint_spec {
+    type = "NO_SPEC"
+  }
+}
+
+resource "google_iap_agent_registry_endpoint_iam_member" "agent_egress" {
+  for_each    = var.agent_runtime_principal != "" ? google_agent_registry_service.agent_egress : {}
+  project     = var.project_id
+  location    = var.region
+  endpoint_id = basename(each.value.registry_resource)
+  role        = "roles/iap.egressor"
+  member      = var.agent_runtime_principal
 }

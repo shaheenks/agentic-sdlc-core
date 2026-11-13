@@ -15,10 +15,14 @@ Operations (`register_operations`):
 - `list_threads(user_token)`: the caller's conversations, newest first (id, title, updatedAt);
 - `delete_thread(user_token, session_id)`: deletes one of the caller's conversations.
 
+A refusal is a result, never an exception: `{"error": {"code", "message"}}` (for `stream_query`, a
+single event), with code `unauthenticated`, `not_found`, `invalid_argument` or `internal` (CH-0019).
+
 The Agent Runtime caller (the UI service account) is trusted to reach the engine, never to speak
 for a user: who the user is comes only from the token.
 """
 
+import logging
 import os
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -26,6 +30,8 @@ from typing import Any
 
 from sdlc_agent.runtime_guard import NotAuthenticated, clean_state, verify_user
 from sdlc_auth.adk import reset_request_token, set_request_token
+
+log = logging.getLogger(__name__)
 
 TITLE_STATE_KEY = "sdlc_title"  # server-owned: set from the first message, never by a client
 TITLE_CHARS = 80
@@ -82,6 +88,10 @@ class UserAgentApp:
     def register_operations(self) -> dict[str, list[str]]:
         return {"async": ["list_threads", "delete_thread"], "async_stream": ["stream_query"]}
 
+    # Every method returns refusals as `{"error": {...}}` instead of raising (CH-0019): when a
+    # method raises, Agent Runtime echoes the call's arguments, the user's token included, into
+    # the error and its log.
+
     async def stream_query(
         self,
         message: str,
@@ -89,13 +99,32 @@ class UserAgentApp:
         session_id: str | None = None,
         state: dict[str, Any] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
+        try:
+            async for item in self._stream(message, user_token, session_id, state):
+                yield item
+        except Exception as e:  # noqa: BLE001 (reported as an error result, see above)
+            yield _error(e)
+
+    async def list_threads(self, user_token: str) -> list[dict[str, Any]] | dict[str, Any]:
+        try:
+            return await self._list_threads(user_token)
+        except Exception as e:  # noqa: BLE001
+            return _error(e)
+
+    async def delete_thread(self, user_token: str, session_id: str) -> dict[str, Any]:
+        try:
+            return await self._delete_thread(user_token, session_id)
+        except Exception as e:  # noqa: BLE001
+            return _error(e)
+
+    async def _stream(self, message, user_token, session_id, state):
         from google.genai import types
 
         oid = await verify_user(self._verifier, user_token)
         if not isinstance(message, str) or not message.strip():
             raise ValueError("message is empty")
         if len(message) > MAX_MESSAGE_CHARS:
-            raise ValueError(f"message is longer than {MAX_MESSAGE_CHARS} characters")
+            raise ValueError("message too long")
         session = await self._own_session(oid, session_id, state, message)
         yield {"session": session.id}
         bound = set_request_token(user_token)  # this call only; never stored in the session
@@ -109,7 +138,7 @@ class UserAgentApp:
         finally:
             reset_request_token(bound)
 
-    async def list_threads(self, user_token: str) -> list[dict[str, Any]]:
+    async def _list_threads(self, user_token: str) -> list[dict[str, Any]]:
         oid = await verify_user(self._verifier, user_token)
         listed = await self._session_service.list_sessions(app_name=self._app_name, user_id=oid)
         threads = [
@@ -123,7 +152,7 @@ class UserAgentApp:
         threads.sort(key=lambda t: t["updatedAt"], reverse=True)
         return threads[:MAX_THREADS]
 
-    async def delete_thread(self, user_token: str, session_id: str) -> dict[str, bool]:
+    async def _delete_thread(self, user_token: str, session_id: str) -> dict[str, bool]:
         oid = await verify_user(self._verifier, user_token)
         await self._owned(oid, session_id)  # someone else's session answers "not found"
         await self._session_service.delete_session(
@@ -159,6 +188,27 @@ def _session_service_from_env(location: str | None):
         location=location,
         agent_engine_id=os.environ.get("GOOGLE_CLOUD_AGENT_ENGINE_ID"),
     )
+
+
+# Expected refusals, most specific first. Messages are fixed: never an argument value or an
+# exception's text, which could quote one.
+_REFUSALS = (
+    (
+        NotAuthenticated,
+        "unauthenticated",
+        "sign-in required: the token is missing, invalid or expired",
+    ),
+    (LookupError, "not_found", "conversation not found"),
+    (ValueError, "invalid_argument", "invalid request: the message is empty or too long"),
+)
+
+
+def _error(exc: Exception) -> dict[str, Any]:
+    for kind, code, message in _REFUSALS:
+        if isinstance(exc, kind):
+            return {"error": {"code": code, "message": message}}
+    log.warning("runtime call failed: %s", type(exc).__name__)  # the type only, never the text
+    return {"error": {"code": "internal", "message": "the agent could not complete the request"}}
 
 
 def _iso(ts: float | None) -> str:

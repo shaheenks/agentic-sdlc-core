@@ -13,7 +13,7 @@ from google.adk.agents import BaseAgent
 from google.adk.events import Event
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from sdlc_agent.runtime_guard import NotAuthenticated, clean_state
+from sdlc_agent.runtime_guard import clean_state
 from sdlc_auth.adk import USER_TOKEN_STATE_KEY, get_user_token
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "agents"))
@@ -60,22 +60,27 @@ async def test_streams_as_the_token_user_with_the_token_bound(app, entra):
     assert get_user_token() is None  # unbound after the call
 
 
+def error_code(result):
+    """The code of an error result (CH-0019: refusals are results, never exceptions)."""
+    if isinstance(result, list):
+        assert len(result) == 1, result  # a refused stream is a single event, no session
+        result = result[0]
+    return result["error"]["code"]
+
+
 @pytest.mark.parametrize("token", [None, "", "not.a.jwt"])
 async def test_no_valid_token_no_answer(app, token):
-    with pytest.raises(NotAuthenticated):
-        await run(app, token)
+    assert error_code(await run(app, token)) == "unauthenticated"
 
 
 async def test_expired_token_is_refused(app, entra):
-    with pytest.raises(NotAuthenticated):
-        await run(app, entra.token(oid=ALICE, expires_in=-30))
+    assert error_code(await run(app, entra.token(oid=ALICE, expires_in=-30))) == "unauthenticated"
 
 
 async def test_another_users_session_is_not_found(app, entra):
     alice = await run(app, entra.token(oid=ALICE))
     session_id = alice[0]["session"]
-    with pytest.raises(LookupError, match="conversation not found"):
-        await run(app, entra.token(oid=BOB), session_id=session_id)
+    assert error_code(await run(app, entra.token(oid=BOB), session_id=session_id)) == "not_found"
     again = await run(app, entra.token(oid=ALICE), message="more", session_id=session_id)
     assert again[0]["session"] == session_id
 
@@ -102,15 +107,51 @@ async def test_threads_are_per_user_and_deletable_only_by_their_owner(app, entra
     await run(app, entra.token(oid=BOB), message="bob's")
     threads = await app.list_threads(entra.token(oid=ALICE))
     assert [(t["threadId"], t["title"]) for t in threads] == [(first, "Design the ledger")]
-    with pytest.raises(LookupError):
-        await app.delete_thread(entra.token(oid=BOB), first)
+    assert error_code(await app.delete_thread(entra.token(oid=BOB), first)) == "not_found"
     assert await app.delete_thread(entra.token(oid=ALICE), first) == {"deleted": True}
     assert await app.list_threads(entra.token(oid=ALICE)) == []
 
 
 async def test_empty_message_is_refused(app, entra):
-    with pytest.raises(ValueError, match="empty"):
-        await run(app, entra.token(oid=ALICE), message="   ")
+    assert error_code(await run(app, entra.token(oid=ALICE), message="   ")) == "invalid_argument"
+
+
+async def test_refusals_never_raise_or_carry_the_token(app, entra, caplog):
+    """CH-0019: a raised error made Agent Runtime echo the arguments, the token included, into the
+    error and its log. Every refusal is a result whose text and logs never contain the token."""
+    expired = entra.token(oid=ALICE, expires_in=-30)
+    results = [
+        await run(app, expired),
+        await app.list_threads(expired),
+        await app.delete_thread(expired, "s1"),
+        await app.list_threads("not.a.jwt"),
+    ]
+    assert [error_code(r) for r in results] == ["unauthenticated"] * 4
+    for secret in (expired, "not.a.jwt"):
+        assert secret not in repr(results)
+        assert secret not in caplog.text
+
+
+class Exploding(InMemorySessionService):
+    def __init__(self, token):
+        super().__init__()
+        self.token = token
+
+    async def list_sessions(self, **kw):
+        raise RuntimeError(f"backend failed for {self.token}")
+
+
+async def test_an_unexpected_error_is_internal_and_logs_only_its_type(entra, caplog):
+    token = entra.token(oid=ALICE)
+    app = UserAgentApp(
+        verifier=entra.verifier(), agent=Echo(name="echo"), session_service=Exploding(token)
+    )
+    app.set_up()
+    with caplog.at_level("WARNING"):
+        result = await app.list_threads(token)
+    assert error_code(result) == "internal"
+    assert "RuntimeError" in caplog.text
+    assert token not in repr(result) and token not in caplog.text
 
 
 def test_operations_are_registered():

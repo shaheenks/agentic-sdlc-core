@@ -238,7 +238,13 @@ Rollout:
    (`--no-gateway` deploys without it, to roll back).
 3. Run `scripts/agent_runtime_query.py`. The answer must still work (both auth headers reach the MCP server
    through the gateway), and the gateway's IAP logs show an allow for each tool the agent called.
-4. Set `agent_gateway_enforce = true` (fail closed), plan + apply, and check again.
+4. Check that every IAP decision names a registered endpoint. Once enforced, anything else is denied, including
+   the agent's own calls to Entra, Gemini and sessions (CH-0018 registers those in `gateway.tf`):
+   ```powershell
+   gcloud logging read 'protoPayload.methodName=AuthorizeUser' --project <project> --freshness 1h --limit 100 --format 'value(protoPayload.resourceName, protoPayload.request.httpRequest.url)'
+   ```
+   No line may start with `unregisteredEndpoint`. A new destination the agent needs goes into `local.agent_egress`.
+5. Set `agent_gateway_enforce = true` (fail closed), plan + apply, and check again. To roll back, set it to `false`.
 
 ## 6. Configuration on GCP
 

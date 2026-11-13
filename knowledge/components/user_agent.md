@@ -41,7 +41,8 @@ Code: `agents/user_agent`
 - Attaches A2UI cards to tool results for A2A clients.
 - `runtime_app.py` (CH-0014): the Agent Runtime entry point (`stream_query`, `list_threads`,
   `delete_thread`), which runs the shared runtime guard before the agent and binds the user's
-  token for the call only.
+  token for the call only. Refusals are returned as `{"error": {code, message}}` results, never raised
+  (CH-0019), so Agent Runtime never echoes the arguments (the token) into errors or logs.
 
 # Depends on
 

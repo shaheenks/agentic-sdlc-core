@@ -2,6 +2,12 @@
 
 ## 2026-11-13
 
+- **Update**: enforcing the Agent Gateway on dev denied the agent's fetch of Entra's signing keys
+  (`unregisteredEndpoint`), so every call failed closed; dev is back in DRY_RUN. The user approved CH-0018 and CH-0019
+  (recorded by Claude on the user's instruction). CH-0018 done: the agent's other destinations (Entra keys, Gemini,
+  sessions) are registered endpoints with their own `roles/iap.egressor` grants. CH-0019 done: the Agent Runtime
+  methods return refusals as results, so the user's token is never echoed into errors or logs. Apply, engine
+  redeploy and enforcement are the user's.
 - **Update**: CH-0015 live on GCP dev in DRY_RUN: the agent's MCP traffic goes through the Agent Gateway, IAP grants each
   request, and both auth headers reach `sdlc-mcp-native` unchanged (WN.0 item confirmed).
 - **Update**: CH-0015 fix: the gateway's authorization policy needs the Network Security API; added to the Agent Platform

@@ -14,6 +14,8 @@
 - [CH-0013: MCP server on Cloud Run with IAM-only access (native env)](CH-0013.md) - A new environment `native` runs the existing MCP server as a Cloud Run service that only allowed Google identities can invoke; the Entra token keeps deciding per-user access.
 - [CH-0014: User agent on Agent Runtime](CH-0014.md) - The existing user agent is deployed to Agent Runtime behind a wrapper that verifies the user's Entra token, owns sessions per user and forwards the token to the MCP server with the agent's identity.
 - [CH-0015: Agent Registry and Agent Gateway for the native stack](CH-0015.md) - The agent and MCP server are registered in Agent Registry, and the managed Agent Gateway allows only the user agent to reach the MCP server, for the tools config declares.
+- [CH-0018: Register the agent's other egress destinations in Agent Registry](CH-0018.md) - Entra's signing keys, Gemini and Agent Runtime sessions become registered endpoints the agent is granted, so the Agent Gateway can enforce without denying the agent's own work.
+- [CH-0019: Agent Runtime methods return errors instead of raising them](CH-0019.md) - The runtime app's methods report refusals as error results, so Agent Runtime never echoes the request, and with it the user's token, into its error message and logs.
 
 ## Dropped
 

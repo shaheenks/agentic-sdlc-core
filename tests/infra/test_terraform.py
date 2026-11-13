@@ -205,3 +205,32 @@ def test_agent_gateway_is_config_driven_and_starts_in_dry_run(tf):
     registry = tf.resource("google_agent_registry_service", "mcp_native")
     assert "local.gateway_policy.toolspec" in registry["mcp_server_spec"][0]["content"]
     assert 'file("${path.module}/generated/gateway_policy.json")' in tf.locals["gateway_policy"]
+
+
+def test_agent_egress_destinations_are_registered_and_granted_one_by_one(tf):
+    """CH-0018: each of the agent's other destinations (Entra keys, Gemini, sessions) is a
+    registered endpoint behind the same gate, with one roles/iap.egressor grant to the agent; no
+    wildcard host; the tenant id comes only from a variable."""
+    egress = {unquote(k): v for k, v in tf.locals["agent_egress"].items()}
+    assert set(egress) == {"entra-signing-keys", "vertex-ai-global", "vertex-ai-regional"}
+    urls = {name: unquote(dest["url"]) for name, dest in egress.items()}
+    for name, url in urls.items():
+        assert "*" not in url, name
+        assert url.startswith(("https://", "${var.entra_authority_host}")), name
+    assert "${var.entra_tenant_id}" in urls["entra-signing-keys"]
+    registry = tf.resource("google_agent_registry_service", "agent_egress")
+    assert registry["for_each"] == "${local.gateway_on ? local.agent_egress : {}}"
+    assert unquote(registry["endpoint_spec"][0]["type"]) == "NO_SPEC"
+    grant = tf.resource("google_iap_agent_registry_endpoint_iam_member", "agent_egress")
+    assert "google_agent_registry_service.agent_egress" in grant["for_each"]
+    assert unquote(grant["role"]) == "roles/iap.egressor"
+    assert grant["member"] == "${var.agent_runtime_principal}"
+    endpoint_grants = [n for t, n, _ in tf.resources if t.startswith("google_iap_agent_registry_")]
+    assert sorted(endpoint_grants) == ["agent", "agent_egress"]
+
+
+def test_no_tenant_id_is_committed_in_terraform():
+    """The tenant id reaches the Entra endpoint only through var.entra_tenant_id."""
+    guid = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+    for path in [*TF_DIR.glob("*.tf"), *TF_DIR.glob("*.tfvars")]:
+        assert not guid.search(path.read_text(encoding="utf-8")), path.name
