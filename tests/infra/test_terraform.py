@@ -194,6 +194,9 @@ def test_agent_gateway_is_config_driven_and_starts_in_dry_run(tf):
     ext = tf.resource("google_network_services_authz_extension", "iap")
     assert ext["fail_open"] == "${!var.agent_gateway_enforce}"
     assert "DRY_RUN" in json.dumps(ext["metadata"])
+    assert "iapPolicyVersion" in json.dumps(
+        ext["metadata"]
+    )  # required by the API (V1: IAM allow bindings)
     grant = tf.resource("google_iap_agent_registry_mcp_server_iam_member", "agent")
     assert unquote(grant["role"]) == "roles/iap.egressor"
     assert grant["member"] == "${var.agent_runtime_principal}"

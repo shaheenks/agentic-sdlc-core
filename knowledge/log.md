@@ -2,6 +2,8 @@
 
 ## 2026-11-13
 
+- **Update**: CH-0015 fix: the IAP authz extension needs `iapPolicyVersion` (apply failed with 400); set to `V1`, which
+  evaluates the agent's IAM allow binding. V2 (Unified Access Policy) is a follow-up.
 - **Update**: the user approved CH-0015 and NFR-SEC-015 (recorded by Claude on the user's instruction). CH-0015 done:
   Agent Gateway, the registry entry for `sdlc-mcp-native`, the IAP check (starting in DRY_RUN) and the agent's
   tool-scoped grant, all in Terraform; the allowlist is generated from `tools.yaml` by `sdlc-config gateway-policy`.

@@ -58,7 +58,13 @@ resource "google_network_services_authz_extension" "iap" {
   service   = "iap.googleapis.com"
   timeout   = "1s"
   fail_open = !var.agent_gateway_enforce # DRY_RUN: log, never block
-  metadata  = var.agent_gateway_enforce ? {} : { iamEnforcementMode = "DRY_RUN" }
+  # V1 = IAP evaluates IAM allow bindings, which is how the agent's grant below is written (role +
+  # tool-name condition). Google recommends V2 (Unified Access Policy); moving to it means
+  # rewriting the grant as an IAM agent policy (follow-up).
+  metadata = merge(
+    { iapPolicyVersion = "V1" },
+    var.agent_gateway_enforce ? {} : { iamEnforcementMode = "DRY_RUN" },
+  )
 }
 
 resource "google_network_security_authz_policy" "gateway" {
