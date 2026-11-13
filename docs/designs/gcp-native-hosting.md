@@ -108,8 +108,10 @@ header for IAM when it is present.
     `google_agent_registry_service`, `_agent`, `_mcp_server`, `_endpoint` and `_binding`,
     `google_vertex_ai_reasoning_engine`, Cloud Run `iap_enabled` and `google_iap_web_cloud_run_service_iam_member`,
     so every piece can be Terraform;
-  - still to check live, with test resources: the gateway passing both auth headers, streaming from the custom
-    method, and MSAL silent SSO under IAP. Each is checked in the phase that builds it (WN.2, WN.3, WN.4).
+  - confirmed live (2026-11-13, CH-0014): the custom `stream_query` streams through Agent Runtime, and the agent
+    identity mints a Google ID token that Cloud Run IAM accepts; `sdlc-mcp-native` audited the agent's tool calls
+    as the user (`whoami`, `list_skills`, `get_agent_context`: allowed, the user's team, with the conversation id);
+  - still to check live: the gateway passing both auth headers (WN.3) and MSAL silent SSO under IAP (WN.4).
 
 ## 7. Risks
 

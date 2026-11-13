@@ -165,7 +165,7 @@ docker compose stays the local twin. W5 then ships the workflows onto this platf
 |---|---|---|---|---|
 | WN.0 | - | Spike (user enables the APIs): IAP on Cloud Run, Agent Registry, gateway egress to a Cloud Run MCP keeping both auth headers, streaming custom methods on Agent Runtime, MSAL silent SSO under IAP | Each item confirmed or a fallback decided | ✅ read-only part done 2026-11-12: APIs enabled (Terraform), gcloud and provider support confirmed; live checks (headers through the gateway, streaming, MSAL under IAP) move into WN.2 to WN.4; decisions N5, N6 |
 | WN.1 | CH-0013 | MCP server on Cloud Run, IAM-only (`native.tf`) | 403 without IAM, 401 without Entra token; dev unchanged | ✅ done 2026-11-12 (code); plan + apply on GCP dev (user) |
-| WN.2 | CH-0014 | User agent on Agent Runtime (runtime guard, header provider, deploy script) | Chat call answers as the user; other users' sessions refused | ✅ done 2026-11-12 (code); deploy the engine, then the invoker grant (user) |
+| WN.2 | CH-0014 | User agent on Agent Runtime (runtime guard, header provider, deploy script) | Chat call answers as the user; other users' sessions refused | ✅ done; live on GCP dev 2026-11-13 (streaming and Cloud Run IAM from the agent identity confirmed) |
 | WN.3 | CH-0015 | Agent Registry and Agent Gateway, allowlist from config | Tool outside the allowlist refused at the gateway | proposed |
 | WN.4 | CH-0016 | UI on Cloud Run with IAP, MSAL, AG-UI adapter to Agent Runtime | Group members chat; identity mismatch refused | proposed |
 | WN.5 | CH-0017 | Hardening, CI target, cutover decision | Negative checklist passes on `native` | proposed |

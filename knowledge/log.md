@@ -2,6 +2,9 @@
 
 ## 2026-11-13
 
+- **Update**: the user agent runs on Agent Runtime on GCP dev (CH-0014 live): the user's token is accepted, the answer streams,
+  and `sdlc-mcp-native` audits the agent's tool calls as the user through Cloud Run IAM. WN.0 items for streaming and
+  the agent identity confirmed.
 - **Update**: CH-0014 fixes from the first live run on Agent Runtime (the user's token was accepted and the session created):
   every MCP client in the agent now uses `sdlc_auth.adk.mcp_headers` (the team-context call had no Cloud Run IAM header
   and got 401); the MCP connection timeout is 30 s (`SDLC_MCP_TIMEOUT`, cold starts); Gemini uses
