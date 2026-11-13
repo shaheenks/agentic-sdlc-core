@@ -2,6 +2,8 @@
 
 ## 2026-11-13
 
+- **Update**: Agent Gateway enforced on GCP dev (CH-0015, CH-0018): the IAP check fails closed and the agent still
+  answers through the gateway; no denials in the audit log.
 - **Update**: enforcing the Agent Gateway on dev denied the agent's fetch of Entra's signing keys
   (`unregisteredEndpoint`), so every call failed closed; dev is back in DRY_RUN. The user approved CH-0018 and CH-0019
   (recorded by Claude on the user's instruction). CH-0018 done: the agent's other destinations (Entra keys, Gemini,

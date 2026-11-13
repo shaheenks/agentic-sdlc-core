@@ -114,6 +114,9 @@ header for IAM when it is present.
   - confirmed live (2026-11-13, CH-0015): with the engine attached to the Agent Gateway, IAP authorized each
     request (`egressViaIAP` granted, DRY_RUN) and `sdlc-mcp-native` audited the calls as the user, so the gateway
     passes both `Authorization` and `X-Serverless-Authorization` unchanged;
+  - confirmed live (2026-11-13, enforced, CH-0018): with the IAP check failing closed, the agent answers and every
+    gateway decision for `sdlc-mcp-native` is granted. The first enforce attempt showed that the agent's other
+    destinations (Entra keys, Gemini, sessions) must be registered endpoints too;
   - still to check live: MSAL silent SSO under IAP (WN.4).
 
 ## 7. Risks
