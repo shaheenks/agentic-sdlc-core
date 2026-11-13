@@ -118,17 +118,32 @@ def _fetch_id_token(audience: str) -> str:
 _id_tokens = _IdTokenCache()
 
 
-def agent_header_provider(context: Any = None) -> dict[str, str]:
-    """ADK McpToolset `header_provider`: the user's token plus the conversation id, and (when
-    SDLC_MCP_IAM_AUDIENCE is set) the agent's Google ID token for Cloud Run IAM. Nothing at all
-    without a user token: the agent never calls the MCP server on its own behalf."""
-    headers = bearer_header_provider(context)
-    if not headers:
-        return headers
-    session_id = agent_session_id(context)
+def mcp_headers(user_token: str | None, session_id: str | None = None) -> dict[str, str]:
+    """Headers for any call the agent makes to the MCP server as the user: the user's Entra token,
+    the conversation id, and (when SDLC_MCP_IAM_AUDIENCE is set) the agent's Google ID token for
+    Cloud Run IAM. Every MCP client in the agent uses this (toolsets, team context, Goldfish), so
+    none can forget the IAM header. Nothing at all without a user token: the agent never calls the
+    MCP server on its own behalf."""
+    if not user_token:
+        return {}
+    headers = {"Authorization": f"Bearer {user_token}"}
     if session_id:
         headers[AGENT_SESSION_HEADER] = session_id
     audience = os.environ.get(IAM_AUDIENCE_ENV, "")
     if audience:
         headers[IAM_HEADER] = f"Bearer {_id_tokens.get(audience)}"
     return headers
+
+
+def agent_header_provider(context: Any = None) -> dict[str, str]:
+    """ADK McpToolset `header_provider`: `mcp_headers` for the current user and conversation."""
+    return mcp_headers(get_user_token(context), agent_session_id(context))
+
+
+def mcp_timeout_seconds() -> float:
+    """Seconds to wait for an MCP session (SDLC_MCP_TIMEOUT, default 30): long enough for a
+    scaled-to-zero Cloud Run service to start (ADK's own default is 5)."""
+    try:
+        return float(os.environ.get("SDLC_MCP_TIMEOUT", "30"))
+    except ValueError:
+        return 30.0

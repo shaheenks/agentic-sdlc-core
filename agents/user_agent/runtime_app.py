@@ -56,6 +56,13 @@ class UserAgentApp:
         """Runs once per Agent Runtime instance."""
         from google.adk.runners import Runner
 
+        # Agent Runtime sets GOOGLE_CLOUD_LOCATION to the engine's region, where sessions live;
+        # Gemini is served from SDLC_MODEL_LOCATION (e.g. `global`, as on dev). Read the session
+        # region first, then point model calls (google-genai reads the variable) at the model one.
+        engine_location = os.environ.get("GOOGLE_CLOUD_LOCATION")
+        model_location = os.environ.get("SDLC_MODEL_LOCATION")
+        if model_location:
+            os.environ["GOOGLE_CLOUD_LOCATION"] = model_location
         if self._verifier is None:
             from sdlc_auth.entra import verifier_from_env
 
@@ -65,7 +72,7 @@ class UserAgentApp:
 
             self._agent = root_agent
         if self._session_service is None:
-            self._session_service = _session_service_from_env()
+            self._session_service = _session_service_from_env(engine_location)
             # Agent Runtime sessions are keyed by the engine, not by a free app name
             self._app_name = os.environ.get("GOOGLE_CLOUD_AGENT_ENGINE_ID", self._app_name)
         self._runner = Runner(
@@ -144,12 +151,12 @@ class UserAgentApp:
         return session
 
 
-def _session_service_from_env():
+def _session_service_from_env(location: str | None):
     from google.adk.sessions import VertexAiSessionService
 
     return VertexAiSessionService(
         project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
-        location=os.environ.get("GOOGLE_CLOUD_LOCATION"),
+        location=location,
         agent_engine_id=os.environ.get("GOOGLE_CLOUD_AGENT_ENGINE_ID"),
     )
 

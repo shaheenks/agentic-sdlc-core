@@ -77,3 +77,27 @@ def test_token_is_refreshed_before_it_expires(monkeypatch, fetched):
     monkeypatch.setattr(adk.time, "monotonic", lambda: next(clock))
     assert headers_for("t")[IAM_HEADER] == "Bearer google-id-token-1"
     assert headers_for("t")[IAM_HEADER] == "Bearer google-id-token-2"
+
+
+def test_every_mcp_client_uses_one_helper(monkeypatch, fetched):
+    """mcp_headers backs the toolset header provider, team context and Goldfish (CH-0014 fix: the
+    team-context client had sent the Entra token alone and was refused by Cloud Run IAM)."""
+    from sdlc_agent import goldfish, team_context
+
+    monkeypatch.setenv(IAM_AUDIENCE_ENV, AUDIENCE)
+    headers = adk.mcp_headers("user-token", "conv-9")
+    assert headers == {
+        "Authorization": "Bearer user-token",
+        AGENT_SESSION_HEADER: "conv-9",
+        IAM_HEADER: "Bearer google-id-token-1",
+    }
+    assert adk.mcp_headers(None) == {}
+    assert team_context.mcp_headers is adk.mcp_headers
+    assert goldfish.mcp_headers is adk.mcp_headers
+
+
+def test_mcp_timeout(monkeypatch):
+    monkeypatch.delenv("SDLC_MCP_TIMEOUT", raising=False)
+    assert adk.mcp_timeout_seconds() == 30.0
+    monkeypatch.setenv("SDLC_MCP_TIMEOUT", "12")
+    assert adk.mcp_timeout_seconds() == 12.0

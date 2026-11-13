@@ -22,7 +22,7 @@ from typing import Any
 from google.adk.tools import FunctionTool, ToolContext
 from mcp import ClientSession
 from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
-from sdlc_auth.adk import AGENT_SESSION_HEADER, get_user_token
+from sdlc_auth.adk import get_user_token, mcp_headers
 
 log = logging.getLogger("sdlc.agent")
 
@@ -41,9 +41,7 @@ async def fetch_agent_context(
     mcp_url: str, token: str, session_id: str | None = None, team: str | None = None
 ) -> dict:
     """Call get_agent_context on the MCP server as the user (conversation id for correlation)."""
-    headers = {"Authorization": f"Bearer {token}"}
-    if session_id:
-        headers[AGENT_SESSION_HEADER] = session_id
+    headers = mcp_headers(token, session_id)  # + Cloud Run IAM header where configured
     async with create_mcp_http_client(headers=headers) as http:
         async with streamable_http_client(mcp_url, http_client=http) as (read, write):
             async with ClientSession(read, write) as session:

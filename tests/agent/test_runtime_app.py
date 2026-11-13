@@ -116,3 +116,24 @@ async def test_empty_message_is_refused(app, entra):
 def test_operations_are_registered():
     ops = UserAgentApp().register_operations()
     assert ops == {"async": ["list_threads", "delete_thread"], "async_stream": ["stream_query"]}
+
+
+def test_sessions_stay_in_the_engine_region_and_gemini_uses_the_model_region(monkeypatch, entra):
+    """Agent Runtime sets GOOGLE_CLOUD_LOCATION to the engine's region; Gemini is not served there
+    (CH-0014 fix: the first live run got 404 for the model)."""
+    import user_agent.runtime_app as runtime_app
+
+    seen = {}
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "asia-southeast1")
+    monkeypatch.setenv("SDLC_MODEL_LOCATION", "global")
+    monkeypatch.setattr(
+        runtime_app,
+        "_session_service_from_env",
+        lambda location: seen.setdefault("sessions", location) and InMemorySessionService(),
+    )
+    app = UserAgentApp(verifier=entra.verifier(), agent=Echo(name="echo"))
+    app.set_up()
+    assert seen["sessions"] == "asia-southeast1"
+    import os
+
+    assert os.environ["GOOGLE_CLOUD_LOCATION"] == "global"

@@ -15,7 +15,7 @@ from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
 from sdlc_agent import make_set_active_team, with_team_context
 from sdlc_agent.a2ui_cards import after_tool_callback, before_model_callback
 from sdlc_agent.goldfish import make_goldfish_review
-from sdlc_auth.adk import agent_header_provider
+from sdlc_auth.adk import agent_header_provider, mcp_timeout_seconds
 
 MCP_URL = os.environ.get("SDLC_MCP_URL", "http://127.0.0.1:8080/mcp")
 MODEL = os.environ.get("SDLC_AGENT_MODEL", "gemini-3.8-flash")
@@ -85,7 +85,9 @@ root_agent = Agent(
     before_model_callback=before_model_callback,
     tools=[
         McpToolset(
-            connection_params=StreamableHTTPConnectionParams(url=MCP_URL),
+            connection_params=StreamableHTTPConnectionParams(
+                url=MCP_URL, timeout=mcp_timeout_seconds()
+            ),
             header_provider=agent_header_provider,  # user token + conversation id
         ),
         # version-03 P10: isolated reviewers per lens, as the user (lenses and tools via MCP)

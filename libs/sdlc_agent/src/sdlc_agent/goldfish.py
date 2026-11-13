@@ -40,9 +40,10 @@ from mcp import ClientSession
 from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from sdlc_auth.adk import (
-    AGENT_SESSION_HEADER,
     agent_header_provider,
     get_user_token,
+    mcp_headers,
+    mcp_timeout_seconds,
     reset_conversation_id,
     reset_request_token,
     set_conversation_id,
@@ -167,9 +168,7 @@ async def load_lenses(
 ) -> dict[str, str | None]:
     """Each lens's instructions via MCP `load_skill` as the user; None = unavailable (hidden or
     unknown: the server gives both the same answer)."""
-    headers = {"Authorization": f"Bearer {token}"}
-    if conversation_id:
-        headers[AGENT_SESSION_HEADER] = conversation_id
+    headers = mcp_headers(token, conversation_id)  # + Cloud Run IAM header where configured
     found: dict[str, str | None] = {}
     async with create_mcp_http_client(headers=headers) as http:
         async with streamable_http_client(mcp_url, http_client=http) as (read, write):
@@ -251,7 +250,9 @@ async def review_with_lens(
     max_llm_calls: int = MAX_LLM_CALLS_PER_REVIEWER,
 ) -> ReviewerOutput:
     toolset = McpToolset(
-        connection_params=StreamableHTTPConnectionParams(url=mcp_url),
+        connection_params=StreamableHTTPConnectionParams(
+            url=mcp_url, timeout=mcp_timeout_seconds()
+        ),
         header_provider=agent_header_provider,  # user token + the bound parent conversation id
         tool_filter=list(tools),
     )

@@ -18,7 +18,8 @@ Environment of the engine:
   SDLC_MCP_URL             https://<sdlc-mcp-native>/mcp   (terraform output mcp_native_url)
   SDLC_MCP_IAM_AUDIENCE    https://<sdlc-mcp-native>       (Cloud Run IAM audience, N5)
   ENTRA_TENANT_ID, ENTRA_API_CLIENT_ID, ENTRA_AUTHORITY_HOST (from .env; re-validate user tokens)
-  SDLC_AGENT_MODEL, GOOGLE_GENAI_USE_VERTEXAI=TRUE
+  SDLC_AGENT_MODEL, SDLC_MODEL_LOCATION (default global; sessions stay in the engine's region),
+  SDLC_MCP_TIMEOUT=30, GOOGLE_GENAI_USE_VERTEXAI=TRUE
 """
 
 import argparse
@@ -123,6 +124,8 @@ def engine_env(args, environ) -> dict[str, str]:
         "SDLC_MCP_URL": mcp_url,
         "SDLC_MCP_IAM_AUDIENCE": mcp_url.removesuffix("/mcp"),
         "SDLC_AGENT_MODEL": args.model,
+        "SDLC_MODEL_LOCATION": args.model_location,  # Gemini region; sessions stay in the engine's
+        "SDLC_MCP_TIMEOUT": "30",  # a scaled-to-zero sdlc-mcp-native needs a few seconds to start
         "GOOGLE_GENAI_USE_VERTEXAI": "TRUE",
     }
     for name in ENV_FROM_DOTENV:
@@ -141,6 +144,7 @@ def main(argv=None) -> int:
     parser.add_argument("--env", default="dev", choices=sorted(PROJECTS))
     parser.add_argument("--region", default=REGION)
     parser.add_argument("--model", default=os.environ.get("SDLC_AGENT_MODEL", "gemini-3.8-flash"))
+    parser.add_argument("--model-location", default="global", help="Vertex AI region for Gemini")
     parser.add_argument("--mcp-url", default="", help="default: terraform output mcp_native_url")
     parser.add_argument(
         "--allow-dirty", action="store_true", help="deploy uncommitted code (tests only)"
