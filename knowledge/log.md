@@ -2,6 +2,8 @@
 
 ## 2026-11-15
 
+- **Update**: CH-0025 live on dev: a refused `stream_query` reaches the caller as `unauthenticated`; Google users
+  answer as before.
 - **Fix**: CH-0025 done: runtime refusals are `{"refusal": {code, message}}`; `{"error": ...}` made `google.genai`
   crash on a refused `stream_query`. CH-0016's draft reads the new key. Live check after the engine redeploy.
 - **Update**: CH-0022 live on dev: a Google test user gets the basic tools and `sdlc-platform` from Cloud Identity
