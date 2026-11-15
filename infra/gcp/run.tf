@@ -17,7 +17,6 @@ locals {
 
   mcp_env = merge(
     local.vertex_env,
-    local.entra_env,
     {
       SDLC_ENV                 = var.env
       SDLC_CONFIG_WATCH        = "false" # without bundles: config baked into the image per release
@@ -41,6 +40,13 @@ locals {
     local.users_secret ? { SDLC_USERS_FILE = "${local.users_dir}/users.yaml" } : {},
   )
   mcp_secret_env = { PGPASSWORD = "pg-app-password" }
+  # Per stack (mcp_services idp): the Entra tenant for core_mcp, our Google OAuth client IDs (the ID
+  # token audience; from .env, not committed) for core_mcp_gcp, whose allowed domains and group
+  # lookup are config (platform.yaml identity.google), CH-0022.
+  mcp_identity_env = {
+    entra  = local.entra_env
+    google = { SDLC_OAUTH_CLIENT_IDS = var.google_oauth_client_ids }
+  }
 
   # Same settings as the local oauth2-proxy (docker-compose.yml x-oauth2-proxy-env).
   oauth2_proxy_env = {
@@ -119,9 +125,10 @@ locals {
 
 # --- MCP server ------------------------------------------------------------------------------------
 
-# `main` is the public service (Entra token only). `native` (CH-0013, var.native_enabled) runs the same image
-# and config with invoker IAM on: Cloud Run checks the caller's Google ID token in X-Serverless-Authorization
-# before the request reaches the server, which still reads only the Entra token in Authorization.
+# `main` is the public service (Entra token only, core_mcp). `native` (CH-0013, var.native_enabled) has
+# invoker IAM on: Cloud Run checks the caller's Google ID token in X-Serverless-Authorization before the
+# request reaches the server. Since CH-0022 it runs core_mcp_gcp as its own service account, which reads
+# the user's Google ID token in Authorization. Same config bundle, database and buckets.
 moved {
   from = google_cloud_run_v2_service.mcp
   to   = google_cloud_run_v2_service.mcp["main"]
@@ -136,7 +143,7 @@ resource "google_cloud_run_v2_service" "mcp" {
   deletion_protection  = var.deletion_protection
 
   template {
-    service_account = google_service_account.w["mcp"].email
+    service_account = google_service_account.w[each.value.workload].email
     # Cloud Storage volumes (config bundles) need the second generation execution environment.
     execution_environment = local.bundles ? "EXECUTION_ENVIRONMENT_GEN2" : null
     scaling {
@@ -144,7 +151,7 @@ resource "google_cloud_run_v2_service" "mcp" {
       max_instance_count = 3
     }
     containers {
-      image = local.images.mcp
+      image = local.images[each.value.image]
       ports {
         container_port = 8080
       }
@@ -153,7 +160,7 @@ resource "google_cloud_run_v2_service" "mcp" {
       }
       dynamic "env" {
         # each service advertises its own URL in the RFC 9728 metadata
-        for_each = merge(local.mcp_env, { MCP_PUBLIC_URL = "https://${each.value.host}" })
+        for_each = merge(local.mcp_env, local.mcp_identity_env[each.value.idp], { MCP_PUBLIC_URL = "https://${each.value.host}" })
         content {
           name  = env.key
           value = env.value
@@ -549,7 +556,7 @@ resource "google_cloud_run_v2_job" "reconcile" {
 }
 
 # The user agent on Agent Runtime may invoke the native MCP server (CH-0014). Cloud Run checks its
-# Google ID token (X-Serverless-Authorization); the user's Entra token still decides what it may do.
+# Google ID token (X-Serverless-Authorization); the user's own token still decides what it may do.
 resource "google_cloud_run_v2_service_iam_member" "mcp_native_agent" {
   count    = var.native_enabled && var.agent_runtime_principal != "" ? 1 : 0
   project  = var.project_id

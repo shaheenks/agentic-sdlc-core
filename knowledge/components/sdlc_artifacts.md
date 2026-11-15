@@ -32,6 +32,7 @@ Code: `libs/sdlc_artifacts`
 
 - Content stores selected by `SDLC_ARTIFACT_STORE` (`file://` or `gs://`).
 - Limits: text only, size, count per user, file-name rules.
+- `object_key` takes either stack's user id, an Entra GUID or a Google `sub` (CH-0022).
 
 # Depends on
 

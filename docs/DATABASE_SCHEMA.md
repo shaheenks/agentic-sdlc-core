@@ -19,6 +19,8 @@ Definitions live in:
     owner-only RLS; the only table `sdlc_app` may write).
   - `006_artifact_versions.sql` (version-03 P5): `artifacts.document_id` + `version` (revisions of one document).
   - `007_chunks_fulltext.sql` (version-03 P11): `chunks.content_tsv` (generated `simple` tsvector) + GIN index (keyword search).
+  - `008_source_ceilings.sql` (CH-0009): per-source classification ceilings in `app_read`.
+  - `009_owner_id_shapes.sql` (CH-0022): `artifacts.owner_oid` takes either stack's user id.
 
 Related: [ARCHITECTURE.md](ARCHITECTURE.md) "Data access" and "Knowledge graph".
 
@@ -234,7 +236,7 @@ Documents the agent saved for a user (version-03 P5). Metadata only: the content
 | `id` | `uuid` PK | Made by the MCP server; this version's own id (the content's object key) |
 | `document_id` | `uuid` | Stable id of the document (= `id` of version 1); the public id and link (006) |
 | `version` | `integer` | 1, 2, … per document, unique with `document_id` (`artifacts_document_version`); the highest live one is current (006) |
-| `owner_oid` | `text` | Entra `oid` of the caller, from the verified token; lowercase GUID (checked) |
+| `owner_oid` | `text` | The caller's user id from the verified token: Entra `oid` (lowercase GUID) or, on the GCP stack, Google `sub` (digits); shape checked (009, CH-0022) |
 | `name` | `text` | File name, 1–100 characters (checked again in `sdlc_artifacts.limits`) |
 | `media_type` | `text` | `text/markdown`, `text/plain`, `text/csv` or `application/json` |
 | `size_bytes`, `sha256` | `integer`, `text` | Of the stored content |

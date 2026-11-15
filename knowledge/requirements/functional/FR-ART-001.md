@@ -25,6 +25,10 @@ The system shall store documents the assistant saves for a user and restrict the
 
 # Acceptance criteria
 
-- The owner is the token `oid`, never a tool argument.
+- The owner is the token's user id (Entra `oid`, or Google `sub` on the GCP stack), never a tool argument.
 - Another user's artifact id answers 'artifact not found'.
 - Artifacts are text only, at most 1 MiB per version and 50 documents per user. A document counts once, however many versions it has.
+
+# Notes
+
+Edited by CH-0022: either stack's user id owns artifacts.

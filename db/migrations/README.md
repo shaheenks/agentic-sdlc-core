@@ -34,5 +34,8 @@ an applied migration must never be edited: add a new file instead.
   tables compares each row with `sdlc.source_ceiling(source_id)` (from `app.source_ceilings`, a JSON object set
   by `sdlc_db.scoped`) instead of one `max_classification_rank`. Missing source = `-1` = no rows.
 
+- `009_owner_id_shapes.sql` (CH-0022): `artifacts.owner_oid` accepts either stack's user id, an Entra oid
+  (GUID) or a Google `sub` (digits). Shape check only: RLS, grants and rows unchanged.
+
 Every new data table needs `FORCE ROW LEVEL SECURITY`, a `source_id` + `classification_rank` column,
 and policies for both roles, plus rows in `tests/db`.

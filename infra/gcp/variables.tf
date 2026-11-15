@@ -48,6 +48,12 @@ variable "entra_client_secret" {
   sensitive = true
 }
 
+variable "google_oauth_client_ids" {
+  description = "GCP stack (CH-0022): our Google OAuth client IDs, comma-separated (the web client and the Desktop client of the manual checks); the audience core_mcp_gcp accepts. From .env SDLC_OAUTH_CLIENT_IDS via gcp_deploy.ps1, never committed. Empty = core_mcp_gcp refuses to start (fail closed)."
+  type        = string
+  default     = ""
+}
+
 variable "users_yaml_path" {
   description = "Optional git-ignored UserMap for this env (direct members: emails + object IDs), stored in Secret Manager and mounted into the MCP service. Empty = none. gcp_deploy.ps1 sets it when config/env/<env>/users.yaml exists."
   type        = string

@@ -187,7 +187,12 @@ def build_http_app(server: FastMCP, store: ConfigStore, identity: IdentityAdapte
     """HTTP app with rejected-token auditing (auth_failure events) around the MCP endpoint."""
     return server.http_app(
         middleware=[
-            ASGIMiddleware(AuthFailureAuditMiddleware, store=store, rejection=identity.rejection)
+            ASGIMiddleware(
+                AuthFailureAuditMiddleware,
+                store=store,
+                rejection=identity.rejection,
+                idp=identity.name,
+            )
         ]
     )
 
@@ -251,16 +256,25 @@ def build_artifacts(knowledge: Knowledge | None) -> Artifacts:
 
 
 AuthBuilder = Callable[[Snapshot, str, ConfigStore], AuthProvider]
+IdentityBuilder = Callable[[Snapshot], IdentityAdapter]
 
 
-def serve(identity: IdentityAdapter, build_auth: AuthBuilder, name: str = "sdlc-core-mcp") -> None:
+def serve(
+    identity: IdentityAdapter | IdentityBuilder,
+    build_auth: AuthBuilder,
+    name: str = "sdlc-core-mcp",
+) -> None:
     """Run a server component: `build_auth(snapshot, public_url, store)` makes its token verifier
-    (it reads identity settings once at startup), `identity` interprets the verified claims."""
+    (it reads identity settings once at startup), `identity` interprets the verified claims. A
+    component whose adapter needs config (the GCP stack's group lookup, CH-0022) passes a builder
+    that gets the startup snapshot instead."""
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(message)s")
     setup_tracing()  # no-op unless OTEL_EXPORTER_OTLP_(TRACES_)ENDPOINT is set
     store = ConfigStore.from_env()  # raises ConfigError on invalid config: fail closed
     store.start_updates()  # folder: watch files; bundles (GCP): poll the `current` pointer
     snapshot = store.current()
+    if not hasattr(identity, "principal"):  # a builder, not an adapter
+        identity = identity(snapshot)
     host = os.environ.get("MCP_HOST", "127.0.0.1")
     port = int(os.environ.get("MCP_PORT", "8080"))
     knowledge = build_knowledge(snapshot)

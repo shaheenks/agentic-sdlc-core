@@ -39,6 +39,9 @@ Code: `libs/sdlc_agent`
 - A2UI card builder with strict validation.
 - `runtime_guard` (CH-0014): token check, `oid` binding and client-state cleaning shared by
   `sdlc_web` and the Agent Runtime app.
+- `runtime_guard` (CH-0022): `identity_provider` / `verifier_from_env` (`SDLC_IDENTITY_PROVIDER` `entra` or
+  `google`; anything else stops startup), `principal_of` (validated claims of either stack); `verify_user`
+  returns the stack's user id.
 
 # Depends on
 

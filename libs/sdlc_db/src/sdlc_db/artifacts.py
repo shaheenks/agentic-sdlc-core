@@ -18,7 +18,9 @@ from datetime import datetime
 
 from psycopg import AsyncConnection
 
-_OID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+# The owner is the token's user id: an Entra oid (GUID) or a Google `sub` (digits, CH-0022).
+# Same pattern as db/migrations/009_owner_id_shapes.sql and sdlc_artifacts.store.
+_OID = re.compile(r"^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9]{1,64})$")
 
 
 def normalize_oid(oid: str) -> str:

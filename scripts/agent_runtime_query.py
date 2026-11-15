@@ -5,12 +5,15 @@ Usage (a test user's token, not the admin's; the token is never printed):
       --scope api://<ENTRA_API_CLIENT_ID>/access_as_user --query accessToken -o tsv)" \\
       "Call whoami and tell me my teams and roles."
   --session <id>   continue a conversation; --threads  only list your conversations
+  GCP stack (CH-0022, the engine's default): `uv run --env-file .env python
+  scripts/agent_runtime_query.py --idp google` signs you in with Google in the browser
+  (scripts/google_id_token.py) instead of --token.
 
 It calls the engine's `stream_query` and prints every event with the seconds since the call
 started, so you can see whether the answer streams (events spread over time) or arrives at once.
 Tool calls and their results are shown by name only; text is shown as it arrives. Then it lists
 your conversations with `list_threads`. The Google caller is your gcloud ADC account (it needs
-permission to query the engine); who the user is comes only from the Entra token.
+permission to query the engine); who the user is comes only from the user token.
 """
 
 import argparse
@@ -79,14 +82,24 @@ async def run(args) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--token", required=True, help="the user's Entra access token (sdlc-mcp)")
+    parser.add_argument("--token", default="", help="the user's token (Entra access or Google ID)")
+    parser.add_argument(
+        "--idp", choices=("entra", "google"), default="entra", help="google: sign in in the browser"
+    )
     parser.add_argument("message", nargs="?", default="Call whoami and tell me my teams and roles.")
     parser.add_argument("--session", default="")
     parser.add_argument("--threads", action="store_true", help="only list your conversations")
     parser.add_argument("--engine", default=ENGINE)
     parser.add_argument("--project", default=PROJECT)
     parser.add_argument("--region", default=REGION)
-    return asyncio.run(run(parser.parse_args()))
+    args = parser.parse_args()
+    if not args.token and args.idp == "google":
+        from google_id_token import id_token  # scripts/ (run as a script)
+
+        args.token = id_token()
+    if not args.token:
+        parser.error("pass --token, or --idp google to sign in")
+    return asyncio.run(run(args))
 
 
 if __name__ == "__main__":

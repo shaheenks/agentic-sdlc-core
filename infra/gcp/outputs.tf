@@ -17,6 +17,11 @@ output "mcp_native_url" {
   value       = var.native_enabled ? "https://${local.mcp_native_host}/mcp" : ""
 }
 
+output "mcp_gcp_service_account" {
+  description = "core_mcp_gcp's service account (CH-0022): assign it the Groups Reader admin role in the Cloud Identity Admin console. Empty unless native_enabled."
+  value       = var.native_enabled ? google_service_account.w["mcp-gcp"].email : ""
+}
+
 output "session_engine" {
   description = "Agent Engine that stores agent conversations."
   value       = google_vertex_ai_reasoning_engine.sessions.id

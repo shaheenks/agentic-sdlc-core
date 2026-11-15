@@ -35,6 +35,8 @@ Code: `db`
 
 - `db/bootstrap`: extension, roles, schema, grants.
 - `db/migrations` 001 to 007: knowledge, graph, media type, item metadata, artifacts, artifact versions, full-text search.
+- `009_owner_id_shapes.sql` (CH-0022): `artifacts.owner_oid` takes an Entra oid or a Google `sub`; RLS and
+  grants unchanged.
 
 # Depends on
 

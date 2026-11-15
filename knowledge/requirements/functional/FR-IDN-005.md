@@ -1,7 +1,7 @@
 ---
 type: Functional Requirement
 title: Workflow identity
-description: Autonomous workflows authenticate with their own Entra workload identity and are authorized like any principal.
+description: Autonomous workflows authenticate with their own workload identity (Entra app-only, or a Google service account on the GCP stack) and are authorized like any principal.
 area: Identity
 tags:
 - requirement
@@ -29,7 +29,11 @@ The system shall authenticate each autonomous workflow with its own Entra app-on
 - A workflow principal gets exactly its role's tools, sources and team. It never receives or forwards a user token.
 - Audit records mark the principal kind (`user` or `workflow`) and the workflow id.
 - On GCP, workflows use federated credentials, not client secrets.
+- On the GCP stack, a workflow authenticates with its own Google service account: an ID token whose audience is
+  our OAuth client.
 
 # Notes
 
 Design: version-03 P6 A1. Replaces part of FR-AUTO-001.
+
+Edited by CH-0022: the GCP stack's workflow identity.

@@ -24,9 +24,11 @@ class FakeGroupsApi:
         self.calls: list[str] = []
         self.fail: int | None = None  # answer every call with this status
         self.page_size = 1
+        self.quota_projects: list[str | None] = []
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         assert request.headers["Authorization"] == "Bearer fake-token"
+        self.quota_projects.append(request.headers.get("x-goog-user-project"))
         path, params = request.url.path, request.url.params
         self.calls.append(path.rsplit("/", 1)[-1])
         if self.fail:
@@ -160,3 +162,15 @@ def test_unknown_mode_is_refused():
 async def test_static_groups_answer_only_candidates():
     static = StaticGroups({USER.upper(): [PAYMENTS, ADMIN]})
     assert await static.groups_of(USER, [PAYMENTS]) == {PAYMENTS}
+
+
+async def test_a_quota_project_is_sent_only_when_configured():
+    """CH-0022: local runs with user ADC name a billing project; a service account sends none."""
+    api = FakeGroupsApi({PAYMENTS: {USER}})
+    await directory(api).groups_of(USER, [PAYMENTS])
+    assert set(api.quota_projects) == {None}
+    api = FakeGroupsApi({PAYMENTS: {USER}})
+    client = httpx.AsyncClient(transport=httpx.MockTransport(api.handler))
+    groups = CloudIdentityGroups(token=fake_token, client=client, quota_project="proj-a")
+    assert await groups.groups_of(USER, [PAYMENTS]) == {PAYMENTS}
+    assert set(api.quota_projects) == {"proj-a"}

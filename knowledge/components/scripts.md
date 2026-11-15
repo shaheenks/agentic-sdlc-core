@@ -18,6 +18,7 @@ satisfies:
 - /requirements/non-functional/NFR-PRIV-003
 - /requirements/non-functional/NFR-SEC-015
 verified_by:
+- tests/infra/test_gcp_stack_scripts.py
 - tests/knowledge
 ---
 
@@ -36,6 +37,10 @@ Code: `scripts`
 - `agent_runtime_query.py` (CH-0014): asks the agent on Agent Runtime a question with a user's token and
   prints each event with its arrival time (streaming check), then the user's conversations.
 - `mcp_whoami.py`, `a2a_client.py`, `make_sample_pdfs.py`, `okf_bundle.py`.
+- CH-0022: `deploy_agent_runtime.py --idp google` (default; `entra` = rollback) sets the Google settings
+  (client IDs from .env, domains from config); `google_id_token.py` (installed-app sign-in with PKCE for a
+  Desktop client) behind `agent_runtime_query.py` / `mcp_whoami.py --idp google`; `gcp_deploy.ps1` builds
+  `core-mcp-gcp` and passes the client IDs.
 
 # Depends on
 
@@ -52,4 +57,5 @@ Code: `scripts`
 
 # Verification
 
+- `tests/infra/test_gcp_stack_scripts.py`
 - `tests/knowledge` (`okf_bundle.py`; the PowerShell scripts stay manual)

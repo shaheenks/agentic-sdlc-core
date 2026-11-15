@@ -1,0 +1,21 @@
+[project]
+name = "sdlc-core-mcp-gcp"
+version = "0.1.0"
+description = "Core MCP server of the GCP stack: sdlc_mcp with the Google ID token verifier and the Google Groups identity adapter"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastmcp>=4.0",
+    "sdlc-auth[server]",
+    "sdlc-config",
+    "sdlc-mcp",
+]
+
+[project.scripts]
+sdlc-core-mcp-gcp = "sdlc_core_mcp_gcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sdlc_core_mcp_gcp"]

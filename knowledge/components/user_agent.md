@@ -43,6 +43,8 @@ Code: `agents/user_agent`
   `delete_thread`), which runs the shared runtime guard before the agent and binds the user's
   token for the call only. Refusals are returned as `{"error": {code, message}}` results, never raised
   (CH-0019), so Agent Runtime never echoes the arguments (the token) into errors or logs.
+- CH-0022: the runtime app takes the stack's verifier (`sdlc_agent.runtime_guard.verifier_from_env`); the
+  engine runs with `SDLC_IDENTITY_PROVIDER=google`: Google ID tokens, the session user is the `sub`.
 
 # Depends on
 

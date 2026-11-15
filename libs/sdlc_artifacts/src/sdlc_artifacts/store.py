@@ -17,7 +17,8 @@ from urllib.parse import quote
 
 import httpx
 
-_OID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+# The owner: an Entra oid (GUID) or a Google `sub` (digits, CH-0022); never a path.
+_OID = re.compile(r"^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9]{1,64})$")
 GCS_API = "https://storage.googleapis.com"  # fixed endpoint: no config can redirect it
 
 

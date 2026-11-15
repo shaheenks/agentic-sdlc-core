@@ -57,11 +57,19 @@ def classify(
 
 
 class AuthFailureAuditMiddleware:
-    def __init__(self, app, store: ConfigStore, rejection: Rejection, path_prefix: str = "/mcp"):
+    def __init__(
+        self,
+        app,
+        store: ConfigStore,
+        rejection: Rejection,
+        path_prefix: str = "/mcp",
+        idp: str | None = None,  # the stack whose verifier refused the token (CH-0022)
+    ):
         self.app = app
         self.store = store
         self.rejection = rejection
         self.path_prefix = path_prefix
+        self.idp = idp
 
     async def __call__(self, scope, receive, send) -> None:
         if scope["type"] != "http" or not scope["path"].startswith(self.path_prefix):
@@ -90,6 +98,7 @@ class AuthFailureAuditMiddleware:
             "ts": datetime.now(UTC).isoformat(),
             "status": code,
             "reason": reason,
+            "idp": self.idp,
             "method": scope.get("method"),
             "path": scope.get("path"),
             "client_ip": forwarded.split(",")[0].strip() or client[0],

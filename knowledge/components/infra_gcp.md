@@ -37,6 +37,10 @@ Code: `infra/gcp`
 - Cloud Run: `sdlc-app` (oauth2-proxy, agent and chat) and `sdlc-mcp`; jobs for database setup, ingest and reconcile.
 - Cloud SQL with pgvector; GCS buckets for config, artifacts and sources; Secret Manager.
 - Cloud Scheduler; Agent Engine sessions; per-service accounts and IAM.
+- CH-0022: `sdlc-mcp-native` runs `core-mcp-gcp` as `sdlc-<env>-mcp-gcp` (the same grants as `mcp`) with
+  `SDLC_OAUTH_CLIENT_IDS` (`var.google_oauth_client_ids`) instead of `ENTRA_*`; `cloudidentity.googleapis.com`
+  with `native_enabled`; the agent's gateway egress `google-signing-keys` replaces `entra-signing-keys`; output
+  `mcp_gcp_service_account` (for Groups Reader).
 
 # Depends on
 

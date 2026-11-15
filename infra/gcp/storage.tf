@@ -46,6 +46,13 @@ resource "google_storage_bucket_iam_member" "config_store_mcp" {
   member = google_service_account.w["mcp"].member
 }
 
+resource "google_storage_bucket_iam_member" "config_store_mcp_gcp" {
+  count  = var.config_store_bucket != "" && var.native_enabled ? 1 : 0
+  bucket = google_storage_bucket.config_store[0].name
+  role   = "roles/storage.objectViewer"
+  member = google_service_account.w["mcp-gcp"].member # core_mcp_gcp (CH-0022)
+}
+
 resource "google_storage_bucket_iam_member" "config_store_reconcile" {
   count  = var.config_store_bucket == "" ? 0 : 1
   bucket = google_storage_bucket.config_store[0].name
@@ -99,4 +106,11 @@ resource "google_storage_bucket_iam_member" "artifact_store_mcp" {
   bucket = google_storage_bucket.artifact_store[0].name
   role   = "roles/storage.objectUser"
   member = google_service_account.w["mcp"].member
+}
+
+resource "google_storage_bucket_iam_member" "artifact_store_mcp_gcp" {
+  count  = var.artifact_store_bucket != "" && var.native_enabled ? 1 : 0
+  bucket = google_storage_bucket.artifact_store[0].name
+  role   = "roles/storage.objectUser"
+  member = google_service_account.w["mcp-gcp"].member # core_mcp_gcp (CH-0022)
 }

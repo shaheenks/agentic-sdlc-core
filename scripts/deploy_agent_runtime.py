@@ -10,14 +10,18 @@ What it does:
    `requirements.txt` exported from uv.lock (pinned third-party packages only).
 3. Creates the engine `sdlc-user-agent-<env>`, or updates it in place, with Agent Identity, the
    entry point `user_agent.runtime_app:app` and the environment below. No secrets: the agent only
-   holds Entra tenant and client ids (not secret) and calls the MCP server with the user's token.
+   holds OAuth client ids (not secret, but not committed) and calls the MCP server with the user's
+   token.
 4. Prints the engine and its identity. Grant that identity invoker on sdlc-mcp-native with
    `agent_runtime_principal` in infra/gcp/<env>.tfvars, then plan + apply.
 
 Environment of the engine:
   SDLC_MCP_URL             https://<sdlc-mcp-native>/mcp   (terraform output mcp_native_url)
   SDLC_MCP_IAM_AUDIENCE    https://<sdlc-mcp-native>       (Cloud Run IAM audience, N5)
-  ENTRA_TENANT_ID, ENTRA_API_CLIENT_ID, ENTRA_AUTHORITY_HOST (from .env; re-validate user tokens)
+  SDLC_IDENTITY_PROVIDER   google (CH-0022, the default `--idp`): Google ID tokens, with
+    SDLC_OAUTH_CLIENT_IDS (from .env) and SDLC_ALLOWED_DOMAINS (config/platform.yaml
+    identity.google); `--idp entra` (rollback) sends ENTRA_TENANT_ID, ENTRA_API_CLIENT_ID,
+    ENTRA_AUTHORITY_HOST (from .env) instead. Either way the engine re-validates every user token.
   SDLC_AGENT_MODEL, SDLC_MODEL_LOCATION (default global; sessions stay in the engine's region),
   SDLC_MCP_TIMEOUT=30, GOOGLE_GENAI_USE_VERTEXAI=TRUE
 """
@@ -38,7 +42,29 @@ PACKAGES = {  # source folder -> package name in the deployed tarball
     ROOT / "libs" / "sdlc_agent" / "src" / "sdlc_agent": "sdlc_agent",
     ROOT / "libs" / "sdlc_auth" / "src" / "sdlc_auth": "sdlc_auth",
 }
-ENV_FROM_DOTENV = ("ENTRA_TENANT_ID", "ENTRA_API_CLIENT_ID", "ENTRA_AUTHORITY_HOST")
+ENV_FROM_DOTENV = {  # idp -> settings read from .env (not committed)
+    "entra": ("ENTRA_TENANT_ID", "ENTRA_API_CLIENT_ID", "ENTRA_AUTHORITY_HOST"),
+    "google": ("SDLC_OAUTH_CLIENT_IDS",),
+}
+REQUIRED = {
+    "entra": ("ENTRA_TENANT_ID", "ENTRA_API_CLIENT_ID"),
+    "google": ("SDLC_OAUTH_CLIENT_IDS",),
+}
+HIDDEN = ("ENTRA_", "SDLC_OAUTH_CLIENT_IDS")  # not printed
+
+
+def allowed_domains(config_dir: Path = ROOT / "config") -> str:
+    """platform.yaml identity.google.allowed_domains, comma-separated (the declared domains)."""
+    import yaml
+
+    platform = yaml.safe_load((config_dir / "platform.yaml").read_text(encoding="utf-8"))
+    google = (platform.get("identity") or {}).get("google") or {}
+    domains = [str(d).strip().lower() for d in google.get("allowed_domains") or [] if d]
+    if not domains:
+        sys.exit(
+            "config/platform.yaml has no identity.google.allowed_domains (needed for --idp google)"
+        )
+    return ",".join(domains)
 
 
 def git(*args: str) -> str:
@@ -127,11 +153,14 @@ def engine_env(args, environ) -> dict[str, str]:
         "SDLC_MODEL_LOCATION": args.model_location,  # Gemini region; sessions stay in the engine's
         "SDLC_MCP_TIMEOUT": "30",  # a scaled-to-zero sdlc-mcp-native needs a few seconds to start
         "GOOGLE_GENAI_USE_VERTEXAI": "TRUE",
+        "SDLC_IDENTITY_PROVIDER": args.idp,
     }
-    for name in ENV_FROM_DOTENV:
+    if args.idp == "google":
+        env["SDLC_ALLOWED_DOMAINS"] = allowed_domains()
+    for name in ENV_FROM_DOTENV[args.idp]:
         if environ.get(name):
             env[name] = environ[name]
-    missing = [n for n in ("ENTRA_TENANT_ID", "ENTRA_API_CLIENT_ID") if not env.get(n)]
+    missing = [n for n in REQUIRED[args.idp] if not env.get(n)]
     if missing:
         sys.exit(f"missing {', '.join(missing)} (run with `uv run --env-file .env`)")
     return env
@@ -146,6 +175,12 @@ def main(argv=None) -> int:
     parser.add_argument("--model", default=os.environ.get("SDLC_AGENT_MODEL", "gemini-3.8-flash"))
     parser.add_argument("--model-location", default="global", help="Vertex AI region for Gemini")
     parser.add_argument("--mcp-url", default="", help="default: terraform output mcp_native_url")
+    parser.add_argument(
+        "--idp",
+        default="google",
+        choices=("google", "entra"),
+        help="user identity the engine accepts (CH-0022: google; entra = rollback)",
+    )
     parser.add_argument(
         "--agent-gateway", default="", help="default: terraform output agent_gateway (CH-0015)"
     )
@@ -166,8 +201,7 @@ def main(argv=None) -> int:
     name = f"sdlc-user-agent-{args.env}"
     print(f"staged {folder.relative_to(ROOT)} (commit {commit}); engine {name} in {args.region}")
     print(
-        "environment: "
-        + ", ".join(f"{k}={v}" for k, v in env.items() if not k.startswith("ENTRA_"))
+        "environment: " + ", ".join(f"{k}={v}" for k, v in env.items() if not k.startswith(HIDDEN))
     )
     import vertexai
     from vertexai import types

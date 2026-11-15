@@ -2,6 +2,11 @@
 
 ## 2026-11-15
 
+- **Update**: CH-0022 done (WG.2): new component `core_mcp_gcp` (the GCP stack's MCP server); the agent's
+  entry checks take the stack's verifier (`SDLC_IDENTITY_PROVIDER`); migration 009 lets an artifact owner be a
+  Google `sub`; `sdlc-mcp-native` runs `core-mcp-gcp` as its own service account; gateway egress to Google's
+  keys; compose profiles `gcp` and `gcp-tunnel`; `google_id_token.py`; guide `docs/guides/GCP_STACK.md`. Five
+  requirements reworded per stack and back to `draft`. Live check pending the user's rollout.
 - **Update**: CH-0021 follow-up: the user created the Cloud Identity groups and set `identity.google`; the repo
   config binds a `group:` beside every `app_role:`, the personas use the real groups and `validate` now runs
   the stack parity check on the repo config (passes).

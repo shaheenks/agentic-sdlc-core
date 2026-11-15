@@ -46,6 +46,8 @@ Code: `libs/sdlc_web`
 - `/threads`: list and delete the caller's conversations.
 - Conversation stores: SQLite with idle retention; Agent Engine sessions on GCP.
 - SSE keep-alive; developer tools off unless enabled.
+- CH-0022: the stack's verifier and `principal_of` come from `sdlc_agent.runtime_guard`, so the compose
+  `gcp` profile binds the Google `sub`.
 
 # Depends on
 

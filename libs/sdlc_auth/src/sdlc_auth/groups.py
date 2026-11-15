@@ -78,6 +78,7 @@ class CloudIdentityGroups:
         token: TokenProvider | None = None,
         client: httpx.AsyncClient | None = None,
         clock: Callable[[], float] = time.monotonic,
+        quota_project: str | None = None,
     ):
         if mode not in (DIRECT, TRANSITIVE):
             raise ValueError(f"unknown group lookup mode {mode!r}")
@@ -86,6 +87,8 @@ class CloudIdentityGroups:
         self._token = token or adc_token_provider()
         self._client = client or httpx.AsyncClient(timeout=10.0)
         self._clock = clock
+        # Billing project for user ADC (local runs, CH-0022); a service account needs none.
+        self._quota_project = quota_project
         self._users: dict[tuple[str, frozenset[str]], tuple[float, frozenset[str]]] = {}
         self._group_names: dict[str, str] = {}  # group email -> groups/<id>
 
@@ -112,6 +115,8 @@ class CloudIdentityGroups:
 
     async def _get(self, path: str, params: dict[str, str]) -> httpx.Response:
         headers = {"Authorization": f"Bearer {await self._token()}"}
+        if self._quota_project:
+            headers["x-goog-user-project"] = self._quota_project
         return await self._client.get(f"{API}/{path}", params=params, headers=headers)
 
     async def _group_name(self, group: str) -> str | None:

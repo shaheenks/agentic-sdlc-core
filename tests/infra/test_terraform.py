@@ -80,11 +80,15 @@ def walk_env_blocks(node):
 
 
 def test_only_mcp_has_a_grant_on_the_artifact_bucket(tf):
-    """NFR-SEC-010: the agent and the jobs have no access to saved documents."""
+    """NFR-SEC-010: the agent and the jobs have no access to saved documents; the two MCP servers
+    (core_mcp, and core_mcp_gcp with native_enabled, CH-0022) do."""
     grants = [
         b for _, _, b in tf.of_type("google_storage_bucket_iam") if "artifact_store" in b["bucket"]
     ]
-    assert [g["member"] for g in grants] == ['${google_service_account.w["mcp"].member}']
+    assert sorted(g["member"] for g in grants) == [
+        '${google_service_account.w["mcp"].member}',
+        '${google_service_account.w["mcp-gcp"].member}',
+    ]
 
 
 def test_artifact_lifecycle_follows_the_retention_variable(tf):
@@ -212,12 +216,13 @@ def test_agent_egress_destinations_are_registered_and_granted_one_by_one(tf):
     registered endpoint behind the same gate, with one roles/iap.egressor grant to the agent; no
     wildcard host; the tenant id comes only from a variable."""
     egress = {unquote(k): v for k, v in tf.locals["agent_egress"].items()}
-    assert set(egress) == {"entra-signing-keys", "vertex-ai-global", "vertex-ai-regional"}
+    # CH-0022: the engine re-validates Google ID tokens, so Google's keys replace Entra's
+    assert set(egress) == {"google-signing-keys", "vertex-ai-global", "vertex-ai-regional"}
     urls = {name: unquote(dest["url"]) for name, dest in egress.items()}
     for name, url in urls.items():
         assert "*" not in url, name
-        assert url.startswith(("https://", "${var.entra_authority_host}")), name
-    assert "${var.entra_tenant_id}" in urls["entra-signing-keys"]
+        assert url.startswith("https://"), name
+    assert urls["google-signing-keys"] == "https://www.googleapis.com/oauth2/v3/certs"
     registry = tf.resource("google_agent_registry_service", "agent_egress")
     assert registry["for_each"] == "${local.gateway_on ? local.agent_egress : {}}"
     assert unquote(registry["endpoint_spec"][0]["type"]) == "NO_SPEC"
@@ -234,3 +239,64 @@ def test_no_tenant_id_is_committed_in_terraform():
     guid = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
     for path in [*TF_DIR.glob("*.tf"), *TF_DIR.glob("*.tfvars")]:
         assert not guid.search(path.read_text(encoding="utf-8")), path.name
+
+
+# --- GCP stack (CH-0022) -----------------------------------------------------------------------
+
+
+def _service_entries(tf) -> dict[str, str]:
+    text = json.dumps(tf.locals["mcp_services"]).replace('\\"', '"')
+    return {
+        "main": text[text.index("main = {") : text.index("}", text.index("main = {"))],
+        "native": text[text.index("native = {") : text.index("}", text.index("native = {"))],
+    }
+
+
+def test_native_mcp_runs_core_mcp_gcp_as_its_own_account(tf):
+    """sdlc-mcp-native runs the core-mcp-gcp image as the mcp-gcp service account with the Google
+    settings; the main service keeps core_mcp, its account and the Entra settings."""
+    entries = _service_entries(tf)
+    for key, value in {"workload": "mcp", "image": "mcp", "idp": "entra"}.items():
+        assert f'{key} = "{value}"' in entries["main"], key
+    for key, value in {"workload": "mcp-gcp", "image": "mcp_gcp", "idp": "google"}.items():
+        assert f'{key} = "{value}"' in entries["native"], key
+    assert "/core-mcp-gcp:" in tf.locals["images"]["mcp_gcp"]
+    mcp = tf.resource("google_cloud_run_v2_service", "mcp")
+    template = json.dumps(mcp["template"])
+    assert "google_service_account.w[each.value.workload].email" in template
+    assert "local.images[each.value.image]" in template
+    assert "local.mcp_identity_env[each.value.idp]" in template
+
+
+def test_each_stack_gets_only_its_own_identity_settings(tf):
+    """No ENTRA_* on the GCP stack's server and no Google client IDs on the Entra one; the client
+    IDs come from a variable (never committed); the shared env carries neither."""
+    identity = {unquote(k): v for k, v in tf.locals["mcp_identity_env"].items()}
+    assert identity["entra"] == "${local.entra_env}"
+    google = identity["google"]
+    assert google == {"SDLC_OAUTH_CLIENT_IDS": "${var.google_oauth_client_ids}"}
+    shared = json.dumps(tf.locals["mcp_env"])
+    assert "entra_env" not in shared and "ENTRA_" not in shared
+    assert "OAUTH_CLIENT_IDS" not in shared
+
+
+def test_the_gcp_stack_account_mirrors_the_mcp_account(tf):
+    """mcp-gcp gets what mcp has (DB, Vertex AI, its secrets, bundles, artifacts, user connection
+    secrets, traces) and only with native_enabled; the Cloud Identity API is enabled with it."""
+    base = {unquote(k): v for k, v in tf.locals["workloads_base"].items()}
+    workloads = tf.locals["workloads"]
+    assert "var.native_enabled" in workloads and '"mcp-gcp"' in workloads
+    for item in base["mcp"]["roles"] + base["mcp"]["secrets"]:
+        assert item in workloads, item
+    secrets = tf.resource("google_project_iam_member", "mcp_gcp_user_secrets")
+    assert secrets["count"] == "${var.native_enabled ? 1 : 0}"
+    original = tf.resource("google_project_iam_member", "mcp_user_secrets")
+    assert secrets["condition"] == original["condition"] and secrets["role"] == original["role"]
+    for name in ("config_store_mcp_gcp", "artifact_store_mcp_gcp"):
+        grant = tf.resource("google_storage_bucket_iam_member", name)
+        assert "var.native_enabled" in grant["count"], name
+        assert grant["member"] == '${google_service_account.w["mcp-gcp"].member}', name
+    trace = tf.resource("google_project_iam_member", "trace")
+    assert "mcp-gcp" in trace["for_each"]
+    apis = tf.resource("google_project_service", "apis")
+    assert 'var.native_enabled ? ["cloudidentity.googleapis.com"] : []' in apis["for_each"]

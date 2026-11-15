@@ -20,6 +20,7 @@
 ## Services
 
 - [core_mcp](core_mcp.md) - The MCP server of the Entra stack: sdlc_mcp with the Entra token verifier and identity adapter.
+- [core_mcp_gcp](core_mcp_gcp.md) - The MCP server of the GCP stack: sdlc_mcp with the Google ID token verifier and the Google Groups identity adapter.
 
 ## Data
 

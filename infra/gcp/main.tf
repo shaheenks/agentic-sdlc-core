@@ -35,18 +35,21 @@ locals {
   mcp_name = "sdlc-mcp-${var.env}"
   app_host = "${local.app_name}-${data.google_project.this.number}.${var.region}.run.app"
   mcp_host = "${local.mcp_name}-${data.google_project.this.number}.${var.region}.run.app"
-  # GCP-native hosting (design D17, CH-0013): the same MCP server as a second service that only allowed
-  # Google identities can invoke (Cloud Run IAM); the Entra token still decides per-user access.
+  # GCP-native hosting (design D17, CH-0013): a second MCP service that only allowed Google identities
+  # can invoke (Cloud Run IAM). Since CH-0022 it is the GCP stack's server, core_mcp_gcp: the user's
+  # Google ID token and Google groups decide per-user access, as its own service account (the only
+  # one with Groups Reader). `main` stays the Entra stack's core_mcp.
   mcp_native_name = "sdlc-mcp-native"
   mcp_native_host = "${local.mcp_native_name}-${data.google_project.this.number}.${var.region}.run.app"
   mcp_services = merge(
-    { main = { name = local.mcp_name, host = local.mcp_host, public = true } },
-    var.native_enabled ? { native = { name = local.mcp_native_name, host = local.mcp_native_host, public = false } } : {},
+    { main = { name = local.mcp_name, host = local.mcp_host, public = true, workload = "mcp", image = "mcp", idp = "entra" } },
+    var.native_enabled ? { native = { name = local.mcp_native_name, host = local.mcp_native_host, public = false, workload = "mcp-gcp", image = "mcp_gcp", idp = "google" } } : {},
   )
 
   registry = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.sdlc.repository_id}"
   images = {
     mcp          = "${local.registry}/core-mcp:${var.image_tag}"
+    mcp_gcp      = "${local.registry}/core-mcp-gcp:${var.image_tag}" # GCP stack (CH-0022)
     agent        = "${local.registry}/user-agent:${var.image_tag}"
     ingest       = "${local.registry}/ingest:${var.image_tag}"
     ui           = "${local.registry}/ui-copilotkit:${var.image_tag}" # CopilotKit chat app (version-01 M5)
@@ -74,7 +77,12 @@ locals {
 }
 
 resource "google_project_service" "apis" {
-  for_each           = toset(concat(local.services, var.agent_platform_apis ? local.agent_platform_services : []))
+  for_each = toset(concat(
+    local.services,
+    var.agent_platform_apis ? local.agent_platform_services : [],
+    # Cloud Identity Groups API: Google group membership for core_mcp_gcp (CH-0021, CH-0022)
+    var.native_enabled ? ["cloudidentity.googleapis.com"] : [],
+  ))
   service            = each.value
   disable_on_destroy = false
 }

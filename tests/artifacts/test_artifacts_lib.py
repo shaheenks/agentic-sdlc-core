@@ -52,6 +52,19 @@ def test_object_key_is_built_from_checked_values_only():
         object_key(OID, "../../x")
 
 
+@pytest.mark.parametrize("owner", ["1" * 21, OID])
+def test_object_key_takes_either_stacks_user_id(owner):
+    """CH-0022: an Entra oid (GUID) or a Google sub (digits); anything else is refused."""
+    artifact_id = str(uuid.uuid4())
+    assert object_key(owner, artifact_id) == f"artifacts/{owner}/{artifact_id}"
+
+
+@pytest.mark.parametrize("owner", ["", "1" * 65, "12a", "1/2", "user@example.test", " 1"])
+def test_object_key_refuses_other_owner_shapes(owner):
+    with pytest.raises(ValueError):
+        object_key(owner, str(uuid.uuid4()))
+
+
 def test_file_store_round_trip_and_stays_inside_root(tmp_path):
     store = FileArtifactStore(tmp_path / "artifacts")
     key = object_key(OID, str(uuid.uuid4()))

@@ -21,6 +21,7 @@
 | [ENTRA_SETUP.md](guides/ENTRA_SETUP.md) | Entra ID apps, groups, app roles, test users, egress, blocking a user |
 | [CLOUDFLARE_TUNNEL.md](guides/CLOUDFLARE_TUNNEL.md) | Public development endpoints through the tunnel |
 | [GCP_DEPLOYMENT.md](guides/GCP_DEPLOYMENT.md) | The GCP environment: design, resources, deployment steps, verification, cost |
+| [GCP_STACK.md](guides/GCP_STACK.md) | The GCP stack on Google identity: Cloud Identity groups, OAuth clients, Groups Reader, compose profile `gcp`, rollout |
 | [TEAM_ONBOARDING.md](guides/TEAM_ONBOARDING.md) | Adding a team, and what its members can expect |
 
 ## Where a fact belongs

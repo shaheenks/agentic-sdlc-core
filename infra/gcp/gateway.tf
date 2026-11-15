@@ -106,11 +106,11 @@ resource "google_iap_agent_registry_mcp_server_iam_member" "agent" {
 # server. No wildcard host and no unregistered-endpoint rule: each destination is named here.
 locals {
   agent_egress = {
-    # Entra signing keys: the runtime app re-validates the user's token (CH-0014). The tenant id
-    # comes from .env through gcp_deploy.ps1, never from a committed file.
-    "entra-signing-keys" = {
-      url         = "${var.entra_authority_host}/${var.entra_tenant_id}/discovery/v2.0/keys"
-      description = "Entra signing keys (JWKS) for user token validation"
+    # Google signing keys: the runtime app re-validates the user's Google ID token (CH-0014;
+    # CH-0022 replaced the Entra keys: the engine serves the GCP stack).
+    "google-signing-keys" = {
+      url         = "https://www.googleapis.com/oauth2/v3/certs"
+      description = "Google signing keys (JWKS) for user ID token validation"
     }
     # Gemini (SDLC_MODEL_LOCATION=global in scripts/deploy_agent_runtime.py).
     "vertex-ai-global" = {

@@ -48,6 +48,7 @@ Code: `libs/sdlc_db`
 - Artifact metadata under owner RLS.
 - Embedders (Gemini; hash embedder for tests).
 - `sdlc-db bootstrap` and `migrate`; connection strings per role.
+- `normalize_oid` takes either stack's user id, an Entra GUID or a Google `sub` (CH-0022).
 
 # Depends on
 

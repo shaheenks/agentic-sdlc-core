@@ -87,7 +87,8 @@ def _who(identity: Identity) -> dict:
     return {
         "request_id": identity.request_id,
         **current_correlation(),
-        "oid": identity.principal.user_id,
+        "oid": identity.principal.user_id,  # Entra oid or Google sub (CH-0022)
+        "idp": identity.principal.provider,  # which stack: entra | google
         "upn": identity.principal.upn,
         "user_alias": identity.user_alias,
         "teams": sorted(identity.policy.teams),
@@ -232,6 +233,7 @@ class PolicyMiddleware(Middleware):
             "tool": tool,
             "args_hash": args_hash(arguments),
             "oid": None,
+            "idp": self._adapter.name,
             "upn": None,
             "teams": [],
             "roles": [],

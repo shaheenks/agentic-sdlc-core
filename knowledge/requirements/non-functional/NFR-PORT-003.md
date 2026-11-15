@@ -25,7 +25,9 @@ The same components shall run locally under Docker Compose and on GCP without co
 
 # Acceptance criteria
 
-- Local: Docker Compose (Postgres, MCP server, agent, oauth2-proxy).
+- Local: Docker Compose (Postgres, MCP server, agent, oauth2-proxy). Compose is the local twin of each stack: the
+  default profile runs the Entra stack, profile `gcp` the GCP stack (Google sign-in, the agent with Google
+  identity, `core-mcp-gcp`).
 - GCP dev: Cloud Run, Cloud SQL with pgvector, GCS and Secret Manager, provisioned with Terraform.
 - `infra/gcp` stays valid when shared code changes.
 - GCP-native hosting: the agent runs on Agent Runtime behind the same entry checks as local (`sdlc_agent.runtime_guard`); local compose runs the same agent code in a container.
@@ -35,3 +37,5 @@ The same components shall run locally under Docker Compose and on GCP without co
 Only the dev environment exists on GCP; staging was dropped for version-03.
 
 Edited by CH-0014: the agent on Agent Runtime (design D17).
+
+Edited by CH-0022: a compose profile per stack.

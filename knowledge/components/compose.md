@@ -32,6 +32,9 @@ Code: `docker-compose.yml`
 - Services: `postgres`, `core-mcp`, `user-agent`, `ui-copilotkit`, `oauth2-proxy`.
 - Profiles: `tunnel` (`oauth2-proxy-public`), `ingest` (`migrate`, `ingest`), `observability` (`jaeger`).
 - Explicit environment per service.
+- Profile `gcp` (CH-0022): `core-mcp-gcp` (:8090), `user-agent-gcp` (Google verifier) and `oauth2-proxy-gcp`
+  (Google sign-in at :4190, the ID token passed as `Authorization`); profile `gcp-tunnel` adds the public
+  proxy (`SDLC_GCP_APP_HOST`). The default profile is unchanged.
 
 # Depends on
 

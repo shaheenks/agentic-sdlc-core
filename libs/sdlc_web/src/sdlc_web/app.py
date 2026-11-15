@@ -12,7 +12,9 @@ from pathlib import Path
 import uvicorn
 from fastmcp.server.auth import TokenVerifier
 from google.adk.cli.fast_api import get_fast_api_app
-from sdlc_auth.entra import verifier_from_env  # shared with the Agent Runtime app (CH-0014)
+
+# shared with the Agent Runtime app (CH-0014); the stack from SDLC_IDENTITY_PROVIDER (CH-0022)
+from sdlc_agent.runtime_guard import verifier_from_env
 
 from sdlc_web.keepalive import DEFAULT_INTERVAL, SseKeepAliveMiddleware
 from sdlc_web.middleware import EntraUserBindingMiddleware

@@ -1,12 +1,13 @@
 """ASGI middleware in front of ADK's FastAPI app (adk web).
 
 For every request except public health checks:
-  1. Take the user's Entra access token from X-Forwarded-Access-Token (set by oauth2-proxy)
-     or `Authorization: Bearer`. Re-validate it (signature, issuer, audience, scope, tenant):
-     a forged or expired header gets 401, even if the proxy is bypassed.
-  2. Bind ADK's user id to the token's `oid`, in `/apps/{app}/users/{user_id}/...` paths and in
-     the `user_id` of /run and /run_sse bodies. Users can only reach their own sessions,
-     whatever the UI sends.
+  1. Take the user's token from X-Forwarded-Access-Token (set by oauth2-proxy) or
+     `Authorization: Bearer`: the Entra access token, or on the GCP stack's compose profile the
+     Google ID token (CH-0022). Re-validate it with the stack's verifier: a forged or expired
+     header gets 401, even if the proxy is bypassed.
+  2. Bind ADK's user id to the token's user id (`oid`; Google `sub`), in
+     `/apps/{app}/users/{user_id}/...` paths and in the `user_id` of /run and /run_sse bodies.
+     Users can only reach their own sessions, whatever the UI sends.
   3. Put the token in a request-scoped ContextVar for `sdlc_auth.adk.bearer_header_provider`,
      so the agent's MCP calls carry the user's identity.
   4. Restrict ADK's developer tools (`/dev/*`) to what the chat UI needs (graph views,
@@ -36,8 +37,7 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode
 
 from fastmcp.server.auth import TokenVerifier
-from sdlc_agent.runtime_guard import UNTRUSTED_STATE_PREFIXES
-from sdlc_auth import principal_from_claims
+from sdlc_agent.runtime_guard import UNTRUSTED_STATE_PREFIXES, principal_of
 from sdlc_auth.adk import USER_TOKEN_STATE_KEY, reset_request_token, set_request_token
 
 Scope = MutableMapping[str, Any]
@@ -115,7 +115,7 @@ class EntraUserBindingMiddleware:
                 [(b"www-authenticate", b'Bearer realm="sdlc"')],
             )
         try:
-            principal = principal_from_claims(access.claims)
+            principal = principal_of(access.claims)
         except ValueError:
             return await _respond(send, 401, {"detail": "not a user token"})
         oid = principal.oid
@@ -172,7 +172,7 @@ class EntraUserBindingMiddleware:
         token = self._extract_token(scope)
         access = await self.verifier.load_access_token(token) if token else None
         try:
-            oid = principal_from_claims(access.claims).oid if access else None
+            oid = principal_of(access.claims).oid if access else None
         except ValueError:
             oid = None
         if oid is None:

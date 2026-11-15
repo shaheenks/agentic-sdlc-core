@@ -3,8 +3,11 @@
 `adk web` + `sdlc_web` serve the agent locally and on GCP dev. On Agent Runtime there is no web
 layer of ours, so this app is the entry point and runs the same checks first
 (`sdlc_agent.runtime_guard`):
-- every call carries the user's Entra token, which is re-validated (fail closed);
-- the ADK user id is the token's `oid`; a caller can never pick another user's id or session;
+- every call carries the user's token, which is re-validated (fail closed): on the GCP stack a
+  Google ID token (`SDLC_IDENTITY_PROVIDER=google`, set by deploy_agent_runtime.py; CH-0022), else
+  the Entra access token;
+- the ADK user id is the token's user id (Google `sub`, Entra `oid`); a caller can never pick
+  another user's id or session;
 - client state is cleaned (no tokens, `temp:`, `app:`, `user:` or `sdlc_` keys);
 - the token is bound for this call only (`sdlc_auth.adk.set_request_token`), so the agent's MCP
   calls carry it, and it is never written to the session.
@@ -70,9 +73,9 @@ class UserAgentApp:
         if model_location:
             os.environ["GOOGLE_CLOUD_LOCATION"] = model_location
         if self._verifier is None:
-            from sdlc_auth.entra import verifier_from_env
+            from sdlc_agent.runtime_guard import verifier_from_env
 
-            self._verifier = verifier_from_env()
+            self._verifier = verifier_from_env()  # the stack's verifier (CH-0022)
         if self._agent is None:
             from .agent import root_agent  # agents/user_agent/agent.py (same package)
 

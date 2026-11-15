@@ -31,6 +31,7 @@ pytestmark = pytest.mark.skipif(bool(db.available()), reason=str(db.available())
 
 ALICE = "aaaaaaaa-0000-0000-0000-00000000000a"
 BOB = "bbbbbbbb-0000-0000-0000-00000000000b"
+GOOGLE_SUB = "1" * 21  # the GCP stack's user id (CH-0022)
 SECRET_TEXT = "Ledger redesign: confidential draft"
 
 
@@ -76,6 +77,21 @@ def test_owner_sees_only_own_rows_and_cannot_write_for_others(database):
     assert as_app(BOB, "SELECT count(*) FROM artifacts") == [(1,)]
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         as_app(ALICE, *insert_sql(BOB))
+
+
+def test_a_google_sub_owns_rows_like_an_oid(database):
+    """CH-0022 (009): either stack's user id may own rows; RLS keeps them apart."""
+    as_app(GOOGLE_SUB, *insert_sql(GOOGLE_SUB))
+    assert as_app(GOOGLE_SUB, "SELECT DISTINCT owner_oid FROM artifacts") == [(GOOGLE_SUB,)]
+    assert GOOGLE_SUB not in {r[0] for r in as_app(ALICE, "SELECT owner_oid FROM artifacts")}
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        as_app(ALICE, *insert_sql(GOOGLE_SUB))
+
+
+@pytest.mark.parametrize("owner", ["not-an-id", "1" * 65, "user@example.test"])
+def test_other_owner_shapes_are_refused(database, owner):
+    with pytest.raises(psycopg.errors.CheckViolation):
+        as_app(owner, *insert_sql(owner))
 
 
 def test_app_role_has_no_update_and_knowledge_stays_read_only(database):

@@ -70,6 +70,8 @@ Code: `libs/sdlc_mcp`
 - HTTP APIs: `/connections/` and `/artifacts/`.
 - `build_server`, `build_http_app` and `serve` for server components; the `sdlc-reconcile-connections` CLI.
 - OpenTelemetry tracing and correlation ids.
+- CH-0022: `serve` takes an adapter or a builder that gets the startup snapshot; `tool_call` and
+  `auth_failure` audit records carry `idp` (the stack).
 
 # Depends on
 

@@ -97,6 +97,7 @@ Plan references in brackets: Stage N (version-00), M/H (version-01 / version-00 
 | `sdlc-reconcile-connections` CLI / job (dry run by default) | ✅ Live (dry run checked) | N3 |
 | OpenTelemetry (Jaeger locally, Cloud Trace on GCP) | ✅ Live | H8, N4 |
 | App-only (workload) tokens, `Principal.kind` | 📝 Planned | P6 A1 |
+| GCP stack server `mcp_servers/core_mcp_gcp` (same `sdlc_mcp` body): Google ID tokens, membership from Cloud Identity groups (`direct` lookup), `users.yaml` by email, `idp` in audit records | 🟢 Built (tests; live after rollout, docs/guides/GCP_STACK.md) | CH-0021, CH-0022 |
 
 ### 2.3 Shared libraries — `libs/`
 
@@ -187,6 +188,7 @@ Plan references in brackets: Stage N (version-00), M/H (version-01 / version-00 
 | Cloudflare Tunnel for `app-` / `mcp-sdlc-dev.shaheenks.co.in` | ✅ Live | Stage 2 |
 | GCP dev: Cloud Run `sdlc-app` (oauth2-proxy + agent + chat sidecars), `sdlc-mcp`; Cloud SQL PG17 + pgvector; jobs db-setup / ingest / reconcile; Scheduler; Agent Engine sessions; GCS (config store, artifacts, source buckets); Secret Manager; Cloud Trace | ✅ Live | M7, M8, N1–N4, N13, F4 |
 | `gcp_deploy.ps1` steps state/base/config/images/plan/apply/db/ingest/urls (run by the user) | ✅ Live | M7 |
+| GCP stack: `sdlc-mcp-native` on `core-mcp-gcp` as `sdlc-dev-mcp-gcp` (Groups Reader), agent on Agent Runtime with Google identity (`deploy_agent_runtime.py --idp google`), gateway egress to Google's keys; compose profiles `gcp` (:4190, :8090) and `gcp-tunnel`; `google_id_token.py` for manual checks | 🟢 Built (rollout by the user) | CH-0022 |
 | CI: ruff, config validate + PR permission diff, UI typecheck/test/build, tests on pgvector, terraform fmt/validate | ✅ Live | H3 |
 | `entra_setup.ps1` (idempotent Entra provisioning incl. app roles) | ✅ Live | Stage 2, E1 |
 | Custom hostnames + managed certs, CI deploy stages, Cloud SQL private IP, scale-out `sdlc-app`, alerts on audit events | 📝 Planned | P3 |

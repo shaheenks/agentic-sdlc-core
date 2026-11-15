@@ -11,8 +11,9 @@ It knows nothing about the identity provider. A server component passes:
   memberships (`app_role:` / `group:` keys, possibly looked up asynchronously), its `users.yaml` entry, its
   `whoami` view and the reason a rejected token was refused.
 
-`mcp_servers/core_mcp` is the Entra component (`sdlc_core_mcp.entra.EntraAdapter`); the GCP stack's adapter is
-`sdlc_auth.google.GoogleAdapter` (CH-0021).
+`mcp_servers/core_mcp` is the Entra component (`sdlc_core_mcp.entra.EntraAdapter`); `mcp_servers/core_mcp_gcp` is
+the GCP stack's (CH-0022), with `sdlc_auth.google.GoogleAdapter` (CH-0021). `serve` takes an adapter, or a
+builder that gets the startup snapshot (the Google adapter's group lookup is config). Audit records carry `idp`.
 
 | Module | Tools / routes |
 |---|---|

@@ -47,6 +47,29 @@ x-oauth2-proxy-env: &oauth2-proxy-env
   OAUTH2_PROXY_EXTRA_JWT_ISSUERS: ${ENTRA_AUTHORITY_HOST:-https://login.microsoftonline.com}/${ENTRA_TENANT_ID:-}/v2.0=${ENTRA_API_CLIENT_ID:-}
   OAUTH2_PROXY_SKIP_AUTH_ROUTES: GET=^/\.well-known/agent-card\.json$
 
+# GCP stack (CH-0022): Google sign-in for the `gcp` profile. Google's provider asks for a refresh
+# token, so the ID token is renewed with the cookie. Only users of the allowed Cloud Identity
+# domains get in; the agent and MCP server check the domain (hd) again, and groups decide access.
+x-oauth2-proxy-gcp-env: &oauth2-proxy-gcp-env
+  OAUTH2_PROXY_PROVIDER: google
+  OAUTH2_PROXY_CLIENT_ID: ${SDLC_GOOGLE_WEB_CLIENT_ID:-}
+  OAUTH2_PROXY_CLIENT_SECRET: ${SDLC_GOOGLE_WEB_CLIENT_SECRET:-}
+  OAUTH2_PROXY_SCOPE: openid email profile
+  OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+  OAUTH2_PROXY_PROMPT: select_account
+  OAUTH2_PROXY_UPSTREAMS: http://user-agent-gcp:8000/,http://core-mcp-gcp:8080/connections/,http://core-mcp-gcp:8080/artifacts/
+  OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+  # The ID token, not Google's access token, is the user token of the GCP stack.
+  OAUTH2_PROXY_PASS_ACCESS_TOKEN: "false"
+  OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER: "true"
+  OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+  OAUTH2_PROXY_EMAIL_DOMAINS: ${SDLC_ALLOWED_DOMAINS:-}
+  OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_PROXY_COOKIE_SECRET:-}
+  OAUTH2_PROXY_COOKIE_NAME: _oauth2_proxy_gcp
+  OAUTH2_PROXY_COOKIE_REFRESH: 30m      # Google ID tokens last 1 hour
+  OAUTH2_PROXY_COOKIE_EXPIRE: 8h
+  OAUTH2_PROXY_API_ROUTES: ^/(run|run_sse|apps/|list-apps|agents/state|connections/|me\b|threads\b)
+
 # Tracing (H8.3): off unless OTEL_EXPORTER_OTLP_ENDPOINT is set in .env (e.g. http://jaeger:4318 with
 # `docker compose --profile observability up -d`). Spans never carry prompts, responses, tokens or
 # tool argument values.
@@ -216,6 +239,107 @@ services:
       ui-copilotkit:
         condition: service_started   # adk web keeps working if the chat app is down
 
+  # --- GCP stack (CH-0022), profile "gcp": `docker compose --profile gcp up -d` ------------------
+  # The local twin of the GCP stack beside the Entra stack above (same database and volumes): Google
+  # sign-in at http://localhost:4190 -> adk web on the agent (Google ID token re-validated) ->
+  # core-mcp-gcp (Google groups from the Cloud Identity Groups API, as your ADC account; it needs
+  # the cloud-identity.groups.readonly scope and Groups Reader, see docs/guides/GCP_STACK.md).
+  # The chat app (/chat/) stays on the Entra stack until the UI moves (CH-0016).
+  # .env: SDLC_OAUTH_CLIENT_IDS, SDLC_ALLOWED_DOMAINS, SDLC_GOOGLE_WEB_CLIENT_ID/_SECRET.
+  core-mcp-gcp:
+    build:
+      context: .
+      dockerfile: mcp_servers/core_mcp_gcp/Dockerfile
+    profiles: ["gcp"]
+    ports: ["127.0.0.1:8090:8080"]
+    environment:
+      SDLC_ENV: ${SDLC_ENV:-local}
+      WATCHFILES_FORCE_POLLING: "true"
+      # Our OAuth client IDs (the ID token audience). Missing => refuses to start (fail closed).
+      # Allowed domains and the group lookup are config (platform.yaml identity.google).
+      SDLC_OAUTH_CLIENT_IDS: ${SDLC_OAUTH_CLIENT_IDS:-}
+      MCP_PUBLIC_URL: https://${SDLC_GCP_MCP_HOST:-mcp-gcp-sdlc-dev.shaheenks.co.in}
+      OTEL_SERVICE_NAME: sdlc-core-mcp-gcp
+      <<: [*vertex-env, *otel-env]
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${PGDATABASE:-sdlc}
+      PGUSER: ${PGUSER:-sdlc_app}
+      PGPASSWORD: ${PGPASSWORD:-sdlc-local}
+      SDLC_USER_SECRETS_BACKEND: ${SDLC_USER_SECRETS_KEY:+file}
+      SDLC_USER_SECRETS_KEY: ${SDLC_USER_SECRETS_KEY:-}
+      SDLC_USER_SECRETS_DIR: /data/user-secrets
+      SDLC_ARTIFACT_STORE: ${SDLC_ARTIFACT_STORE-file:///data/artifacts}
+      SDLC_ARTIFACT_RETENTION_DAYS: ${SDLC_ARTIFACT_RETENTION_DAYS:-7}
+    volumes:
+      - ./skills:/app/skills:ro
+      - ./config:/app/config:ro
+      - *adc-mount
+      # the same stores as core-mcp: entries are keyed by the user id (Google sub vs Entra oid)
+      - mcp-user-secrets:/data/user-secrets
+      - mcp-artifacts:/data/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  user-agent-gcp:
+    build:
+      context: .
+      dockerfile: agents/user_agent/Dockerfile
+    profiles: ["gcp"]
+    expose: ["8000"]
+    environment:
+      SDLC_MCP_URL: http://core-mcp-gcp:8080/mcp
+      SDLC_AGENT_MODEL: ${SDLC_AGENT_MODEL:-gemini-3.8-flash}
+      # Google ID tokens (validate the forwarded user token; not secrets)
+      SDLC_IDENTITY_PROVIDER: google
+      SDLC_OAUTH_CLIENT_IDS: ${SDLC_OAUTH_CLIENT_IDS:-}
+      SDLC_ALLOWED_DOMAINS: ${SDLC_ALLOWED_DOMAINS:-}
+      <<: [*vertex-env, *otel-env]
+      OTEL_SERVICE_NAME: sdlc-user-agent-gcp
+      SDLC_SESSION_SERVICE_URI: sqlite:////data/sessions.db
+      SDLC_SESSION_RETENTION_DAYS: ${SDLC_SESSION_RETENTION_DAYS:-7}
+      SDLC_AGUI_AGENT: ""
+      SDLC_A2A_AGENT: ""
+      ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS: "false"
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: "false"
+    volumes:
+      - *adc-mount
+      - agent-sessions-gcp:/data
+    depends_on:
+      core-mcp-gcp:
+        condition: service_healthy
+
+  # Google sign-in: http://localhost:4190 (localhost only). The ID token (audience: the web client)
+  # goes upstream as `Authorization: Bearer`; the agent and the MCP routes re-validate it.
+  oauth2-proxy-gcp:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4-alpine
+    profiles: ["gcp"]
+    ports: ["127.0.0.1:4190:4180"]
+    environment:
+      <<: *oauth2-proxy-gcp-env
+      OAUTH2_PROXY_REDIRECT_URL: http://localhost:4190/oauth2/callback
+      OAUTH2_PROXY_COOKIE_SECURE: "false"   # plain http, localhost only
+    depends_on:
+      user-agent-gcp:
+        condition: service_healthy
+
+  # Public Google sign-in: https://${SDLC_GCP_APP_HOST} via the Cloudflare Tunnel (host connector ->
+  # localhost:4191). Start with: docker compose --profile gcp --profile gcp-tunnel up -d
+  oauth2-proxy-gcp-public:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4-alpine
+    profiles: ["gcp-tunnel"]
+    ports: ["127.0.0.1:4191:4180"]
+    environment:
+      <<: *oauth2-proxy-gcp-env
+      OAUTH2_PROXY_REDIRECT_URL: https://${SDLC_GCP_APP_HOST:-app-gcp-sdlc-dev.shaheenks.co.in}/oauth2/callback
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_WHITELIST_DOMAINS: ${SDLC_GCP_APP_HOST:-app-gcp-sdlc-dev.shaheenks.co.in}
+    depends_on:
+      user-agent-gcp:
+        condition: service_healthy
+
   # Trace viewer (profile "observability"): UI http://localhost:16686, OTLP/HTTP on jaeger:4318
   # (internal only). Set OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 in .env, then up -d.
   jaeger:
@@ -280,3 +404,4 @@ volumes:
   agent-sessions:   # agent conversations (SQLite); purged after SDLC_SESSION_RETENTION_DAYS idle
   mcp-user-secrets: # users' connection tokens (encrypted files, MCP server only; version-01 M6)
   mcp-artifacts:    # agent-generated documents (MCP server only; version-03 P5)
+  agent-sessions-gcp: # the GCP stack agent's conversations (profile gcp, CH-0022)

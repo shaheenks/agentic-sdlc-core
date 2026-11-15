@@ -178,3 +178,71 @@ def test_sessions_stay_in_the_engine_region_and_gemini_uses_the_model_region(mon
     import os
 
     assert os.environ["GOOGLE_CLOUD_LOCATION"] == "global"
+
+
+# --- GCP stack (CH-0022): the engine accepts Google ID tokens, the user id is `sub` ---------------
+
+SUB_A, SUB_B = "1" * 21, "2" * 21
+
+
+@pytest.fixture
+def google_app():
+    from tests.support.google import FakeGoogle
+
+    google = FakeGoogle()
+    sessions = InMemorySessionService()
+    a = UserAgentApp(verifier=google.verifier(), agent=Echo(name="echo"), session_service=sessions)
+    a.set_up()
+    a.google = google
+    return a
+
+
+async def test_google_stack_streams_as_the_sub(google_app):
+    events = await run(google_app, google_app.google.token(sub=SUB_A))
+    assert texts(events) == [f"user={SUB_A} token=yes"]
+
+
+async def test_google_stack_sessions_are_per_sub(google_app):
+    google = google_app.google
+    first = await run(google_app, google.token(sub=SUB_A))
+    other = await run(google_app, google.token(sub=SUB_B), session_id=first[0]["session"])
+    assert error_code(other) == "not_found"
+
+
+async def test_each_stack_refuses_the_other_stacks_token(app, google_app, entra):
+    assert error_code(await run(google_app, entra.token(oid=ALICE))) == "unauthenticated"
+    assert error_code(await run(app, google_app.google.token(sub=SUB_A))) == "unauthenticated"
+
+
+async def test_google_stack_refuses_another_domain(google_app):
+    token = google_app.google.token(sub=SUB_A, email="x@elsewhere.test", hd="elsewhere.test")
+    assert error_code(await run(google_app, token)) == "unauthenticated"
+
+
+def test_the_stack_is_chosen_by_environment_and_fails_closed(monkeypatch):
+    from sdlc_agent import runtime_guard
+    from sdlc_auth.google import GOOGLE_ISSUER, GoogleTokenVerifier
+
+    assert runtime_guard.GOOGLE_ISSUER == GOOGLE_ISSUER
+    assert runtime_guard.identity_provider({}) == "entra"
+    assert runtime_guard.identity_provider({"SDLC_IDENTITY_PROVIDER": " Google "}) == "google"
+    with pytest.raises(SystemExit, match="fail closed"):
+        runtime_guard.identity_provider({"SDLC_IDENTITY_PROVIDER": "github"})
+    monkeypatch.setenv("SDLC_OAUTH_CLIENT_IDS", "client-a")
+    monkeypatch.setenv("SDLC_ALLOWED_DOMAINS", "example.test")
+    verifier = runtime_guard.verifier_from_env({"SDLC_IDENTITY_PROVIDER": "google"})
+    assert isinstance(verifier, GoogleTokenVerifier)
+    monkeypatch.delenv("SDLC_ALLOWED_DOMAINS")
+    with pytest.raises(SystemExit, match="fail closed"):
+        runtime_guard.verifier_from_env({"SDLC_IDENTITY_PROVIDER": "google"})
+
+
+def test_principal_of_reads_each_stacks_claims():
+    from sdlc_agent.runtime_guard import GOOGLE_ISSUER, principal_of
+
+    google = principal_of(
+        {"iss": GOOGLE_ISSUER, "sub": SUB_A, "email": "A@Example.Test", "hd": "example.test"}
+    )
+    assert (google.oid, google.upn, google.provider) == (SUB_A, "a@example.test", "google")
+    entra = principal_of({"oid": ALICE, "tid": "t", "iss": "https://login.microsoftonline.com/t"})
+    assert (entra.oid, entra.provider) == (ALICE, "entra")

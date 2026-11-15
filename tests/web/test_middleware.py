@@ -196,3 +196,26 @@ async def test_other_websockets_are_closed(entra, downstream):
     sent = await websocket(app, path="/ws", headers=[(b"x-forwarded-access-token", token.encode())])
     assert sent == [{"type": "websocket.close", "code": 1008}]
     assert downstream.calls == []
+
+
+# --- GCP stack (CH-0022): compose profile `gcp` puts the Google ID token in Authorization ------
+
+
+async def test_google_id_token_binds_the_sub(downstream):
+    from tests.support.google import FakeGoogle
+
+    google = FakeGoogle()
+    app = EntraUserBindingMiddleware(downstream, google.verifier())
+    web = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://agent")
+    sub = "1" * 21
+    token = google.token(sub=sub)
+    bearer = {"Authorization": f"Bearer {token}"}
+    await web.get("/apps/user_agent/users/someone-else/sessions", headers=bearer)
+    assert downstream.calls[-1]["path"] == f"/apps/user_agent/users/{sub}/sessions"
+    assert downstream.calls[-1]["token"] == token
+    me = (await web.get("/me", headers=bearer)).json()
+    assert me["upn"] == f"user@{google.domain}"
+    entra_like = google.token(sub=sub, hd="elsewhere.test")  # another organisation's account
+    assert (
+        await web.get("/apps/user_agent/users/x", headers={"Authorization": f"Bearer {entra_like}"})
+    ).status_code == 401

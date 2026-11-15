@@ -11,7 +11,7 @@
              upload it to gs://<config_store_bucket>/bundles/<env>/ and point `current` at it.
              Cloud Run reads the active bundle and picks up a new one within ~2 minutes.
              -ConfigVersion <version>: only move `current` to an uploaded bundle (rollback).
-    images   build + push mcp/agent/ingest/ui images (tag = git short SHA), mirror oauth2-proxy
+    images   build + push mcp/mcp-gcp/agent/ingest/ui images (tag = git short SHA), mirror oauth2-proxy
     plan     full terraform plan -> infra/gcp/<env>.tfplan (review it)
     apply    apply the saved plan (deleted afterwards: it contains secret values)
     db       run the sdlc-db-setup job (bootstrap roles/schema + migrate)
@@ -19,7 +19,8 @@
     urls     print app / MCP URLs and the OAuth callback to register on sdlc-client
 
   Tenant values (ENTRA_*) come from .env. Membership comes from Entra app roles (CH-0011); there is
-  no group map (CH-0012).
+  no group map (CH-0012). The GCP stack's OAuth client IDs (SDLC_OAUTH_CLIENT_IDS, CH-0022) also
+  come from .env; its groups and domains are config.
   First deployment with a config store bucket: state, base, config, images, plan, apply, db, ingest.
   A config-only change afterwards: commit, then `config` (no new images, no apply).
   `base` and `apply` change cloud resources and ask for confirmation unless -AutoApprove.
@@ -108,6 +109,8 @@ function Set-TerraformEnv {
     $env:TF_VAR_entra_api_client_id = Get-DotEnv 'ENTRA_API_CLIENT_ID'
     $env:TF_VAR_entra_client_id = Get-DotEnv 'ENTRA_CLIENT_ID'
     $env:TF_VAR_entra_client_secret = Get-DotEnv 'ENTRA_CLIENT_SECRET'
+    # GCP stack (CH-0022): the audience core_mcp_gcp accepts; empty = it refuses to start.
+    $env:TF_VAR_google_oauth_client_ids = Get-DotEnv 'SDLC_OAUTH_CLIENT_IDS'
     # Optional direct members (version-02 N10): stored as a secret and mounted into the MCP service.
     $usersYaml = Join-Path $Root "config/env/$EnvName/users.yaml"
     $env:TF_VAR_users_yaml_path = if (Test-Path $usersYaml) { "../../config/env/$EnvName/users.yaml" } else { '' }
@@ -160,6 +163,7 @@ switch ($Step) {
         Invoke-Native 'gcloud' @('auth', 'configure-docker', "$Region-docker.pkg.dev", '--quiet')
         $images = [ordered]@{
             'core-mcp'      = 'mcp_servers/core_mcp/Dockerfile'
+            'core-mcp-gcp'  = 'mcp_servers/core_mcp_gcp/Dockerfile'   # GCP stack (CH-0022)
             'user-agent'    = 'agents/user_agent/Dockerfile'
             'ingest'        = 'ingest/bootstrap/Dockerfile'
             'ui-copilotkit' = 'ui/copilotkit/Dockerfile'   # CopilotKit chat app (version-01 M5)

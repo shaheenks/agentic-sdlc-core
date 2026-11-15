@@ -35,6 +35,7 @@ members = [
     "ingest/bootstrap",
     "ingest/loaders",
     "mcp_servers/core_mcp",
+    "mcp_servers/core_mcp_gcp",
     "agents/user_agent",
 ]
 
@@ -52,6 +53,7 @@ sdlc-web = { workspace = true }
 sdlc-ingest = { workspace = true }
 sdlc-loaders = { workspace = true }
 sdlc-core-mcp = { workspace = true }
+sdlc-core-mcp-gcp = { workspace = true }
 sdlc-user-agent = { workspace = true }
 
 [tool.ruff]
