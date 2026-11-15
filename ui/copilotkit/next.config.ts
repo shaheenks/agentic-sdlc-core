@@ -23,6 +23,9 @@ const config: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   reactStrictMode: true,
+  // Native stack (CH-0016): the same-origin paths outside /chat (/me, /threads, /connections/,
+  // /artifacts/, /oauth2/sign_out) are mapped onto /chat/api/native/* by native-entry.mjs, which
+  // runs in front of this server there (Next.js only rewrites outside basePath to external URLs).
   async headers() {
     return [
       {

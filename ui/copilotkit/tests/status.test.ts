@@ -70,3 +70,12 @@ test("connections off or unreadable: nothing to show", () => {
   assert.deepEqual(connectionStatuses(null), []);
   assert.deepEqual(connectionStatuses({ detail: "user connections are not configured" }), []);
 });
+
+test("a 401 with signIn sends the browser to sign in and back to this page (CH-0016)", async () => {
+  const { signInTarget } = await import("../lib/status.ts");
+  const here = { pathname: "/chat/", search: "?thread=t1" };
+  assert.equal(signInTarget({ signIn: "/chat/auth/start" }, here), "/chat/auth/start?returnTo=%2Fchat%2F%3Fthread%3Dt1");
+  for (const body of [null, {}, { signIn: "https://evil.test/" }, { signIn: "//evil.test" }, { signIn: 5 }]) {
+    assert.equal(signInTarget(body, here), null);
+  }
+});

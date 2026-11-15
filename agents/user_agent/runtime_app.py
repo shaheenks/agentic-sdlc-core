@@ -13,10 +13,16 @@ layer of ours, so this app is the entry point and runs the same checks first
   calls carry it, and it is never written to the session.
 
 Operations (`register_operations`):
-- `stream_query(message, user_token, session_id=None, state=None)`: async stream of ADK events
-  (JSON), the first being `{"session": <id>}` so a client can continue the conversation;
-- `list_threads(user_token)`: the caller's conversations, newest first (id, title, updatedAt);
-- `delete_thread(user_token, session_id)`: deletes one of the caller's conversations.
+- `stream_query(message, user_token, session_id=None, state=None, thread_id=None)`: async stream
+  of ADK events (JSON), the first being `{"session": <id>}` so a client can continue the
+  conversation. `thread_id` (CH-0016) is a client's name for the conversation (the chat UI's AG-UI
+  thread id): the caller's session with that name, or a new one carrying it;
+- `list_threads(user_token)`: the caller's conversations, newest first (threadId = the client's
+  name if it gave one, else the session id; title, updatedAt);
+- `get_thread(user_token, session_id=None, thread_id=None)` (CH-0016): one of the caller's
+  conversations as AG-UI messages (user, assistant with tool calls, tool results);
+- `delete_thread(user_token, session_id)`: deletes one of the caller's conversations (a session id
+  or a thread name).
 
 A refusal is a result, never an exception: `{"refusal": {"code", "message"}}` (for `stream_query`, a
 single event), with code `unauthenticated`, `not_found`, `invalid_argument` or `internal` (CH-0019).
@@ -26,6 +32,7 @@ The Agent Runtime caller (the UI service account) is trusted to reach the engine
 for a user: who the user is comes only from the token.
 """
 
+import json
 import logging
 import os
 from collections.abc import AsyncIterator
@@ -38,6 +45,8 @@ from sdlc_auth.adk import reset_request_token, set_request_token
 log = logging.getLogger(__name__)
 
 TITLE_STATE_KEY = "sdlc_title"  # server-owned: set from the first message, never by a client
+THREAD_STATE_KEY = "sdlc_thread_id"  # server-owned: the client's name for the session (CH-0016)
+THREAD_ID_CHARS = 128
 TITLE_CHARS = 80
 MAX_THREADS = 30
 MAX_MESSAGE_CHARS = 32_000
@@ -90,7 +99,10 @@ class UserAgentApp:
         )
 
     def register_operations(self) -> dict[str, list[str]]:
-        return {"async": ["list_threads", "delete_thread"], "async_stream": ["stream_query"]}
+        return {
+            "async": ["list_threads", "get_thread", "delete_thread"],
+            "async_stream": ["stream_query"],
+        }
 
     # Every method returns refusals as `{"refusal": {...}}` instead of raising (CH-0019): when a
     # method raises, Agent Runtime echoes the call's arguments, the user's token included, into
@@ -102,9 +114,10 @@ class UserAgentApp:
         user_token: str,
         session_id: str | None = None,
         state: dict[str, Any] | None = None,
+        thread_id: str | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
         try:
-            async for item in self._stream(message, user_token, session_id, state):
+            async for item in self._stream(message, user_token, session_id, state, thread_id):
                 yield item
         except Exception as e:  # noqa: BLE001 (reported as an error result, see above)
             yield _error(e)
@@ -115,13 +128,21 @@ class UserAgentApp:
         except Exception as e:  # noqa: BLE001
             return _error(e)
 
+    async def get_thread(
+        self, user_token: str, session_id: str | None = None, thread_id: str | None = None
+    ) -> dict[str, Any]:
+        try:
+            return await self._get_thread(user_token, session_id, thread_id)
+        except Exception as e:  # noqa: BLE001
+            return _error(e)
+
     async def delete_thread(self, user_token: str, session_id: str) -> dict[str, Any]:
         try:
             return await self._delete_thread(user_token, session_id)
         except Exception as e:  # noqa: BLE001
             return _error(e)
 
-    async def _stream(self, message, user_token, session_id, state):
+    async def _stream(self, message, user_token, session_id, state, thread_id=None):
         from google.genai import types
 
         oid = await verify_user(self._verifier, user_token)
@@ -129,7 +150,8 @@ class UserAgentApp:
             raise ValueError("message is empty")
         if len(message) > MAX_MESSAGE_CHARS:
             raise ValueError("message too long")
-        session = await self._own_session(oid, session_id, state, message)
+        _check_thread_id(thread_id)
+        session = await self._own_session(oid, session_id, state, message, thread_id)
         yield {"session": session.id}
         bound = set_request_token(user_token)  # this call only; never stored in the session
         try:
@@ -147,7 +169,7 @@ class UserAgentApp:
         listed = await self._session_service.list_sessions(app_name=self._app_name, user_id=oid)
         threads = [
             {
-                "threadId": s.id,
+                "threadId": (s.state or {}).get(THREAD_STATE_KEY) or s.id,
                 "title": (s.state or {}).get(TITLE_STATE_KEY, ""),
                 "updatedAt": _iso(s.last_update_time),
             }
@@ -156,22 +178,52 @@ class UserAgentApp:
         threads.sort(key=lambda t: t["updatedAt"], reverse=True)
         return threads[:MAX_THREADS]
 
+    async def _get_thread(self, user_token, session_id, thread_id) -> dict[str, Any]:
+        oid = await verify_user(self._verifier, user_token)
+        _check_thread_id(thread_id)
+        if session_id:
+            session = await self._owned(oid, session_id)
+        else:
+            session = await self._named(oid, thread_id)
+            if session is None:
+                raise LookupError("conversation not found")
+        name = (session.state or {}).get(THREAD_STATE_KEY) or session.id
+        return {"threadId": name, "messages": thread_messages(session.events)}
+
     async def _delete_thread(self, user_token: str, session_id: str) -> dict[str, bool]:
         oid = await verify_user(self._verifier, user_token)
-        await self._owned(oid, session_id)  # someone else's session answers "not found"
+        # a session id or a thread name; someone else's answers "not found"
+        session = await self._named(oid, session_id) if _is_name(session_id) else None
+        session = session or await self._owned(oid, session_id)
         await self._session_service.delete_session(
-            app_name=self._app_name, user_id=oid, session_id=session_id
+            app_name=self._app_name, user_id=oid, session_id=session.id
         )
         return {"deleted": True}
 
-    async def _own_session(self, oid, session_id, state, message):
+    async def _own_session(self, oid, session_id, state, message, thread_id=None):
         if session_id:
             return await self._owned(oid, session_id)
-        initial = clean_state(state)
+        if thread_id:
+            named = await self._named(oid, thread_id)
+            if named is not None:
+                return named
+        initial = clean_state(state)  # drops sdlc_ keys: a client cannot claim a thread name
         initial[TITLE_STATE_KEY] = " ".join(message.split())[:TITLE_CHARS]
+        if thread_id:
+            initial[THREAD_STATE_KEY] = thread_id
         return await self._session_service.create_session(
             app_name=self._app_name, user_id=oid, state=initial
         )
+
+    async def _named(self, oid: str, thread_id: str | None):
+        """The caller's session that carries this thread name, with its events, or None."""
+        if not thread_id:
+            return None
+        listed = await self._session_service.list_sessions(app_name=self._app_name, user_id=oid)
+        for s in listed.sessions:
+            if (s.state or {}).get(THREAD_STATE_KEY) == thread_id:
+                return await self._owned(oid, s.id)
+        return None
 
     async def _owned(self, oid: str, session_id: str):
         if not isinstance(session_id, str) or not session_id:
@@ -203,7 +255,7 @@ _REFUSALS = (
         "sign-in required: the token is missing, invalid or expired",
     ),
     (LookupError, "not_found", "conversation not found"),
-    (ValueError, "invalid_argument", "invalid request: the message is empty or too long"),
+    (ValueError, "invalid_argument", "invalid request: the message or thread id is not valid"),
 )
 
 
@@ -213,6 +265,65 @@ def _error(exc: Exception) -> dict[str, Any]:
             return {"refusal": {"code": code, "message": message}}
     log.warning("runtime call failed: %s", type(exc).__name__)  # the type only, never the text
     return {"refusal": {"code": "internal", "message": "the agent could not complete the request"}}
+
+
+def _check_thread_id(thread_id: Any) -> None:
+    if thread_id is not None and not _is_name(thread_id):
+        raise ValueError("invalid thread id")
+
+
+def _is_name(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and 0 < len(value) <= THREAD_ID_CHARS
+        and all(c.isalnum() or c in "-_" for c in value)
+    )
+
+
+def thread_messages(events: list[Any]) -> list[dict[str, Any]]:
+    """ADK session events as AG-UI messages, the shape adk web's /agents/state gives the chat UI:
+    user text, assistant text and tool calls, tool results (JSON text, as in the live stream).
+    Partial events and thoughts are left out."""
+    messages: list[dict[str, Any]] = []
+    for event in events or []:
+        content = getattr(event, "content", None)
+        if content is None or not content.parts or getattr(event, "partial", False):
+            continue
+        event_id = getattr(event, "id", None) or ""
+        text = "".join(p.text for p in content.parts if p.text and not p.thought)
+        calls = [p.function_call for p in content.parts if p.function_call]
+        results = [p.function_response for p in content.parts if p.function_response]
+        if results:
+            for i, r in enumerate(results):
+                messages.append(
+                    {
+                        "id": f"{event_id}-r{i}",
+                        "role": "tool",
+                        "toolCallId": r.id or f"{event_id}-c{i}",
+                        "content": json.dumps(r.response, ensure_ascii=False, default=str),
+                    }
+                )
+            continue
+        if getattr(event, "author", None) == "user":
+            if text:
+                messages.append({"id": event_id, "role": "user", "content": text})
+            continue
+        if not text and not calls:
+            continue
+        message: dict[str, Any] = {"id": event_id, "role": "assistant"}
+        if text:
+            message["content"] = text
+        if calls:
+            message["toolCalls"] = [
+                {
+                    "id": c.id or f"{event_id}-c{i}",
+                    "type": "function",
+                    "function": {"name": c.name, "arguments": json.dumps(c.args or {})},
+                }
+                for i, c in enumerate(calls)
+            ]
+        messages.append(message)
+    return messages
 
 
 def _iso(ts: float | None) -> str:

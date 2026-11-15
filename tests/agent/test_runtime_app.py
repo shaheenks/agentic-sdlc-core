@@ -5,6 +5,7 @@ Offline: a stand-in agent reports what it sees (no model), sessions are in memor
 from the fake Entra issuer.
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -167,7 +168,10 @@ async def test_an_unexpected_error_is_internal_and_logs_only_its_type(entra, cap
 
 def test_operations_are_registered():
     ops = UserAgentApp().register_operations()
-    assert ops == {"async": ["list_threads", "delete_thread"], "async_stream": ["stream_query"]}
+    assert ops == {
+        "async": ["list_threads", "get_thread", "delete_thread"],
+        "async_stream": ["stream_query"],
+    }
 
 
 def test_sessions_stay_in_the_engine_region_and_gemini_uses_the_model_region(monkeypatch, entra):
@@ -257,3 +261,66 @@ def test_principal_of_reads_each_stacks_claims():
     assert (google.oid, google.upn, google.provider) == (SUB_A, "a@example.test", "google")
     entra = principal_of({"oid": ALICE, "tid": "t", "iss": "https://login.microsoftonline.com/t"})
     assert (entra.oid, entra.provider) == (ALICE, "entra")
+
+
+# --- CH-0016: the UI names threads (AG-UI thread ids); get_thread replays one ----------------
+
+
+async def test_a_ui_thread_id_names_one_session_per_user(app, entra):
+    first = await run(app, entra.token(oid=ALICE), thread_id="t-1")
+    again = await run(app, entra.token(oid=ALICE), message="more", thread_id="t-1")
+    assert first[0]["session"] == again[0]["session"]
+    bobs = await run(app, entra.token(oid=BOB), thread_id="t-1")  # the same name, his own session
+    assert bobs[0]["session"] != first[0]["session"]
+    threads = await app.list_threads(entra.token(oid=ALICE))
+    assert [t["threadId"] for t in threads] == ["t-1"]
+
+
+async def test_client_state_cannot_claim_a_thread(app, entra):
+    await run(app, entra.token(oid=ALICE), thread_id="t-1")
+    other = await run(app, entra.token(oid=ALICE), state={"sdlc_thread_id": "t-1"})
+    threads = await app.list_threads(entra.token(oid=ALICE))
+    assert sorted(t["threadId"] for t in threads) == sorted(["t-1", other[0]["session"]])
+
+
+async def test_get_thread_replays_the_owners_conversation_as_ag_ui_messages(app, entra):
+    from google.adk.events import Event as AdkEvent
+
+    events = await run(app, entra.token(oid=ALICE), message="hello", thread_id="t-1")
+    sid = events[0]["session"]
+    session = await app.sessions.get_session(app_name=app._app_name, user_id=ALICE, session_id=sid)
+    call = types.Part(function_call=types.FunctionCall(id="c1", name="whoami", args={"x": 1}))
+    result = types.Part(
+        function_response=types.FunctionResponse(id="c1", name="whoami", response={"ok": True})
+    )
+    for author, role, part in (("echo", "model", call), ("echo", "user", result)):
+        await app.sessions.append_event(
+            session,
+            AdkEvent(
+                author=author, invocation_id="i", content=types.Content(role=role, parts=[part])
+            ),
+        )
+    got = await app.get_thread(entra.token(oid=ALICE), thread_id="t-1")
+    assert got["threadId"] == "t-1"
+    roles = [m["role"] for m in got["messages"]]
+    assert roles == ["user", "assistant", "assistant", "tool"]
+    assert got["messages"][0]["content"] == "hello"
+    assert got["messages"][2]["toolCalls"] == [
+        {"id": "c1", "type": "function", "function": {"name": "whoami", "arguments": '{"x": 1}'}}
+    ]
+    assert got["messages"][3]["toolCallId"] == "c1"
+    assert json.loads(got["messages"][3]["content"]) == {"ok": True}
+    assert all(m["id"] for m in got["messages"])
+
+
+async def test_get_thread_and_delete_are_owner_only(app, entra):
+    await run(app, entra.token(oid=ALICE), thread_id="t-1")
+    assert error_code(await app.get_thread(entra.token(oid=BOB), thread_id="t-1")) == "not_found"
+    assert error_code(await app.get_thread("not.a.jwt", thread_id="t-1")) == "unauthenticated"
+    assert error_code(await app.delete_thread(entra.token(oid=BOB), "t-1")) == "not_found"
+    assert await app.delete_thread(entra.token(oid=ALICE), "t-1") == {"deleted": True}
+    assert await app.list_threads(entra.token(oid=ALICE)) == []
+
+
+def test_get_thread_is_registered():
+    assert "get_thread" in UserAgentApp().register_operations()["async"]

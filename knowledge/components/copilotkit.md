@@ -39,6 +39,12 @@ Code: `ui/copilotkit`
 - History sidebar: list, open with replay, delete.
 - Artifacts panel and viewer with numbered lines, line comments and versions.
 - Connections page and navbar status.
+- Native stack (CH-0016, `SDLC_AGENT_BACKEND=agent-runtime`): `lib/identity.ts` (IAP assertion and Google ID
+  token checks, same user), `lib/session.ts` and `/chat/auth/*` (server-side Google sign-in, sealed httpOnly
+  session cookie bound to the IAP user, renewal), `lib/native.ts` (`resolveUser` before every user call),
+  `lib/agent-runtime.ts` (AG-UI agent on Agent Runtime's `stream_query`, ADK -> AG-UI events, `get_thread`
+  history), `lib/native-api.ts` (`/me`, `/threads`, `/connections/` and `/artifacts/` proxied to
+  `sdlc-mcp-native`), and `native-entry.mjs`, which maps those same-origin paths onto the route handlers.
 
 # Depends on
 

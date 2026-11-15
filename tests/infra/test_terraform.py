@@ -173,7 +173,7 @@ def test_only_the_agent_identity_may_invoke_the_native_mcp(tf):
         for t, n, b in tf.resources
         if t == "google_cloud_run_v2_service_iam_member" and "mcp" in json.dumps(b)
     ]
-    assert [n for n, _ in grants] == ["mcp_native_agent"]
+    assert [n for n, _ in grants] == ["mcp_native_agent", "mcp_native_ui"]  # + the UI, CH-0016
     _, grant = grants[0]
     assert grant["member"] == "${var.agent_runtime_principal}"
     assert unquote(grant["role"]) == "roles/run.invoker"
@@ -318,3 +318,60 @@ def test_volumes_are_declared_in_the_order_cloud_run_returns():
         assert len(bundles) == 3 and len(cloudsql) >= 3, (kind, names)
         for b in bundles:  # each config-bundles block directly precedes a cloudsql block
             assert b + 1 in cloudsql, (kind, names)
+
+
+# --- the native chat UI (CH-0016) --------------------------------------------------------------
+
+
+def test_native_ui_is_behind_iap_and_nothing_else(tf):
+    """sdlc-ui-native exists only with native_enabled and native_ui_enabled, has IAP on and invoker
+    IAM on, and its only invoker is IAP's service agent; people pass IAP through one group."""
+    ui = tf.resource("google_cloud_run_v2_service", "ui_native")
+    assert ui["count"] == "${local.ui_native_on ? 1 : 0}"
+    assert "var.native_enabled && var.native_ui_enabled" in tf.locals["ui_native_on"]
+    assert ui["iap_enabled"] is True and ui["invoker_iam_disabled"] is False
+    invokers = [
+        b
+        for t, n, b in tf.resources
+        if t == "google_cloud_run_v2_service_iam_member" and "ui_native" in json.dumps(b["name"])
+    ]
+    assert [unquote(b["member"]) for b in invokers] == [
+        "serviceAccount:service-${data.google_project.this.number}@gcp-sa-iap.iam.gserviceaccount.com"
+    ]
+    access = tf.resource("google_iap_web_cloud_run_service_iam_member", "ui_native_access")
+    assert unquote(access["role"]) == "roles/iap.httpsResourceAccessor"
+    assert unquote(access["member"]) == "group:${var.iap_access_group}"
+    assert 'var.iap_access_group != ""' in access["count"]
+
+
+def test_native_ui_runs_the_agent_runtime_backend_with_declared_settings(tf):
+    """The UI's settings: the engine from the agent's principal, the domains from platform.yaml,
+    client IDs from variables (not committed), secrets only as Secret Manager references."""
+    env = {unquote(k): v for k, v in tf.locals["ui_native_env"].items()}
+    assert unquote(env["SDLC_AGENT_BACKEND"]) == "agent-runtime"
+    assert env["SDLC_AGENT_ENGINE"] == "${local.agent_engine}"
+    assert "var.agent_runtime_principal" in tf.locals["agent_engine"]
+    assert "config/platform.yaml" in tf.locals["google_allowed_domains"]
+    assert env["SDLC_OAUTH_CLIENT_IDS"] == "${var.google_oauth_client_ids}"
+    assert env["SDLC_GOOGLE_WEB_CLIENT_ID"] == "${var.google_web_client_id}"
+    assert "services/${local.ui_native_name}" in env["SDLC_IAP_AUDIENCE"]
+    assert not [k for k in env if SECRET_NAME.search(k)]
+    secrets = {unquote(k): unquote(v) for k, v in tf.locals["ui_native_secret_env"].items()}
+    assert secrets == {
+        "SDLC_GOOGLE_WEB_CLIENT_SECRET": "google-web-client-secret",
+        "SDLC_SESSION_KEY": "ui-session-key",
+    }
+    ui = tf.resource("google_cloud_run_v2_service", "ui_native")
+    assert "native-entry.mjs" in json.dumps(ui["template"])
+
+
+def test_native_ui_account_gets_agent_runtime_and_mcp_invoke_only(tf):
+    """No database, no Groups API, no artifact bucket: Agent Runtime query and the MCP invoker."""
+    workloads = tf.locals["workloads"]
+    assert '"ui-native" = {roles = ["roles/aiplatform.user"]' in workloads.replace('\\"', '"')
+    grant = tf.resource("google_cloud_run_v2_service_iam_member", "mcp_native_ui")
+    assert grant["member"] == '${google_service_account.w["ui-native"].member}'
+    assert unquote(grant["role"]) == "roles/run.invoker"
+    text = "\n".join(p.read_text(encoding="utf-8") for p in TF_DIR.glob("*.tf"))
+    assert 'w["ui-native"].member' in text
+    assert text.count('w["ui-native"]') == 2  # its service, and the MCP invoker grant

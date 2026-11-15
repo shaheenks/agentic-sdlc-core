@@ -154,6 +154,7 @@ Plan references in brackets: Stage N (version-00), M/H (version-01 / version-00 
 | SSE keep-alive for long runs through the tunnel | ✅ Live | P10 fixes |
 | Thread-header "Team: X" chip | Deviation: shown as a tool-result line instead | G9 |
 | A2UI rendering in the chat | Not used by decision (chat keeps its own renderers) | C2 |
+| Native GCP stack: `sdlc-ui-native` behind IAP, server-side Google sign-in for the IAP user (sealed session cookie), AG-UI agent on Agent Runtime, threads and history (`get_thread`), `/connections/` and `/artifacts/` proxied to `sdlc-mcp-native` | 🟢 Built (tests; live after rollout, docs/guides/GCP_STACK.md section 7) | CH-0016 |
 
 ### 2.7 Skills — `skills/`
 

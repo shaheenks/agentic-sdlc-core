@@ -22,6 +22,11 @@ output "mcp_gcp_service_account" {
   value       = var.native_enabled ? google_service_account.w["mcp-gcp"].email : ""
 }
 
+output "ui_native_url" {
+  description = "The chat UI on the native stack (CH-0016); register <url>/chat/auth/callback on the Web OAuth client. Empty unless native_ui_enabled."
+  value       = local.ui_native_on ? "https://${local.ui_native_host}/chat/" : ""
+}
+
 output "session_engine" {
   description = "Agent Engine that stores agent conversations."
   value       = google_vertex_ai_reasoning_engine.sessions.id

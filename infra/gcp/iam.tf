@@ -11,9 +11,13 @@ locals {
   # core_mcp_gcp behind sdlc-mcp-native (CH-0022): the same access as `mcp`, as its own account so
   # that only it holds Groups Reader (Cloud Identity admin role, assigned by the user in the Admin
   # console; output mcp_gcp_service_account).
-  workloads = merge(local.workloads_base, var.native_enabled ? {
-    "mcp-gcp" = { roles = ["roles/cloudsql.client", "roles/aiplatform.user"], secrets = ["pg-app-password", "users-yaml"] }
-  } : {})
+  # ui-native: the chat UI on the native stack (CH-0016): queries Agent Runtime; no database, no
+  # Groups API.
+  workloads = merge(
+    local.workloads_base,
+    var.native_enabled ? { "mcp-gcp" = { roles = ["roles/cloudsql.client", "roles/aiplatform.user"], secrets = ["pg-app-password", "users-yaml"] } } : {},
+    var.native_enabled && var.native_ui_enabled ? { "ui-native" = { roles = ["roles/aiplatform.user"], secrets = ["google-web-client-secret", "ui-session-key"] } } : {},
+  )
   role_grants = merge([
     for w, spec in local.workloads : { for r in spec.roles : "${w}/${r}" => { workload = w, role = r } }
   ]...)

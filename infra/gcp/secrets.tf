@@ -25,6 +25,10 @@ locals {
     local.users_secret ? { # with config bundles, users.yaml travels in the bundle instead
       "users-yaml" = file(var.users_yaml_path)
     } : {},
+    local.ui_native_on ? { # the native chat UI (CH-0016): the Web OAuth client secret, the cookie key
+      "google-web-client-secret" = var.google_web_client_secret
+      "ui-session-key"           = random_id.ui_session_key[0].b64_url
+    } : {},
   )
 }
 

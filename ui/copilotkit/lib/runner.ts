@@ -25,6 +25,25 @@ import { historyMessages, THREAD_ID } from "./threads.ts";
 export const TOKEN_HEADER = "x-forwarded-access-token";
 const HISTORY_TIMEOUT_MS = 15_000;
 
+/**
+ * Reads one thread's history as the user the token names: a body shaped like ag_ui_adk's
+ * /agents/state ({threadExists, messages}). The Agent Runtime backend passes one built on
+ * `get_thread` (CH-0016); a URL means POST to the agent's /agents/state.
+ */
+export type HistoryLoader = (threadId: string, token: string, signal: AbortSignal) => Promise<unknown>;
+
+function urlLoader(url: string, fetchImpl: typeof fetch): HistoryLoader {
+  return async (threadId, token, signal) => {
+    const response = await fetchImpl(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", [TOKEN_HEADER]: token },
+      body: JSON.stringify({ threadId }),
+      signal,
+    });
+    return response.ok ? response.json() : {};
+  };
+}
+
 type Active = { agent: AbstractAgent; runId: string; stopRequested: boolean };
 
 function headerValue(headers: Record<string, string> | undefined, name: string): string {
@@ -37,14 +56,12 @@ function headerValue(headers: Record<string, string> | undefined, name: string):
 export class PassThroughAgentRunner extends AgentRunner {
   private readonly active = new Map<string, Active>();
 
-  private readonly historyUrl: string | undefined;
-  private readonly fetchImpl: typeof fetch;
+  private readonly history: HistoryLoader | undefined;
 
-  /** @param historyUrl the agent's /agents/state URL (internal); unset = no history replay */
-  constructor(historyUrl?: string, fetchImpl: typeof fetch = fetch) {
+  /** @param history the agent's /agents/state URL (internal) or a loader; unset = no replay */
+  constructor(history?: string | HistoryLoader, fetchImpl: typeof fetch = fetch) {
     super();
-    this.historyUrl = historyUrl;
-    this.fetchImpl = fetchImpl;
+    this.history = typeof history === "string" ? urlLoader(history, fetchImpl) : history;
   }
 
   run(request: AgentRunnerRunRequest): Observable<BaseEvent> {
@@ -84,18 +101,13 @@ export class PassThroughAgentRunner extends AgentRunner {
   connect(request: AgentRunnerConnectRequest): Observable<BaseEvent> {
     // nothing stored here: history comes from the agent, for the user the token names
     const token = headerValue(request.headers, TOKEN_HEADER);
-    if (!this.historyUrl || !token || !THREAD_ID.test(request.threadId)) return EMPTY;
-    const { historyUrl, fetchImpl } = this;
+    if (!this.history || !token || !THREAD_ID.test(request.threadId)) return EMPTY;
+    const { history } = this;
     return new Observable<BaseEvent>((subscriber) => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), HISTORY_TIMEOUT_MS);
-      fetchImpl(historyUrl, {
-        method: "POST",
-        headers: { "content-type": "application/json", [TOKEN_HEADER]: token },
-        body: JSON.stringify({ threadId: request.threadId }),
-        signal: controller.signal,
-      })
-        .then(async (response) => (response.ok ? historyMessages(await response.json()) : []))
+      history(request.threadId, token, controller.signal)
+        .then((body) => historyMessages(body))
         .then((messages) => {
           if (messages.length > 0) {
             const ids = { threadId: request.threadId, runId: `history-${crypto.randomUUID()}` };

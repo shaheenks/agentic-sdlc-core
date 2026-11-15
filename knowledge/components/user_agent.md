@@ -46,6 +46,9 @@ Code: `agents/user_agent`
   `error` (CH-0025): `google.genai` takes a streamed chunk starting with `{"error":` for an API error.
 - CH-0022: the runtime app takes the stack's verifier (`sdlc_agent.runtime_guard.verifier_from_env`); the
   engine runs with `SDLC_IDENTITY_PROVIDER=google`: Google ID tokens, the session user is the `sub`.
+- CH-0016: `stream_query` takes the client's `thread_id` (one session per user and thread, the name kept in
+  server-owned state); `get_thread` returns one of the caller's conversations as AG-UI messages; `list_threads`
+  and `delete_thread` use the thread name.
 
 # Depends on
 

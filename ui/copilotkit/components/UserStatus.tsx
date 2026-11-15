@@ -14,6 +14,7 @@ import {
   type Me,
   overallState,
   parseMe,
+  signInTarget,
 } from "@/lib/status";
 
 /** Fired by the Connections page after a load, connect or disconnect. */
@@ -22,7 +23,13 @@ export const CONNECTIONS_CHANGED = "sdlc:connections-changed";
 async function getJson(url: string): Promise<unknown | null> {
   try {
     const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
-    return response.ok ? await response.json() : null; // 401/503: show nothing rather than guess
+    if (response.status === 401) {
+      // native stack (CH-0016): no session yet, or it ended: sign in (silently, after IAP)
+      const target = signInTarget(await response.json().catch(() => null), window.location);
+      if (target) window.location.assign(target);
+      return null;
+    }
+    return response.ok ? await response.json() : null; // 503: show nothing rather than guess
   } catch {
     return null;
   }

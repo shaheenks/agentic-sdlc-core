@@ -104,3 +104,28 @@ Rollback: `deploy_agent_runtime.py --idp entra` with the previous commit's Terra
 - A user in no group gets `ping` and `whoami` only; a user outside the domain is refused.
 - Logs: `tool_call` records with `"idp":"google"` from `sdlc-mcp-native`; the Entra stack (`sdlc-mcp-dev`,
   `sdlc-app-dev`) answers as before.
+
+## 7. The chat UI on the native stack (CH-0016)
+
+`sdlc-ui-native` serves the chat behind IAP. IAP decides who may open it (`iap_access_group` in
+`infra/gcp/dev.tfvars`, dev: `sdlc-user@`); the UI then gets the user's own Google ID token with its own
+server-side sign-in (the Web OAuth client; silent after IAP, one consent click per session the first time) and
+forwards it to the agent and to `sdlc-mcp-native` only after checking it names the IAP user.
+
+1. `.env`: `SDLC_GOOGLE_WEB_CLIENT_ID` and `SDLC_GOOGLE_WEB_CLIENT_SECRET` (the Web client from step 2);
+   `SDLC_OAUTH_CLIENT_IDS` must include the Web client id.
+2. Commit, then `-Step images`, `-Step plan` (expect: `sdlc-ui-native`, its service account and grants, IAP's
+   invoker and accessor bindings, two new secrets, the MCP invoker for the UI), `-Step apply`.
+3. Redeploy the engine (`get_thread` and thread names): `uv run --env-file .env python
+   scripts/deploy_agent_runtime.py --env dev`.
+4. Web OAuth client (Cloud console > Credentials): add the redirect URI
+   `<terraform output -raw ui_native_url>auth/callback`, i.e. `https://sdlc-ui-native-<n>.<region>.run.app/chat/auth/callback`.
+5. Open `terraform output -raw ui_native_url` as a member of the group: IAP, then a short redirect to Google
+   (the first time a consent screen), then the chat.
+
+Checks:
+- A user outside the group is stopped by IAP; a member chats, sees cards, lists and opens threads, and downloads
+  an artifact.
+- The UI's logs never show a token; `sdlc-mcp-native`'s `tool_call` records show the user (`"idp":"google"`).
+- If every request answers `{"error":"not_signed_in"}`, the IAP audience does not match: compare
+  `SDLC_IAP_AUDIENCE` on the service with the `aud` IAP sends (Cloud Run IAP docs, "signed headers").

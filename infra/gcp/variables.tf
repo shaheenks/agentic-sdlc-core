@@ -54,6 +54,31 @@ variable "google_oauth_client_ids" {
   default     = ""
 }
 
+variable "native_ui_enabled" {
+  description = "The chat UI on the native stack (CH-0016): sdlc-ui-native behind IAP, talking to the agent on Agent Runtime. Needs native_enabled and agent_runtime_principal."
+  type        = bool
+  default     = false
+}
+
+variable "iap_access_group" {
+  description = "The Cloud Identity group whose members may open sdlc-ui-native through IAP (CH-0016). Empty = nobody."
+  type        = string
+  default     = ""
+}
+
+variable "google_web_client_id" {
+  description = "The Web OAuth client of the GCP stack (CH-0016), for the UI's server-side sign-in. From .env SDLC_GOOGLE_WEB_CLIENT_ID via gcp_deploy.ps1, never committed."
+  type        = string
+  default     = ""
+}
+
+variable "google_web_client_secret" {
+  description = "The Web OAuth client's secret (CH-0016). From .env SDLC_GOOGLE_WEB_CLIENT_SECRET via gcp_deploy.ps1; stored in Secret Manager."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "users_yaml_path" {
   description = "Optional git-ignored UserMap for this env (direct members: emails + object IDs), stored in Secret Manager and mounted into the MCP service. Empty = none. gcp_deploy.ps1 sets it when config/env/<env>/users.yaml exists."
   type        = string

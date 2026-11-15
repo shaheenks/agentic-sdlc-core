@@ -25,7 +25,11 @@ The system shall authenticate every user and refuse any request without a valid 
 
 # Acceptance criteria
 
-- An unauthenticated browser request to the app is sent to Entra sign-in by oauth2-proxy.
+- An unauthenticated browser request to the app is sent to sign-in: Entra by oauth2-proxy on the Entra stack; on
+  the native GCP stack, IAP (Cloud Identity accounts, signed in through Entra federation), then the UI's own
+  server-side Google sign-in for the IAP user.
+- On the native stack the UI forwards only a Google ID token that names the IAP user; a session or token of
+  another user is refused.
 - An MCP request without a valid token is answered 401 and audited as `auth_failure`.
 - `whoami` returns the caller's identity (`oid` on the Entra stack, `sub` and email on the GCP stack), teams and roles.
 - The GCP stack's verifier refuses an Entra token, and the Entra stack's verifier refuses a Google ID token.
@@ -33,3 +37,5 @@ The system shall authenticate every user and refuse any request without a valid 
 # Notes
 
 Modified by [CH-0021](../../changes/CH-0021.md): per stack (Entra / GCP), design N7 to N10 and N13.
+
+Modified by [CH-0016](../../changes/CH-0016.md): IAP and the UI's server-side sign-in on the native stack.

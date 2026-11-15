@@ -116,6 +116,9 @@ function Set-TerraformEnv {
     $env:TF_VAR_entra_client_secret = Get-DotEnv 'ENTRA_CLIENT_SECRET'
     # GCP stack (CH-0022): the audience core_mcp_gcp accepts; empty = it refuses to start.
     $env:TF_VAR_google_oauth_client_ids = Get-DotEnv 'SDLC_OAUTH_CLIENT_IDS'
+    # The native chat UI's server-side sign-in (CH-0016): the Web OAuth client.
+    $env:TF_VAR_google_web_client_id = Get-DotEnv 'SDLC_GOOGLE_WEB_CLIENT_ID'
+    $env:TF_VAR_google_web_client_secret = Get-DotEnv 'SDLC_GOOGLE_WEB_CLIENT_SECRET'
     # Optional direct members (version-02 N10): stored as a secret and mounted into the MCP service.
     $usersYaml = Join-Path $Root "config/env/$EnvName/users.yaml"
     $env:TF_VAR_users_yaml_path = if (Test-Path $usersYaml) { "../../config/env/$EnvName/users.yaml" } else { '' }

@@ -41,6 +41,10 @@ Code: `infra/gcp`
   `SDLC_OAUTH_CLIENT_IDS` (`var.google_oauth_client_ids`) instead of `ENTRA_*`; `cloudidentity.googleapis.com`
   with `native_enabled`; the agent's gateway egress `google-signing-keys` replaces `entra-signing-keys`; output
   `mcp_gcp_service_account` (for Groups Reader).
+- CH-0016: `ui_native.tf`: `sdlc-ui-native` (the `ui-copilotkit` image with `native-entry.mjs`) behind direct
+  IAP for `var.iap_access_group`, IAP's service agent as its only invoker; its own service account with Agent
+  Runtime query and invoker on `sdlc-mcp-native`; the Web client secret and a generated cookie key in Secret
+  Manager; the engine from `agent_runtime_principal`, the domains from `platform.yaml`.
 
 # Depends on
 

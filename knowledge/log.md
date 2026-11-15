@@ -2,6 +2,10 @@
 
 ## 2026-11-15
 
+- **Update**: CH-0016 done (WN.4): `sdlc-ui-native` behind IAP with the UI's server-side Google sign-in
+  (sealed session cookie bound to the IAP user), an AG-UI agent on Agent Runtime, `/me`, `/threads`, `/connections/`
+  and `/artifacts/` without oauth2-proxy (`native-entry.mjs`); the runtime app gains thread names and `get_thread`.
+  FR-IDN-001 and FR-SURF-001 reworded (draft). Live check pending the user's rollout.
 - **Update**: CH-0025 live on dev: a refused `stream_query` reaches the caller as `unauthenticated`; Google users
   answer as before.
 - **Fix**: CH-0025 done: runtime refusals are `{"refusal": {code, message}}`; `{"error": ...}` made `google.genai`

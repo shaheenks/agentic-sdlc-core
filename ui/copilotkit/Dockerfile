@@ -20,6 +20,9 @@ ENV NODE_ENV=production \
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
+# The native stack's entry point (CH-0016; Cloud Run sets the command): maps /me, /threads,
+# /connections/, /artifacts/ onto the app's route handlers. Locally the image runs server.js.
+COPY ui/copilotkit/native-entry.mjs ./
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=3s --retries=6 \

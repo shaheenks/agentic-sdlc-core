@@ -19,6 +19,16 @@ export type ConnectionStatus = {
 
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
 
+/**
+ * Where to go when an API answers 401 with `{signIn}` (native stack, CH-0016): the sign-in path
+ * (same origin only) with this page as the place to return to. Anything else: nowhere.
+ */
+export function signInTarget(body: unknown, location: { pathname: string; search: string }): string | null {
+  const signIn = (body as { signIn?: unknown } | null)?.signIn;
+  if (typeof signIn !== "string" || !signIn.startsWith("/") || signIn.startsWith("//")) return null;
+  return `${signIn}?returnTo=${encodeURIComponent(location.pathname + location.search)}`;
+}
+
 export function parseMe(body: unknown): Me | null {
   if (!body || typeof body !== "object") return null;
   const { name, upn } = body as Record<string, unknown>;
