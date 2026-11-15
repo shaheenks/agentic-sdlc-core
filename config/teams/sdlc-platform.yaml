@@ -10,8 +10,10 @@ metadata:
 # Entra stack and by email on the GCP stack (version-02 N10).
 membership:
   - app_role: SDLC.Platform.Member
+    group: sdlc-platform-member@shaheenks.co.in
     roles: [member]
   - app_role: SDLC.Platform.Approver
+    group: sdlc-platform-approver@shaheenks.co.in
     roles: [approver]
 policy:
   tools:

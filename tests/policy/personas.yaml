@@ -4,36 +4,37 @@
 #   user: a users.yaml alias (both stacks: matched on oid on Entra, on email on GCP).
 # A persona on both stacks must resolve the same from its groups as from its app roles
 # (`sdlc-config validate`, tests/policy/test_stack_parity.py). `stacks:` limits a persona to one.
-# The groups are the test fixture's (tests/support/config.py group_for, domain example.test)
-# until the repo config binds real group emails. No Entra groups (CH-0011).
+# The groups are the repo config's Cloud Identity groups (one per app role, same name); the test
+# fixture adds the same twin for its own app roles (tests/support/config.py group_for).
+# No Entra groups (CH-0011).
 personas:
   nobody:            { app_roles: [], groups: [] }
-  viewer:            { app_roles: [SDLC.User], groups: [sdlc-user@example.test] }
+  viewer:            { app_roles: [SDLC.User], groups: [sdlc-user@shaheenks.co.in] }
   payments-member:   { app_roles: [SDLC.User, SDLC.Payments.Member],
-                       groups: [sdlc-user@example.test, sdlc-payments-member@example.test] }
+                       groups: [sdlc-user@shaheenks.co.in, sdlc-payments-member@shaheenks.co.in] }
   payments-approver: { app_roles: [SDLC.User, SDLC.Payments.Approver],
-                       groups: [sdlc-user@example.test, sdlc-payments-approver@example.test] }
+                       groups: [sdlc-user@shaheenks.co.in, sdlc-payments-approver@shaheenks.co.in] }
   platform-member:   { app_roles: [SDLC.User, SDLC.Platform.Member],
-                       groups: [sdlc-user@example.test, sdlc-platform-member@example.test] }
+                       groups: [sdlc-user@shaheenks.co.in, sdlc-platform-member@shaheenks.co.in] }
   multi-team-member: { app_roles: [SDLC.User, SDLC.Payments.Member, SDLC.Platform.Member],
-                       groups: [sdlc-user@example.test, sdlc-payments-member@example.test,
-                                sdlc-platform-member@example.test] }
+                       groups: [sdlc-user@shaheenks.co.in, sdlc-payments-member@shaheenks.co.in,
+                                sdlc-platform-member@shaheenks.co.in] }
   admin:             { app_roles: [SDLC.User, SDLC.Admin],
-                       groups: [sdlc-user@example.test, sdlc-admin@example.test] }
+                       groups: [sdlc-user@shaheenks.co.in, sdlc-admin@shaheenks.co.in] }
   infra-reader:      { app_roles: [SDLC.User, SDLC.Infra.Reader],    # a source's own audience, no team
-                       groups: [sdlc-user@example.test, sdlc-infra-reader@example.test] }
+                       groups: [sdlc-user@shaheenks.co.in, sdlc-infra-reader@shaheenks.co.in] }
   webapp-member:     { app_roles: [SDLC.User, SDLC.Webapp.Member],
-                       groups: [sdlc-user@example.test, sdlc-webapp-member@example.test] }
+                       groups: [sdlc-user@shaheenks.co.in, sdlc-webapp-member@shaheenks.co.in] }
   webapp-approver:   { app_roles: [SDLC.User, SDLC.Webapp.Approver],
-                       groups: [sdlc-user@example.test, sdlc-webapp-approver@example.test] }
+                       groups: [sdlc-user@shaheenks.co.in, sdlc-webapp-approver@shaheenks.co.in] }
   team-only:         { app_roles: [SDLC.Payments.Member],            # team role, no SDLC.User
-                       groups: [sdlc-payments-member@example.test] }
+                       groups: [sdlc-payments-member@shaheenks.co.in] }
   # approver in webapp, member in payments: team roles count only in their own team (CH-0009)
   cross-team-approver: { app_roles: [SDLC.User, SDLC.Webapp.Approver, SDLC.Payments.Member],
-                         groups: [sdlc-user@example.test, sdlc-webapp-approver@example.test,
-                                  sdlc-payments-member@example.test] }
+                         groups: [sdlc-user@shaheenks.co.in, sdlc-webapp-approver@shaheenks.co.in,
+                                  sdlc-payments-member@shaheenks.co.in] }
   unknown-app-role:  { app_roles: [SDLC.NotDefined],                 # grants nothing
-                       groups: [sdlc-notdefined@example.test] }
+                       groups: [sdlc-notdefined@shaheenks.co.in] }
   # users.yaml direct members (no app roles or groups); test users from tests/support/config.py
   direct-payments-member: { user: direct-dev }
   direct-viewer:          { user: direct-viewer }

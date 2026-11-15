@@ -4,6 +4,8 @@ import pytest
 from sdlc_config import ConfigError, ConfigStore, load_snapshot
 from sdlc_config.cli import main as cli_main
 
+from tests.support.config import GOOGLE_DOMAIN
+
 REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
 TENANT = "11111111-2222-3333-4444-555555555555"
 API_CLIENT = "66666666-7777-8888-9999-000000000000"
@@ -131,11 +133,11 @@ def _bind_group(config_dir, email: str) -> None:
 
 
 def test_group_bindings_load_lower_case(config_dir):
-    _bind_group(config_dir, "extra-viewers@example.test")
+    _bind_group(config_dir, f"extra-viewers@{GOOGLE_DOMAIN}")
     snap = load_snapshot(config_dir, "local", ENV)
-    assert "extra-viewers@example.test" in snap.group_values
+    assert f"extra-viewers@{GOOGLE_DOMAIN}" in snap.group_values
     google = snap.platform.google
-    assert google.allowed_domains == ("example.test",) and google.group_lookup == "direct"
+    assert google.allowed_domains == (GOOGLE_DOMAIN,) and google.group_lookup == "direct"
 
 
 def test_an_entry_may_bind_an_app_role_and_a_group(config_dir):
@@ -160,6 +162,6 @@ def test_groups_need_identity_google(config_dir):
 
 def test_group_lookup_mode_is_validated(config_dir):
     p = config_dir / "platform.yaml"
-    p.write_text(p.read_text().replace("group_cache_seconds: 60", "group_lookup: nested", 1))
+    p.write_text(p.read_text().replace("group_lookup: direct", "group_lookup: nested", 1))
     with pytest.raises(ConfigError, match=r"identity/google/group_lookup"):
         load_snapshot(config_dir, "local", ENV)

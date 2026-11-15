@@ -10,8 +10,10 @@ metadata:
 # the GCP stack (version-02 N10). Onboarding steps: docs/guides/TEAM_ONBOARDING.md.
 membership:
   - app_role: SDLC.Webapp.Member
+    group: sdlc-webapp-member@shaheenks.co.in
     roles: [member]
   - app_role: SDLC.Webapp.Approver
+    group: sdlc-webapp-approver@shaheenks.co.in
     roles: [approver]
 policy:
   tools:

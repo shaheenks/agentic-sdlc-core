@@ -8,8 +8,10 @@ metadata:
 # CH-0021) or the git-ignored config/env/<env>/users.yaml.
 membership:
   - app_role: SDLC.Payments.Member
+    group: sdlc-payments-member@shaheenks.co.in
     roles: [member]
   - app_role: SDLC.Payments.Approver
+    group: sdlc-payments-approver@shaheenks.co.in
     roles: [approver]
 policy:
   tools:

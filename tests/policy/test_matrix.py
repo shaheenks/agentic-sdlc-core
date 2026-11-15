@@ -11,7 +11,7 @@ from sdlc_config import load_snapshot
 from sdlc_config.personas import load_personas, resolve_persona
 from sdlc_policy import authorize
 
-from tests.support.config import make_config_dir
+from tests.support.config import GOOGLE_DOMAIN, make_config_dir
 from tests.support.entra import TEST_ENV
 
 HERE = Path(__file__).parent
@@ -72,7 +72,7 @@ def test_personas_use_known_groups(snap):
     """The same for Google groups (the fixture's until the repo config binds its own)."""
     for persona in PERSONAS.values():
         unknown = set(persona.groups) - snap.group_values
-        assert unknown <= {"sdlc-notdefined@example.test"}, persona
+        assert unknown <= {f"sdlc-notdefined@{GOOGLE_DOMAIN}"}, persona
 
 
 SKILL_ROWS = MATRIX["skill_rows"]

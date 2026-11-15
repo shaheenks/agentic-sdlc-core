@@ -13,7 +13,7 @@ from sdlc_config.personas import (
     resolve_persona,
 )
 
-from tests.support.config import make_config_dir
+from tests.support.config import group_for, make_config_dir
 from tests.support.entra import TEST_ENV
 
 PERSONAS = load_personas(Path(__file__).parent / "personas.yaml")
@@ -43,7 +43,7 @@ def test_a_missing_group_fails_parity(snap):
         "payments-member": PERSONAS["payments-member"].__class__(
             name="payments-member",
             app_roles=PERSONAS["payments-member"].app_roles,
-            groups=("sdlc-user@example.test",),
+            groups=(group_for("SDLC.User"),),
         )
     }
     problems = parity_problems(snap, broken)
@@ -63,12 +63,12 @@ def test_groups_never_grant_on_the_entra_stack_and_app_roles_never_on_gcp(snap):
 def test_group_reasons_name_the_binding_rule(snap):
     google = resolve_persona(snap, PERSONAS["payments-member"], GOOGLE)
     assert google.teams["payments"] == ("teams/payments.yaml#membership[0]",)
-    assert google.groups == ("sdlc-payments-member@example.test", "sdlc-user@example.test")
+    assert google.groups == (group_for("SDLC.Payments.Member"), group_for("SDLC.User"))
     assert "groups" in google.explain()
 
 
 def test_group_emails_are_case_insensitive(snap):
-    assert "admin" in resolve(snap, (), None, ["SDLC-Admin@Example.Test"]).roles
+    assert "admin" in resolve(snap, (), None, [group_for("SDLC.Admin").upper()]).roles
 
 
 def test_parity_is_skipped_while_no_group_is_bound(tmp_path):

@@ -64,10 +64,18 @@ access:
 """
 DIRECT_DEV_OID = "aaaaaaaa-0000-0000-0000-000000000001"
 
-# Google groups of the GCP stack (CH-0021): a placeholder Cloud Identity domain. Every app-role
-# binding gets a twin group, SDLC.Payments.Member -> sdlc-payments-member@example.test.
-GOOGLE_DOMAIN = "example.test"
-_APP_ROLE_LINE = re.compile(r"^(?P<indent> *)- app_role: (?P<role>[A-Za-z0-9._-]+).*$", re.M)
+# Google groups of the GCP stack (CH-0021): the repo's Cloud Identity domain (platform.yaml
+# identity.google), or a placeholder while it has none. Every app-role binding without a group
+# gets a twin group named like the repo's: SDLC.Payments.Member -> sdlc-payments-member@<domain>.
+_REPO_GOOGLE = re.search(
+    r"^  google: \{ *allowed_domains: \[ *'?(?P<domain>[A-Za-z0-9.-]+)",
+    (REPO_CONFIG / "platform.yaml").read_text(encoding="utf-8"),
+    re.M,
+)
+GOOGLE_DOMAIN = _REPO_GOOGLE.group("domain") if _REPO_GOOGLE else "example.test"
+_APP_ROLE_LINE = re.compile(
+    r"^(?P<indent> *)- app_role: (?P<role>[A-Za-z0-9._-]+).*$(?!\n *group: )", re.M
+)
 
 
 def group_for(app_role: str) -> str:
@@ -76,8 +84,8 @@ def group_for(app_role: str) -> str:
 
 
 def add_fixture_groups(config_dir: Path) -> None:
-    """identity.google + a `group:` beside every `app_role:` binding without one (repo config
-    and fixture bindings), so both stacks resolve from one catalog."""
+    """identity.google (unless the repo sets it) + a `group:` beside every `app_role:` binding
+    without one (fixture bindings), so both stacks resolve from one catalog."""
     platform = config_dir / "platform.yaml"
     text = platform.read_text(encoding="utf-8")
     if "\n  google:" not in text:
@@ -91,8 +99,6 @@ def add_fixture_groups(config_dir: Path) -> None:
         platform.write_text(text, encoding="utf-8")
     for path in [config_dir / "roles.yaml", *sorted((config_dir / "teams").glob("*.yaml"))]:
         text = path.read_text(encoding="utf-8")
-        if re.search(r"^ +(- )?group: ", text, re.M):
-            continue  # the repo config binds its own groups
 
         def twin(m: re.Match) -> str:
             return f"{m.group(0)}\n{m.group('indent')}  group: {group_for(m.group('role'))}"

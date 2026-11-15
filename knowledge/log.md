@@ -2,6 +2,9 @@
 
 ## 2026-11-15
 
+- **Update**: CH-0021 follow-up: the user created the Cloud Identity groups and set `identity.google`; the repo
+  config binds a `group:` beside every `app_role:`, the personas use the real groups and `validate` now runs
+  the stack parity check on the repo config (passes).
 - **Update**: CH-0021 done (WG.1): Google ID token verifier, Cloud Identity group directory (direct mode, as the
   user confirmed Cloud Identity Free; transitive for Premium) and the Google identity adapter in `sdlc_auth`;
   `group:` bindings beside `app_role:`, `identity.google`, `users.yaml` by email on the GCP stack and the persona

@@ -11,8 +11,10 @@ bindings:
   - everyone: true              # every signed-in user: identity basics only
     roles: [signed-in]
   - app_role: SDLC.User
+    group: sdlc-user@shaheenks.co.in
     roles: [viewer]
   - app_role: SDLC.Admin
+    group: sdlc-admin@shaheenks.co.in
     roles: [admin]
 roles:
   signed-in:
