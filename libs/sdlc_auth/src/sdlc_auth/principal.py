@@ -18,6 +18,12 @@ class Principal:
     scopes: tuple[str, ...]
     app_roles: frozenset[str] = frozenset()  # Entra app roles (`roles` claim)
 
+    @property
+    def user_id(self) -> str:
+        """The provider-neutral user id that owns data and keys audit and rate limits (CH-0020).
+        For Entra it is the `oid`."""
+        return self.oid
+
 
 def principal_from_claims(claims: Mapping[str, Any]) -> Principal:
     """Build a Principal from claims that have ALREADY been validated (signature, iss, aud...)."""

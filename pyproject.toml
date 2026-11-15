@@ -28,6 +28,7 @@ members = [
     "libs/sdlc_config",
     "libs/sdlc_connectors",
     "libs/sdlc_db",
+    "libs/sdlc_mcp",
     "libs/sdlc_policy",
     "libs/sdlc_secrets",
     "libs/sdlc_web",
@@ -44,6 +45,7 @@ sdlc-auth = { workspace = true }
 sdlc-config = { workspace = true }
 sdlc-connectors = { workspace = true }
 sdlc-db = { workspace = true }
+sdlc-mcp = { workspace = true }
 sdlc-policy = { workspace = true }
 sdlc-secrets = { workspace = true }
 sdlc-web = { workspace = true }

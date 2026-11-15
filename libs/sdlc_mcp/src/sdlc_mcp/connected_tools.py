@@ -22,7 +22,7 @@ from sdlc_connectors import providers
 from sdlc_connectors.http import HttpError
 from sdlc_connectors.service import ConnectionService, NotConnected
 
-from sdlc_core_mcp.identity import request_identity
+from sdlc_mcp.identity import request_identity
 
 # tool -> providers its code can talk to (tools.yaml credentials.user must name a matching one)
 TOOL_PROVIDERS: dict[str, frozenset[str]] = {
@@ -86,7 +86,7 @@ def make_connected_tools(connected: Connected) -> list[Callable]:
         if connected.service is None or not cid:
             audit["connection_outcome"] = "not_configured"
             return not_connected("user connections are not configured on this server")
-        oid = ident.principal.oid
+        oid = ident.principal.user_id
         try:
             credential = await connected.service.credential(oid, cid)
         except NotConnected as e:

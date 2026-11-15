@@ -19,7 +19,7 @@
 
 ## Services
 
-- [core_mcp](core_mcp.md) - The MCP server: the single point that authenticates, filters, authorizes, rate-limits and audits every call.
+- [core_mcp](core_mcp.md) - The MCP server of the Entra stack: sdlc_mcp with the Entra token verifier and identity adapter.
 
 ## Data
 
@@ -38,6 +38,7 @@
 - [sdlc_config](sdlc_config.md) - Config loading and validation, the resolver that produces each caller's effective policy, bundles and the sdlc-config CLI.
 - [sdlc_connectors](sdlc_connectors.md) - Talking to external systems: allowlisted HTTP, provider adapters, per-user secret store, the connection service and reconcile.
 - [sdlc_db](sdlc_db.md) - Postgres and pgvector access under row-level security: knowledge search, graph, artifact metadata, bootstrap and migrations.
+- [sdlc_mcp](sdlc_mcp.md) - The SDLC MCP server body behind an identity adapter: the single point that authenticates, filters, authorizes, rate-limits and audits every call, for every server component.
 - [sdlc_policy](sdlc_policy.md) - Authorization decisions for MCP tools as pure functions over an effective policy, plus the rate limiter.
 - [sdlc_secrets](sdlc_secrets.md) - Secret references resolved at runtime from the environment or Secret Manager, with a short cache.
 - [sdlc_web](sdlc_web.md) - The agent web app behind oauth2-proxy: user binding, AG-UI, A2A, conversation threads and retention.

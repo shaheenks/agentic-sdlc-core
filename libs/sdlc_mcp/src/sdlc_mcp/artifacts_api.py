@@ -23,17 +23,16 @@ import re
 from fastmcp import FastMCP
 from fastmcp.server.auth import TokenVerifier
 from sdlc_artifacts import ArtifactStoreError, object_key
-from sdlc_auth import principal_from_claims
 from sdlc_config import ConfigStore, PolicyCache
 from sdlc_db import artifacts as db
 from sdlc_db import owner_scoped
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from sdlc_core_mcp.artifact_tools import Artifacts, public_row
-from sdlc_core_mcp.audit import audit_artifact, new_request_id
-from sdlc_core_mcp.connections_api import access_token_from
-from sdlc_core_mcp.identity import Identity, resolve_identity
+from sdlc_mcp.artifact_tools import Artifacts, public_row
+from sdlc_mcp.audit import audit_artifact, new_request_id
+from sdlc_mcp.connections_api import access_token_from
+from sdlc_mcp.identity import Identity, IdentityAdapter, resolve_identity
 
 log = logging.getLogger("sdlc.mcp")
 WRITE_HEADER = "x-sdlc-request"
@@ -53,6 +52,7 @@ def add_artifact_routes(
     verifier: TokenVerifier,
     store: ConfigStore,
     cache: PolicyCache,
+    adapter: IdentityAdapter,
 ) -> None:
     async def caller(request: Request, tool: str) -> Identity | Response:
         token = access_token_from(request)
@@ -60,10 +60,10 @@ def add_artifact_routes(
         if access is None:
             return JSONResponse({"detail": "sign-in required"}, status_code=401)
         try:
-            principal = principal_from_claims(access.claims)
+            principal = adapter.principal(access.claims)
         except ValueError:
             return JSONResponse({"detail": "not a user token"}, status_code=401)
-        ident = await resolve_identity(principal, store.current(), cache, new_request_id())
+        ident = await resolve_identity(principal, store.current(), cache, adapter, new_request_id())
         if not ident.policy.allows(tool):
             return JSONResponse({"detail": "artifacts are not available to you"}, status_code=403)
         if not artifacts.enabled:
@@ -81,7 +81,7 @@ def add_artifact_routes(
         if isinstance(ident, Response):
             return ident
         pool = await artifacts.knowledge.open_pool()
-        async with pool.connection() as conn, owner_scoped(conn, ident.principal.oid):
+        async with pool.connection() as conn, owner_scoped(conn, ident.principal.user_id):
             rows = await db.list_live(conn)
         return JSONResponse(
             {"artifacts": [public_row(r) for r in rows], "retention_days": artifacts.retention_days}
@@ -93,7 +93,7 @@ def add_artifact_routes(
         if isinstance(ident, Response):
             return ident
         pool = await artifacts.knowledge.open_pool()
-        async with pool.connection() as conn, owner_scoped(conn, ident.principal.oid):
+        async with pool.connection() as conn, owner_scoped(conn, ident.principal.user_id):
             rows = await db.list_versions(conn, request.path_params["artifact_id"])
         if not rows:
             return not_found()
@@ -109,7 +109,7 @@ def add_artifact_routes(
                 return ident
             if request.headers.get(WRITE_HEADER) != "1":
                 return JSONResponse({"detail": f"missing {WRITE_HEADER} header"}, status_code=403)
-            oid = ident.principal.oid
+            oid = ident.principal.user_id
             pool = await artifacts.knowledge.open_pool()
             async with pool.connection() as conn, owner_scoped(conn, oid):
                 row_ids = await db.delete_document(conn, artifact_id)
@@ -134,7 +134,7 @@ def add_artifact_routes(
         version = int(raw_version) if raw_version and VERSION_PARAM.fullmatch(raw_version) else None
         if raw_version is not None and version is None:
             return not_found()
-        oid = ident.principal.oid
+        oid = ident.principal.user_id
         pool = await artifacts.knowledge.open_pool()
         async with pool.connection() as conn, owner_scoped(conn, oid):
             row = await db.get_live(conn, artifact_id, version)

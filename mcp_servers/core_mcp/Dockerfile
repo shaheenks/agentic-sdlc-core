@@ -13,6 +13,7 @@ COPY libs/sdlc_auth/pyproject.toml libs/sdlc_auth/
 COPY libs/sdlc_config/pyproject.toml libs/sdlc_config/
 COPY libs/sdlc_connectors/pyproject.toml libs/sdlc_connectors/
 COPY libs/sdlc_db/pyproject.toml libs/sdlc_db/
+COPY libs/sdlc_mcp/pyproject.toml libs/sdlc_mcp/
 COPY libs/sdlc_policy/pyproject.toml libs/sdlc_policy/
 COPY libs/sdlc_secrets/pyproject.toml libs/sdlc_secrets/
 COPY libs/sdlc_web/pyproject.toml libs/sdlc_web/
@@ -27,6 +28,7 @@ COPY libs/sdlc_auth libs/sdlc_auth
 COPY libs/sdlc_config libs/sdlc_config
 COPY libs/sdlc_connectors libs/sdlc_connectors
 COPY libs/sdlc_db libs/sdlc_db
+COPY libs/sdlc_mcp libs/sdlc_mcp
 COPY libs/sdlc_policy libs/sdlc_policy
 COPY libs/sdlc_secrets libs/sdlc_secrets
 COPY mcp_servers/core_mcp mcp_servers/core_mcp

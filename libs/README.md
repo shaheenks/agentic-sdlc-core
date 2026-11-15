@@ -6,6 +6,7 @@ Shared Python packages reused by all components. Never copy this code into compo
 |---|---|
 | `sdlc_auth` | Entra token validation (user tokens, app roles), group overage handling (fail closed; Graph fallback off), user-token passthrough and MCP headers for agents |
 | `sdlc_config` | Config loader, JSON Schemas, resolver (`EffectivePolicy`), document-flow defaults, bundles, CLI (`validate`, `explain`, `diff`, `compile`, `users sync`); host allowlist helpers |
+| `sdlc_mcp` | The MCP server body behind an identity adapter (tools, policy middleware, audit, HTTP APIs); used by `core_mcp` |
 | `sdlc_policy` | Tool authorization decisions, argument limits, rate limits |
 | `sdlc_db` | Postgres/pgvector access under RLS, migrations, bootstrap; vector + keyword search, knowledge graph, artifact metadata |
 | `sdlc_web` | Agent web app behind oauth2-proxy: token re-validation, user binding, AG-UI `/agui`, A2A `/a2a`, chat threads, session retention |

@@ -1,25 +1,17 @@
 [project]
 name = "sdlc-core-mcp"
 version = "0.1.0"
-description = "Core MCP server: identity, policy, skills, knowledge, user connections, artifacts"
+description = "Core MCP server of the Entra stack: sdlc_mcp with the Entra token verifier and identity adapter"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "fastmcp>=4.0",
-    "opentelemetry-exporter-gcp-trace>=1.9",  # Cloud Trace on GCP (SDLC_TRACE_TO_CLOUD, N4)
-    "opentelemetry-exporter-otlp-proto-http>=1.42.1",
-    "opentelemetry-instrumentation-psycopg>=0.63b1",
-    "pyyaml>=6.0",
-    "sdlc-artifacts",
     "sdlc-auth[server]",
     "sdlc-config",
-    "sdlc-connectors",
-    "sdlc-db",
-    "sdlc-policy",
+    "sdlc-mcp",
 ]
 
 [project.scripts]
 sdlc-core-mcp = "sdlc_core_mcp.server:main"
-sdlc-reconcile-connections = "sdlc_core_mcp.reconcile_cli:main"
 
 [build-system]
 requires = ["hatchling"]

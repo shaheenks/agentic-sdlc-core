@@ -2,6 +2,9 @@
 
 ## 2026-11-15
 
+- **Update**: CH-0020 done (WG.0, refactor): the MCP server body moved to the new library `libs/sdlc_mcp` behind an
+  `IdentityAdapter`; `core_mcp` is now the Entra adapter and entry point only, with no change in behaviour. New
+  component concept `sdlc_mcp`; the requirement trace is split between `sdlc_mcp` and `core_mcp`.
 - **Update**: architecture change: the GCP-native system becomes a second stack with Google identity (design
   decisions N7 to N13): IAP UI, the agent on Agent Runtime and a new MCP server `core_mcp_gcp` with Google Groups
   and `users.yaml`; the Entra stack on `dev` stays as it is, sharing one server library, config catalog and

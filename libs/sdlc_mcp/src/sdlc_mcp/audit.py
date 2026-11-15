@@ -31,14 +31,15 @@ from fastmcp.server.middleware import Middleware, MiddlewareContext
 from sdlc_config import ConfigStore, PolicyCache, SkillDecision
 from sdlc_policy import RateLimiter, authorize
 
-from sdlc_core_mcp.correlation import current_correlation
-from sdlc_core_mcp.identity import (
+from sdlc_mcp.correlation import current_correlation
+from sdlc_mcp.identity import (
     Identity,
+    IdentityAdapter,
     current_principal,
     remember_identity,
     resolve_identity,
 )
-from sdlc_core_mcp.telemetry import annotate, current_trace_id
+from sdlc_mcp.telemetry import annotate, current_trace_id
 
 audit_log = logging.getLogger("sdlc.audit")
 server_log = logging.getLogger("sdlc.mcp")
@@ -86,7 +87,7 @@ def _who(identity: Identity) -> dict:
     return {
         "request_id": identity.request_id,
         **current_correlation(),
-        "oid": identity.principal.oid,
+        "oid": identity.principal.user_id,
         "upn": identity.principal.upn,
         "user_alias": identity.user_alias,
         "teams": sorted(identity.policy.teams),
@@ -159,20 +160,24 @@ class PolicyMiddleware(Middleware):
     def __init__(
         self,
         store: ConfigStore,
+        adapter: IdentityAdapter,
         cache: PolicyCache | None = None,
         limiter: RateLimiter | None = None,
     ):
         self._store = store
+        self._adapter = adapter
         self._cache = cache or PolicyCache()
         self._limiter = limiter or RateLimiter()
         self._calls_since_prune = 0
 
     async def _identity(self, request_id: str) -> Identity | None:
-        principal = current_principal()
+        principal = current_principal(self._adapter)
         if principal is None:
             return None
         snapshot = self._store.current()  # one snapshot for the whole request
-        identity = await resolve_identity(principal, snapshot, self._cache, request_id)
+        identity = await resolve_identity(
+            principal, snapshot, self._cache, self._adapter, request_id
+        )
         await remember_identity(identity)
         return identity
 
@@ -232,7 +237,7 @@ class PolicyMiddleware(Middleware):
             "roles": [],
             "config_version": self._store.current().version,
         }
-        from sdlc_core_mcp.connected_tools import connection_audit
+        from sdlc_mcp.connected_tools import connection_audit
 
         audit_reset = connection_audit.set(None)
         try:
@@ -253,7 +258,7 @@ class PolicyMiddleware(Middleware):
             if not decision.allowed:
                 record.update(outcome="denied", reason=decision.reason)
                 raise ToolError(f"not permitted: {decision.reason}")
-            limited = self._limiter.check(identity.policy, identity.principal.oid, tool)
+            limited = self._limiter.check(identity.policy, identity.principal.user_id, tool)
             self._calls_since_prune += 1
             if self._calls_since_prune >= 1000:
                 self._calls_since_prune = 0

@@ -16,6 +16,7 @@
 - [CH-0015: Agent Registry and Agent Gateway for the native stack](CH-0015.md) - The agent and MCP server are registered in Agent Registry, and the managed Agent Gateway allows only the user agent to reach the MCP server, for the tools config declares.
 - [CH-0018: Register the agent's other egress destinations in Agent Registry](CH-0018.md) - Entra's signing keys, Gemini and Agent Runtime sessions become registered endpoints the agent is granted, so the Agent Gateway can enforce without denying the agent's own work.
 - [CH-0019: Agent Runtime methods return errors instead of raising them](CH-0019.md) - The runtime app's methods report refusals as error results, so Agent Runtime never echoes the request, and with it the user's token, into its error message and logs.
+- [CH-0020: The MCP server body becomes a library with an identity adapter](CH-0020.md) - The tools, audit, artifacts, connections and policy wiring of core_mcp move into libs/sdlc_mcp behind an identity adapter port, so a second server (core_mcp_gcp) can reuse them; core_mcp becomes the Entra entry point with no change in behaviour.
 
 ## Dropped
 
@@ -27,6 +28,5 @@
 - [CH-0010: Continuous deployment to GCP dev](CH-0010.md) - A GitHub workflow deploys every merge to main to GCP dev, running only the deployment steps the changes need, in a fixed order.
 - [CH-0016: Chat UI on Cloud Run behind IAP](CH-0016.md) - The CopilotKit UI runs on Cloud Run with IAP sign-in, gets the user's Google ID token with Google Identity Services, checks it matches the IAP user, and talks to the agent on Agent Runtime.
 - [CH-0017: Native stack hardening, CI target and cutover decision](CH-0017.md) - Least-privilege identities and negative tests for the native stack, the CI deploy target for it, and the decision whether users move from dev to native.
-- [CH-0020: The MCP server body becomes a library with an identity adapter](CH-0020.md) - The tools, audit, artifacts, connections and policy wiring of core_mcp move into libs/sdlc_mcp behind an identity adapter port, so a second server (core_mcp_gcp) can reuse them; core_mcp becomes the Entra entry point with no change in behaviour.
 - [CH-0021: Google identity and Google Groups membership for the GCP stack](CH-0021.md) - The libraries gain a Google ID token verifier, a Cloud Identity group directory and group bindings in config beside app-role bindings, with a parity check that every persona resolves the same on both stacks.
 - [CH-0022: core_mcp_gcp and the GCP stack on Google identity](CH-0022.md) - A new MCP server component core_mcp_gcp (Google adapter) replaces core_mcp behind sdlc-mcp-native; the agent on Agent Runtime verifies Google ID tokens; the gateway, database owner check, compose and scripts follow. The Entra stack is unchanged.

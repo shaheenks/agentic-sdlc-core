@@ -21,14 +21,14 @@ from datetime import UTC, date, datetime
 
 from fastmcp import FastMCP
 from fastmcp.server.auth import TokenVerifier
-from sdlc_auth import principal_from_claims
 from sdlc_connectors.service import ConnectError
 from sdlc_connectors.user_store import UserStoreError
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from sdlc_core_mcp.audit import emit, new_request_id
-from sdlc_core_mcp.connected_tools import Connected
+from sdlc_mcp.audit import emit, new_request_id
+from sdlc_mcp.connected_tools import Connected
+from sdlc_mcp.identity import IdentityAdapter
 
 log = logging.getLogger("sdlc.mcp")
 MAX_BODY = 8 * 1024
@@ -36,7 +36,7 @@ CSRF_HEADER = "x-sdlc-connections"
 
 
 def access_token_from(request: Request) -> str | None:
-    """The caller's Entra token: from oauth2-proxy (X-Forwarded-Access-Token) or a bearer header."""
+    """The caller's token: from oauth2-proxy (X-Forwarded-Access-Token) or a bearer header."""
     forwarded = request.headers.get("x-forwarded-access-token", "").strip()
     if forwarded:
         return forwarded
@@ -44,14 +44,16 @@ def access_token_from(request: Request) -> str | None:
     return auth[7:].strip() if auth[:7].lower() == "bearer " else None
 
 
-def add_connection_routes(mcp: FastMCP, connected: Connected, verifier: TokenVerifier) -> None:
+def add_connection_routes(
+    mcp: FastMCP, connected: Connected, verifier: TokenVerifier, adapter: IdentityAdapter
+) -> None:
     async def caller(request: Request) -> str | Response:
         token = access_token_from(request)
         access = await verifier.load_access_token(token) if token else None
         if access is None:
             return JSONResponse({"detail": "sign-in required"}, status_code=401)
         try:
-            return principal_from_claims(access.claims).oid
+            return adapter.principal(access.claims).user_id
         except ValueError:
             return JSONResponse({"detail": "not a user token"}, status_code=401)
 

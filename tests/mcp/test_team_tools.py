@@ -6,7 +6,7 @@ import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
 from sdlc_config import load_snapshot, resolve
-from sdlc_core_mcp.team_tools import match_teams
+from sdlc_mcp.team_tools import match_teams
 
 from tests.support.entra import G_ENG_ALL, G_PAYMENTS_DEVS, G_PLATFORM_DEVS, TEST_ENV
 

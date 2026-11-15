@@ -5,8 +5,8 @@ import json
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from sdlc_core_mcp import telemetry
-from sdlc_core_mcp.audit import emit
+from sdlc_mcp import telemetry
+from sdlc_mcp.audit import emit
 
 
 def test_tracing_is_off_without_an_endpoint(monkeypatch):

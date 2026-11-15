@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from psycopg_pool import AsyncConnectionPool
 from sdlc_db import Embedder, graph_search, search
 
-from sdlc_core_mcp.identity import request_identity
+from sdlc_mcp.identity import request_identity
 
 
 @dataclass

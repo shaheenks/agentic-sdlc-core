@@ -30,10 +30,10 @@ from sdlc_artifacts import (
 from sdlc_db import artifacts as db
 from sdlc_db import owner_scoped
 
-from sdlc_core_mcp.audit import audit_artifact
-from sdlc_core_mcp.correlation import current_correlation
-from sdlc_core_mcp.identity import Identity, request_identity
-from sdlc_core_mcp.knowledge_tools import Knowledge
+from sdlc_mcp.audit import audit_artifact
+from sdlc_mcp.correlation import current_correlation
+from sdlc_mcp.identity import Identity, request_identity
+from sdlc_mcp.knowledge_tools import Knowledge
 
 log = logging.getLogger("sdlc.mcp")
 DOWNLOAD_PATH = "/artifacts/"  # served through oauth2-proxy (F2)
@@ -110,7 +110,7 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
         (same id and link; older versions stay readable). If a newer version exists, nothing
         is saved and the answer names the latest version."""
         ident, pool = await _begin()
-        oid = ident.principal.oid
+        oid = ident.principal.user_id
         action = "update" if replaces else "create"
         try:
             if replaces and base_version is None:
@@ -211,10 +211,10 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
         """List the documents you saved with save_artifact (latest version of each, newest
         first) that have not expired."""
         ident, pool = await _begin()
-        async with pool.connection() as conn, owner_scoped(conn, ident.principal.oid):
+        async with pool.connection() as conn, owner_scoped(conn, ident.principal.user_id):
             expired = await db.delete_expired(conn)
             rows = await db.list_live(conn)
-        await _drop_objects(ident.principal.oid, expired)
+        await _drop_objects(ident.principal.user_id, expired)
         return {
             "artifacts": [public_row(r) for r in rows],
             "limit": MAX_LIVE_PER_USER,  # documents
@@ -230,7 +230,7 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
         and a tab ("12<tab>text"), the numbering of the user's document viewer: use it when the
         user's comments refer to line numbers, and never save those prefixes."""
         ident, pool = await _begin()
-        oid = ident.principal.oid
+        oid = ident.principal.user_id
         key = db.parse_id(artifact_id)
         async with pool.connection() as conn, owner_scoped(conn, oid):
             row = await db.get_live(conn, artifact_id, version)
@@ -257,7 +257,7 @@ def make_artifact_tools(artifacts: Artifacts) -> list:
     async def delete_artifact(artifact_id: str) -> dict:
         """Delete one of your saved documents, with all its versions."""
         ident, pool = await _begin()
-        oid = ident.principal.oid
+        oid = ident.principal.user_id
         key = db.parse_id(artifact_id)
         async with pool.connection() as conn, owner_scoped(conn, oid):
             row_ids = await db.delete_document(conn, artifact_id)

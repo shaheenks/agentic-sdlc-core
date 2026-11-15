@@ -62,10 +62,10 @@ questions:
   - q: Which tool lets a developer walk the knowledge graph, and how are its results ranked?
     hops: multi
     expect:
-      - sdlc-platform:mcp_servers/core_mcp/src/sdlc_core_mcp/knowledge_tools.py
+      - sdlc-platform:libs/sdlc_mcp/src/sdlc_mcp/knowledge_tools.py
       - sdlc-platform:libs/sdlc_db/src/sdlc_db/graph.py
   - q: What audit record is written when a request arrives with an expired token?
-    expect: [sdlc-platform:mcp_servers/core_mcp/src/sdlc_core_mcp/auth_audit.py]
+    expect: [sdlc-platform:libs/sdlc_mcp/src/sdlc_mcp/auth_audit.py]
   - q: How does the agent forward the signed-in user's token to the MCP server?
     hops: multi
     expect: [sdlc-platform:libs/sdlc_auth/src/sdlc_auth/adk.py, sdlc-platform:agents/user_agent/agent.py]
@@ -82,12 +82,12 @@ questions:
     hops: multi
     expect:
       - sdlc-platform:libs/sdlc_policy/src/sdlc_policy/ratelimit.py
-      - sdlc-platform:mcp_servers/core_mcp/src/sdlc_core_mcp/audit.py
+      - sdlc-platform:libs/sdlc_mcp/src/sdlc_mcp/audit.py
   - q: How does the MCP server decide which knowledge sources a user may search?
     hops: multi
     expect:
       - sdlc-platform:libs/sdlc_config/src/sdlc_config/resolver.py
-      - sdlc-platform:mcp_servers/core_mcp/src/sdlc_core_mcp/knowledge_tools.py
+      - sdlc-platform:libs/sdlc_mcp/src/sdlc_mcp/knowledge_tools.py
   # version-03 P11 (K2): questions that hinge on one exact token (status, column, config key,
   # incident id). `exact: true` groups them in the report.
   - q: When does a refund go to refund_manual_review?

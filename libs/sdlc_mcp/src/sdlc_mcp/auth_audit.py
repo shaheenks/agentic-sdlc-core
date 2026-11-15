@@ -4,8 +4,9 @@ Token validation happens in fastmcp's auth layer, before the policy middleware, 
 request never produces a `tool_call` record. This ASGI middleware watches responses on the MCP
 path and writes an `event: auth_failure` record for 401/403.
 
-The reason is classified from the token's UNVERIFIED claims (e.g. expired, wrong tenant, wrong
-audience); those claims are reported under `claimed` because a rejected token proves nothing.
+The reason is classified from the token's UNVERIFIED claims by the identity adapter (e.g.
+expired, wrong tenant, wrong audience); those claims are reported under `claimed` because a
+rejected token proves nothing.
 The raw token is never logged, only a short SHA-256 fingerprint for correlation.
 """
 
@@ -13,12 +14,12 @@ import base64
 import hashlib
 import json
 import logging
-import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 
-from sdlc_config import ConfigStore
+from sdlc_config import ConfigStore, Snapshot
 
-from sdlc_core_mcp.correlation import correlation_ids
+from sdlc_mcp.correlation import correlation_ids
 
 audit_log = logging.getLogger("sdlc.audit")
 
@@ -32,7 +33,14 @@ def _b64json(segment: str) -> dict | None:
         return None
 
 
-def classify(authorization: str | None, store: ConfigStore) -> tuple[str, dict, str | None]:
+# (unverified claims, snapshot) -> (reason, the claims worth reporting). Provider-specific:
+# supplied by the server component's IdentityAdapter (CH-0020).
+Rejection = Callable[[dict, Snapshot], tuple[str, dict]]
+
+
+def classify(
+    authorization: str | None, store: ConfigStore, rejection: Rejection
+) -> tuple[str, dict, str | None]:
     """(reason, unverified claims subset, token fingerprint) for a rejected request."""
     if not authorization:
         return "missing_token", {}, None
@@ -44,35 +52,15 @@ def classify(authorization: str | None, store: ConfigStore) -> tuple[str, dict, 
     claims = _b64json(parts[1]) if len(parts) == 3 else None
     if claims is None:
         return "malformed_token", {}, fingerprint
-    claimed = {
-        k: claims.get(k)
-        for k in ("oid", "preferred_username", "tid", "aud", "exp", "iss")
-        if claims.get(k) is not None
-    }
-    snapshot = store.current()
-    platform = snapshot.platform
-    exp = claims.get("exp")
-    if str(claims.get("oid", "")).lower() in snapshot.blocked:
-        reason = "blocked"  # E3 block list (claimed oid; the token was rejected either way)
-    elif isinstance(exp, int | float) and exp < time.time():
-        reason = "expired"
-    elif claims.get("tid") != platform.tenant_id:
-        reason = "wrong_tenant"
-    elif claims.get("iss") != platform.issuer:
-        reason = "wrong_issuer"
-    elif claims.get("aud") not in platform.audience:
-        reason = "wrong_audience"
-    elif not set(str(claims.get("scp", "")).split()) >= set(platform.required_scopes):
-        reason = "missing_scope"
-    else:
-        reason = "invalid_token"  # e.g. bad signature, app-only token, unknown signing key
+    reason, claimed = rejection(claims, store.current())
     return reason, claimed, fingerprint
 
 
 class AuthFailureAuditMiddleware:
-    def __init__(self, app, store: ConfigStore, path_prefix: str = "/mcp"):
+    def __init__(self, app, store: ConfigStore, rejection: Rejection, path_prefix: str = "/mcp"):
         self.app = app
         self.store = store
+        self.rejection = rejection
         self.path_prefix = path_prefix
 
     async def __call__(self, scope, receive, send) -> None:
@@ -92,7 +80,9 @@ class AuthFailureAuditMiddleware:
         headers = {
             k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers", [])
         }
-        reason, claimed, fingerprint = classify(headers.get("authorization"), self.store)
+        reason, claimed, fingerprint = classify(
+            headers.get("authorization"), self.store, self.rejection
+        )
         client = scope.get("client") or ("", 0)
         forwarded = headers.get("cf-connecting-ip") or headers.get("x-forwarded-for", "")
         record = {

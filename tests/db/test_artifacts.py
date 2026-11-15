@@ -17,11 +17,11 @@ from fastmcp.server.auth import RemoteAuthProvider
 from psycopg_pool import AsyncConnectionPool
 from sdlc_artifacts import MemoryArtifactStore
 from sdlc_auth.entra import entra_issuer
-from sdlc_core_mcp import artifact_tools
-from sdlc_core_mcp.artifact_tools import Artifacts
-from sdlc_core_mcp.knowledge_tools import Knowledge
 from sdlc_core_mcp.server import build_http_app, build_server
 from sdlc_db import HashEmbedder
+from sdlc_mcp import artifact_tools
+from sdlc_mcp.artifact_tools import Artifacts
+from sdlc_mcp.knowledge_tools import Knowledge
 
 from tests.support import db
 from tests.support.entra import G_ENG_ALL, TENANT

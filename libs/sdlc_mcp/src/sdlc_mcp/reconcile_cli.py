@@ -21,8 +21,8 @@ from sdlc_config import ConfigError, ConfigStore
 from sdlc_connectors.errors import ConnectorError
 from sdlc_connectors.reconcile import Change, reconcile
 
-from sdlc_core_mcp.audit import emit, new_request_id
-from sdlc_core_mcp.server import build_connected, build_knowledge
+from sdlc_mcp.audit import emit, new_request_id
+from sdlc_mcp.server import build_connected, build_knowledge
 
 log = logging.getLogger("sdlc.mcp")
 

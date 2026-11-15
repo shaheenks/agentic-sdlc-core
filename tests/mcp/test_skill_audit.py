@@ -5,7 +5,7 @@ import json
 import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
-from sdlc_core_mcp.audit import ERROR_TEXT_LIMIT, error_text
+from sdlc_mcp.audit import ERROR_TEXT_LIMIT, error_text
 
 from tests.support.entra import G_ENG_ALL, G_PAYMENTS_DEVS, G_PLATFORM_DEVS
 

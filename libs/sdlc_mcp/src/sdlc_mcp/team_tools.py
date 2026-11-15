@@ -15,7 +15,7 @@ import re
 from fastmcp.exceptions import ToolError
 from sdlc_config import EffectivePolicy, Snapshot, document_flow
 
-from sdlc_core_mcp.identity import request_identity
+from sdlc_mcp.identity import request_identity
 
 MAX_HINTS = 20
 MAX_HINT_CHARS = 200
