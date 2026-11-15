@@ -90,9 +90,14 @@ function Test-Native([string]$Exe, [string[]]$ArgList) {
 }
 
 function Get-DotEnv([string]$Name) {
+    # Reads .env like `uv run --env-file` does: a quoted value is taken as is; an unquoted value
+    # ends at a ` #` comment (CH-0022 fix: a trailing comment had reached Cloud Run as a value).
     $line = Get-Content (Join-Path $Root '.env') | Where-Object { $_ -match "^$Name=" } | Select-Object -Last 1
     if (-not $line) { return '' }
-    return ($line -replace "^$Name=", '').Trim().Trim('"')
+    $value = ($line -replace "^$Name=", '').Trim()
+    if ($value -match '^"([^"]*)"') { return $Matches[1] }
+    if ($value -match "^'([^']*)'") { return $Matches[1] }
+    return ($value -replace '\s+#.*$', '').Trim()
 }
 
 function Get-ImageTag {

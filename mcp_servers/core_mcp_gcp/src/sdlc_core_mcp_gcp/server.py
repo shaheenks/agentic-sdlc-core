@@ -12,6 +12,7 @@ block list (by `sub`) is read from the current snapshot on every request.
 """
 
 import os
+import re
 from collections.abc import Mapping
 
 from fastmcp.server.auth import RemoteAuthProvider
@@ -21,6 +22,9 @@ from sdlc_config import ConfigStore, Snapshot
 from sdlc_mcp import server as shared
 
 NAME = "sdlc-core-mcp-gcp"
+_CLIENT_ID = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9._-]*$"
+)  # e.g. <n>-<hash>.apps.googleusercontent.com
 
 
 def oauth_client_ids(environ: Mapping[str, str] = os.environ) -> list[str]:
@@ -29,6 +33,11 @@ def oauth_client_ids(environ: Mapping[str, str] = os.environ) -> list[str]:
     clients = [c for c in clients if c]
     if not clients:
         raise SystemExit("SDLC_OAUTH_CLIENT_IDS must be set (fail closed)")
+    malformed = [c for c in clients if not _CLIENT_ID.match(c)]
+    if malformed:  # e.g. a .env comment taken as a value: every token would fail, so stop here
+        raise SystemExit(
+            f"SDLC_OAUTH_CLIENT_IDS has {len(malformed)} malformed entries (fail closed)"
+        )
     return clients
 
 

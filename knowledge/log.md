@@ -9,6 +9,8 @@
   requirements reworded per stack and back to `draft`. Live check pending the user's rollout.
 - **Fix**: CH-0022: the first dev apply failed (`sdlc-mcp-native` startup probe: `ENTRA_TENANT_ID is not set`);
   the config loader leaves the Entra fields unused on the GCP stack (`SDLC_IDENTITY_PROVIDER=google`).
+- **Fix**: CH-0022: `gcp_deploy.ps1` passed a trailing `.env` comment into `SDLC_OAUTH_CLIENT_IDS` (every token
+  refused for its audience); it now strips comments like dotenv, and `core_mcp_gcp` refuses malformed client IDs.
 - **Update**: CH-0021 follow-up: the user created the Cloud Identity groups and set `identity.google`; the repo
   config binds a `group:` beside every `app_role:`, the personas use the real groups and `validate` now runs
   the stack parity check on the repo config (passes).

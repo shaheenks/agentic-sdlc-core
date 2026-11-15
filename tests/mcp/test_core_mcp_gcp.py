@@ -47,6 +47,14 @@ def test_client_ids_come_from_the_environment_and_are_required():
         gcp.oauth_client_ids({"SDLC_OAUTH_CLIENT_IDS": " , "})
 
 
+def test_a_comment_taken_as_a_client_id_stops_startup():
+    """First dev rollout (CH-0022): a trailing .env comment reached Cloud Run inside the value, and
+    every token was refused for its audience. Now the server refuses to start instead."""
+    value = f"{CLIENT_ID}   # web + desktop OAuth client ids, comma-separated (ID token audience)"
+    with pytest.raises(SystemExit, match="malformed"):
+        gcp.oauth_client_ids({"SDLC_OAUTH_CLIENT_IDS": value})
+
+
 def test_domains_and_group_lookup_come_from_config(snapshot):
     auth = gcp.build_auth(snapshot, "http://127.0.0.1:1", environ=ENV)
     verifier = auth.token_verifier
