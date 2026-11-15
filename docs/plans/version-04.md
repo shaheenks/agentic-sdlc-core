@@ -156,6 +156,12 @@ then, admin alerts use the admins' Jira queue.
 
 ## WN — GCP-native hosting (proposed 2026-11-12)
 
+Architecture update 2026-11-14, revised 2026-11-15 (design decisions N7 to N13): the GCP-native system is a
+second stack with Google identity (IAP UI, agent on Agent Runtime, `core_mcp_gcp` with Google Groups and
+`users.yaml`). The Entra stack (`dev`: oauth2-proxy, agent in the container, `core_mcp` with app roles) stays as
+it is. Both share one server library, one config catalog and one knowledge backend. Phase WG builds the GCP
+stack's identity before WN.4.
+
 Design: [gcp-native-hosting.md](../designs/gcp-native-hosting.md), decision D17. IAP in place of oauth2-proxy,
 the user agent on Agent Runtime, the MCP server on Cloud Run with IAM-only access, Agent Registry and the managed
 Agent Gateway. Entra app-role RBAC stays the per-user authority. Built as a new environment `native` beside dev;
@@ -167,7 +173,10 @@ docker compose stays the local twin. W5 then ships the workflows onto this platf
 | WN.1 | CH-0013 | MCP server on Cloud Run, IAM-only (`native.tf`) | 403 without IAM, 401 without Entra token; dev unchanged | ✅ done 2026-11-12 (code); plan + apply on GCP dev (user) |
 | WN.2 | CH-0014 | User agent on Agent Runtime (runtime guard, header provider, deploy script) | Chat call answers as the user; other users' sessions refused | ✅ done; live on GCP dev 2026-11-13 (streaming and Cloud Run IAM from the agent identity confirmed) |
 | WN.3 | CH-0015, CH-0018, CH-0019 | Agent Registry and Agent Gateway, allowlist from config | Tool outside the allowlist refused at the gateway | ✅ done; enforced on dev 2026-11-13 (CH-0018 registered the agent's other destinations; CH-0019 keeps tokens out of errors) |
-| WN.4 | CH-0016 | UI on Cloud Run with IAP, MSAL, AG-UI adapter to Agent Runtime | Group members chat; identity mismatch refused | proposed |
+| WG.0 | CH-0020 | Refactor: the MCP server body moves to `libs/sdlc_mcp` with an identity adapter port; `core_mcp` becomes the Entra entry point (no behaviour change) | Full suite unchanged; `core_mcp` image behaves as before | proposed 2026-11-15 |
+| WG.1 | CH-0021 | Google identity and membership in the libraries: Google ID token verifier, Cloud Identity group directory (direct, transitive), `group:` bindings beside `app_role:`, persona parity check | Personas resolve the same from groups and from app roles; lookup failure fails closed; Entra and foreign-domain tokens refused by the Google adapter | proposed 2026-11-15 |
+| WG.2 | CH-0022 | `core_mcp_gcp` component and service (`native`); the Agent Runtime app on the Google verifier; gateway egress to Google's keys; owner check for both id shapes; compose profile `gcp`; scripts and guides | The native agent answers as the Google user through the gateway; the Entra stack unchanged | proposed 2026-11-15 |
+| WN.4 | CH-0016 | UI on Cloud Run with IAP, Google Identity Services, AG-UI adapter to Agent Runtime (after WG) | Group members chat; identity mismatch refused | proposed |
 | WN.5 | CH-0017 | Hardening, CI target, cutover decision | Negative checklist passes on `native` | proposed |
 
 ## W6 — Catalogs for coding harnesses

@@ -1,5 +1,13 @@
 # Change log
 
+## 2026-11-15
+
+- **Update**: architecture change: the GCP-native system becomes a second stack with Google identity (design
+  decisions N7 to N13): IAP UI, the agent on Agent Runtime and a new MCP server `core_mcp_gcp` with Google Groups
+  and `users.yaml`; the Entra stack on `dev` stays as it is, sharing one server library, config catalog and
+  knowledge backend. The user approved CH-0020 (server library), CH-0021 (Google identity and groups) and CH-0022
+  (`core_mcp_gcp` and the GCP stack), recorded by Claude on the user's instruction. Plan phase WG before WN.4.
+
 ## 2026-11-13
 
 - **Update**: Agent Gateway enforced on GCP dev (CH-0015, CH-0018): the IAP check fails closed and the agent still

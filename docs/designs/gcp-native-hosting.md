@@ -31,23 +31,65 @@ artifacts bucket.
 | N5 | MCP perimeter | Both tokens on every call to the MCP server: the Entra token in `Authorization` (read by the MCP code for per-user access), and the caller's Google ID token in `X-Serverless-Authorization` (checked by Cloud Run IAM before the request reaches the code). Chosen over a public service, where the gateway could be bypassed, and over internal ingress with Private Service Connect. |
 | N6 | Agent entry point | A custom streaming method on Agent Runtime (`stream_query(message, session_id, user_token)`) so the token check and session ownership run before the agent. Alternatives for the session service are explored later. |
 
-Rejected for now:
-- **Google identity end to end:** the MCP server would trust Google tokens, and membership would come from Cloud
-  Identity groups. That brings back group lookups, which CH-0011 removed.
+Rejected:
 - **Gateway-only:** no per-user or per-team control and no per-user RLS.
+- ~~Google identity end to end~~: rejected on 2026-11-12, adopted on 2026-11-14 (N7 to N12 below).
+
+## 2a. Decisions (2026-11-14, revised 2026-11-15): two stacks, Google identity on the GCP one
+
+On 2026-11-14 Entra group claims and Entra app roles were ruled out for the GCP-native system. On 2026-11-15 the
+user chose to build it as a **second stack beside the existing one** instead of converting the existing one:
+
+| | Entra stack (today, `dev`) | GCP stack (`native`) |
+|---|---|---|
+| Front end | `sdlc-app` on Cloud Run, oauth2-proxy (Entra) | `sdlc-ui-native` on Cloud Run, IAP (WN.4) |
+| Agent | `user_agent` in the same container (`sdlc_web`) | `user_agent` on Agent Runtime (`runtime_app`) |
+| MCP server | `core_mcp` | `core_mcp_gcp` |
+| User token | Entra access token | Google ID token for our OAuth client |
+| Membership | Entra app roles + `users.yaml` (by `oid`), CH-0011 | Google Groups + `users.yaml` (by email) |
+
+Users are Cloud Identity accounts federated from Entra (SAML SSO), and the relevant Entra groups are synced to
+Cloud Identity (assumed; the sync is the user's).
+
+| # | Topic | Decision |
+|---|---|---|
+| N7 | User token (GCP stack) | The user's **Google ID token** whose audience is our own OAuth client, obtained by Google Identity Services in the browser (silent inside the IAP session) or an OAuth client flow (CLI, MCP clients). The agent forwards it in `Authorization` as the Entra stack forwards the Entra token. Rejected: forwarding the IAP JWT (audience is the UI, ~10 minutes, absent locally and for MCP clients). |
+| N8 | Token validation | `core_mcp_gcp` and the Agent Runtime app verify it offline: Google's signing keys, issuer `https://accounts.google.com`, audience = the configured client ID(s), `email_verified`, `hd` = the configured Cloud Identity domain(s). The user id is `sub`. |
+| N9 | Membership (GCP stack) | Google Groups named in config by **email address, committed in `config/`**, plus `users.yaml` matched on email, as a union. Entra app roles and the `groups`/`roles` claims play no part on this stack. |
+| N10 | Group lookup | `core_mcp_gcp` asks the Cloud Identity Groups API on first use and caches the answer a few minutes; a failed lookup gives no group roles (fail closed). Designed for Cloud Identity Free: one direct-membership check per group in config (no nesting). On Premium, `searchTransitiveGroups` replaces it. The service account needs the Groups Reader admin role (user, Admin console). |
+| N11 | Data | One knowledge backend for both stacks (sources, embeddings, graph, RLS ceilings: computed from roles, not from the identity). User-owned data (artifacts, connections, sessions) is kept apart by the id itself: an Entra `oid` is a GUID, a Google `sub` is 21 digits, so they cannot collide; the owner check accepts both shapes. Nothing is migrated or reset; each stack's users start with their own data. Audit records which stack wrote them. |
+| N12 | Sign-in, local | The Entra stack is unchanged (CH-0011 holds for it). The GCP stack signs in with Google everywhere: IAP on `native`, and a compose profile `gcp` locally (oauth2-proxy with the Google provider in front of `sdlc_web` and `core_mcp_gcp`). Tests use a fake Google issuer. |
+| N13 | One codebase, two entry points | `core_mcp` and `core_mcp_gcp` are thin components over one server library (`libs/sdlc_mcp`): the tools, audit, artifacts, connections and policy are shared; each component supplies only its **identity adapter** (token verifier, principal, membership source). Config is one catalog: a role or team binding may name an `app_role:` (read by the Entra stack) and a `group:` (read by the GCP stack); a parity check makes every persona resolve to the same roles on both. No server code is copied. |
+
+Consequences:
+- Workflow identities (FR-IDN-005) on the GCP stack are Google service accounts with their own ID token.
+- External MCP clients and harnesses (FR-SURF-003, FR-SURF-004) keep using the Entra stack until the GCP stack has
+  a Google OAuth path for them.
+- The Agent Gateway egress list (CH-0018) swaps Entra's signing keys for Google's
+  (`https://www.googleapis.com/oauth2/v3/certs`) when the engine moves to `core_mcp_gcp`.
+- Cutover (CH-0017) becomes: move users to the GCP stack, then delete `core_mcp`, the `app_role:` bindings, the
+  Entra adapter and oauth2-proxy. Until then, both stacks are tested on every change.
+
+Rejected:
+- Converting the Entra stack in place (the first 2026-11-14 draft): a big-bang identity switch with a data
+  reset, and no way back.
+- One `core_mcp` with an identity switch per deployment: the least code, but the GCP-only dependencies (Cloud
+  Identity API) and its separate deploy are clearer as their own component; the shared library keeps the cost
+  of the split small.
 
 ## 3. Architecture
 
 ```
 browser ── IAP (Google account, Entra SSO) ──> sdlc-ui-native (Cloud Run, CopilotKit)
-   │   MSAL silent SSO: Entra token for api://sdlc-mcp/access_as_user (same person as IAP)
+   │   Google Identity Services: the user's Google ID token for our OAuth client (same person as IAP)  [N7]
    ▼
-sdlc-ui-native ── IAM (UI service account) ──> user_agent on Agent Runtime   (Entra token passed per call)
+sdlc-ui-native ── IAM (UI service account) ──> user_agent on Agent Runtime   (Google ID token passed per call)
                                                   │  egress via managed Agent Gateway (Agent Registry entry)
                                                   │  X-Serverless-Authorization: agent identity ID token (Cloud Run IAM)
-                                                  │  Authorization: Bearer <user's Entra token>
+                                                  │  Authorization: Bearer <user's Google ID token>
                                                   ▼
                                           sdlc-mcp-native (Cloud Run, IAM-only invoker)
+                                                  │  Cloud Identity Groups API: the user's groups (cached)  [N10]
                                                   ▼
                                           Cloud SQL (RLS) · GCS · Secret Manager   (unchanged)
 ```
@@ -58,16 +100,16 @@ Each layer fails closed; a lower layer never widens what a higher one allows.
 
 | Layer | Decided by | What |
 |---|---|---|
-| 1. Perimeter | IAP + a Cloud Identity group (mirrors `SDLC.User`) | Who can open the UI |
-| 2. Identity binding | UI server | The Entra token's user must be the IAP user, or the request is refused |
+| 1. Perimeter | IAP + a Cloud Identity group | Who can open the UI |
+| 2. Identity binding | UI server | The Google ID token's user must be the IAP user, or the request is refused |
 | 3. Agent → MCP | Cloud Run IAM + Agent Gateway (IAM Unified Access Policy, MCP tool allowlist) | Only `user_agent`'s identity reaches the MCP server, and only for catalog tools |
-| 4. Per user | MCP server, `config/` (unchanged) | App roles, team scoping, argument limits, rate limits, audit |
+| 4. Per user | MCP server, `config/` | Google Groups and `users.yaml` (N9), team scoping, argument limits, rate limits, audit |
 | 5. Data | Postgres RLS (unchanged) | Readable sources, per-source ceilings |
 
 The gateway's tool allowlist is generated from `config/tools.yaml` (`sdlc-config gateway-policy`). Access stays
 declared in `config/`, and the gateway never allows a tool that config does not have.
 
-Calls stay "as the user" (NFR-SEC-006): the user's Entra token travels in `Authorization`, and the agent's
+Calls stay "as the user" (NFR-SEC-006): the user's Google ID token (Entra token before N7) travels in `Authorization`, and the agent's
 Google identity only proves which workload is calling, in `X-Serverless-Authorization`. Cloud Run checks that
 header for IAM when it is present.
 
