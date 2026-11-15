@@ -2,6 +2,8 @@
 
 ## 2026-11-15
 
+- **Fix**: CH-0025 done: runtime refusals are `{"refusal": {code, message}}`; `{"error": ...}` made `google.genai`
+  crash on a refused `stream_query`. CH-0016's draft reads the new key. Live check after the engine redeploy.
 - **Update**: CH-0022 live on dev: a Google test user gets the basic tools and `sdlc-platform` from Cloud Identity
   groups through `sdlc-mcp-native` and the enforced gateway.
 - **Update**: CH-0022 done (WG.2): new component `core_mcp_gcp` (the GCP stack's MCP server); the agent's

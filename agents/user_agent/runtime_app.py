@@ -18,8 +18,9 @@ Operations (`register_operations`):
 - `list_threads(user_token)`: the caller's conversations, newest first (id, title, updatedAt);
 - `delete_thread(user_token, session_id)`: deletes one of the caller's conversations.
 
-A refusal is a result, never an exception: `{"error": {"code", "message"}}` (for `stream_query`, a
+A refusal is a result, never an exception: `{"refusal": {"code", "message"}}` (for `stream_query`, a
 single event), with code `unauthenticated`, `not_found`, `invalid_argument` or `internal` (CH-0019).
+Not `error` (CH-0025): google.genai takes a streamed `{"error": ...}` chunk for an API error.
 
 The Agent Runtime caller (the UI service account) is trusted to reach the engine, never to speak
 for a user: who the user is comes only from the token.
@@ -91,7 +92,7 @@ class UserAgentApp:
     def register_operations(self) -> dict[str, list[str]]:
         return {"async": ["list_threads", "delete_thread"], "async_stream": ["stream_query"]}
 
-    # Every method returns refusals as `{"error": {...}}` instead of raising (CH-0019): when a
+    # Every method returns refusals as `{"refusal": {...}}` instead of raising (CH-0019): when a
     # method raises, Agent Runtime echoes the call's arguments, the user's token included, into
     # the error and its log.
 
@@ -209,9 +210,9 @@ _REFUSALS = (
 def _error(exc: Exception) -> dict[str, Any]:
     for kind, code, message in _REFUSALS:
         if isinstance(exc, kind):
-            return {"error": {"code": code, "message": message}}
+            return {"refusal": {"code": code, "message": message}}
     log.warning("runtime call failed: %s", type(exc).__name__)  # the type only, never the text
-    return {"error": {"code": "internal", "message": "the agent could not complete the request"}}
+    return {"refusal": {"code": "internal", "message": "the agent could not complete the request"}}
 
 
 def _iso(ts: float | None) -> str:

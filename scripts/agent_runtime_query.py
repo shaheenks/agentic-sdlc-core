@@ -48,8 +48,8 @@ def describe(event: dict) -> str:
         elif part.get("function_response") or part.get("functionResponse"):
             resp = part.get("function_response") or part.get("functionResponse")
             out.append(f"[tool result {resp.get('name')}]")
-    if isinstance(event.get("error"), dict):  # a refusal from the runtime app (CH-0019)
-        return f"refused: {event['error'].get('code')}: {event['error'].get('message')}"
+    if isinstance(event.get("refusal"), dict):  # a refusal from the runtime app (CH-0019, CH-0025)
+        return f"refused: {event['refusal'].get('code')}: {event['refusal'].get('message')}"
     if event.get("error_code") or event.get("errorCode"):
         out.append(f"[error {event.get('error_code') or event.get('errorCode')}]")
     return f"{event.get('author', '?')}: " + (" ".join(out) or "(no content)")

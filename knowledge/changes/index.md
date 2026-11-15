@@ -19,6 +19,7 @@
 - [CH-0020: The MCP server body becomes a library with an identity adapter](CH-0020.md) - The tools, audit, artifacts, connections and policy wiring of core_mcp move into libs/sdlc_mcp behind an identity adapter port, so a second server (core_mcp_gcp) can reuse them; core_mcp becomes the Entra entry point with no change in behaviour.
 - [CH-0021: Google identity and Google Groups membership for the GCP stack](CH-0021.md) - The libraries gain a Google ID token verifier, a Cloud Identity group directory and group bindings in config beside app-role bindings, with a parity check that every persona resolves the same on both stacks.
 - [CH-0022: core_mcp_gcp and the GCP stack on Google identity](CH-0022.md) - A new MCP server component core_mcp_gcp (Google adapter) replaces core_mcp behind sdlc-mcp-native; the agent on Agent Runtime verifies Google ID tokens; the gateway, database owner check, compose and scripts follow. The Entra stack is unchanged.
+- [CH-0025: Runtime refusals use a key the client library does not reserve](CH-0025.md) - The Agent Runtime app reports refusals under a "refusal" key instead of "error", because google.genai takes any streamed chunk starting with an "error" key for an API error and crashes on the string code.
 
 ## Dropped
 
@@ -32,4 +33,3 @@
 - [CH-0017: Native stack hardening, CI target and cutover decision](CH-0017.md) - Least-privilege identities and negative tests for the native stack, the CI deploy target for it, and the decision whether users move from dev to native.
 - [CH-0023: Faster test suite](CH-0023.md) - Shared fixtures for the parts of test setup that never change (signing key, config snapshot, read-only MCP servers), a slow marker for the inner loop, and parallel runs, so the suite gives the same results in about half the time.
 - [CH-0024: Image tags from build inputs](CH-0024.md) - Each image is tagged with a hash of its own build inputs, so gcp_deploy.ps1 builds and pushes only images whose inputs changed and Terraform rolls out only services whose image changed.
-- [CH-0025: Runtime refusals use a key the client library does not reserve](CH-0025.md) - The Agent Runtime app reports refusals under a "refusal" key instead of "error", because google.genai takes any streamed chunk starting with an "error" key for an API error and crashes on the string code.

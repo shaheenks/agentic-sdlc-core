@@ -61,11 +61,22 @@ async def test_streams_as_the_token_user_with_the_token_bound(app, entra):
 
 
 def error_code(result):
-    """The code of an error result (CH-0019: refusals are results, never exceptions)."""
+    """The code of a refusal (CH-0019: refusals are results, never exceptions). CH-0025: under
+    `refusal`, never a top-level `error`, which google.genai takes for an API error."""
     if isinstance(result, list):
         assert len(result) == 1, result  # a refused stream is a single event, no session
         result = result[0]
-    return result["error"]["code"]
+    assert "error" not in result, result
+    return result["refusal"]["code"]
+
+
+async def test_a_refused_stream_event_is_not_read_as_an_api_error(app):
+    """google.genai raises on any streamed chunk whose JSON starts with {"error": (CH-0025)."""
+    import json
+
+    (event,) = await run(app, "not.a.jwt")
+    assert not json.dumps(event).startswith('{"error":')
+    assert set(event) == {"refusal"} and set(event["refusal"]) == {"code", "message"}
 
 
 @pytest.mark.parametrize("token", [None, "", "not.a.jwt"])
