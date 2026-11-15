@@ -2,6 +2,8 @@
 
 ## 2026-11-15
 
+- **Update**: CH-0022 live on dev: a Google test user gets the basic tools and `sdlc-platform` from Cloud Identity
+  groups through `sdlc-mcp-native` and the enforced gateway.
 - **Update**: CH-0022 done (WG.2): new component `core_mcp_gcp` (the GCP stack's MCP server); the agent's
   entry checks take the stack's verifier (`SDLC_IDENTITY_PROVIDER`); migration 009 lets an artifact owner be a
   Google `sub`; `sdlc-mcp-native` runs `core-mcp-gcp` as its own service account; gateway egress to Google's
