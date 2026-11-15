@@ -135,3 +135,42 @@ async def test_tool_calls_record_the_stack(gcp_url, google, caplog):
     calls = [json.loads(r.message) for r in caplog.records if r.name == "sdlc.audit"]
     calls = [r for r in calls if r.get("event") == "tool_call" and r.get("tool") == "ping"]
     assert calls and calls[-1]["idp"] == "google" and calls[-1]["upn"] == LEAD
+
+
+# --- the deployed environment has no ENTRA_* (first dev rollout failed on it, CH-0022) --------
+
+GCP_ENV = {"SDLC_IDENTITY_PROVIDER": "google", **ENV}
+
+
+def test_the_config_loads_on_the_gcp_stack_without_entra_settings(tmp_path):
+    """platform.yaml names ${ENTRA_*} for the Entra stack; the GCP stack never reads them."""
+    from sdlc_config import ConfigError
+    from sdlc_config.loader import DUMMY_ENV_VALUE
+
+    config_dir = make_config_dir(tmp_path)
+    snap = load_snapshot(config_dir, "local", GCP_ENV)
+    assert snap.platform.tenant_id == DUMMY_ENV_VALUE  # inert: no Entra verifier on this stack
+    assert snap.platform.google.allowed_domains == (GOOGLE_DOMAIN,)
+    gcp.build_auth(snap, "http://127.0.0.1:1", environ=GCP_ENV)
+    with pytest.raises(ConfigError, match="ENTRA_TENANT_ID is not set"):
+        load_snapshot(config_dir, "local", ENV)  # the Entra stack still fails closed
+
+
+def test_only_entra_settings_are_optional_on_the_gcp_stack(tmp_path):
+    from sdlc_config import ConfigError
+
+    config_dir = make_config_dir(tmp_path)
+    platform = config_dir / "platform.yaml"
+    text = platform.read_text(encoding="utf-8")
+    platform.write_text(text.replace("[access_as_user]", '["${SDLC_OTHER}"]'), encoding="utf-8")
+    with pytest.raises(ConfigError, match="SDLC_OTHER is not set"):
+        load_snapshot(config_dir, "local", GCP_ENV)
+
+
+def test_the_server_declares_its_stack(monkeypatch):
+    seen = {}
+    monkeypatch.setenv("SDLC_IDENTITY_PROVIDER", "")  # restored to its state before the test
+    monkeypatch.delenv("SDLC_IDENTITY_PROVIDER")
+    monkeypatch.setattr(gcp.shared, "serve", lambda *a, **k: seen.update(env=dict(gcp.os.environ)))
+    gcp.main()
+    assert seen["env"]["SDLC_IDENTITY_PROVIDER"] == "google"

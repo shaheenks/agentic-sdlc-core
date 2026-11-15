@@ -43,6 +43,11 @@ API_VERSION = "sdlc/v1"
 _VAR = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)\}")
 # Used by `validate --dummy-env` so CI can check structure without real tenant values.
 DUMMY_ENV_VALUE = "00000000-0000-0000-0000-000000000000"
+# The GCP stack's services (SDLC_IDENTITY_PROVIDER=google, CH-0022) get no Entra settings: the Entra
+# identity fields of platform.yaml are unused there, so an unset ENTRA_* variable takes the dummy
+# value instead of failing. Every other variable is still required.
+IDENTITY_PROVIDER_VAR = "SDLC_IDENTITY_PROVIDER"
+ENTRA_VAR_PREFIX = "ENTRA_"
 
 # Source types whose loaders use `spec.credentials` (version-01: GCS and Atlassian add themselves
 # as their loaders land). Others must not name a secret they would never read.
@@ -98,6 +103,7 @@ def load_snapshot(
     environ = os.environ if environ is None else environ
     problems: list[str] = []
     raw_files: dict[str, bytes] = {}
+    google_stack = environ.get(IDENTITY_PROVIDER_VAR, "").strip().lower() == "google"
     config_keys: set[str] = set()  # raw_files keys relative to config_dir (the rest: repo root)
     docs: dict[str, list[tuple[str, dict]]] = {}
 
@@ -139,7 +145,9 @@ def load_snapshot(
         for path in paths:
             # an override file is still named by its usual path (rules, messages, bundle tree)
             rel = pattern if override else path.relative_to(config_dir).as_posix()
-            doc = _read_doc(path, rel, kind, schema, environ, dummy_env, raw_files, problems)
+            doc = _read_doc(
+                path, rel, kind, schema, environ, dummy_env, raw_files, problems, google_stack
+            )
             config_keys.add(rel)
             if doc is not None:
                 docs[kind].append((rel, doc))
@@ -201,7 +209,9 @@ def load_snapshot(
     )
 
 
-def _read_doc(path, rel, kind, schema, environ, dummy_env, raw_files, problems) -> dict | None:
+def _read_doc(
+    path, rel, kind, schema, environ, dummy_env, raw_files, problems, google_stack=False
+) -> dict | None:
     raw = path.read_bytes()
     raw_files[rel] = raw
     try:
@@ -215,7 +225,7 @@ def _read_doc(path, rel, kind, schema, environ, dummy_env, raw_files, problems) 
     if doc.get("kind") != kind:
         problems.append(f"{rel}: expected kind '{kind}', got {doc.get('kind')!r}")
         return None
-    doc = _substitute(doc, environ, dummy_env, rel, problems)
+    doc = _substitute(doc, environ, dummy_env, rel, problems, google_stack)
     for where in _group_identities(doc):
         problems.append(
             f"{rel}: {where}: Entra groups are no longer used (CH-0011); grant the roles to a "
@@ -242,19 +252,29 @@ def _group_identities(doc: dict) -> list[str]:
     return found
 
 
-def _substitute(node: Any, environ: Mapping[str, str], dummy: bool, rel: str, problems: list):
-    """Replace ${VAR} in every string. Missing/empty vars are errors (fail closed)."""
+def _substitute(
+    node: Any,
+    environ: Mapping[str, str],
+    dummy: bool,
+    rel: str,
+    problems: list,
+    google_stack: bool = False,
+):
+    """Replace ${VAR} in every string. Missing/empty vars are errors (fail closed), except the
+    Entra settings on the GCP stack, which never reads them."""
     if isinstance(node, dict):
-        return {k: _substitute(v, environ, dummy, rel, problems) for k, v in node.items()}
+        return {
+            k: _substitute(v, environ, dummy, rel, problems, google_stack) for k, v in node.items()
+        }
     if isinstance(node, list):
-        return [_substitute(v, environ, dummy, rel, problems) for v in node]
+        return [_substitute(v, environ, dummy, rel, problems, google_stack) for v in node]
     if isinstance(node, str):
 
         def repl(m: re.Match) -> str:
             value = environ.get(m.group(1), "")
             if value:
                 return value
-            if dummy:
+            if dummy or (google_stack and m.group(1).startswith(ENTRA_VAR_PREFIX)):
                 return DUMMY_ENV_VALUE
             problems.append(f"{rel}: environment variable {m.group(1)} is not set")
             return m.group(0)

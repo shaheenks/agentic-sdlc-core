@@ -258,6 +258,7 @@ services:
       # Our OAuth client IDs (the ID token audience). Missing => refuses to start (fail closed).
       # Allowed domains and the group lookup are config (platform.yaml identity.google).
       SDLC_OAUTH_CLIENT_IDS: ${SDLC_OAUTH_CLIENT_IDS:-}
+      SDLC_IDENTITY_PROVIDER: google   # no ENTRA_* here: the loader leaves the Entra fields unused
       MCP_PUBLIC_URL: https://${SDLC_GCP_MCP_HOST:-mcp-gcp-sdlc-dev.shaheenks.co.in}
       OTEL_SERVICE_NAME: sdlc-core-mcp-gcp
       <<: [*vertex-env, *otel-env]

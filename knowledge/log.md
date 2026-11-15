@@ -7,6 +7,8 @@
   Google `sub`; `sdlc-mcp-native` runs `core-mcp-gcp` as its own service account; gateway egress to Google's
   keys; compose profiles `gcp` and `gcp-tunnel`; `google_id_token.py`; guide `docs/guides/GCP_STACK.md`. Five
   requirements reworded per stack and back to `draft`. Live check pending the user's rollout.
+- **Fix**: CH-0022: the first dev apply failed (`sdlc-mcp-native` startup probe: `ENTRA_TENANT_ID is not set`);
+  the config loader leaves the Entra fields unused on the GCP stack (`SDLC_IDENTITY_PROVIDER=google`).
 - **Update**: CH-0021 follow-up: the user created the Cloud Identity groups and set `identity.google`; the repo
   config binds a `group:` beside every `app_role:`, the personas use the real groups and `validate` now runs
   the stack parity check on the repo config (passes).

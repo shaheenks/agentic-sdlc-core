@@ -45,7 +45,7 @@ locals {
   # lookup are config (platform.yaml identity.google), CH-0022.
   mcp_identity_env = {
     entra  = local.entra_env
-    google = { SDLC_OAUTH_CLIENT_IDS = var.google_oauth_client_ids }
+    google = { SDLC_OAUTH_CLIENT_IDS = var.google_oauth_client_ids, SDLC_IDENTITY_PROVIDER = "google" }
   }
 
   # Same settings as the local oauth2-proxy (docker-compose.yml x-oauth2-proxy-env).

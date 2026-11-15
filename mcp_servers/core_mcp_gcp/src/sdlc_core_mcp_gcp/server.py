@@ -78,6 +78,8 @@ def build_auth(
 
 
 def main() -> None:
+    # This server is the GCP stack: the config loader then needs no Entra settings (CH-0022).
+    os.environ.setdefault("SDLC_IDENTITY_PROVIDER", "google")
     shared.serve(build_identity, build_auth, name=NAME)
 
 

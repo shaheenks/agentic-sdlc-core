@@ -61,6 +61,8 @@ Code: `libs/sdlc_config`
   persona resolves differently on the two stacks.
 - Document-flow defaults and skill package validation.
 - Bundles: compile, activate, verify; `ConfigStore` with reload and last-known-good.
+- Loader on the GCP stack (CH-0022): with `SDLC_IDENTITY_PROVIDER=google` an unset `ENTRA_*` variable takes the
+  inert dummy value (the Entra fields are unused there); every other variable is still required.
 - CLI: `validate` (with the stack parity check), `explain` (`--app-roles`, `--groups`, `--user`, `--stack`),
   `diff` (per persona and stack), `compile`, `activate`, `users sync`.
 - Host allowlist for remote sources.

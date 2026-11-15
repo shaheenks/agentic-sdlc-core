@@ -274,7 +274,10 @@ def test_each_stack_gets_only_its_own_identity_settings(tf):
     identity = {unquote(k): v for k, v in tf.locals["mcp_identity_env"].items()}
     assert identity["entra"] == "${local.entra_env}"
     google = identity["google"]
-    assert google == {"SDLC_OAUTH_CLIENT_IDS": "${var.google_oauth_client_ids}"}
+    assert google == {
+        "SDLC_OAUTH_CLIENT_IDS": "${var.google_oauth_client_ids}",
+        "SDLC_IDENTITY_PROVIDER": '"google"',  # the loader then needs no ENTRA_*
+    }
     shared = json.dumps(tf.locals["mcp_env"])
     assert "entra_env" not in shared and "ENTRA_" not in shared
     assert "OAUTH_CLIENT_IDS" not in shared
