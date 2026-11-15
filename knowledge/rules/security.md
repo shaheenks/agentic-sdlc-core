@@ -12,12 +12,20 @@ Paths are relative to the repository root.
 # Security rules
 
 - Authorization lives in the MCP server, never in prompts or agent code.
-- Entra is the only trusted issuer. Tokens must be v2 (iss `https://login.microsoftonline.com/<tid>/v2.0`),
-  `aud` = the sdlc-mcp client ID (v2) or `api://<client id>`, `scp` contains `access_as_user` (user tokens only),
-  `tid` = our tenant, plus signature (JWKS) and exp. Implemented in `sdlc_auth.entra.EntraTokenVerifier`.
-- The MCP server refuses to start without valid config and `ENTRA_TENANT_ID` / `ENTRA_API_CLIENT_ID` (fail closed).
-- Membership comes only from app roles (`roles` claim) and users.yaml (CH-0011). A `groups` claim is ignored, so there is
-  no group overage and no Graph lookup; a token without app roles and without a users.yaml entry gets only `signed-in`.
+- One trusted issuer per stack; each stack refuses the other's tokens (CH-0021).
+  - Entra stack: tokens must be v2 (iss `https://login.microsoftonline.com/<tid>/v2.0`), `aud` = the sdlc-mcp client
+    ID (v2) or `api://<client id>`, `scp` contains `access_as_user` (user tokens only), `tid` = our tenant, plus
+    signature (JWKS) and exp. Implemented in `sdlc_auth.entra.EntraTokenVerifier`.
+  - GCP stack: a Google ID token with iss `https://accounts.google.com`, `aud` = one of our OAuth client IDs
+    (`SDLC_OAUTH_CLIENT_IDS`), `email_verified` true and `hd` in the allowed domains (`SDLC_ALLOWED_DOMAINS`), plus
+    signature (Google's JWKS) and exp; the user is `sub`. Implemented in `sdlc_auth.google.GoogleTokenVerifier`.
+- The MCP server refuses to start without valid config and `ENTRA_TENANT_ID` / `ENTRA_API_CLIENT_ID` (fail closed);
+  the GCP stack's without `SDLC_OAUTH_CLIENT_IDS` / `SDLC_ALLOWED_DOMAINS`.
+- Membership (CH-0011, CH-0021): on the Entra stack only app roles (`roles` claim) and users.yaml; a `groups` claim is
+  ignored, so there is no group overage and no Graph lookup. On the GCP stack only the Google groups bound in config
+  (Cloud Identity Groups API, the server's own service account with the Groups Reader role, cached
+  `group_cache_seconds`) and users.yaml; a failed lookup gives no group roles (fail closed) and its log never names
+  the user. A token without memberships and without a users.yaml entry gets only `signed-in`.
 - Block list (E3): `config/env/<env>/blocked.yaml` (kind `BlockList`, optional, git-ignored) is checked by
   the MCP token verifier on every request (via `store.current()`); blocked users get 401, audited as reason `blocked`.
   On GCP it travels in the config bundle (`-Step config`, live in ~2 min). Review + rotation procedures: docs/SECRETS_REVIEW.md.

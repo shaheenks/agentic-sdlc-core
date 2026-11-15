@@ -1,4 +1,5 @@
-"""The authenticated user, normalized from validated Entra access-token claims.
+"""The authenticated user, normalized from validated token claims: Entra access tokens here,
+Google ID tokens in sdlc_auth.google (CH-0021).
 
 Membership comes only from Entra app roles (the `roles` claim) and users.yaml (matched on `oid`).
 A `groups` claim, if a tenant still sends one, is ignored (CH-0011).
@@ -17,11 +18,14 @@ class Principal:
     name: str | None
     scopes: tuple[str, ...]
     app_roles: frozenset[str] = frozenset()  # Entra app roles (`roles` claim)
+    # "entra", or "google" (CH-0021: oid = the Google `sub`, tid = the Cloud Identity domain,
+    # upn = the verified email; no app roles)
+    provider: str = "entra"
 
     @property
     def user_id(self) -> str:
         """The provider-neutral user id that owns data and keys audit and rate limits (CH-0020).
-        For Entra it is the `oid`."""
+        For Entra it is the `oid`, for Google the `sub`."""
         return self.oid
 
 

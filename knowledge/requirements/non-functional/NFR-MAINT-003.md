@@ -25,10 +25,12 @@ The checks and tests in continuous integration shall run without secrets or call
 
 # Acceptance criteria
 
-- Tests pass without `.env`, using placeholder Entra IDs, example tenant files, a hash embedder and fake Entra tokens.
+- Tests pass without `.env`, using placeholder Entra IDs and OAuth client IDs, example tenant files, a hash embedder, fake Entra and Google tokens and a fake Groups API.
 - The `ci` workflow covers lint, config validation, the permission diff, UI checks, database tests and Terraform checks, and holds no secret and no cloud credential.
 - The deploy workflow (NFR-OPS-002) is a separate workflow. It runs only on `main`, after `ci` passes, and gets its GCP access through Workload Identity Federation, never a stored key.
 
 # Notes
 
 Modified by CH-0010.
+
+Modified by [CH-0021](../../changes/CH-0021.md): per stack (Entra / GCP), design N7 to N10 and N13.

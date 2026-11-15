@@ -4,7 +4,8 @@ metadata:
   name: payments
   description: Payment APIs and UI (payments-api, payments-ui); card data under PCI DSS.
   owners: ["@shaheenks"]             # GitHub handles; CODEOWNERS lists exactly these (D15)
-# Members come from Entra app roles or the git-ignored config/env/<env>/users.yaml (CH-0011).
+# Members come from Entra app roles (Entra stack), Google groups (`group: <email>`, GCP stack,
+# CH-0021) or the git-ignored config/env/<env>/users.yaml.
 membership:
   - app_role: SDLC.Payments.Member
     roles: [member]

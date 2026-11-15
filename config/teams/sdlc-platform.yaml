@@ -4,10 +4,10 @@ metadata:
   name: sdlc-platform
   description: Builds and runs the SDLC agent platform (agents, MCP server, ingest, GCP infrastructure).
   owners: ["@shaheenks"]             # GitHub handles; CODEOWNERS lists exactly these (D15)
-# Members come from Entra app roles (version-03 P2 E1) or directly from the git-ignored
-# config/env/<env>/users.yaml, e.g.
-# `teams: { sdlc-platform: [member] }` (member or approver), matched by object ID
-# (version-02 N10).
+# Members come from Entra app roles (version-03 P2 E1; Entra stack), Google groups (`group:
+# <email>`, GCP stack, CH-0021) or directly from the git-ignored config/env/<env>/users.yaml,
+# e.g. `teams: { sdlc-platform: [member] }` (member or approver), matched by object ID on the
+# Entra stack and by email on the GCP stack (version-02 N10).
 membership:
   - app_role: SDLC.Platform.Member
     roles: [member]

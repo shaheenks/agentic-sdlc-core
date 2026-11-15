@@ -29,6 +29,7 @@ class PlatformConfig:
     team_skill_tags: frozenset[str] = frozenset()  # skills.team_tags: tags team add-ons may carry
     # flows.document (G7): lenses, max_lenses, max_llm_calls_per_reviewer, max_rereviews
     document_flow: Mapping[str, Any] = field(default_factory=dict)
+    google: "GoogleIdentity | None" = None  # identity.google: the GCP stack (CH-0021)
 
     def classification_rank(self, level: str) -> int:
         """Position of a level in classification_levels (0 = least sensitive)."""
@@ -36,25 +37,44 @@ class PlatformConfig:
 
 
 @dataclass(frozen=True)
+class GoogleIdentity:
+    """platform.yaml identity.google: how the GCP stack reads Google identities (CH-0021)."""
+
+    allowed_domains: tuple[str, ...]  # Cloud Identity domains: the token's `hd`, group emails
+    group_lookup: str = "direct"  # direct (Cloud Identity Free) | transitive (Premium)
+    group_cache_seconds: int = 300  # how long a user's groups are reused (FR-IDN-004)
+
+
+@dataclass(frozen=True)
 class UserMap:
-    """Users added directly to teams/roles (env/<env>/users.yaml, git-ignored). Matched ONLY on
-    the token's oid; emails are for people and for the oid lookup, never for authorization."""
+    """Users added directly to teams/roles (env/<env>/users.yaml, git-ignored).
+
+    The Entra stack matches ONLY on the token's oid (emails can change or be reused there); an
+    entry without an oid is pending and matches nothing on that stack. The GCP stack matches on
+    the verified Google email (CH-0021, design N9), so every entry with an email can match there."""
 
     alias_by_oid: Mapping[str, str] = field(default_factory=dict)  # lower-cased oid -> alias
     email_by_alias: Mapping[str, str] = field(default_factory=dict)
-    pending: tuple[str, ...] = ()  # aliases without an oid yet: they grant nothing
+    pending: tuple[str, ...] = ()  # aliases without an oid yet: no match on the Entra stack
     default_team: Mapping[str, str] = field(default_factory=dict)  # alias -> team (G9, guidance)
+    alias_by_email: Mapping[str, str] = field(default_factory=dict)  # lower-cased email -> alias
 
     def alias_for(self, oid: str | None) -> str | None:
+        """Entra stack: the alias of a token's oid. An email never matches here."""
         return self.alias_by_oid.get(oid.lower()) if oid else None
+
+    def alias_for_email(self, email: str | None) -> str | None:
+        """GCP stack: the alias of a VERIFIED Google email (case-insensitive)."""
+        return self.alias_by_email.get(email.lower()) if email else None
 
 
 @dataclass(frozen=True)
 class IdentityRef:
-    """Who a binding applies to: an Entra app role value, a user alias (users.yaml) or everyone
-    (every signed-in user). Entra groups are not used (CH-0011)."""
+    """Who a binding applies to: an Entra app role value (Entra stack), a Google group email (GCP
+    stack, lower-case), a user alias (users.yaml) or everyone (every signed-in user). Entra
+    groups are not used (CH-0011); Google groups are (CH-0021)."""
 
-    kind: str  # "app_role" | "user" | "everyone"
+    kind: str  # "app_role" | "group" | "user" | "everyone"
     value: str
 
     def __str__(self) -> str:
@@ -212,3 +232,10 @@ class Snapshot:
         refs = [b.ref for b in self.bindings]
         refs += [m.ref for team in self.teams.values() for m in team.membership]
         return frozenset(r.value for r in refs if r.kind == "app_role")
+
+    @property
+    def group_values(self) -> frozenset[str]:
+        """Every Google group email (lower-case) the config grants something to."""
+        refs = [b.ref for b in self.bindings]
+        refs += [m.ref for team in self.teams.values() for m in team.membership]
+        return frozenset(r.value for r in refs if r.kind == "group")

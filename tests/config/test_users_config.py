@@ -1,4 +1,5 @@
-"""version-02 N10: direct members in env/<env>/users.yaml (matched by oid, never by email)."""
+"""version-02 N10: direct members in env/<env>/users.yaml. The Entra stack matches them by oid,
+never by email; the GCP stack by the verified Google email (CH-0021, design N9)."""
 
 import json
 
@@ -6,6 +7,7 @@ import pytest
 import yaml
 from sdlc_config import ConfigError, load_snapshot, resolve
 from sdlc_config.cli import main as cli_main
+from sdlc_config.personas import ENTRA, GOOGLE, Persona, resolve_persona
 from sdlc_config.users import sync
 
 from tests.support.config import DIRECT_DEV_OID
@@ -130,10 +132,23 @@ def test_global_role_binding(config_dir):
     assert policy.roles["viewer"] == ("env/local/users.yaml#users/direct-viewer/roles",)
 
 
-def test_pending_user_grants_nothing(config_dir):
+def test_pending_user_matches_nothing_on_the_entra_stack(config_dir):
+    """No oid: no Entra token can ever be matched to the entry, and explain shows no access."""
     snap = load(config_dir)
-    assert resolve(snap, (), "pending").roles.keys() == {"signed-in"}
-    assert all(m.ref.value != "pending" for t in snap.teams.values() for m in t.membership)
+    assert "pending" not in snap.users.alias_by_oid.values()
+    entra = resolve_persona(snap, Persona("p", user="pending"), ENTRA)
+    assert entra.user is None and entra.roles.keys() == {"signed-in"}
+
+
+def test_users_match_by_email_on_the_gcp_stack(config_dir):
+    """Every entry has an email, so on the GCP stack none is pending (CH-0021)."""
+    users = load(config_dir).users
+    assert users.alias_for_email("Pending@Example.com") == "pending"  # case-insensitive
+    assert users.alias_for_email("direct.dev@example.com") == "direct-dev"
+    assert users.alias_for_email(DIRECT_DEV_OID) is None  # an oid never matches here
+    assert users.alias_for_email(None) is None and users.alias_for_email("x@example.com") is None
+    google = resolve_persona(load(config_dir), Persona("p", user="pending"), GOOGLE)
+    assert set(google.teams) == {"sdlc-platform"} and "member@sdlc-platform" in google.roles
 
 
 def test_team_may_have_only_direct_members(config_dir):
@@ -149,7 +164,8 @@ def test_team_may_have_only_direct_members(config_dir):
 def test_validate_warns_about_pending_users(config_dir, capsys):
     assert cli_main(["validate", "--config-dir", str(config_dir), "--dummy-env"]) == 0
     out = capsys.readouterr().out
-    assert "users=2" in out and "users without an oid get no access: pending" in out
+    assert "users=2" in out
+    assert "users without an oid get no access on the Entra stack: pending" in out
 
 
 def test_explain_user(config_dir, capsys):

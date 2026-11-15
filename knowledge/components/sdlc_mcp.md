@@ -53,7 +53,9 @@ Serves tools, skills and knowledge over streamable HTTP. Its policy middleware r
 request against one config snapshot, then filters listings and authorizes each call before any tool runs. It also
 serves the `/connections/` and `/artifacts/` browser APIs under the same checks. It does not know the identity
 provider: a server component ([core_mcp](core_mcp.md) for Entra) passes a token verifier and an
-`IdentityAdapter` (CH-0020).
+`IdentityAdapter` (CH-0020). CH-0021: memberships are `app_role:` or `group:` keys and may be looked up
+asynchronously (`memberships(principal, snapshot)`); the adapter matches `users.yaml` itself (`user_alias`);
+`config_explain` also takes Google group emails.
 
 Code: `libs/sdlc_mcp`
 

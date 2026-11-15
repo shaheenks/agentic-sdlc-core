@@ -1,9 +1,11 @@
 apiVersion: sdlc/v1
 kind: RoleSet
 # Global bindings give PLATFORM roles, whatever the team. Identify principals by Entra app role
-# value (`app_role: SDLC.Admin`) or `everyone: true` for every signed-in user; users.yaml adds
-# direct members. Entra groups are not used (CH-0011). App role values are defined on the
-# sdlc-mcp app (scripts/entra_setup.ps1 $AppRoles) and are no secret.
+# value (`app_role: SDLC.Admin`, Entra stack), Google group email (`group: sdlc-admins@<domain>`,
+# GCP stack; one entry may name both) or `everyone: true` for every signed-in user; users.yaml
+# adds direct members. Entra groups are not used (CH-0011). App role values are defined on the
+# sdlc-mcp app (scripts/entra_setup.ps1 $AppRoles); neither they nor group emails are secret.
+# A `group:` needs platform.yaml identity.google; personas.yaml lists both forms (parity, CH-0021).
 # Team roles (member, approver) are granted only by team membership and count only in that team.
 bindings:
   - everyone: true              # every signed-in user: identity basics only

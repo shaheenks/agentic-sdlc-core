@@ -21,6 +21,7 @@ def make_admin_tools(store: ConfigStore, cache: PolicyCache) -> list:
                 "teams": len(snapshot.teams),
                 "tools": len(snapshot.tools),
                 "app_roles": len(snapshot.app_role_values),
+                "groups": len(snapshot.group_values),
                 "users": len(snapshot.users.alias_by_oid),
                 "pending_users": len(snapshot.users.pending),
             },
@@ -29,15 +30,18 @@ def make_admin_tools(store: ConfigStore, cache: PolicyCache) -> list:
     async def config_explain(
         app_roles: list[str] | None = None,
         user: str | None = None,
+        groups: list[str] | None = None,
     ) -> dict:
-        """Explain the effective permissions of a persona: Entra app roles and/or a users.yaml
-        user alias."""
+        """Explain the effective permissions of a persona: Entra app roles (Entra stack), Google
+        group emails (GCP stack) and/or a users.yaml user alias."""
         snapshot = (await request_identity()).snapshot
         app_roles = app_roles or []
+        groups = [g.lower() for g in groups or []]
         known_user = user if user in snapshot.users.email_by_alias else None
-        policy = cache.get(snapshot, app_roles, known_user)
+        policy = cache.get(snapshot, app_roles, known_user, groups)
         view = policy.explain()
         view["unknown_app_roles"] = sorted(set(app_roles) - snapshot.app_role_values)
+        view["unknown_groups"] = sorted(set(groups) - snapshot.group_values)
         if user and known_user is None:
             view["unknown_user"] = user
         return view

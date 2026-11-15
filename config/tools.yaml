@@ -14,7 +14,7 @@ tools:
   search_knowledge:  { server: core-mcp, risk: low,    data_scoped: true }
   graph_query:       { server: core-mcp, risk: low,    data_scoped: true }
   config_info:       { server: core-mcp, risk: high }    # admin only (via roles.admin "*")
-  config_explain:    { server: core-mcp, risk: high }    # admin only; input: group aliases / app roles
+  config_explain:    { server: core-mcp, risk: high }    # admin only; input: app roles / group emails / user
   # version-01 M6: read-only tools that call an external system AS THE USER, with the user's own
   # connection (connections.yaml). The provider's own permissions apply on top of this policy.
   jira_get_issue:      { server: core-mcp, risk: low, credentials: { user: atlassian } }

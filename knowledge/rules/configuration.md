@@ -12,10 +12,15 @@ Paths are relative to the repository root.
 # Configuration rules
 
 - All access is declared in `config/`. Never hardcode roles, app roles, tool lists or data scopes in code.
-- Identity = Entra `oid` + app roles (`roles` claim) + users.yaml. Entra groups are not used (CH-0011): a `group:`
-  identity or `Source.access.groups` fails validation, and a `groups` claim is ignored. Never commit tenant IDs,
-  app IDs, group IDs or test-user UPNs.
-- Resolution: app roles / users.yaml → teams (membership) + global bindings → scoped roles (inherits, within the
+- Identity is per stack (CH-0021, design N13), from one catalog:
+  - Entra stack (`core_mcp`): Entra `oid` + app roles (`roles` claim) + users.yaml matched on `oid`.
+  - GCP stack (`core_mcp_gcp`): Google `sub` + Google Groups (Cloud Identity Groups API) + users.yaml matched on
+    the verified email. Token claims for groups or roles are ignored there.
+  - Entra groups are not used (CH-0011): a `group:` that is not an email, or `Source.access.groups`, fails
+    validation, and a `groups` claim is ignored.
+  - Google group emails MAY be committed in `config/`. Never commit tenant IDs, app IDs, OAuth client IDs or
+    secrets, Entra group IDs, or user emails/UPNs (those go in git-ignored env files).
+- Resolution: app roles or groups / users.yaml → teams (membership) + global bindings → scoped roles (inherits, within the
   scope) → tools/skills/sources. Global bindings give platform roles; team membership gives team roles (`member`,
   `approver`) that count only in that team (CH-0009). A role is one or the other (validated). Deny wins. Arg
   constraints are unioned across the teams that grant the tool. Data access is granted only by `Source.access`
@@ -23,11 +28,20 @@ Paths are relative to the repository root.
   per source (platform roles + roles held in its owner team).
 - A new tool requires: `tools.yaml` entry (with `args` for any argument a team may limit) + role/team grants +
   persona-matrix rows (`tests/policy/matrix.yaml`; a test fails if a catalog tool has no rows).
-- Identities in bindings/membership: `app_role:` (Entra app role) or `everyone: true` (roles.yaml only;
-  every signed-in user gets the minimal `signed-in` role: ping, whoami).
+- Identities in bindings/membership: `app_role:` (Entra app role, Entra stack) and/or `group:` (Google group
+  email, lower-case, GCP stack; one entry may name both, holding the same roles), or `everyone: true` (roles.yaml
+  only; every signed-in user gets the minimal `signed-in` role: ping, whoami). A `group:` needs
+  `platform.yaml` `identity.google` (`allowed_domains`, `group_lookup: direct | transitive`,
+  `group_cache_seconds`), and its domain must be allowed (validated). `direct` = Cloud Identity Free (no nested
+  groups); `transitive` needs Premium.
+- Stack parity (CH-0021): every persona in `tests/policy/personas.yaml` lists its `app_roles` and its `groups`;
+  `sdlc-config validate` and `tests/policy/test_stack_parity.py` fail when a persona resolves differently on the
+  two stacks (skipped while config binds no group). A new `app_role:` binding needs its `group:` twin and the
+  persona update. `stacks: [entra]` / `[google]` limits a persona to one stack. The persona matrix runs per stack.
 - Direct members (version-02 N10): `config/env/<env>/users.yaml` (kind `UserMap`, optional, git-ignored)
   lists users by email with their `teams: {<team>: [roles]}` and global `roles`, for users without an app role assignment.
-  Matched on `oid` ONLY (never on an email/UPN claim); an entry without `oid` grants nothing. Fill oids with
+  On the Entra stack matched on `oid` ONLY (never on an email/UPN claim); an entry without `oid` grants nothing
+  there. On the GCP stack matched on the verified Google email (N9). Fill oids with
   `uv run sdlc-config users sync --env <env> [--write] [--check]` (read-only `az ad user show`, as whoever az is signed in as).
   Rules read `env/<env>/users.yaml#users/<alias>/teams/<team>`; personas may set `user: <alias>`; `explain --user <alias>`.
 - Argument limits: unioned across the teams that constrain a tool; a team that does not constrain it never widens

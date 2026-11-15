@@ -1,7 +1,7 @@
 ---
 type: Component
 title: sdlc_auth
-description: 'Entra ID identity: token verification, the principal (app roles) and user-token passthrough for agents.'
+description: 'Identity: Entra and Google token verification, the principal, Google Groups lookup and user-token passthrough for agents.'
 area: Libraries
 tags:
 - component
@@ -42,6 +42,12 @@ Code: `libs/sdlc_auth`
 - `EntraTokenVerifier`: v2 issuer, audience, scope, tenant, signature, expiry; block-list check.
 - `Principal` from validated claims, including app roles.
 - Membership from the `roles` claim only; a `groups` claim is ignored (CH-0011).
+- GCP stack (CH-0021): `sdlc_auth.google`: `GoogleTokenVerifier` (issuer `https://accounts.google.com`, our
+  OAuth client IDs as audience, `email_verified`, allowed `hd`; user = `sub`), `principal_from_google_claims`,
+  `google_verifier_from_env` (`SDLC_OAUTH_CLIENT_IDS`, `SDLC_ALLOWED_DOMAINS`) and `GoogleAdapter` (the
+  `sdlc_mcp` identity adapter: `group:<email>` memberships, `users.yaml` by verified email).
+- `sdlc_auth.groups`: `CloudIdentityGroups` (direct mode for Cloud Identity Free, transitive for Premium; TTL
+  cache per user; a failed lookup gives no groups and is not cached) and `StaticGroups` for tests.
 - `get_user_token` and `agent_header_provider` for ADK agents; with `SDLC_MCP_IAM_AUDIENCE`
   the provider also sends the agent's Google ID token in `X-Serverless-Authorization` for
   Cloud Run IAM (CH-0014), never in `Authorization`.

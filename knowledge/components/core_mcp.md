@@ -36,8 +36,8 @@ Code: `mcp_servers/core_mcp`
 
 - `server.py`: the Entra token verifier with OAuth protected-resource metadata (RFC 9728) and the block list,
   the `sdlc-core-mcp` entry point, and `build_server` / `build_http_app` with the Entra adapter.
-- `entra.py`: `EntraAdapter`: the user is the `oid`; memberships are the token's app roles; `users.yaml` is
-  matched on `oid`; the `whoami` view; why a rejected Entra token was refused (expired, wrong tenant, issuer,
+- `entra.py`: `EntraAdapter`: the user is the `oid`; memberships are the token's app roles (`app_role:<value>`
+  keys, CH-0021); `users.yaml` is matched on `oid`; the `whoami` view; why a rejected Entra token was refused (expired, wrong tenant, issuer,
   audience, scope, blocked).
 
 # Depends on

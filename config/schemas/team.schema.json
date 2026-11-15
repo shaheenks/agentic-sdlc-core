@@ -26,14 +26,16 @@
       }
     },
     "membership": {
-      "description": "app role members; may be empty when members come from env/<env>/users.yaml",
+      "description": "members by Entra app role (Entra stack) and/or Google group (GCP stack); may be empty when members come from env/<env>/users.yaml",
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["roles", "app_role"],
+        "required": ["roles"],
+        "anyOf": [{ "required": ["app_role"] }, { "required": ["group"] }],
         "properties": {
-          "app_role": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9._-]*$" },
+          "app_role": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9._-]*$", "description": "Entra app role value (Entra stack)" },
+          "group": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._%+-]*@[a-z0-9-]+([.][a-z0-9-]+)+$", "description": "Google group email (GCP stack, CH-0021): members via the Cloud Identity Groups API; lower-case" },
           "roles": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/name" } }
         }
       }

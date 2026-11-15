@@ -25,7 +25,9 @@ Pub/Sub delivery is not built.
 `platform.yaml` `skills.team_tags`, `addons.flows.document` + `platform.yaml` `flows.document` caps,
 `document_flow(snapshot, policy, team)` (`flows.py`), users.yaml `default_team`, team `metadata.description`
 (P10 G6–G9). CH-0009: team roles scoped to their team, per-source ceilings. CH-0011: Entra groups and
-the group map removed; membership comes from app roles and users.yaml only.
+the group map removed; membership comes from app roles and users.yaml only. CH-0021: `group:` Google group
+bindings beside `app_role:` (GCP stack), `platform.yaml` `identity.google`, `users.yaml` by email on the GCP
+stack, personas with both forms and the stack parity check (`personas.py`, `validate`).
 Design: docs/plans/archive/version-00.md → "Configuration Model" and "Runtime Config Exposure".
 
 ## Components
@@ -45,9 +47,9 @@ Design: docs/plans/archive/version-00.md → "Configuration Model" and "Runtime 
   startup, last-known-good on a bad reload; a pointer move triggers the reload. On GCP the bundle root is
   the mounted config store bucket and `current` is polled.
   - `store.current()` → immutable `Snapshot` (one per request)
-  - `snap.resolve(principal)` → `EffectivePolicy` (cached per app roles + users.yaml alias + version)
+  - `snap.resolve(principal)` → `EffectivePolicy` (cached per app roles + groups + users.yaml alias + version)
   - `snap.version`, `store.subscribe(on_change)`
-- **Resolver** - app roles + users.yaml → teams → scoped roles → tools/skills/sources/agent context; deny wins.
+- **Resolver** - app roles or Google groups + users.yaml → teams → scoped roles → tools/skills/sources/agent context; deny wins.
 
 ## Exposure
 - CLI: `validate [--dummy-env] [--check-secrets]`, `compile`, `activate`, `bundles`,

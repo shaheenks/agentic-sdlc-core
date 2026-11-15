@@ -3,8 +3,9 @@
 Fixture-only additions (see make_config_dir): a local `platform-infra` source for sdlc-platform,
 whose own audience is the fixture app role SDLC.Infra.Reader (platform role `infra-reader`), so
 tests have a second team with its own local data. The real sdlc-platform team reads its code from
-GitHub (tests/config/test_repo_teams.py pins that). Membership comes only from app roles and
-users.yaml (CH-0011).
+GitHub (tests/config/test_repo_teams.py pins that). Membership comes from app roles (Entra stack)
+or Google groups (GCP stack) and users.yaml (CH-0011, CH-0021). Until the repo config binds real
+group emails, the fixture adds a `group:` twin to every app-role binding (add_fixture_groups).
 The repo's gcs sources read their copies in tests/fixtures/sample_sources instead
 (use_sample_folders); make_config_dir copies that folder to <tmp>/sample_sources."""
 
@@ -62,6 +63,42 @@ access:
   roles: [infra-reader, admin]
 """
 DIRECT_DEV_OID = "aaaaaaaa-0000-0000-0000-000000000001"
+
+# Google groups of the GCP stack (CH-0021): a placeholder Cloud Identity domain. Every app-role
+# binding gets a twin group, SDLC.Payments.Member -> sdlc-payments-member@example.test.
+GOOGLE_DOMAIN = "example.test"
+_APP_ROLE_LINE = re.compile(r"^(?P<indent> *)- app_role: (?P<role>[A-Za-z0-9._-]+).*$", re.M)
+
+
+def group_for(app_role: str) -> str:
+    """The fixture group email that mirrors an app role."""
+    return f"{app_role.lower().replace('.', '-')}@{GOOGLE_DOMAIN}"
+
+
+def add_fixture_groups(config_dir: Path) -> None:
+    """identity.google + a `group:` beside every `app_role:` binding without one (repo config
+    and fixture bindings), so both stacks resolve from one catalog."""
+    platform = config_dir / "platform.yaml"
+    text = platform.read_text(encoding="utf-8")
+    if "\n  google:" not in text:
+        text, n = re.subn(
+            r"(\n  required_scopes: [^\n]*\n)",
+            rf"\1  google: {{ allowed_domains: [{GOOGLE_DOMAIN}], group_cache_seconds: 60 }}\n",
+            text,
+            count=1,
+        )
+        assert n == 1, "platform.yaml identity layout changed"
+        platform.write_text(text, encoding="utf-8")
+    for path in [config_dir / "roles.yaml", *sorted((config_dir / "teams").glob("*.yaml"))]:
+        text = path.read_text(encoding="utf-8")
+        if re.search(r"^ +(- )?group: ", text, re.M):
+            continue  # the repo config binds its own groups
+
+        def twin(m: re.Match) -> str:
+            return f"{m.group(0)}\n{m.group('indent')}  group: {group_for(m.group('role'))}"
+
+        path.write_text(_APP_ROLE_LINE.sub(twin, text), encoding="utf-8")
+
 
 # Fixture-only tools (CH-0003): the policy engine's argument limits, role inheritance, denies and
 # audit are tested on two tools that exist only in tests. The real catalog has no team-constrained
@@ -158,6 +195,7 @@ def make_config_dir(tmp_path: Path, fixture_tools: bool = True) -> Path:
     assert "infra-reader:" in text and "SDLC.Infra.Reader" in text, "roles.yaml layout changed"
     roles.write_text(text, encoding="utf-8")
     (dst / "sources" / "platform-infra.yaml").write_text(TEST_PLATFORM_INFRA, encoding="utf-8")
+    add_fixture_groups(dst)
     use_sample_folders(dst)
     if fixture_tools:
         add_fixture_tools(dst)

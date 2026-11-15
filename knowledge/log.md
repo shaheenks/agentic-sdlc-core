@@ -2,6 +2,12 @@
 
 ## 2026-11-15
 
+- **Update**: CH-0021 done (WG.1): Google ID token verifier, Cloud Identity group directory (direct mode, as the
+  user confirmed Cloud Identity Free; transitive for Premium) and the Google identity adapter in `sdlc_auth`;
+  `group:` bindings beside `app_role:`, `identity.google`, `users.yaml` by email on the GCP stack and the persona
+  parity check in `sdlc_config`. Ten requirements reworded per stack and back to `draft`; the configuration,
+  security and tenants rule sets and `CLAUDE.md` allow committed Google group emails. The repo config binds no
+  group until the user gives the emails.
 - **Update**: CH-0020 done (WG.0, refactor): the MCP server body moved to the new library `libs/sdlc_mcp` behind an
   `IdentityAdapter`; `core_mcp` is now the Entra adapter and entry point only, with no change in behaviour. New
   component concept `sdlc_mcp`; the requirement trace is split between `sdlc_mcp` and `core_mcp`.

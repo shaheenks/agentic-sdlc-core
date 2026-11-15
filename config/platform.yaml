@@ -14,6 +14,9 @@ identity:
   required_scopes: [access_as_user]     # delegated (user) tokens only; app-only tokens have no scp
   # Membership comes from app roles (`roles` claim) and users.yaml only; Entra groups are not
   # read (CH-0011).
+  # GCP stack (CH-0021): Google ID tokens and Google Groups. Required once a binding names a
+  # `group:`. direct = Cloud Identity Free (direct members only), transitive = Premium.
+  # google: { allowed_domains: [<cloud identity domain>], group_lookup: direct, group_cache_seconds: 300 }
 classification_levels: [public, internal, confidential, restricted]   # ascending
 knowledge:
   # One embedding model for the whole index: mixing models in one vector index breaks search.

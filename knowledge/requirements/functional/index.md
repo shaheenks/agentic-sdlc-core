@@ -49,8 +49,8 @@
 
 ## Identity
 
-- [FR-IDN-001: Sign-in with Entra ID](FR-IDN-001.md) - Every surface requires a valid Microsoft Entra ID sign-in; there is no other identity provider.
-- [FR-IDN-002: Membership from app roles and direct members](FR-IDN-002.md) - A user's teams and roles come from Entra groups, Entra app roles and the per-environment direct-member list, combined as a union.
+- [FR-IDN-001: Sign-in](FR-IDN-001.md) - Every surface requires a valid sign-in, with Microsoft Entra ID on the Entra stack and a Google identity on the GCP stack; each stack refuses the other's tokens.
+- [FR-IDN-002: Membership from app roles or groups and direct members](FR-IDN-002.md) - A user's teams and roles come from Entra app roles (Entra stack) or Google Groups (GCP stack) and the per-environment direct-member list, combined as a union.
 - [FR-IDN-003: Users can see their own access](FR-IDN-003.md) - A user can ask what they are allowed to do and why; only admins can view another user's policy.
 - [FR-IDN-004: Revocation of access](FR-IDN-004.md) - A blocked user loses access on the next request and their stored connections are removed by a reconcile job.
 - [FR-IDN-005: Workflow identity](FR-IDN-005.md) - Autonomous workflows authenticate with their own Entra workload identity and are authorized like any principal.

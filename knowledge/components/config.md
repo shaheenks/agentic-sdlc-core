@@ -50,6 +50,9 @@ Code: `config`
 - `platform.yaml`, `roles.yaml`, `tools.yaml`, `skills.yaml`, `connections.yaml`.
 - `teams/`, `sources/`, `schemas/`.
 - `env/<env>/`: direct members and block list (examples only in git; no group map, CH-0011).
+- Bindings and team membership name an `app_role:` (Entra stack) and/or a `group:` Google group email (GCP
+  stack, committed; CH-0021); `platform.yaml` `identity.google` sets the allowed Cloud Identity domains and the
+  group lookup. The repo config binds no group yet: the test fixture adds a twin per app role.
 
 # Depends on
 

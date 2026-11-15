@@ -1,6 +1,7 @@
 """Resolve a principal's identities into an EffectivePolicy (plan: resolution steps 1-5).
 
-identities (Entra app roles + the user alias from users.yaml, matched by oid; no Entra groups)
+identities (memberships: Entra app roles on the Entra stack, Google group emails on the GCP stack
+  (CH-0021); plus the users.yaml alias the stack matched; never Entra groups)
   -> teams (membership) + global bindings -> SCOPED roles (CH-0009): a global binding gives a
      platform role; a team membership gives a role in that team only (`approver@payments`).
      `inherits` expands within the same scope. Platform roles count in every team.
@@ -94,6 +95,7 @@ class EffectivePolicy:
     default_team: str | None = None
     # (scope, role) pairs behind `roles`, for checks that need the scope
     held_roles: frozenset[tuple[Scope, str]] = frozenset()
+    groups: tuple[str, ...] = ()  # Google group emails (GCP stack, CH-0021)
 
     @property
     def readable_sources(self) -> tuple[str, ...]:
@@ -145,6 +147,7 @@ class EffectivePolicy:
         return {
             "config_version": self.config_version,
             "app_roles": list(self.app_roles),
+            "groups": list(self.groups),
             "user": self.user,
             "teams": {t: list(r) for t, r in sorted(self.teams.items())},
             "roles": {r: list(why) for r, why in sorted(self.roles.items())},
@@ -180,19 +183,36 @@ class EffectivePolicy:
         }
 
 
+def split_memberships(keys: Iterable[str]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Membership keys from an identity adapter -> (app roles, group emails). Keys are
+    `app_role:<value>` or `group:<email>` (CH-0021); anything else grants nothing."""
+    app_roles, groups = set(), set()
+    for key in keys:
+        kind, _, value = str(key).partition(":")
+        if kind == "app_role" and value:
+            app_roles.add(value)
+        elif kind == "group" and value:
+            groups.add(value.lower())
+    return tuple(sorted(app_roles)), tuple(sorted(groups))
+
+
 def resolve(
     snapshot: Snapshot,
     app_roles: Iterable[str] = (),
     user: str | None = None,
+    groups: Iterable[str] = (),
 ) -> EffectivePolicy:
-    """`app_roles` from the token's `roles` claim; `user` is the caller's users.yaml alias
-    (Snapshot.users.alias_for(oid)), if any."""
-    if isinstance(app_roles, str):
-        raise TypeError("app_roles must be a collection of role values, not a string")
+    """`app_roles` from the Entra token's `roles` claim (Entra stack); `groups` the caller's
+    Google group emails from the group directory (GCP stack); `user` the caller's users.yaml
+    alias as the stack matched it (Snapshot.users.alias_for(oid) / alias_for_email(email))."""
+    if isinstance(app_roles, str) or isinstance(groups, str):
+        raise TypeError("app_roles and groups must be collections of values, not a string")
     roles_claim = tuple(sorted(set(app_roles)))
+    group_emails = tuple(sorted({g.lower() for g in groups}))
     # Every resolved principal is a signed-in user, so `everyone` bindings always apply.
     ids = {IdentityRef("everyone", "*")}
     ids |= {IdentityRef("app_role", r) for r in roles_claim}
+    ids |= {IdentityRef("group", g) for g in group_emails}
     if user:
         ids.add(IdentityRef("user", user))
 
@@ -202,13 +222,13 @@ def resolve(
     for binding in snapshot.bindings:
         if binding.ref in ids:
             for role in binding.roles:
-                held.setdefault((PLATFORM, role), []).append(binding.rule)
+                _add(held.setdefault((PLATFORM, role), []), binding.rule)
     for team in snapshot.teams.values():
         for member in team.membership:
             if member.ref in ids:
-                team_rules.setdefault(team.name, []).append(member.rule)
+                _add(team_rules.setdefault(team.name, []), member.rule)
                 for role in member.roles:
-                    held.setdefault((team.name, role), []).append(member.rule)
+                    _add(held.setdefault((team.name, role), []), member.rule)
 
     # 4: expand inherits within each scope (the loader rejects cycles; `seen` guards anyway)
     pending, seen = list(held), set()
@@ -307,6 +327,7 @@ def resolve(
     return EffectivePolicy(
         config_version=snapshot.version,
         app_roles=roles_claim,
+        groups=group_emails,
         user=user,
         teams=MappingProxyType({t: tuple(r) for t, r in team_rules.items()}),
         roles=MappingProxyType({scoped_name(*k): tuple(why) for k, why in held.items()}),
@@ -332,6 +353,12 @@ def resolve(
             else None
         ),
     )
+
+
+def _add(rules: list[str], rule: str) -> None:
+    """One entry may bind an app role AND a group (two refs, one rule): list the rule once."""
+    if rule not in rules:
+        rules.append(rule)
 
 
 def _rate_limits(snapshot, team_rules) -> dict[str, tuple[int, str]]:
@@ -472,9 +499,9 @@ def skill_decision(snapshot: Snapshot, policy: EffectivePolicy, name: str) -> Sk
 
 
 class PolicyCache:
-    """EffectivePolicy per (config version, app roles, users.yaml alias).
+    """EffectivePolicy per (config version, app roles, groups, users.yaml alias).
 
-    Policies depend only on identities and config, so users with the same app roles and no
+    Policies depend only on identities and config, so users with the same memberships and no
     users.yaml entry share an entry; a direct member gets their own. A new config version
     never sees an older version's entries.
     """
@@ -489,13 +516,14 @@ class PolicyCache:
         snapshot: Snapshot,
         app_roles: Iterable[str] = (),
         user: str | None = None,
+        groups: Iterable[str] = (),
     ) -> EffectivePolicy:
-        key = (snapshot.version, frozenset(app_roles), user)
+        key = (snapshot.version, frozenset(app_roles), user, frozenset(g.lower() for g in groups))
         with self._lock:
             hit = self._entries.get(key)
         if hit is not None:
             return hit
-        policy = resolve(snapshot, key[1], key[2])
+        policy = resolve(snapshot, key[1], key[2], key[3])
         with self._lock:
             if len(self._entries) >= self._max or any(
                 k[0] != snapshot.version for k in self._entries

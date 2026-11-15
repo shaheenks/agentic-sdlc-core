@@ -30,9 +30,11 @@ The system shall provide inheriting platform roles and team roles, each with a m
 
 - Platform roles, bound globally: `viewer` (internal: the common knowledge sources, skills and tools) and `admin` (restricted, unconstrained: every platform capability).
 - Team roles, bound per team: `member` (every team member: the team's skills, tools and knowledge sources) and the optional `approver` (inherits `member`: the team's approval and elevated-access skills and tools, and its confidential sources).
-- Workflow roles (FR-IDN-005) are declared like any other role and bound to Entra app roles.
+- Every role, workflow roles (FR-IDN-005) included, is bound to an Entra app role, a Google group, or both (one binding entry may name both).
 - A signed-in user with no other grant can use only `ping` and `whoami`.
 
 # Notes
 
 Modified by CH-0008 (design D4). [CH-0009](../../changes/CH-0009.md) renamed the config ids to `member` and `approver`. Team scoping is [FR-AUTHZ-006](FR-AUTHZ-006.md).
+
+Modified by [CH-0021](../../changes/CH-0021.md): per stack (Entra / GCP), design N7 to N10 and N13.

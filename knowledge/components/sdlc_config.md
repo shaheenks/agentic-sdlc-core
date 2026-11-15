@@ -38,6 +38,7 @@ satisfies:
 verified_by:
 - tests/config
 - tests/policy/test_app_roles.py
+- tests/policy/test_stack_parity.py
 sources:
 - id: readme
   resource: ../../libs/sdlc_config/README.md
@@ -53,10 +54,15 @@ Code: `libs/sdlc_config`
 # Responsibilities
 
 - Loader and schemas for every config kind; unknown keys and references fail.
-- Resolver: identities to teams, roles, tools, skills, sources, argument limits and rate limits.
+- Resolver: identities to teams, roles, tools, skills, sources, argument limits and rate limits. Memberships
+  are Entra app roles or Google group emails (`split_memberships` of `app_role:` / `group:` keys, CH-0021);
+  `users.yaml` matches on oid (`alias_for`) or verified email (`alias_for_email`).
+- Personas name both forms; `resolve_persona` per stack and `parity_problems`, run by `validate`, fail when a
+  persona resolves differently on the two stacks.
 - Document-flow defaults and skill package validation.
 - Bundles: compile, activate, verify; `ConfigStore` with reload and last-known-good.
-- CLI: `validate`, `explain`, `diff`, `compile`, `activate`, `users sync`.
+- CLI: `validate` (with the stack parity check), `explain` (`--app-roles`, `--groups`, `--user`, `--stack`),
+  `diff` (per persona and stack), `compile`, `activate`, `users sync`.
 - Host allowlist for remote sources.
 
 # Depends on

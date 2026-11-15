@@ -4,9 +4,10 @@ metadata:
   name: webapp
   description: Full-stack web app (FastAPI + SQLModel backend, React/TypeScript frontend) in full-stack-fastapi-template.
   owners: ["@shaheenks"]             # GitHub handles; CODEOWNERS lists exactly these (D15)
-# Members come from Entra app roles (version-03 P2 E1) or directly from the
-# git-ignored config/env/<env>/users.yaml, e.g. `teams: { webapp: [member] }`, matched by
-# object ID (version-02 N10). Onboarding steps: docs/guides/TEAM_ONBOARDING.md.
+# Members come from Entra app roles (version-03 P2 E1; Entra stack), Google groups (`group:
+# <email>`, GCP stack, CH-0021) or directly from the git-ignored config/env/<env>/users.yaml,
+# e.g. `teams: { webapp: [member] }`, matched by object ID on the Entra stack and by email on
+# the GCP stack (version-02 N10). Onboarding steps: docs/guides/TEAM_ONBOARDING.md.
 membership:
   - app_role: SDLC.Webapp.Member
     roles: [member]

@@ -25,6 +25,7 @@ from sdlc_config.errors import ConfigError
 from sdlc_config.hosts import host_allowed, url_host
 from sdlc_config.model import (
     ConnectionDef,
+    GoogleIdentity,
     IdentityRef,
     PlatformConfig,
     RoleBinding,
@@ -159,6 +160,7 @@ def load_snapshot(
     _check_document_flows(platform, teams, skills, problems)
     users, bindings, teams = _build_users(docs["UserMap"], env, roles, teams, bindings, problems)
     _check_role_scopes(bindings, teams, problems)
+    _check_group_domains(platform, bindings, teams, problems)
     sources = _build_sources(docs["Source"], platform, teams, roles, problems)
     connections = _build_connections(docs["ConnectionCatalog"], platform, problems)
     for tool in tools.values():
@@ -216,8 +218,8 @@ def _read_doc(path, rel, kind, schema, environ, dummy_env, raw_files, problems) 
     doc = _substitute(doc, environ, dummy_env, rel, problems)
     for where in _group_identities(doc):
         problems.append(
-            f"{rel}: {where}: Entra groups are no longer used (CH-0011); grant the roles to an "
-            "app role (`app_role: SDLC.<...>`) or a users.yaml entry instead"
+            f"{rel}: {where}: Entra groups are no longer used (CH-0011); grant the roles to a "
+            "team or role; `group:` takes a Google group email (CH-0021)"
         )
     for err in sorted(Draft202012Validator(schema).iter_errors(doc), key=lambda e: e.path):
         where = "/".join(str(p) for p in err.absolute_path) or "(root)"
@@ -226,12 +228,14 @@ def _read_doc(path, rel, kind, schema, environ, dummy_env, raw_files, problems) 
 
 
 def _group_identities(doc: dict) -> list[str]:
-    """Places that still name an Entra group: bindings, team membership and Source.access."""
+    """Places that still name an Entra group: a `group:` that is not an email (a Google group
+    email is fine there, CH-0021) and Source.access groups (sources are granted to teams and
+    roles)."""
     found = []
     for key in ("bindings", "membership"):
         for i, entry in enumerate(doc.get(key) or []):
-            if isinstance(entry, dict) and "group" in entry:
-                found.append(f"{key}[{i}]/group")
+            if isinstance(entry, dict) and "@" not in str(entry.get("group", "@")):
+                found.append(f"{key}[{i}]/group")  # an Entra group name or object ID
     access = doc.get("access")
     if isinstance(access, dict) and "groups" in access:
         found.append("access/groups")
@@ -296,7 +300,36 @@ def _build_platform(doc: dict, problems: list[str]) -> PlatformConfig:
         keyword_search=bool(doc["knowledge"].get("keyword_search", False)),
         team_skill_tags=frozenset(doc.get("skills", {}).get("team_tags", [])),
         document_flow=MappingProxyType(dict(doc.get("flows", {}).get("document", {}))),
+        google=_build_google(ident.get("google")),
     )
+
+
+def _build_google(doc: dict | None) -> GoogleIdentity | None:
+    """identity.google (CH-0021): the GCP stack's Cloud Identity domains and group lookup."""
+    if not doc:
+        return None
+    return GoogleIdentity(
+        allowed_domains=tuple(d.lower() for d in doc["allowed_domains"]),
+        group_lookup=doc.get("group_lookup", "direct"),
+        group_cache_seconds=doc.get("group_cache_seconds", 300),
+    )
+
+
+def _check_group_domains(platform: PlatformConfig, bindings, teams, problems) -> None:
+    """Every group email bound in config is in an allowed Cloud Identity domain (CH-0021)."""
+    refs = [(b.rule, b.ref) for b in bindings]
+    refs += [(m.rule, m.ref) for t in teams.values() for m in t.membership]
+    groups = [(rule, ref.value) for rule, ref in refs if ref.kind == "group"]
+    if groups and platform.google is None:
+        problems.append(
+            "platform.yaml: identity/google is required when config binds Google groups "
+            f"(first: {groups[0][1]} in {groups[0][0]})"
+        )
+        return
+    allowed = platform.google.allowed_domains if platform.google else ()
+    for rule, email in groups:
+        if email.rsplit("@", 1)[-1] not in allowed:
+            problems.append(f"{rule}: group {email} is not in identity/google/allowed_domains")
 
 
 def _build_tools(doc: dict, problems: list[str]) -> dict[str, ToolDef]:
@@ -349,10 +382,17 @@ def _build_connections(conn_docs, platform, problems) -> dict[str, ConnectionDef
 EVERYONE = IdentityRef("everyone", "*")
 
 
-def _identity(entry: dict) -> IdentityRef:
+def _identities(entry: dict) -> list[IdentityRef]:
+    """A binding names everyone, or an app role (Entra stack) and/or a Google group (GCP stack)
+    that hold the same roles (CH-0021, design N13)."""
     if entry.get("everyone"):
-        return EVERYONE
-    return IdentityRef("app_role", entry["app_role"])
+        return [EVERYONE]
+    refs = []
+    if "app_role" in entry:
+        refs.append(IdentityRef("app_role", entry["app_role"]))
+    if "group" in entry:
+        refs.append(IdentityRef("group", entry["group"].lower()))
+    return refs
 
 
 def _check_binding(roles, rel: str, where: str, known_roles, problems):
@@ -398,16 +438,18 @@ def _build_roles(doc, tools, platform, problems):
 
     bindings = []
     for i, entry in enumerate(doc.get("bindings", [])):
-        ref, where = _identity(entry), f"bindings[{i}]"
+        where = f"bindings[{i}]"
         _check_binding(entry["roles"], rel, where, known, problems)
-        bindings.append(RoleBinding(ref, tuple(entry["roles"]), f"{rel}#{where}"))
+        for ref in _identities(entry):
+            bindings.append(RoleBinding(ref, tuple(entry["roles"]), f"{rel}#{where}"))
     return roles, tuple(bindings)
 
 
 def _build_users(user_docs, env, roles, teams, bindings, problems):
     """Direct members from env/<env>/users.yaml (optional). Each entry becomes ordinary team
     membership entries and role bindings for IdentityRef("user", alias), so the resolver has one
-    path. Only entries with an oid match a token; the rest are pending and grant nothing."""
+    path. Which token matches an alias is the stack's: the Entra stack by oid only (an entry
+    without one is pending and matches nothing there), the GCP stack by verified email (N9)."""
     if not user_docs:
         return UserMap(), bindings, teams
     rel, doc = user_docs[0]
@@ -445,14 +487,12 @@ def _build_users(user_docs, env, roles, teams, bindings, problems):
                 problems.append(f"{rel}: {where}: unknown team '{team}'")
                 continue
             _check_binding(team_roles, rel, where, roles, problems)
-            if oid:  # pending entries are validated but grant nothing, not even in explain
-                rule = RoleBinding(ref, tuple(team_roles), f"{rel}#{where}", team)
-                extra_members.setdefault(team, []).append(rule)
+            rule = RoleBinding(ref, tuple(team_roles), f"{rel}#{where}", team)
+            extra_members.setdefault(team, []).append(rule)
         if entry.get("roles"):
             where = f"users/{alias}/roles"
             _check_binding(entry["roles"], rel, where, roles, problems)
-            if oid:
-                extra_bindings.append(RoleBinding(ref, tuple(entry["roles"]), f"{rel}#{where}"))
+            extra_bindings.append(RoleBinding(ref, tuple(entry["roles"]), f"{rel}#{where}"))
     teams = {
         name: replace(team, membership=team.membership + tuple(extra_members.get(name, ())))
         for name, team in teams.items()
@@ -460,6 +500,7 @@ def _build_users(user_docs, env, roles, teams, bindings, problems):
     users = UserMap(
         alias_by_oid=MappingProxyType(alias_by_oid),
         email_by_alias=MappingProxyType(email_by_alias),
+        alias_by_email=MappingProxyType(alias_by_email),
         pending=tuple(sorted(pending)),
         default_team=MappingProxyType(default_team),
     )
@@ -511,9 +552,10 @@ def _build_teams(team_docs, roles, tools, repo_root, raw_files, problems, platfo
             continue
         membership = []
         for i, entry in enumerate(doc["membership"]):
-            ref, where = _identity(entry), f"membership[{i}]"
+            where = f"membership[{i}]"
             _check_binding(entry["roles"], rel, where, roles, problems)
-            membership.append(RoleBinding(ref, tuple(entry["roles"]), f"{rel}#{where}", name))
+            for ref in _identities(entry):
+                membership.append(RoleBinding(ref, tuple(entry["roles"]), f"{rel}#{where}", name))
         tool_policy = doc.get("policy", {}).get("tools", {})
         deny = tool_policy.get("deny", [])
         _check_tools(deny, rel, "policy/tools/deny", tools, problems, False)

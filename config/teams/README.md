@@ -1,6 +1,6 @@
 # config/teams
 
-kind: Team — membership (group alias → roles), policy.tools (deny, constraints), policy.limits (per-user
+kind: Team — membership (Entra app role and/or Google group email → roles), policy.tools (deny, constraints), policy.limits (per-user
 calls per minute: `calls_per_minute` for all tools, `tools.<tool>.calls_per_minute` on top), addons (skills,
 instructions, context).
 

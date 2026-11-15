@@ -11,6 +11,7 @@ from typing import Any
 
 from sdlc_auth import Principal, principal_from_claims
 from sdlc_config import Snapshot
+from sdlc_config.model import UserMap
 
 
 class EntraAdapter:
@@ -19,11 +20,11 @@ class EntraAdapter:
     def principal(self, claims: Mapping[str, Any]) -> Principal:
         return principal_from_claims(claims)
 
-    def memberships(self, principal: Principal) -> frozenset[str]:
-        return principal.app_roles
+    def memberships(self, principal: Principal, snapshot: Snapshot) -> frozenset[str]:
+        return frozenset(f"app_role:{r}" for r in principal.app_roles)
 
-    def user_key(self, principal: Principal) -> str:
-        return principal.oid  # oid only, never the email claim
+    def user_alias(self, principal: Principal, users: UserMap) -> str | None:
+        return users.alias_for(principal.oid)  # oid only, never the email claim
 
     def describe(self, principal: Principal) -> dict[str, Any]:
         return {

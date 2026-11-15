@@ -24,7 +24,7 @@
 
 ## Portability
 
-- [NFR-PORT-001: Tenant-agnostic identity](NFR-PORT-001.md) - The platform can be pointed at another Entra tenant by configuration alone.
+- [NFR-PORT-001: Tenant-agnostic identity](NFR-PORT-001.md) - The platform can be pointed at another Entra tenant or Cloud Identity domain by configuration alone.
 - [NFR-PORT-002: Configurable endpoints](NFR-PORT-002.md) - Hostnames and public URLs are configuration; development works on localhost and through the tunnel.
 - [NFR-PORT-003: Local and cloud parity](NFR-PORT-003.md) - The same components run under Docker Compose locally and on GCP.
 - [NFR-PORT-004: Production identity hardening](NFR-PORT-004.md) - Production uses federated credentials and Terraform-managed Entra apps, with no development shortcuts.
@@ -33,7 +33,7 @@
 
 - [NFR-PRIV-001: No sensitive values in logs or traces](NFR-PRIV-001.md) - Tokens, argument values, prompts, responses and document content never reach logs or traces.
 - [NFR-PRIV-002: Hidden resources are not disclosed](NFR-PRIV-002.md) - A caller cannot tell a resource they may not see from one that does not exist.
-- [NFR-PRIV-003: Tenant data stays out of the repository](NFR-PRIV-003.md) - Tenant, app, group and user identifiers are never committed.
+- [NFR-PRIV-003: Tenant data stays out of the repository](NFR-PRIV-003.md) - Tenant, app, OAuth client, Entra group and user identifiers are never committed; Google group emails may be.
 - [NFR-PRIV-004: Bounded data retention](NFR-PRIV-004.md) - Conversations and artifacts are kept for a limited, configured time.
 
 ## Quality
@@ -52,7 +52,7 @@
 
 - [NFR-SEC-001: Single enforcement point](NFR-SEC-001.md) - Authorization is decided only in the MCP server, never in prompts or agent code.
 - [NFR-SEC-002: Deny by default](NFR-SEC-002.md) - Nothing is allowed unless a rule grants it, and a deny wins over any allow.
-- [NFR-SEC-003: Strict token validation](NFR-SEC-003.md) - Only Entra v2 user tokens for this tenant and API are accepted.
+- [NFR-SEC-003: Strict token validation](NFR-SEC-003.md) - Only Entra v2 user tokens for this tenant and API (Entra stack), or Google ID tokens for our OAuth client and domain (GCP stack), are accepted.
 - [NFR-SEC-004: Fail closed](NFR-SEC-004.md) - Missing or unverifiable identity or configuration means less access, never more.
 - [NFR-SEC-005: Row-level security on all data](NFR-SEC-005.md) - Postgres row-level security is the last line of defence for data access and no role can bypass it.
 - [NFR-SEC-006: Calls are made as the user](NFR-SEC-006.md) - Agents forward the user's own token; a service token is never used for user calls.

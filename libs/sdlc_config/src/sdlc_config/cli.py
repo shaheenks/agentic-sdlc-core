@@ -21,8 +21,16 @@ from pathlib import Path
 
 from sdlc_config.errors import ConfigError
 from sdlc_config.loader import load_snapshot
-from sdlc_config.personas import Persona, load_personas
-from sdlc_config.resolver import EffectivePolicy, resolve
+from sdlc_config.personas import (
+    ENTRA,
+    GOOGLE,
+    STACKS,
+    Persona,
+    load_personas,
+    parity_problems,
+    resolve_persona,
+)
+from sdlc_config.resolver import EffectivePolicy
 from sdlc_config.store import DEFAULT_CONFIG_DIR
 
 DEFAULT_PERSONAS = DEFAULT_CONFIG_DIR.parent / "tests" / "policy" / "personas.yaml"
@@ -50,14 +58,26 @@ def main(argv: list[str] | None = None) -> int:
         help="also check that every secret reference resolves (values are never printed; "
         "uses SDLC_SECRETS_BACKEND, so set gcp + SDLC_SECRETS_PROJECT to check Secret Manager)",
     )
+    validate.add_argument(
+        "--personas",
+        type=Path,
+        default=DEFAULT_PERSONAS,
+        help="personas for the stack parity check (CH-0021); skipped if the file is missing",
+    )
 
     explain = sub.add_parser("explain", help="effective permissions of a persona")
     common(explain)
     who = explain.add_mutually_exclusive_group(required=True)
     who.add_argument("--persona", help="name from the personas file")
-    who.add_argument("--app-roles", help="comma-separated Entra app roles")
+    who.add_argument("--app-roles", help="comma-separated Entra app roles (Entra stack)")
+    who.add_argument("--groups", help="comma-separated Google group emails (GCP stack)")
     who.add_argument("--user", help="users.yaml alias (add app roles via a persona if needed)")
     explain.add_argument("--personas", type=Path, default=DEFAULT_PERSONAS)
+    explain.add_argument(
+        "--stack",
+        choices=STACKS,
+        help="resolve as this stack (default: google for --groups, otherwise entra)",
+    )
     explain.add_argument("--json", action="store_true", help="machine-readable output")
 
     diff = sub.add_parser("diff", help="per-persona permission changes between git revisions")
@@ -134,9 +154,19 @@ def _validate(args) -> int:
     )
     if snap.users.pending:
         print(
-            f"warning: users without an oid get no access: {', '.join(snap.users.pending)} "
+            "warning: users without an oid get no access on the Entra stack: "
+            f"{', '.join(snap.users.pending)} "
             f"(run: sdlc-config users sync --env {snap.env} --write)"
         )
+    if args.personas and args.personas.is_file():
+        problems = parity_problems(snap, load_personas(args.personas))
+        if problems:
+            print("stack parity check failed (CH-0021):", file=sys.stderr)
+            for problem in problems:
+                print(f"  {problem}", file=sys.stderr)
+            return 1
+        if snap.group_values:
+            print("parity: personas resolve the same from Google groups as from app roles")
     if getattr(args, "check_secrets", False):
         return _check_secrets(snap)
     return 0
@@ -254,33 +284,38 @@ def _explain(args) -> int:
             raise ConfigError([f"unknown persona '{args.persona}' (have: {sorted(personas)})"])
         persona = personas[args.persona]
     else:
-        persona = Persona("(ad hoc)", _split(args.app_roles or ""), args.user or None)
-    unknown = [f"app_role:{r}" for r in persona.app_roles if r not in snap.app_role_values]
+        persona = Persona(
+            "(ad hoc)",
+            _split(args.app_roles or ""),
+            args.user or None,
+            tuple(g.lower() for g in _split(args.groups or "")),
+        )
+    stack = args.stack or (GOOGLE if args.groups else ENTRA)
+    if stack == GOOGLE:
+        unknown = [f"group:{g}" for g in persona.groups if g not in snap.group_values]
+    else:
+        unknown = [f"app_role:{r}" for r in persona.app_roles if r not in snap.app_role_values]
     if persona.user and persona.user not in snap.users.email_by_alias:
         unknown.append(f"user:{persona.user}")
-    policy = resolve(snap, persona.app_roles, _known_user(snap, persona))
+    policy = resolve_persona(snap, persona, stack)
     if args.json:
         view = policy.explain()
-        view["persona"], view["unknown"] = persona.name, unknown
+        view["persona"], view["unknown"], view["stack"] = persona.name, unknown, stack
         print(json.dumps(view, indent=2))
         return 0
     print(_render(persona, policy, unknown))
     return 0
 
 
-def _known_user(snap, persona: Persona) -> str | None:
-    """The persona's users.yaml alias if this environment has it (users.yaml is per tenant)."""
-    return persona.user if persona.user in snap.users.email_by_alias else None
-
-
 def _render(persona: Persona, policy: EffectivePolicy, unknown: list[str]) -> str:
     lines = [
         f"persona: {persona.name}  "
-        f"app roles: {', '.join(persona.app_roles) or '-'}  user: {persona.user or '-'}",
+        f"app roles: {', '.join(persona.app_roles) or '-'}  "
+        f"groups: {', '.join(persona.groups) or '-'}  user: {persona.user or '-'}",
         f"config:  {policy.config_version}",
     ]
     if unknown:
-        lines.append(f"unknown app roles/users (grant nothing): {', '.join(unknown)}")
+        lines.append(f"unknown app roles/groups/users (grant nothing): {', '.join(unknown)}")
     lines.append("teams:")
     lines += [f"  {t:<14} <- {', '.join(r)}" for t, r in sorted(policy.teams.items())] or ["  -"]
     lines.append("roles:")
@@ -377,9 +412,11 @@ def _diff(args) -> int:
             snaps[rev] = load_snapshot(config_dir, args.env, dummy_env=True)
     changed = False
     print(f"permission diff {args.rev_from} -> {args.rev_to} (env {args.env})")
-    for name, persona in personas.items():
+    views = [(name, p, ENTRA) for name, p in personas.items() if ENTRA in p.stacks]
+    views += [(f"{name} (google)", p, GOOGLE) for name, p in personas.items() if p.groups]
+    for name, persona, stack in views:
         before, after = (
-            _summary(resolve(snaps[rev], persona.app_roles, _known_user(snaps[rev], persona)))
+            _summary(resolve_persona(snaps[rev], persona, stack))
             for rev in (args.rev_from, args.rev_to)
         )
         lines = [f"  + {t}  ({after[t]})" for t in sorted(after.keys() - before.keys())]

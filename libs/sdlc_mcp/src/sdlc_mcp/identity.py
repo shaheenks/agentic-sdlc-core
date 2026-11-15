@@ -8,14 +8,16 @@ The policy middleware resolves the Identity once per request (one config snapsho
 it in request-scoped state; tools read it with `request_identity()`.
 """
 
-from collections.abc import Mapping
+import inspect
+from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_access_token, get_context
 from sdlc_auth import Principal
-from sdlc_config import EffectivePolicy, PolicyCache, Snapshot
+from sdlc_config import EffectivePolicy, PolicyCache, Snapshot, split_memberships
+from sdlc_config.model import UserMap
 
 _STATE_KEY = "sdlc_identity"
 
@@ -30,12 +32,15 @@ class IdentityAdapter(Protocol):
         """The caller from ALREADY validated claims; ValueError if it is not a user token."""
         ...
 
-    def memberships(self, principal: Principal) -> frozenset[str]:
-        """What the policy resolver matches role bindings against."""
+    def memberships(
+        self, principal: Principal, snapshot: Snapshot
+    ) -> frozenset[str] | Awaitable[frozenset[str]]:
+        """Membership keys the resolver matches bindings against: `app_role:<value>` (Entra) or
+        `group:<email>` (Google, CH-0021). May be async (a directory lookup)."""
         ...
 
-    def user_key(self, principal: Principal) -> str:
-        """The value users.yaml entries are matched on."""
+    def user_alias(self, principal: Principal, users: UserMap) -> str | None:
+        """The caller's users.yaml entry, matched the stack's way (oid / verified email)."""
         ...
 
     def describe(self, principal: Principal) -> dict[str, Any]:
@@ -54,7 +59,7 @@ class Identity:
     snapshot: Snapshot
     policy: EffectivePolicy
     request_id: str = ""  # correlates all audit records (and server logs) of one request
-    user_alias: str | None = None  # users.yaml entry matched by the adapter's user key
+    user_alias: str | None = None  # users.yaml entry the adapter matched
 
 
 def current_principal(adapter: IdentityAdapter) -> Principal | None:
@@ -71,8 +76,12 @@ async def resolve_identity(
     request_id: str = "",
 ) -> Identity:
     """Membership from the adapter's memberships and users.yaml (never from a tool argument)."""
-    user = snapshot.users.alias_for(adapter.user_key(principal))
-    policy = cache.get(snapshot, adapter.memberships(principal), user)
+    user = adapter.user_alias(principal, snapshot.users)
+    keys = adapter.memberships(principal, snapshot)
+    if inspect.isawaitable(keys):
+        keys = await keys
+    app_roles, groups = split_memberships(keys)
+    policy = cache.get(snapshot, app_roles, user, groups)
     return Identity(principal, snapshot, policy, request_id, user)
 
 

@@ -8,9 +8,11 @@ knowledge, connected sources, artifacts, admin), the policy middleware (RBAC on 
 It knows nothing about the identity provider. A server component passes:
 - an `AuthProvider` (fastmcp) that verifies tokens, and
 - an `IdentityAdapter` (`sdlc_mcp.identity`) that turns verified claims into a `Principal`, its
-  memberships, its `users.yaml` key, its `whoami` view and the reason a rejected token was refused.
+  memberships (`app_role:` / `group:` keys, possibly looked up asynchronously), its `users.yaml` entry, its
+  `whoami` view and the reason a rejected token was refused.
 
-`mcp_servers/core_mcp` is the Entra component (`sdlc_core_mcp.entra.EntraAdapter`).
+`mcp_servers/core_mcp` is the Entra component (`sdlc_core_mcp.entra.EntraAdapter`); the GCP stack's adapter is
+`sdlc_auth.google.GoogleAdapter` (CH-0021).
 
 | Module | Tools / routes |
 |---|---|

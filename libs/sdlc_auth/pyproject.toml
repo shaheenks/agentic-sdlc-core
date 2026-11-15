@@ -1,15 +1,16 @@
 [project]
 name = "sdlc-auth"
 version = "0.1.0"
-description = "Entra ID identity for the agentic SDLC platform: token validation, Principal, group resolution"
+description = "Identity for the agentic SDLC platform: Entra and Google token validation, Principal, Google Groups lookup"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "httpx>=0.28",
 ]
 
 [project.optional-dependencies]
-# Token verification for MCP servers (fastmcp JWTVerifier). Agents do not need this.
-server = ["fastmcp>=4.0"]
+# Token verification for MCP servers (fastmcp JWTVerifier); google-auth for the Cloud Identity
+# Groups API credentials (GCP stack, CH-0021). Agents do not need this.
+server = ["fastmcp>=4.0", "google-auth>=2.0"]
 
 [build-system]
 requires = ["hatchling"]

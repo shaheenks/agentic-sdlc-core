@@ -11,6 +11,7 @@ from sdlc_config.resolver import (
     ToolPermission,
     resolve,
     skill_decision,
+    split_memberships,
 )
 from sdlc_config.store import ConfigStore
 
@@ -24,6 +25,7 @@ __all__ = [
     "document_flow",
     "resolve",
     "skill_decision",
+    "split_memberships",
     "PlatformConfig",
     "Snapshot",
     "load_snapshot",

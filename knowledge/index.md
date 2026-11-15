@@ -6,7 +6,7 @@ okf_version: "0.2"
 
 ## Sections
 
-- [Changes](changes/index.md) - 22 concepts
+- [Changes](changes/index.md) - 24 concepts
 - [Components](components/index.md) - 23 concepts
 - [Requirements](requirements/index.md) - 92 concepts
 - [Rules](rules/index.md) - 7 concepts

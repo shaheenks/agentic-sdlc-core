@@ -25,7 +25,11 @@ See "Enterprise Tenant Readiness" (gaps E1–E10) in docs/plans/archive/version-
 - Keep identity tenant-agnostic: tenant/app IDs come from env; app-role values are config, not tenant data.
   Never hard-code the login host in new code; take it from `platform.yaml` (`identity.authority_host`;
   the agent web app and oauth2-proxy use `ENTRA_AUTHORITY_HOST`, since agents never read config).
-- Membership comes from app roles only (CH-0011): never read the `groups` claim. Missing app roles mean fewer
-  permissions, never more (fail closed).
+- Membership comes from app roles only on the Entra stack (CH-0011): never read the `groups` claim. Missing app
+  roles mean fewer permissions, never more (fail closed).
+- GCP stack (CH-0021): Google Groups synced from Entra to Cloud Identity. Group emails are config and may be
+  committed; the Cloud Identity domain goes in `platform.yaml` `identity.google.allowed_domains`; OAuth client IDs,
+  test-user emails and the Groups Reader grant stay out of the repo (env files, the Admin console: the user's).
+  Cloud Identity Free gives direct membership only (`group_lookup: direct`, no nested groups).
 - Dev-only shortcuts (Azure CLI pre-authorization, client secrets, the PowerShell provisioning script) must not
   leak into prod: prod uses Terraform, certificates or federated credentials, and no Azure CLI pre-auth.

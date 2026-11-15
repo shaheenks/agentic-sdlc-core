@@ -40,8 +40,9 @@ These hold for every change. The full rules, with their reasons and exceptions, 
   be verified, fail closed.
 - **Calls are made as the user.** Agents forward the user's bearer token; never use a service token for user calls. All DB
   reads go through `sdlc_db` under row-level security.
-- **Nothing sensitive leaves its place.** Never commit secrets, tenant IDs, app IDs, group IDs or test-user UPNs
-  (`config/env/*/users.yaml` and `blocked.yaml` are git-ignored). Never log raw tokens or argument values.
+- **Nothing sensitive leaves its place.** Never commit secrets, tenant IDs, app IDs, OAuth client IDs, Entra group
+  IDs or test-user UPNs/emails (`config/env/*/users.yaml` and `blocked.yaml` are git-ignored). Google group emails
+  may be committed in `config/` (CH-0021). Never log raw tokens or argument values.
 - **Cloud and tenant actions belong to the user.** Do not create or change GCP resources unless asked, and do not run
   `terraform` or `gcp_deploy.ps1` yourself. Any Entra change needs the user's confirmation for that action; check
   `az account show` first and say which account read-only queries run as.

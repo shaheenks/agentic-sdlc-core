@@ -1,21 +1,42 @@
-# Personas for the persona-matrix tests and `sdlc-config explain --persona / diff`.
-# A persona is a set of Entra app roles and/or a users.yaml user (CH-0011: no Entra groups).
+# Personas for the persona-matrix tests, `sdlc-config explain --persona / diff` and the stack
+# parity check (CH-0021). A persona is how one kind of user looks on each stack:
+#   app_roles: Entra app roles (Entra stack);  groups: Google group emails (GCP stack);
+#   user: a users.yaml alias (both stacks: matched on oid on Entra, on email on GCP).
+# A persona on both stacks must resolve the same from its groups as from its app roles
+# (`sdlc-config validate`, tests/policy/test_stack_parity.py). `stacks:` limits a persona to one.
+# The groups are the test fixture's (tests/support/config.py group_for, domain example.test)
+# until the repo config binds real group emails. No Entra groups (CH-0011).
 personas:
-  nobody:            { app_roles: [] }
-  viewer:            { app_roles: [SDLC.User] }
-  payments-member:   { app_roles: [SDLC.User, SDLC.Payments.Member] }
-  payments-approver: { app_roles: [SDLC.User, SDLC.Payments.Approver] }
-  platform-member:   { app_roles: [SDLC.User, SDLC.Platform.Member] }
-  multi-team-member: { app_roles: [SDLC.User, SDLC.Payments.Member, SDLC.Platform.Member] }
-  admin:             { app_roles: [SDLC.User, SDLC.Admin] }
-  infra-reader:      { app_roles: [SDLC.User, SDLC.Infra.Reader] }   # a source's own audience, no team
-  webapp-member:     { app_roles: [SDLC.User, SDLC.Webapp.Member] }
-  webapp-approver:   { app_roles: [SDLC.User, SDLC.Webapp.Approver] }
-  team-only:         { app_roles: [SDLC.Payments.Member] }   # team role, no SDLC.User
+  nobody:            { app_roles: [], groups: [] }
+  viewer:            { app_roles: [SDLC.User], groups: [sdlc-user@example.test] }
+  payments-member:   { app_roles: [SDLC.User, SDLC.Payments.Member],
+                       groups: [sdlc-user@example.test, sdlc-payments-member@example.test] }
+  payments-approver: { app_roles: [SDLC.User, SDLC.Payments.Approver],
+                       groups: [sdlc-user@example.test, sdlc-payments-approver@example.test] }
+  platform-member:   { app_roles: [SDLC.User, SDLC.Platform.Member],
+                       groups: [sdlc-user@example.test, sdlc-platform-member@example.test] }
+  multi-team-member: { app_roles: [SDLC.User, SDLC.Payments.Member, SDLC.Platform.Member],
+                       groups: [sdlc-user@example.test, sdlc-payments-member@example.test,
+                                sdlc-platform-member@example.test] }
+  admin:             { app_roles: [SDLC.User, SDLC.Admin],
+                       groups: [sdlc-user@example.test, sdlc-admin@example.test] }
+  infra-reader:      { app_roles: [SDLC.User, SDLC.Infra.Reader],    # a source's own audience, no team
+                       groups: [sdlc-user@example.test, sdlc-infra-reader@example.test] }
+  webapp-member:     { app_roles: [SDLC.User, SDLC.Webapp.Member],
+                       groups: [sdlc-user@example.test, sdlc-webapp-member@example.test] }
+  webapp-approver:   { app_roles: [SDLC.User, SDLC.Webapp.Approver],
+                       groups: [sdlc-user@example.test, sdlc-webapp-approver@example.test] }
+  team-only:         { app_roles: [SDLC.Payments.Member],            # team role, no SDLC.User
+                       groups: [sdlc-payments-member@example.test] }
   # approver in webapp, member in payments: team roles count only in their own team (CH-0009)
-  cross-team-approver: { app_roles: [SDLC.User, SDLC.Webapp.Approver, SDLC.Payments.Member] }
-  unknown-app-role:  { app_roles: [SDLC.NotDefined] }          # grants nothing
-  # users.yaml direct members (no app roles at all); test users from tests/support/config.py
+  cross-team-approver: { app_roles: [SDLC.User, SDLC.Webapp.Approver, SDLC.Payments.Member],
+                         groups: [sdlc-user@example.test, sdlc-webapp-approver@example.test,
+                                  sdlc-payments-member@example.test] }
+  unknown-app-role:  { app_roles: [SDLC.NotDefined],                 # grants nothing
+                       groups: [sdlc-notdefined@example.test] }
+  # users.yaml direct members (no app roles or groups); test users from tests/support/config.py
   direct-payments-member: { user: direct-dev }
   direct-viewer:          { user: direct-viewer }
-  pending-user:           { user: pending }       # no oid yet: no access
+  # no oid yet: no access on the Entra stack. On the GCP stack the same entry matches by email.
+  pending-user:           { user: pending, stacks: [entra] }
+  email-matched-user:     { user: pending, stacks: [google] }

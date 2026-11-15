@@ -25,9 +25,11 @@ The system shall let each user view their own effective access with the rules th
 
 # Acceptance criteria
 
-- `whoami(explain=true)` shows only the caller's own view, including source rules.
-- `config_explain(app_roles, user)` is available to the admin role only.
+- `whoami(explain=true)` shows only the caller's own view, including source rules: the app-role or group binding, or the `users.yaml` entry, behind each role.
+- `config_explain(app_roles, groups, user)` is available to the admin role only; `groups` takes Google group emails.
 
 # Notes
 
 Edited by CH-0011: the `groups` argument is removed.
+
+Modified by [CH-0021](../../changes/CH-0021.md): per stack (Entra / GCP), design N7 to N10 and N13.

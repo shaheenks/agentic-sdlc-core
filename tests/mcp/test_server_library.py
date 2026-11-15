@@ -42,7 +42,7 @@ def test_core_mcp_is_only_the_entra_parts():
 
 def test_entra_adapter_fits_the_port():
     port = {n for n in vars(IdentityAdapter) if not n.startswith("_")} - {"name"}
-    assert port == {"principal", "memberships", "user_key", "describe", "rejection"}
+    assert port == {"principal", "memberships", "user_alias", "describe", "rejection"}
     assert all(callable(getattr(ENTRA, m)) for m in port)
     assert ENTRA.name == "entra"
     claims = {
@@ -54,6 +54,27 @@ def test_entra_adapter_fits_the_port():
     }
     p = ENTRA.principal(claims)
     assert p.user_id == p.oid == claims["oid"]
-    assert ENTRA.memberships(p) == frozenset({"SDLC.User"})
-    assert ENTRA.user_key(p) == claims["oid"]
+    assert ENTRA.memberships(p, None) == frozenset({"app_role:SDLC.User"})
     assert ENTRA.describe(p)["app_roles"] == ["SDLC.User"]
+
+
+async def test_google_adapter_fits_the_port_and_resolves(tmp_path):
+    """CH-0021: the same resolve_identity serves the GCP stack's async group lookup."""
+    from sdlc_auth.google import GOOGLE_ISSUER, GoogleAdapter
+    from sdlc_auth.groups import StaticGroups
+    from sdlc_config import PolicyCache, load_snapshot
+    from sdlc_mcp.identity import resolve_identity
+
+    from tests.support.config import group_for, make_config_dir
+    from tests.support.entra import TEST_ENV
+
+    snapshot = load_snapshot(make_config_dir(tmp_path), "local", TEST_ENV)
+    email = "lead@example.test"
+    groups = StaticGroups({email: [group_for("SDLC.User"), group_for("SDLC.Payments.Approver")]})
+    google = GoogleAdapter(groups, audience=["client"])
+    port = {n for n in vars(IdentityAdapter) if not n.startswith("_")} - {"name"}
+    assert all(callable(getattr(google, m)) for m in port)
+    claims = {"sub": "1" * 21, "email": email, "hd": "example.test", "iss": GOOGLE_ISSUER}
+    identity = await resolve_identity(google.principal(claims), snapshot, PolicyCache(), google)
+    assert identity.policy.app_roles == () and "approver@payments" in identity.policy.roles
+    assert identity.principal.user_id == "1" * 21 and identity.user_alias is None

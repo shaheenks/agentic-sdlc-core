@@ -1,7 +1,7 @@
 ---
 type: Non-Functional Requirement
 title: Tenant-agnostic identity
-description: The platform can be pointed at another Entra tenant by configuration alone.
+description: The platform can be pointed at another Entra tenant or Cloud Identity domain by configuration alone.
 area: Portability
 tags:
 - requirement
@@ -24,7 +24,10 @@ No tenant-specific value shall be fixed in code.
 
 - Tenant and app IDs come from the environment. App-role values are configuration, not tenant data.
 - The login host comes from `platform.yaml` (or `ENTRA_AUTHORITY_HOST` for the agent web app and oauth2-proxy).
+- GCP stack: another Cloud Identity domain is configuration: allowed domains and group emails in `platform.yaml` and the bindings, OAuth client IDs in the environment.
 
 # Notes
 
 Edited by CH-0011: the group map, the Graph host (carried over from CH-0005) and the `groups` claim criterion are removed.
+
+Modified by [CH-0021](../../changes/CH-0021.md): per stack (Entra / GCP), design N7 to N10 and N13.

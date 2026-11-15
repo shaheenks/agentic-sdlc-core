@@ -37,6 +37,8 @@ Code: `libs/sdlc_policy`
 
 - `visible_tools` and `authorize` (grant, deny, argument constraints).
 - Sliding-window per-user rate limiter.
+- Unchanged by the GCP stack (CH-0021): it decides over an effective policy whichever stack resolved it; the
+  persona matrix runs once per stack.
 
 # Depends on
 
