@@ -29,7 +29,7 @@
 
 - [CH-0008: Workflow platform design baseline](CH-0008.md) - The finalized POC design becomes the specification. There are four workflow classes, event intake, enrichment and delivery, workflow identity, team-scoped platform and team roles, a sandboxed ADK implementation agent, harness catalogs and knowledge extensions.
 - [CH-0010: Continuous deployment to GCP dev](CH-0010.md) - A GitHub workflow deploys every merge to main to GCP dev, running only the deployment steps the changes need, in a fixed order.
-- [CH-0016: Chat UI on Cloud Run behind IAP](CH-0016.md) - The CopilotKit UI runs on Cloud Run with IAP sign-in, gets the user's Google ID token with Google Identity Services, checks it matches the IAP user, and talks to the agent on Agent Runtime.
+- [CH-0016: Chat UI on Cloud Run behind IAP](CH-0016.md) - The CopilotKit UI runs on Cloud Run behind IAP, gets the user's own Google ID token with a server-side sign-in bound to the IAP user, and talks to the agent on Agent Runtime and to sdlc-mcp-native.
 - [CH-0017: Native stack hardening, CI target and cutover decision](CH-0017.md) - Least-privilege identities and negative tests for the native stack, the CI deploy target for it, and the decision whether users move from dev to native.
 - [CH-0023: Faster test suite](CH-0023.md) - Shared fixtures for the parts of test setup that never change (signing key, config snapshot, read-only MCP servers), a slow marker for the inner loop, and parallel runs, so the suite gives the same results in about half the time.
 - [CH-0024: Image tags from build inputs](CH-0024.md) - Each image is tagged with a hash of its own build inputs, so gcp_deploy.ps1 builds and pushes only images whose inputs changed and Terraform rolls out only services whose image changed.
