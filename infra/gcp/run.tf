@@ -178,6 +178,14 @@ resource "google_cloud_run_v2_service" "mcp" {
           }
         }
       }
+      # config-bundles first: the order Cloud Run returns (otherwise every plan swaps them back)
+      dynamic "volume_mounts" {
+        for_each = local.bundles ? [1] : []
+        content {
+          name       = "config-bundles"
+          mount_path = local.bundles_dir
+        }
+      }
       volume_mounts {
         name       = "cloudsql"
         mount_path = "/cloudsql"
@@ -189,19 +197,24 @@ resource "google_cloud_run_v2_service" "mcp" {
           mount_path = local.users_dir
         }
       }
-      dynamic "volume_mounts" {
-        for_each = local.bundles ? [1] : []
-        content {
-          name       = "config-bundles"
-          mount_path = local.bundles_dir
-        }
-      }
       startup_probe {
         http_get {
           path = "/healthz"
         }
         period_seconds    = 5
         failure_threshold = 12
+      }
+    }
+    # config-bundles first: the order Cloud Run returns (otherwise every plan swaps them back)
+    dynamic "volumes" {
+      for_each = local.bundles ? [1] : []
+      content {
+        name = "config-bundles"
+        gcs {
+          bucket        = google_storage_bucket.config_store[0].name
+          read_only     = true
+          mount_options = ["only-dir=bundles/${var.env}"]
+        }
       }
     }
     volumes {
@@ -220,17 +233,6 @@ resource "google_cloud_run_v2_service" "mcp" {
             version = "latest"
             path    = "users.yaml"
           }
-        }
-      }
-    }
-    dynamic "volumes" {
-      for_each = local.bundles ? [1] : []
-      content {
-        name = "config-bundles"
-        gcs {
-          bucket        = google_storage_bucket.config_store[0].name
-          read_only     = true
-          mount_options = ["only-dir=bundles/${var.env}"]
         }
       }
     }
@@ -444,10 +446,7 @@ resource "google_cloud_run_v2_job" "ingest" {
             }
           }
         }
-        volume_mounts {
-          name       = "cloudsql"
-          mount_path = "/cloudsql"
-        }
+        # config-bundles first: the order Cloud Run returns (otherwise every plan swaps them back)
         dynamic "volume_mounts" {
           for_each = local.bundles ? [1] : []
           content {
@@ -455,13 +454,12 @@ resource "google_cloud_run_v2_job" "ingest" {
             mount_path = local.bundles_dir
           }
         }
-      }
-      volumes {
-        name = "cloudsql"
-        cloud_sql_instance {
-          instances = [google_sql_database_instance.sdlc.connection_name]
+        volume_mounts {
+          name       = "cloudsql"
+          mount_path = "/cloudsql"
         }
       }
+      # config-bundles first: the order Cloud Run returns (otherwise every plan swaps them back)
       dynamic "volumes" {
         for_each = local.bundles ? [1] : []
         content {
@@ -471,6 +469,12 @@ resource "google_cloud_run_v2_job" "ingest" {
             read_only     = true
             mount_options = ["only-dir=bundles/${var.env}"]
           }
+        }
+      }
+      volumes {
+        name = "cloudsql"
+        cloud_sql_instance {
+          instances = [google_sql_database_instance.sdlc.connection_name]
         }
       }
     }
@@ -520,10 +524,7 @@ resource "google_cloud_run_v2_job" "reconcile" {
             }
           }
         }
-        volume_mounts {
-          name       = "cloudsql"
-          mount_path = "/cloudsql"
-        }
+        # config-bundles first: the order Cloud Run returns (otherwise every plan swaps them back)
         dynamic "volume_mounts" {
           for_each = local.bundles ? [1] : []
           content {
@@ -531,13 +532,12 @@ resource "google_cloud_run_v2_job" "reconcile" {
             mount_path = local.bundles_dir
           }
         }
-      }
-      volumes {
-        name = "cloudsql"
-        cloud_sql_instance {
-          instances = [google_sql_database_instance.sdlc.connection_name]
+        volume_mounts {
+          name       = "cloudsql"
+          mount_path = "/cloudsql"
         }
       }
+      # config-bundles first: the order Cloud Run returns (otherwise every plan swaps them back)
       dynamic "volumes" {
         for_each = local.bundles ? [1] : []
         content {
@@ -547,6 +547,12 @@ resource "google_cloud_run_v2_job" "reconcile" {
             read_only     = true
             mount_options = ["only-dir=bundles/${var.env}"]
           }
+        }
+      }
+      volumes {
+        name = "cloudsql"
+        cloud_sql_instance {
+          instances = [google_sql_database_instance.sdlc.connection_name]
         }
       }
     }

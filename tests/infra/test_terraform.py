@@ -303,3 +303,18 @@ def test_the_gcp_stack_account_mirrors_the_mcp_account(tf):
     assert "mcp-gcp" in trace["for_each"]
     apis = tf.resource("google_project_service", "apis")
     assert 'var.native_enabled ? ["cloudidentity.googleapis.com"] : []' in apis["for_each"]
+
+
+def test_volumes_are_declared_in_the_order_cloud_run_returns():
+    """Cloud Run returns config-bundles before cloudsql; declared the other way round, every plan
+    swaps the two mounts and volumes back and makes a new revision (seen on dev, CH-0022)."""
+    text = (TF_DIR / "run.tf").read_text(encoding="utf-8")
+    for kind in ("volume_mounts", "volumes"):
+        names = re.findall(
+            rf'(?:dynamic "{kind}"|^\s*{kind}) \{{.*?name\s+= "([a-z-]+)"', text, re.M | re.S
+        )
+        cloudsql = [i for i, n in enumerate(names) if n == "cloudsql"]
+        bundles = [i for i, n in enumerate(names) if n == "config-bundles"]
+        assert len(bundles) == 3 and len(cloudsql) >= 3, (kind, names)
+        for b in bundles:  # each config-bundles block directly precedes a cloudsql block
+            assert b + 1 in cloudsql, (kind, names)
