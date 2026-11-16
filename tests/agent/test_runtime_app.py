@@ -324,3 +324,20 @@ async def test_get_thread_and_delete_are_owner_only(app, entra):
 
 def test_get_thread_is_registered():
     assert "get_thread" in UserAgentApp().register_operations()["async"]
+
+
+async def test_threads_from_before_thread_names_open_and_continue_by_session_id(app, entra):
+    """Dev, 2026-11-16: conversations started before CH-0016 have no thread name, so list_threads
+    names them by session id; opening or continuing one must reach that session, not a new one."""
+    old = await run(app, entra.token(oid=ALICE), message="before names")  # no thread_id
+    sid = old[0]["session"]
+    assert [t["threadId"] for t in await app.list_threads(entra.token(oid=ALICE))] == [sid]
+    got = await app.get_thread(entra.token(oid=ALICE), thread_id=sid)
+    assert got["threadId"] == sid and got["messages"][0]["content"] == "before names"
+    more = await run(app, entra.token(oid=ALICE), message="again", thread_id=sid)
+    assert more[0]["session"] == sid
+    assert len(await app.list_threads(entra.token(oid=ALICE))) == 1
+    # still owner-only
+    assert error_code(await app.get_thread(entra.token(oid=BOB), thread_id=sid)) == "not_found"
+    bobs = await run(app, entra.token(oid=BOB), thread_id=sid)
+    assert bobs[0]["session"] != sid

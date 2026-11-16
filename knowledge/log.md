@@ -2,6 +2,8 @@
 
 ## 2026-11-16
 
+- **Fix**: CH-0016: conversations from before thread names open and continue (looked up by the caller's own
+  session id); needs the engine redeploy.
 - **Update**: Terraform rule (the user, 2026-11-16): Claude may run `terraform fmt`, `validate` and `plan`
   (also `gcp_deploy.ps1 -Step plan`); every `apply` is announced with what it changes and runs only after the
   user's approval. `CLAUDE.md`, rule sets environments and commands.

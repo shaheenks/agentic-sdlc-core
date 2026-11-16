@@ -216,14 +216,18 @@ class UserAgentApp:
         )
 
     async def _named(self, oid: str, thread_id: str | None):
-        """The caller's session that carries this thread name, with its events, or None."""
+        """The caller's session that carries this thread name, with its events, or None. A
+        conversation from before thread names (CH-0016) is listed under its session id, so a
+        name that matches no session is also tried as one of the caller's own session ids."""
         if not thread_id:
             return None
         listed = await self._session_service.list_sessions(app_name=self._app_name, user_id=oid)
         for s in listed.sessions:
             if (s.state or {}).get(THREAD_STATE_KEY) == thread_id:
                 return await self._owned(oid, s.id)
-        return None
+        if not any(s.id == thread_id for s in listed.sessions):
+            return None  # not one of the caller's sessions either
+        return await self._owned(oid, thread_id)
 
     async def _owned(self, oid: str, session_id: str):
         if not isinstance(session_id, str) or not session_id:
