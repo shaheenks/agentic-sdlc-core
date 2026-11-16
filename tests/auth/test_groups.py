@@ -23,6 +23,8 @@ class FakeGroupsApi:
         self.transitive = transitive or {}  # user email -> every group, nested ones included
         self.calls: list[str] = []
         self.fail: int | None = None  # answer every call with this status
+        self.fail_lookup: dict[str, int] = {}  # group email -> status of its groups:lookup
+        self.fail_members: dict[str, int] = {}  # group email -> status of its memberships:lookup
         self.page_size = 1
         self.quota_projects: list[str | None] = []
 
@@ -35,11 +37,15 @@ class FakeGroupsApi:
             return httpx.Response(self.fail, json={"error": {"code": self.fail}})
         if path.endswith("/groups:lookup"):
             group = params["groupKey.id"]
+            if group in self.fail_lookup:  # Cloud Identity: 403 for an address it cannot find
+                return httpx.Response(self.fail_lookup[group], json={})
             if group not in self.members:
                 return httpx.Response(404, json={})
             return httpx.Response(200, json={"name": f"groups/id-{group.split('@')[0]}"})
         if path.endswith("/memberships:lookup"):
             group = next(g for g in self.members if f"id-{g.split('@')[0]}" in path)
+            if group in self.fail_members:
+                return httpx.Response(self.fail_members[group], json={})
             if params["memberKey.id"] in self.members[group]:
                 return httpx.Response(200, json={"name": f"{path}/m1"})
             return httpx.Response(404, json={})
@@ -130,6 +136,38 @@ async def test_a_failed_lookup_gives_no_groups_and_is_not_cached(mode, status, c
     assert str(status) in caplog.text and USER not in caplog.text  # never the user's email
     api.fail = None
     assert await groups.groups_of(USER, [PAYMENTS]) == {PAYMENTS}
+
+
+@pytest.mark.parametrize("call", ["groups:lookup", "memberships:lookup"])
+async def test_one_failed_group_costs_only_that_group_and_is_not_cached(call, caplog):
+    """CH-0026: a group that cannot be resolved does not take the user's other groups away."""
+    api = FakeGroupsApi({PAYMENTS: {USER}, ADMIN: {USER}, MISSING: {USER}})
+    (api.fail_lookup if call == "groups:lookup" else api.fail_members)[MISSING] = 403
+    groups = directory(api)
+    with caplog.at_level(logging.WARNING, logger="sdlc.auth.groups"):
+        assert await groups.groups_of(USER, [PAYMENTS, ADMIN, MISSING]) == {PAYMENTS, ADMIN}
+    assert MISSING in caplog.text and "403" in caplog.text  # names the group and the status
+    assert USER not in caplog.text
+    api.fail_lookup.clear()
+    api.fail_members.clear()  # fixed in Cloud Identity: the next request sees it
+    assert await groups.groups_of(USER, [PAYMENTS, ADMIN, MISSING]) == {PAYMENTS, ADMIN, MISSING}
+
+
+async def test_transitive_mode_error_still_gives_no_groups():
+    """One paged call has no per-group answer: an error there still gives no groups."""
+    api = FakeGroupsApi({}, transitive={USER: {PAYMENTS, ADMIN}})
+    api.fail = 403
+    assert await directory(api, mode=TRANSITIVE).groups_of(USER, [PAYMENTS, ADMIN]) == frozenset()
+
+
+async def test_check_reports_each_group():
+    """sdlc-config check-groups: found, not found (404), or not resolved with the status."""
+    api = FakeGroupsApi({PAYMENTS: set(), ADMIN: set()})
+    api.fail_lookup[ADMIN] = 403
+    outcome = await directory(api).check([PAYMENTS, ADMIN, MISSING.upper()])
+    assert outcome[PAYMENTS] == "ok"
+    assert outcome[MISSING] == "NOT FOUND"
+    assert outcome[ADMIN].startswith("NOT RESOLVED") and "403" in outcome[ADMIN]
 
 
 async def test_a_network_error_gives_no_groups():

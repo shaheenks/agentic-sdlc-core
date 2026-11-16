@@ -13,6 +13,10 @@ What the repo already declares:
 - `config/roles.yaml` and `config/teams/*.yaml`: one `group:` beside each `app_role:` (`SDLC.Payments.Member` ->
   `sdlc-payments-member@<domain>`). `uv run sdlc-config validate --env local` checks that every persona gets the
   same access from its groups as from its app roles.
+- `uv run --env-file .env sdlc-config check-groups --env dev` (your ADC from step 4, read-only) checks that every
+  group in config exists in Cloud Identity. Run it after creating or renaming a group. Cloud Identity answers 403,
+  not 404, for an address it cannot find: the server then gives no roles from that group (the user's other
+  groups still count) and logs `group lookup failed for <group> (groups:lookup HTTP 403)` (CH-0026).
 
 ## 1. Cloud Identity (Admin console, admin.google.com)
 

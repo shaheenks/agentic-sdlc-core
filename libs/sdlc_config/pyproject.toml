@@ -8,6 +8,8 @@ dependencies = [
     "jsonschema>=4.23",
     "watchfiles>=1.0",
     "sdlc-secrets",  # validate --check-secrets
+    "sdlc-auth",  # check-groups (Cloud Identity lookup, CH-0026)
+    "google-auth[requests]>=2.0",  # check-groups: the caller's ADC
 ]
 
 [project.scripts]

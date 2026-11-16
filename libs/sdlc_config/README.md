@@ -53,7 +53,8 @@ Design: docs/plans/archive/version-00.md → "Configuration Model" and "Runtime 
 
 ## Exposure
 - CLI: `validate [--dummy-env] [--check-secrets]`, `compile`, `activate`, `bundles`,
-  `explain --persona|--app-roles|--user`, `diff`, `users sync`
+  `explain --persona|--app-roles|--user`, `diff`, `users sync`, `check-groups` (every configured
+  Google group resolves in Cloud Identity; your ADC, read-only; CH-0026)
 - MCP tools (served by MCP servers, RBAC-gated): `whoami(explain=true)` (own view),
   `get_agent_context(team=)` (team context + document-flow defaults), `config_explain(app_roles, user)`
   and `config_info()` (admin only)

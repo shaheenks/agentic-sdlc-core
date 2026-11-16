@@ -201,3 +201,4 @@ None.
 | [CH-0023](changes/CH-0023.md) Faster test suite | refactor | open | - | [workspace](components/workspace.md), [ci](components/ci.md) |
 | [CH-0024](changes/CH-0024.md) Image tags from build inputs | change | open | modifies [NFR-OPS-002](requirements/non-functional/NFR-OPS-002.md) | [scripts](components/scripts.md), [infra_gcp](components/infra_gcp.md) |
 | [CH-0025](changes/CH-0025.md) Runtime refusals use a key the client library does not reserve | fix | done | - | [user_agent](components/user_agent.md), [scripts](components/scripts.md) |
+| [CH-0026](changes/CH-0026.md) One unresolvable Google group no longer removes all of a user's groups | fix | done | - | [sdlc_auth](components/sdlc_auth.md), [sdlc_config](components/sdlc_config.md) |

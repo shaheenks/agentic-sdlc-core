@@ -7,6 +7,7 @@ diff      per-persona permission changes between two git revisions (for PR revie
 compile   validate and write an immutable bundle (optionally activate it)
 activate  point a bundle root's `current` at a version (rollback = an older version)
 bundles   list the bundles under a root and show the active one
+check-groups  every Google group in config resolves in Cloud Identity (read-only, CH-0026)
 """
 
 import argparse
@@ -127,8 +128,17 @@ def main(argv: list[str] | None = None) -> int:
     gw.add_argument("--out", type=Path, help="write the policy file (default: print it)")
     gw.add_argument("--check", type=Path, help="exit 1 if this file differs from config")
 
+    cg = sub.add_parser(
+        "check-groups",
+        help="every Google group in config resolves in Cloud Identity (read-only, your ADC; "
+        "GOOGLE_CLOUD_QUOTA_PROJECT is the billing project)",
+    )
+    common(cg)
+
     args = parser.parse_args(argv)
     try:
+        if args.command == "check-groups":
+            return _check_groups(load_snapshot(args.config_dir, args.env, dummy_env=args.dummy_env))
         if args.command == "validate":
             return _validate(args)
         if args.command == "explain":
@@ -208,6 +218,41 @@ def _check_secrets(snap, resolver=None) -> int:
             outcome, failed = f"ERROR ({type(e).__name__})", failed + 1
         print(f"secrets: {kind}:{name} {outcome} (used by {', '.join(used_by)})")
     print(f"secrets: {len(refs) - failed}/{len(refs)} resolve (backend {resolver.store.name})")
+    return 1 if failed else 0
+
+
+def _check_groups(snap, directory=None) -> int:
+    """Resolve every configured group with groups:lookup; print group emails and outcomes only."""
+    import asyncio
+    import os
+
+    groups = sorted(snap.group_values)
+    if not groups:
+        print(f"groups: no group bindings in config (env {snap.env})")
+        return 0
+    if directory is None:
+        from sdlc_auth.groups import CloudIdentityGroups, adc_token_provider
+
+        try:
+            token = adc_token_provider()
+        except Exception as e:  # no ADC: say so, never a stack trace with credentials paths
+            reason = type(e).__name__
+            print(f"groups: no Application Default Credentials ({reason})", file=sys.stderr)
+            return 1
+        directory = CloudIdentityGroups(
+            token=token, quota_project=os.environ.get("GOOGLE_CLOUD_QUOTA_PROJECT") or None
+        )
+    outcome = asyncio.run(directory.check(groups))
+    failed = sum(1 for result in outcome.values() if result != "ok")
+    for group, result in outcome.items():
+        print(f"group: {group} {result}")
+    print(f"groups: {len(outcome) - failed}/{len(outcome)} resolve (env {snap.env})")
+    if failed:
+        print(
+            "groups: NOT RESOLVED with HTTP 403 means no group with that address, or the caller "
+            "lacks the Groups Reader role (then every group fails)",
+            file=sys.stderr,
+        )
     return 1 if failed else 0
 
 

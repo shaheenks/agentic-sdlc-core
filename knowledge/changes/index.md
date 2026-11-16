@@ -21,6 +21,7 @@
 - [CH-0021: Google identity and Google Groups membership for the GCP stack](CH-0021.md) - The libraries gain a Google ID token verifier, a Cloud Identity group directory and group bindings in config beside app-role bindings, with a parity check that every persona resolves the same on both stacks.
 - [CH-0022: core_mcp_gcp and the GCP stack on Google identity](CH-0022.md) - A new MCP server component core_mcp_gcp (Google adapter) replaces core_mcp behind sdlc-mcp-native; the agent on Agent Runtime verifies Google ID tokens; the gateway, database owner check, compose and scripts follow. The Entra stack is unchanged.
 - [CH-0025: Runtime refusals use a key the client library does not reserve](CH-0025.md) - The Agent Runtime app reports refusals under a "refusal" key instead of "error", because google.genai takes any streamed chunk starting with an "error" key for an API error and crashes on the string code.
+- [CH-0026: One unresolvable Google group no longer removes all of a user's groups](CH-0026.md) - A failed lookup of one configured Google group costs the user only that group's roles, the failure names the group, and sdlc-config check-groups confirms every configured group resolves before a rollout.
 
 ## Dropped
 

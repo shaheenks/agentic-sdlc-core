@@ -2428,16 +2428,20 @@ name = "sdlc-config"
 version = "0.1.0"
 source = { editable = "libs/sdlc_config" }
 dependencies = [
+    { name = "google-auth", extra = ["requests"] },
     { name = "jsonschema" },
     { name = "pyyaml" },
+    { name = "sdlc-auth" },
     { name = "sdlc-secrets" },
     { name = "watchfiles" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "google-auth", extras = ["requests"], specifier = ">=2.0" },
     { name = "jsonschema", specifier = ">=4.23" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "sdlc-auth", editable = "libs/sdlc_auth" },
     { name = "sdlc-secrets", editable = "libs/sdlc_secrets" },
     { name = "watchfiles", specifier = ">=1.0" },
 ]

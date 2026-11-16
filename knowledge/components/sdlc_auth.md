@@ -47,7 +47,9 @@ Code: `libs/sdlc_auth`
   `google_verifier_from_env` (`SDLC_OAUTH_CLIENT_IDS`, `SDLC_ALLOWED_DOMAINS`) and `GoogleAdapter` (the
   `sdlc_mcp` identity adapter: `group:<email>` memberships, `users.yaml` by verified email).
 - `sdlc_auth.groups`: `CloudIdentityGroups` (direct mode for Cloud Identity Free, transitive for Premium; TTL
-  cache per user; a failed lookup gives no groups and is not cached) and `StaticGroups` for tests.
+  cache per user; failures are failed closed and not cached: in direct mode a failed group gives no roles
+  from that group only and the warning names it (CH-0026), in transitive mode an error gives no groups;
+  `check` resolves each configured group for `sdlc-config check-groups`) and `StaticGroups` for tests.
 - `get_user_token` and `agent_header_provider` for ADK agents; with `SDLC_MCP_IAM_AUDIENCE`
   the provider also sends the agent's Google ID token in `X-Serverless-Authorization` for
   Cloud Run IAM (CH-0014), never in `Authorization`.

@@ -10,8 +10,13 @@ other groups are not looked up (direct) or are dropped (transitive).
   - transitive (Premium): one `memberships:searchTransitiveGroups` for the user, paged.
 
 Answers are cached per user for `cache_seconds`; removing someone from a group takes effect
-within that time (FR-IDN-004). Any lookup error gives NO groups and is not cached (fail closed);
-the log names the error, never the user's email.
+within that time (FR-IDN-004). A lookup error is failed closed and not cached:
+  - direct: a group whose lookup fails gives no roles to this request; the user's other groups still
+    count (CH-0026: groups only add access, so one unresolvable group must not remove them all).
+    Cloud Identity answers `groups:lookup` with 403, not 404, for an address it cannot find.
+  - transitive: the one call has no per-group answer, so an error gives NO groups.
+The log names the group and the error, never the user's email. `check` resolves each configured
+group for `sdlc-config check-groups`.
 """
 
 import asyncio
@@ -101,15 +106,15 @@ class CloudIdentityGroups:
         hit = self._users.get(key)
         if hit is not None and hit[0] > self._clock():
             return hit[1]
-        try:
-            if self.mode == DIRECT:
-                groups = await self._direct(email, wanted)
-            else:
-                groups = await self._transitive(email, wanted)
-        except (LookupFailed, httpx.HTTPError) as e:
-            log.warning("group lookup failed (%s): no group roles for this request", _what(e))
-            return frozenset()
-        if self.cache_seconds > 0:
+        if self.mode == DIRECT:
+            groups, complete = await self._direct(email, wanted)
+        else:
+            try:
+                groups, complete = await self._transitive(email, wanted), True
+            except (LookupFailed, httpx.HTTPError) as e:
+                log.warning("group lookup failed (%s): no group roles for this request", _what(e))
+                return frozenset()
+        if complete and self.cache_seconds > 0:
             self._users[key] = (self._clock() + self.cache_seconds, groups)
         return groups
 
@@ -126,7 +131,9 @@ class CloudIdentityGroups:
         if r.status_code == 404:  # no such group (yet): no members; asked again next time
             log.warning("group %s not found in Cloud Identity", group)
             return None
-        if r.status_code != 200:  # 403: the service account lacks the Groups Reader role
+        # 403: no group with this address (Cloud Identity does not say 404 for those), or the
+        # caller lacks the Groups Reader role; sdlc-config check-groups tells which groups
+        if r.status_code != 200:
             raise LookupFailed(f"groups:lookup HTTP {r.status_code}")
         name = r.json().get("name")
         if not name:
@@ -145,10 +152,34 @@ class CloudIdentityGroups:
             raise LookupFailed(f"memberships:lookup HTTP {r.status_code}")
         return True
 
-    async def _direct(self, email: str, wanted: frozenset[str]) -> frozenset[str]:
+    async def check(self, groups: Iterable[str]) -> dict[str, str]:
+        """Each group (lower-case) -> "ok", "NOT FOUND" or "NOT RESOLVED (<why>)". Read-only."""
+        outcome: dict[str, str] = {}
+        for group in sorted({g.lower() for g in groups}):
+            try:
+                outcome[group] = "ok" if await self._group_name(group) else "NOT FOUND"
+            except (LookupFailed, httpx.HTTPError) as e:
+                outcome[group] = f"NOT RESOLVED ({_what(e)})"
+        return outcome
+
+    async def _member_or_none(self, group: str, email: str) -> bool | None:
+        """Membership in one group; None when its lookup failed (no roles from it, CH-0026)."""
+        try:
+            return await self._is_member(group, email)
+        except (LookupFailed, httpx.HTTPError) as e:
+            log.warning(
+                "group lookup failed for %s (%s): no roles from this group for this request",
+                group,
+                _what(e),
+            )
+            return None
+
+    async def _direct(self, email: str, wanted: frozenset[str]) -> tuple[frozenset[str], bool]:
+        """The groups found, and whether every lookup answered (only then is it cached)."""
         ordered = sorted(wanted)
-        found = await asyncio.gather(*(self._is_member(g, email) for g in ordered))
-        return frozenset(g for g, member in zip(ordered, found, strict=True) if member)
+        found = await asyncio.gather(*(self._member_or_none(g, email) for g in ordered))
+        groups = frozenset(g for g, member in zip(ordered, found, strict=True) if member)
+        return groups, None not in found
 
     async def _transitive(self, email: str, wanted: frozenset[str]) -> frozenset[str]:
         query = f"member_key_id == '{_quote(email)}' && '{_LABEL}' in labels"
