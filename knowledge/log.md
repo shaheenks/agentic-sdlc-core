@@ -1,5 +1,11 @@
 # Change log
 
+## 2026-11-16
+
+- **Fix**: CH-0016: IAP signs in with our own OAuth client (`sdlc-iap-web`, `google_iap_settings.ui_native`);
+  the Google-managed client admits only the GCP project organisation's accounts. Live on dev: a group member
+  signs in and the agent answers with his groups' access.
+
 ## 2026-11-15
 
 - **Update**: CH-0016 done (WN.4): `sdlc-ui-native` behind IAP with the UI's server-side Google sign-in

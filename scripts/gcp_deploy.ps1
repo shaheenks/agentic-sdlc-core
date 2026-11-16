@@ -119,6 +119,9 @@ function Set-TerraformEnv {
     # The native chat UI's server-side sign-in (CH-0016): the Web OAuth client.
     $env:TF_VAR_google_web_client_id = Get-DotEnv 'SDLC_GOOGLE_WEB_CLIENT_ID'
     $env:TF_VAR_google_web_client_secret = Get-DotEnv 'SDLC_GOOGLE_WEB_CLIENT_SECRET'
+    # IAP's own OAuth client for the native chat UI (sdlc-iap-web, CH-0016).
+    $env:TF_VAR_google_iap_client_id = Get-DotEnv 'SDLC_GOOGLE_IAP_CLIENT_ID'
+    $env:TF_VAR_google_iap_client_secret = Get-DotEnv 'SDLC_GOOGLE_IAP_CLIENT_SECRET'
     # Optional direct members (version-02 N10): stored as a secret and mounted into the MCP service.
     $usersYaml = Join-Path $Root "config/env/$EnvName/users.yaml"
     $env:TF_VAR_users_yaml_path = if (Test-Path $usersYaml) { "../../config/env/$EnvName/users.yaml" } else { '' }

@@ -146,3 +146,29 @@ resource "google_cloud_run_v2_service_iam_member" "mcp_native_ui" {
   role     = "roles/run.invoker"
   member   = google_service_account.w["ui-native"].member
 }
+
+# IAP's sign-in uses our own OAuth client (sdlc-iap-web), not the Google-managed one: that one admits
+# only accounts of the project's organisation, and the users are accounts of another Cloud Identity
+# organisation (dev, 2026-11-16: a member of every group was refused before any group check). The
+# client's audience must admit those accounts; its redirect URI is
+# https://iap.googleapis.com/v1/oauth/clientIds/<client id>:handleRedirect. The secret is kept in
+# state, as the other client secrets.
+resource "google_iap_settings" "ui_native" {
+  count = local.ui_native_on ? 1 : 0
+  name  = "projects/${data.google_project.this.number}/iap_web/cloud_run-${var.region}/services/${google_cloud_run_v2_service.ui_native[0].name}"
+
+  access_settings {
+    oauth_settings {
+      client_id     = var.google_iap_client_id
+      client_secret = var.google_iap_client_secret
+      login_hint    = split(",", local.google_allowed_domains)[0] # the account picker's domain; not access control
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.google_iap_client_id != "" && var.google_iap_client_secret != ""
+      error_message = "native_ui_enabled needs SDLC_GOOGLE_IAP_CLIENT_ID and SDLC_GOOGLE_IAP_CLIENT_SECRET in .env (the sdlc-iap-web OAuth client)."
+    }
+  }
+}

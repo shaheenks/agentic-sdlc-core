@@ -375,3 +375,20 @@ def test_native_ui_account_gets_agent_runtime_and_mcp_invoke_only(tf):
     text = "\n".join(p.read_text(encoding="utf-8") for p in TF_DIR.glob("*.tf"))
     assert 'w["ui-native"].member' in text
     assert text.count('w["ui-native"]') == 2  # its service, and the MCP invoker grant
+
+
+def test_iap_signs_in_with_our_own_client(tf):
+    """CH-0016 (dev, 2026-11-16): IAP's Google-managed client admits only the project
+    organisation's accounts; the users are in another Cloud Identity organisation, so IAP uses the
+    sdlc-iap-web client from variables (never committed), for the UI service only."""
+    iap = tf.resource("google_iap_settings", "ui_native")
+    assert iap["count"] == "${local.ui_native_on ? 1 : 0}"
+    assert "/iap_web/cloud_run-${var.region}/services/" in iap["name"]
+    assert "google_cloud_run_v2_service.ui_native[0].name" in iap["name"]
+    oauth = iap["access_settings"][0]["oauth_settings"][0]
+    assert oauth["client_id"] == "${var.google_iap_client_id}"
+    assert oauth["client_secret"] == "${var.google_iap_client_secret}"
+    assert "local.google_allowed_domains" in oauth["login_hint"]
+    variables = (TF_DIR / "variables.tf").read_text(encoding="utf-8")
+    secret = variables[variables.index('variable "google_iap_client_secret"') :]
+    assert "sensitive   = true" in secret[: secret.index("}")]

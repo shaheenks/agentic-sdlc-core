@@ -113,7 +113,12 @@ server-side sign-in (the Web OAuth client; silent after IAP, one consent click p
 forwards it to the agent and to `sdlc-mcp-native` only after checking it names the IAP user.
 
 1. `.env`: `SDLC_GOOGLE_WEB_CLIENT_ID` and `SDLC_GOOGLE_WEB_CLIENT_SECRET` (the Web client from step 2);
-   `SDLC_OAUTH_CLIENT_IDS` must include the Web client id.
+   `SDLC_OAUTH_CLIENT_IDS` must include the Web client id. IAP needs its own Web client too
+   (`sdlc-iap-web`): the Google-managed one admits only accounts of the GCP project's organisation, and our
+   users belong to the Cloud Identity organisation. Create it with the same audience as the others, register
+   `https://iap.googleapis.com/v1/oauth/clientIds/<its client id>:handleRedirect` as its only redirect URI,
+   and put `SDLC_GOOGLE_IAP_CLIENT_ID` and `SDLC_GOOGLE_IAP_CLIENT_SECRET` in `.env` (Terraform sets it as
+   `google_iap_settings.ui_native`).
 2. Commit, then `-Step images`, `-Step plan` (expect: `sdlc-ui-native`, its service account and grants, IAP's
    invoker and accessor bindings, two new secrets, the MCP invoker for the UI), `-Step apply`.
 3. Redeploy the engine (`get_thread` and thread names): `uv run --env-file .env python

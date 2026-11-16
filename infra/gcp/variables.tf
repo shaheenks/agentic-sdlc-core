@@ -79,6 +79,19 @@ variable "google_web_client_secret" {
   sensitive   = true
 }
 
+variable "google_iap_client_id" {
+  description = "IAP's own OAuth client for sdlc-ui-native (sdlc-iap-web, CH-0016): the Google-managed client admits only the project organisation's accounts. From .env SDLC_GOOGLE_IAP_CLIENT_ID via gcp_deploy.ps1, never committed."
+  type        = string
+  default     = ""
+}
+
+variable "google_iap_client_secret" {
+  description = "The sdlc-iap-web client's secret (CH-0016). From .env SDLC_GOOGLE_IAP_CLIENT_SECRET via gcp_deploy.ps1."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "users_yaml_path" {
   description = "Optional git-ignored UserMap for this env (direct members: emails + object IDs), stored in Secret Manager and mounted into the MCP service. Empty = none. gcp_deploy.ps1 sets it when config/env/<env>/users.yaml exists."
   type        = string
