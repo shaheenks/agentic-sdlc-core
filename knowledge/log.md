@@ -4,7 +4,9 @@
 
 - **Fix**: CH-0026: one Google group that cannot be resolved (Cloud Identity answers 403 for an unknown
   address) no longer removes all of a user's groups on the GCP stack; the warning names the group.
-  `sdlc-config check-groups --env <env>` checks every configured group before a rollout.
+  `sdlc-config check-groups --env <env>` checks every configured group before a rollout. Deployed to dev
+  (`50e6c2f56cb8`, apply approved by the user). CH-0016 verified on dev: threads, documents, downloads, IAP
+  blocks a non-member; GCP-stack access comes from `users.yaml` until the Groups Reader role is sorted.
 - **Fix**: CH-0016: conversations from before thread names open and continue (looked up by the caller's own
   session id); needs the engine redeploy.
 - **Update**: Terraform rule (the user, 2026-11-16): Claude may run `terraform fmt`, `validate` and `plan`
