@@ -43,9 +43,11 @@ These hold for every change. The full rules, with their reasons and exceptions, 
 - **Nothing sensitive leaves its place.** Never commit secrets, tenant IDs, app IDs, OAuth client IDs, Entra group
   IDs or test-user UPNs/emails (`config/env/*/users.yaml` and `blocked.yaml` are git-ignored). Google group emails
   may be committed in `config/` (CH-0021). Never log raw tokens or argument values.
-- **Cloud and tenant actions belong to the user.** Do not create or change GCP resources unless asked, and do not run
-  `terraform` or `gcp_deploy.ps1` yourself. Any Entra change needs the user's confirmation for that action; check
-  `az account show` first and say which account read-only queries run as.
+- **Cloud and tenant actions belong to the user.** Do not create or change GCP resources unless asked. You may run
+  `terraform fmt`, `validate` and `plan` (also `gcp_deploy.ps1 -Step plan`); before any `apply`, say what it will
+  change and run it only after the user approves that apply (2026-11-16). The other `gcp_deploy.ps1` steps stay the
+  user's. Any Entra change needs the user's confirmation for that action; check `az account show` first and say
+  which account read-only queries run as.
 - **Current phase: development.** It must work on both `localhost` and the Cloudflare Tunnel; hostnames and URLs are
   configuration, never hard-coded.
 - **Check your work.** After a config change: `uv run sdlc-config validate --env local` and review `sdlc-config diff`.

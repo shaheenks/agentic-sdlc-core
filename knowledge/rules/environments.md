@@ -23,8 +23,10 @@ See ARCHITECTURE.md §7.
   (`infra/gcp/dev.tfvars`, state `gs://sdlc-demo-env01-tf-state` prefix `dev`, optional `config/env/dev/users.yaml`), Cloud Run
   `*.run.app` URLs (temporary exception to the CNAME rule); the dev callback goes on `sdlc-client`. Public Cloud Run
   services use `invoker_iam_disabled`; Entra stays the gate. The earlier `cloud-migration-agent` / asia-south1 staging
-  attempt is abandoned (ignore its state). **The user runs Terraform and the deploy script; do not run `terraform` or
-  `gcp_deploy.ps1` yourself** (2026-10-28). Keep `infra/gcp` valid when shared code changes. Runbook: docs/guides/GCP_DEPLOYMENT.md.
+  attempt is abandoned (ignore its state). **Terraform: you may run `fmt`, `validate` and `plan` (including
+  `gcp_deploy.ps1 -Step plan`); announce every `apply` with what the reviewed plan changes and run it only after
+  the user approves that apply** (2026-11-16, replacing the 2026-10-28 rule that the user runs all of it). The
+  other deploy steps (`state`, `base`, `config`, `images`, `db`, `ingest`) are still run by the user unless asked. Keep `infra/gcp` valid when shared code changes. Runbook: docs/guides/GCP_DEPLOYMENT.md.
 - Hostnames and public URLs are configuration (`SDLC_APP_HOST`, `SDLC_MCP_HOST`, `MCP_PUBLIC_URL`), never hard-coded;
   code must not assume `localhost` or a tunnel. Use `<service>-sdlc-<env>.shaheenks.co.in` (one level below the zone).
 - After changing Entra redirect URIs, check each entry separately (`az ad app show … -o json`), not the joined TSV output.

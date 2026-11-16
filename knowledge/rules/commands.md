@@ -56,7 +56,9 @@ Paths are relative to the repository root.
   (placeholder Entra IDs, HashEmbedder, FakeEntra).
 - `uv run --env-file .env sdlc-config validate --env local` (`--dummy-env` for a structure-only check without Entra values;
   `--check-secrets` also resolves every secret reference and prints names + outcomes only; not in CI)
-- `.\scripts\gcp_deploy.ps1 -EnvName dev -Step state|base|config|images|plan|apply|db|ingest|urls`   GCP deployment, run by the user (see
+- `.\scripts\gcp_deploy.ps1 -EnvName dev -Step state|base|config|images|plan|apply|db|ingest|urls`   GCP deployment (see
+  environments.md: you may run `plan`, and `terraform fmt`/`validate` in infra/gcp; `apply` only after announcing it
+  and the user's approval; the other steps are the user's)
   docs/guides/GCP_DEPLOYMENT.md). PowerShell, not bash (Windows). Commit first: images and plan use the commit SHA as tag.
   `base`/`apply` create billable resources: only with the user's go-ahead. The saved plan contains secrets (git-ignored,
   deleted by `apply`).

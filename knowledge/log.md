@@ -2,6 +2,9 @@
 
 ## 2026-11-16
 
+- **Update**: Terraform rule (the user, 2026-11-16): Claude may run `terraform fmt`, `validate` and `plan`
+  (also `gcp_deploy.ps1 -Step plan`); every `apply` is announced with what it changes and runs only after the
+  user's approval. `CLAUDE.md`, rule sets environments and commands.
 - **Fix**: CH-0016: IAP signs in with our own OAuth client (`sdlc-iap-web`, `google_iap_settings.ui_native`);
   the Google-managed client admits only the GCP project organisation's accounts. Live on dev: a group member
   signs in and the agent answers with his groups' access.
