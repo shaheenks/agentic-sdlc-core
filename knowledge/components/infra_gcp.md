@@ -24,6 +24,7 @@ satisfies:
 - /requirements/non-functional/NFR-SEC-015
 verified_by:
 - tests/infra/test_terraform.py
+- tests/infra/test_image_tags.py
 ---
 
 # Purpose
@@ -45,6 +46,9 @@ Code: `infra/gcp`
   IAP for `var.iap_access_group`, IAP's service agent as its only invoker; its own service account with Agent
   Runtime query and invoker on `sdlc-mcp-native`; the Web client secret and a generated cookie key in Secret
   Manager; the engine from `agent_runtime_principal`, the domains from `platform.yaml`.
+- CH-0024: `var.image_tags` (exactly `mcp`, `mcp_gcp`, `agent`, `ingest`, `ui`) replaces `image_tag`, one
+  tag per image in `local.images`, so a service rolls out only when its own image changed; `sdlc-ui-native`
+  pins no `launch_stage` (Cloud Run reports direct IAP as GA).
 
 # Depends on
 

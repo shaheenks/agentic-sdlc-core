@@ -48,7 +48,6 @@ resource "google_cloud_run_v2_service" "ui_native" {
   name                 = local.ui_native_name
   location             = var.region
   ingress              = "INGRESS_TRAFFIC_ALL"
-  launch_stage         = "BETA" # direct IAP on Cloud Run
   iap_enabled          = true
   invoker_iam_disabled = false
   deletion_protection  = var.deletion_protection

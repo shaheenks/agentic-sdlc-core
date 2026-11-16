@@ -15,7 +15,7 @@ Design, diagrams, IAM/secrets, cost and runbook: [docs/guides/GCP_DEPLOYMENT.md]
 | `gcp/sessions.tf` | Agent Engine `sdlc-sessions-<env>`: the agent's conversation store (sessions only, TTL `session_retention_days`; version-01 M8) |
 | `gcp/<env>.tfvars`, `gcp/<env>.gcs.tfbackend` | Per-environment values (no tenant IDs) and state location |
 
-First deployment (from the repo root; commit first, the image tag is the commit SHA):
+First deployment (from the repo root; commit first: each image's tag is a hash of its committed build inputs, CH-0024):
 
 ```powershell
 .\scripts\gcp_deploy.ps1 -EnvName dev -Step state    # state bucket (once)

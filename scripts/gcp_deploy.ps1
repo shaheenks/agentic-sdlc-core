@@ -11,7 +11,9 @@
              upload it to gs://<config_store_bucket>/bundles/<env>/ and point `current` at it.
              Cloud Run reads the active bundle and picks up a new one within ~2 minutes.
              -ConfigVersion <version>: only move `current` to an uploaded bundle (rollback).
-    images   build + push mcp/mcp-gcp/agent/ingest/ui images (tag = git short SHA), mirror oauth2-proxy
+    images   build + push the images whose tag is not in the registry yet, mirror oauth2-proxy.
+             Each image's tag is a hash of its own committed build inputs (scripts/build_tag.py,
+             CH-0024), so an unchanged image is skipped. -Rebuild builds them all.
     plan     full terraform plan -> infra/gcp/<env>.tfplan (review it)
     apply    apply the saved plan (deleted afterwards: it contains secret values)
     db       run the sdlc-db-setup job (bootstrap roles/schema + migrate)
@@ -24,7 +26,8 @@
   First deployment with a config store bucket: state, base, config, images, plan, apply, db, ingest.
   A config-only change afterwards: commit, then `config` (no new images, no apply).
   `base` and `apply` change cloud resources and ask for confirmation unless -AutoApprove.
-  Images and the plan use the same tag (the current commit), so commit before `images` and `plan`.
+  Images and the plan compute the same tags from the committed files, so commit before `images` and
+  `plan`; `plan` stops if a tag is not pushed yet. Only services whose image tag changed roll out.
 
 .EXAMPLE
   .\scripts\gcp_deploy.ps1 -EnvName dev -Step plan
@@ -34,9 +37,10 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('state', 'base', 'config', 'images', 'plan', 'apply', 'db', 'ingest', 'urls')]
     [string]$Step,
-    [string]$ImageTag = '',      # override the git-SHA tag (e.g. to re-plan with already pushed images)
+    [string]$ImageTag = '',      # one tag for every image (re-plan or roll back to tags pushed before CH-0024)
     [string]$ConfigVersion = '', # config step: activate this already uploaded bundle (rollback)
-    [switch]$AutoApprove
+    [switch]$AutoApprove,
+    [switch]$Rebuild             # images step: build and push every image, pushed or not
 )
 
 $ErrorActionPreference = 'Stop'
@@ -100,15 +104,34 @@ function Get-DotEnv([string]$Name) {
     return ($value -replace '\s+#.*$', '').Trim()
 }
 
-function Get-ImageTag {
-    if ($ImageTag) { return $ImageTag }
+function Assert-Committed([string]$Why) {
     $dirty = git -C $Root status --porcelain
-    if ($dirty) { throw 'uncommitted changes: commit first, or pass -ImageTag explicitly' }
-    return (git -C $Root rev-parse --short=12 HEAD).Trim()
+    if ($dirty) { throw "uncommitted changes: commit first ($Why)" }
+}
+
+# Terraform key -> name, dockerfile, tag. The image list and the tags come from scripts/build_tag.py
+# (CH-0024): each tag is a hash of the image's own committed build inputs. -ImageTag overrides all.
+function Get-BuildTags {
+    if (-not $ImageTag) { Assert-Committed 'image tags come from committed files; or pass -ImageTag' }
+    $json = & uv run python (Join-Path $Root 'scripts/build_tag.py') --root $Root
+    if ($LASTEXITCODE -ne 0) { throw 'scripts/build_tag.py failed (see above)' }
+    $images = [ordered]@{}
+    foreach ($p in (($json -join "`n") | ConvertFrom-Json).PSObject.Properties) {
+        $tag = if ($ImageTag) { $ImageTag } else { $p.Value.tag }
+        $images[$p.Name] = [pscustomobject]@{ name = $p.Value.name; dockerfile = $p.Value.dockerfile; tag = $tag }
+    }
+    return $images
+}
+
+function Test-ImagePushed([string]$Ref) {
+    return (Test-Native 'gcloud' @('artifacts', 'docker', 'images', 'describe', $Ref, '--quiet'))
 }
 
 function Set-TerraformEnv {
-    $env:TF_VAR_image_tag = Get-ImageTag
+    $script:BuildImages = Get-BuildTags
+    $tags = [ordered]@{}
+    foreach ($key in $script:BuildImages.Keys) { $tags[$key] = $script:BuildImages[$key].tag }
+    $env:TF_VAR_image_tags = ($tags | ConvertTo-Json -Compress)
     $env:TF_VAR_oauth2_proxy_tag = $OAuth2ProxyTag
     $env:TF_VAR_entra_tenant_id = Get-DotEnv 'ENTRA_TENANT_ID'
     $env:TF_VAR_entra_api_client_id = Get-DotEnv 'ENTRA_API_CLIENT_ID'
@@ -129,7 +152,7 @@ function Set-TerraformEnv {
     foreach ($v in 'entra_tenant_id', 'entra_api_client_id', 'entra_client_id', 'entra_client_secret') {
         if (-not (Get-Item "env:TF_VAR_$v").Value) { throw "TF_VAR_$v is empty (check .env)" }
     }
-    Write-Host "image tag: $env:TF_VAR_image_tag"
+    Write-Host "image tags: $(($tags.Keys | ForEach-Object { "$_=$($tags[$_])" }) -join ', ')"
 }
 
 function Invoke-Terraform([string[]]$ArgList) {
@@ -170,26 +193,35 @@ switch ($Step) {
         Invoke-Terraform (@('apply', '-input=false', '-auto-approve', "-var-file=$EnvName.tfvars") + $targets)
     }
     'images' {
-        $tag = Get-ImageTag
+        $images = Get-BuildTags
         Invoke-Native 'gcloud' @('auth', 'configure-docker', "$Region-docker.pkg.dev", '--quiet')
-        $images = [ordered]@{
-            'core-mcp'      = 'mcp_servers/core_mcp/Dockerfile'
-            'core-mcp-gcp'  = 'mcp_servers/core_mcp_gcp/Dockerfile'   # GCP stack (CH-0022)
-            'user-agent'    = 'agents/user_agent/Dockerfile'
-            'ingest'        = 'ingest/bootstrap/Dockerfile'
-            'ui-copilotkit' = 'ui/copilotkit/Dockerfile'   # CopilotKit chat app (version-01 M5)
-        }
-        foreach ($name in $images.Keys) {
-            Invoke-Native 'docker' @('build', '--platform', 'linux/amd64', '-f', (Join-Path $Root $images[$name]),
-                '-t', "$Registry/${name}:$tag", $Root)
-            Invoke-Native 'docker' @('push', "$Registry/${name}:$tag")
+        $summary = @()
+        foreach ($key in $images.Keys) {
+            $image = $images[$key]
+            $ref = "$Registry/$($image.name):$($image.tag)"
+            if (-not $Rebuild -and (Test-ImagePushed $ref)) {
+                $summary += "  $($image.name):$($image.tag) unchanged (already pushed)"
+                continue
+            }
+            Invoke-Native 'docker' @('build', '--platform', 'linux/amd64', '-f', (Join-Path $Root $image.dockerfile),
+                '-t', $ref, $Root)
+            Invoke-Native 'docker' @('push', $ref)
+            $summary += "  $($image.name):$($image.tag) built and pushed"
         }
         # Cloud Run pulls only from Artifact Registry / Docker Hub: mirror oauth2-proxy from quay.io.
-        $upstream = "quay.io/oauth2-proxy/oauth2-proxy:$OAuth2ProxyTag"
-        Invoke-Native 'docker' @('pull', '--platform', 'linux/amd64', $upstream)
-        Invoke-Native 'docker' @('tag', $upstream, "$Registry/oauth2-proxy:$OAuth2ProxyTag")
-        Invoke-Native 'docker' @('push', "$Registry/oauth2-proxy:$OAuth2ProxyTag")
-        Write-Host "pushed images with tag $tag"
+        $mirror = "$Registry/oauth2-proxy:$OAuth2ProxyTag"
+        if (-not $Rebuild -and (Test-ImagePushed $mirror)) {
+            $summary += "  oauth2-proxy:$OAuth2ProxyTag unchanged (already mirrored)"
+        }
+        else {
+            $upstream = "quay.io/oauth2-proxy/oauth2-proxy:$OAuth2ProxyTag"
+            Invoke-Native 'docker' @('pull', '--platform', 'linux/amd64', $upstream)
+            Invoke-Native 'docker' @('tag', $upstream, $mirror)
+            Invoke-Native 'docker' @('push', $mirror)
+            $summary += "  oauth2-proxy:$OAuth2ProxyTag mirrored"
+        }
+        Write-Host 'images:'
+        $summary | ForEach-Object { Write-Host $_ }
     }
     'config' {
         if (-not $BundleRoot) { throw "config_store_bucket is not set in $TfVars" }
@@ -200,7 +232,7 @@ switch ($Step) {
             }
         }
         else {
-            [void](Get-ImageTag)   # refuses uncommitted changes: the bundle version starts with the commit
+            Assert-Committed 'the bundle version starts with the commit'
             $local = Join-Path $Root ".bundles/$EnvName"   # git-ignored: bundles hold tenant files
             # uv reads --env-file shell-style (backslashes are escapes): pass forward slashes.
             $envFile = (Join-Path $Root '.env') -replace '\\', '/'
@@ -228,6 +260,10 @@ switch ($Step) {
         if ($BundleRoot -and -not (Test-Native 'gcloud' @('storage', 'objects', 'describe', "$BundleRoot/current"))) {
             throw "no active config bundle in ${BundleRoot}: run -Step base, then -Step config, first"
         }
+        # Every image the plan names must be pushed, or the new revisions cannot start.
+        $missing = @($script:BuildImages.Values | Where-Object { -not (Test-ImagePushed "$Registry/$($_.name):$($_.tag)") } |
+            ForEach-Object { "$($_.name):$($_.tag)" })
+        if ($missing) { throw "not in the registry: $($missing -join ', '); run -Step images first" }
         Initialize-Terraform
         Invoke-Terraform @('plan', '-input=false', "-var-file=$EnvName.tfvars", "-out=$Plan")
     }

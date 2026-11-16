@@ -59,7 +59,8 @@ Paths are relative to the repository root.
 - `.\scripts\gcp_deploy.ps1 -EnvName dev -Step state|base|config|images|plan|apply|db|ingest|urls`   GCP deployment (see
   environments.md: you may run `plan`, and `terraform fmt`/`validate` in infra/gcp; `apply` only after announcing it
   and the user's approval; the other steps are the user's)
-  docs/guides/GCP_DEPLOYMENT.md). PowerShell, not bash (Windows). Commit first: images and plan use the commit SHA as tag.
+  docs/guides/GCP_DEPLOYMENT.md). PowerShell, not bash (Windows). Commit first: each image's tag is a hash of its committed
+  build inputs (`scripts/build_tag.py`, CH-0024); `images` skips pushed tags (`-Rebuild` forces), `plan` needs them pushed.
   `base`/`apply` create billable resources: only with the user's go-ahead. The saved plan contains secrets (git-ignored,
   deleted by `apply`).
 - `uv run --env-file .env sdlc-db bootstrap`   extension, roles, schema, grants (idempotent; no true superuser needed, as on

@@ -19,6 +19,7 @@ satisfies:
 - /requirements/non-functional/NFR-SEC-015
 verified_by:
 - tests/infra/test_gcp_stack_scripts.py
+- tests/infra/test_image_tags.py
 - tests/knowledge
 ---
 
@@ -32,6 +33,11 @@ Code: `scripts`
 
 - `entra_setup.ps1`: idempotent Entra provisioning including app roles.
 - `gcp_deploy.ps1`: state, base, config, images, plan, apply, db, ingest, urls.
+- CH-0024: `build_tag.py` holds the image list (Terraform key, registry name, Dockerfile) and tags each image
+  `src-<12 hex>`, a SHA-256 of `git ls-tree` over its committed inputs (Dockerfile, `.dockerignore`, every
+  `COPY`/`ADD` source; a source missing from the commit fails). `gcp_deploy.ps1` reads it: `images` skips tags
+  already in the registry (`-Rebuild` builds all), `plan` stops if one is not pushed and passes
+  `TF_VAR_image_tags`; `-ImageTag` sets one tag for all (older tags, rollback).
 - `deploy_agent_runtime.py` (CH-0014): stages the user agent as a source package and creates or
   updates its Agent Runtime engine with Agent Identity; run by the user.
 - `agent_runtime_query.py` (CH-0014): asks the agent on Agent Runtime a question with a user's token and

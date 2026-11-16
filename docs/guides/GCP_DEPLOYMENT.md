@@ -286,7 +286,7 @@ From the repo root, in PowerShell (Docker Desktop running, `gcloud` signed in, T
 .\scripts\gcp_deploy.ps1 -EnvName dev -Step state    # state bucket (once per project)
 .\scripts\gcp_deploy.ps1 -EnvName dev -Step base     # APIs + Artifact Registry + config store bucket
 .\scripts\gcp_deploy.ps1 -EnvName dev -Step config   # publish the config bundle (§6); plan needs one
-.\scripts\gcp_deploy.ps1 -EnvName dev -Step images   # build + push mcp/agent/ingest/ui, mirror oauth2-proxy
+.\scripts\gcp_deploy.ps1 -EnvName dev -Step images   # build + push changed images, mirror oauth2-proxy
 .\scripts\gcp_deploy.ps1 -EnvName dev -Step plan     # writes infra/gcp/dev.tfplan; review it
 .\scripts\gcp_deploy.ps1 -EnvName dev -Step apply    # first time ~10-15 min (Cloud SQL)
 .\scripts\gcp_deploy.ps1 -EnvName dev -Step db       # sdlc-db bootstrap + migrate on Cloud SQL
@@ -294,8 +294,11 @@ From the repo root, in PowerShell (Docker Desktop running, `gcloud` signed in, T
 .\scripts\gcp_deploy.ps1 -EnvName dev -Step urls     # app URL, MCP URL, OAuth callback
 ```
 
-- **Image tag = commit SHA.** `images` and `plan` refuse to run with uncommitted changes. To re-plan without
-  rebuilding, pass a pushed tag: `-ImageTag <sha>`.
+- **Image tags from build inputs (CH-0024).** Each image's tag is `src-<12 hex>`, a hash of the committed files
+  its Dockerfile copies (`scripts/build_tag.py`, which also holds the image list). `images` builds and pushes only
+  images whose tag is not in the registry (`-Rebuild` builds all); `plan` stops if a tag is not pushed, and only
+  services whose image tag changed get a new revision. `images` and `plan` refuse uncommitted changes. To plan
+  with tags pushed before this change (or roll back), pass one tag for all: `-ImageTag <tag>`.
 - **Confirmation**: `base` and `apply` ask before changing anything unless `-AutoApprove`.
 - **Apply deploys the saved plan file**: re-plan after every Terraform change.
 - **Why a mirror for oauth2-proxy**: Cloud Run pulls only from Artifact Registry or Docker Hub, and oauth2-proxy is

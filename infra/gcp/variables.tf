@@ -11,9 +11,13 @@ variable "env" {
   type        = string
 }
 
-variable "image_tag" {
-  description = "Tag of the sdlc images in Artifact Registry (scripts/gcp_deploy.ps1: git short SHA)."
-  type        = string
+variable "image_tags" {
+  description = "Tag of each sdlc image in Artifact Registry, by Terraform key (scripts/gcp_deploy.ps1 from scripts/build_tag.py: a hash of the image's build inputs, CH-0024)."
+  type        = map(string)
+  validation {
+    condition     = toset(keys(var.image_tags)) == toset(["mcp", "mcp_gcp", "agent", "ingest", "ui"])
+    error_message = "image_tags needs exactly the keys mcp, mcp_gcp, agent, ingest and ui (scripts/build_tag.py IMAGES)."
+  }
 }
 
 variable "oauth2_proxy_tag" {

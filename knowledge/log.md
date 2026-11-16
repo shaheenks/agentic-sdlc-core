@@ -2,6 +2,9 @@
 
 ## 2026-11-16
 
+- **Change**: CH-0024 (NFR-OPS-002): each image is tagged from its own committed build inputs
+  (`scripts/build_tag.py`); `-Step images` skips pushed tags and only services whose image changed roll out.
+  `sdlc-ui-native` no longer pins `launch_stage`, so an unchanged plan reports no changes.
 - **Fix**: CH-0026: one Google group that cannot be resolved (Cloud Identity answers 403 for an unknown
   address) no longer removes all of a user's groups on the GCP stack; the warning names the group.
   `sdlc-config check-groups --env <env>` checks every configured group before a rollout. Deployed to dev

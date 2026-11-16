@@ -83,7 +83,8 @@ docker compose --profile gcp up -d --build          # + --profile gcp-tunnel for
 
 ## 5. GCP rollout (you run these; dev)
 
-Commit first: images and the plan use the commit as their tag.
+Commit first: each image's tag is a hash of its committed build inputs (CH-0024), so `images` builds only
+changed images and only their services roll out.
 
 1. `.\scripts\gcp_deploy.ps1 -EnvName dev -Step images` (builds `core-mcp-gcp` too).
 2. `.\scripts\gcp_deploy.ps1 -EnvName dev -Step plan`, review, then `-Step apply`. Expect: the

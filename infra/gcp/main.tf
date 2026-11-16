@@ -48,11 +48,13 @@ locals {
 
   registry = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.sdlc.repository_id}"
   images = {
-    mcp          = "${local.registry}/core-mcp:${var.image_tag}"
-    mcp_gcp      = "${local.registry}/core-mcp-gcp:${var.image_tag}" # GCP stack (CH-0022)
-    agent        = "${local.registry}/user-agent:${var.image_tag}"
-    ingest       = "${local.registry}/ingest:${var.image_tag}"
-    ui           = "${local.registry}/ui-copilotkit:${var.image_tag}" # CopilotKit chat app (version-01 M5)
+    # One tag per image, from its own build inputs (CH-0024, scripts/build_tag.py): an unchanged
+    # image keeps its reference, so its services get no new revision.
+    mcp          = "${local.registry}/core-mcp:${var.image_tags["mcp"]}"
+    mcp_gcp      = "${local.registry}/core-mcp-gcp:${var.image_tags["mcp_gcp"]}" # GCP stack (CH-0022)
+    agent        = "${local.registry}/user-agent:${var.image_tags["agent"]}"
+    ingest       = "${local.registry}/ingest:${var.image_tags["ingest"]}"
+    ui           = "${local.registry}/ui-copilotkit:${var.image_tags["ui"]}" # CopilotKit chat app (version-01 M5)
     oauth2_proxy = "${local.registry}/oauth2-proxy:${var.oauth2_proxy_tag}"
   }
 

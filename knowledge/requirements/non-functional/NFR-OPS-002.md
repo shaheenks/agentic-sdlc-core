@@ -30,8 +30,10 @@ Every merge to `main` shall be deployed to the GCP dev environment by a GitHub w
 
 - **Trigger:** a push to `main` (a merged PR) starts the deploy workflow once the `ci` checks pass on that commit. A failed check deploys nothing.
 - **Steps:** they always run in this order, and each runs only when its inputs changed since the last successful deploy:
-  1. `images`: service code, Dockerfiles or the lock file changed.
-  2. `plan` and `apply`: `infra/gcp` changed, or new images were pushed.
+  1. `images`: an image is built and pushed only when its own build inputs changed; its tag is derived
+     from those inputs (the committed files its Dockerfile copies), not from the commit (CH-0024).
+  2. `plan` and `apply`: `infra/gcp` changed, or an image tag changed. Only services whose image tag changed
+     get a new revision.
   3. `db`: `db/` migrations changed.
   4. `config`: `config/`, `skills/` or the tenant files changed.
   5. `ingest`: `config/sources` changed.
@@ -45,8 +47,8 @@ Every merge to `main` shall be deployed to the GCP dev environment by a GitHub w
 - **Failures:** a failed step stops the sequence. The next deployment starts from the last *successful* deploy, so changes that were never deployed are included.
 - **Destructive plans stop:** a plan that destroys or replaces a stateful resource (Cloud SQL, buckets, secrets) stops and waits for a person's approval.
 - **Smoke checks:** the MCP server and the app answer; an MCP request without a token gets 401; the active config bundle is the one just published.
-- **Record:** each deployment records the commit, the steps it ran, the image tag and the config version, in the workflow summary and in a deploy marker in GCS.
-- **Rollback:** a manual run of the workflow can re-activate an earlier config bundle, or redeploy an earlier image tag.
+- **Record:** each deployment records the commit, the steps it ran, the tag of each image and the config version, in the workflow summary and in a deploy marker in GCS.
+- **Rollback:** a manual run of the workflow can re-activate an earlier config bundle, or redeploy the earlier tag of each image.
 
 # Notes
 
