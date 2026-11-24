@@ -2,6 +2,8 @@ site_name: Agentic SDLC v2 specification
 site_description: System specification for a platform that runs pre-defined agentic workflows for SDLC processes on behalf of users and teams.
 docs_dir: spec
 site_dir: site
+watch:
+  - docs
 strict: true
 
 theme:
@@ -239,3 +241,5 @@ nav:
       - "DEC-0009 Google account tokens identify the user on every surface; IAP enforces the perimeter only": decisions/DEC-0009.md
   - Traceability: traceability.md
   - Change log: log.md
+  - Docs:
+      - "Implementation plan": docs/plans/implementation-plan.md

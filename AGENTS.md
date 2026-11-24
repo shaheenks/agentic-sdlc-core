@@ -102,7 +102,8 @@ Conventions: [spec/conventions.md](spec/conventions.md). Start at [spec/index.md
 
 ## Docs site
 
-`mkdocs.yml` publishes `spec/` with Material for MkDocs. [tools/mkdocs_okf.py](tools/mkdocs_okf.py)
+`mkdocs.yml` publishes `spec/` with Material for MkDocs, plus the pages under `docs/` (added by the hook,
+listed under Docs in the generated nav). [tools/mkdocs_okf.py](tools/mkdocs_okf.py)
 renders each concept's frontmatter title, type, status and description as the page header.
 
 Docs dependencies are pinned in `pyproject.toml` (`docs` group) and `uv.lock`; run them through uv,

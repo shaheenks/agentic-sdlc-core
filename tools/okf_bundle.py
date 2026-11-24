@@ -170,6 +170,13 @@ def build() -> None:
         nav += ["  - Decisions:", "      - decisions/index.md"]
         nav += [f"      - \"{d.name} {d.meta['title']}\": decisions/{d.name}.md" for d in decisions]
     nav += ["  - Traceability: traceability.md", "  - Change log: log.md"]
+    docs_pages = sorted((ROOT / "docs").rglob("*.md"))
+    if docs_pages:
+        nav.append("  - Docs:")
+        for page in docs_pages:
+            heading = next((ln[2:].strip() for ln in page.read_text(encoding="utf-8").splitlines()
+                            if ln.startswith("# ")), page.stem)
+            nav.append(f"      - \"{heading}\": {page.relative_to(ROOT).as_posix()}")
     text = MKDOCS.read_text(encoding="utf-8")
     text = re.sub(r"^nav:\n.*\Z", "\n".join(nav) + "\n", text, flags=re.S | re.M)
     MKDOCS.write_text(text, encoding="utf-8")
