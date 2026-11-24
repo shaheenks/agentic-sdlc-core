@@ -5,8 +5,9 @@ users and teams. People work with an interactive agent to explore ideas, write f
 design changes. Event-based agents then implement, review, deploy and operate those changes. Every stage ends
 with an artifact that a person approves.
 
-**Status:** phase 0 (foundations) of the [implementation plan](docs/plans/implementation-plan.md): the workspace,
-component skeletons, Docker Compose, CI and Terraform are in place; no platform features yet.
+**Status:** phase 0 (foundations) of the [implementation plan](docs/plans/implementation-plan.md) is done: the
+workspace, component skeletons, Docker Compose, CI and the development project's Terraform are in place. Phase 1
+(identity, access and user_agent_mcp) is next; no platform features yet.
 
 ## How it works
 
