@@ -52,7 +52,7 @@ one else.
 | [docs/plans/implementation-plan.md](docs/plans/implementation-plan.md) | How the platform is built, in phases with exit gates |
 | [AGENTS.md](AGENTS.md) | Fixed decisions and working rules for people and coding agents |
 | `tools/` | The bundle tool (indexes, traceability, lint) and the MkDocs hook |
-| `mkdocs.yml` | The documentation site, built from `spec/` and `docs/` |
+| `mkdocs.yml`, `overrides/` | The documentation site, built from `spec/` and `docs/`; `overrides/` widens the Material theme |
 
 The planned code folders (`sdlc_ui/`, `a2a_router/`, `interactive_agents/`, `event_based_agents/`,
 `mcp_servers/`, `knowledge_search/`, `knowledge_ingest/`, `event_gateway/`, `code_workspace/`, `config/`,
