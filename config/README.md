@@ -27,8 +27,13 @@ uv run sdlc-config publish  --env local --to .data/config --activate          # 
 uv run sdlc-config publish  --env dev   --to gs://<config bucket>             # development: publish...
 uv run sdlc-config activate --env dev   --to gs://<config bucket> --version <version>   # ...then activate
 uv run sdlc-config show     --env dev   --to gs://<config bucket>
+uv run sdlc-config diff     --env dev   --base gs://<config bucket>@active   # what publishing this tree would change
 ```
 
 A bundle's version is a hash of its content; activation rewrites `active.json` and keeps a record under
-`activations/`, so reactivating the previous version is one command. Build and test from this folder:
+`activations/`, so reactivating the previous version is one command.
+
+`diff` lists who gains or loses which tools between two versions (FR-CFG-002). `--base` and `--head` each take a
+config folder (`--head` defaults to this one), `git:<ref>`, or `<folder or gs://bucket>@<version|active>`.
+Environment folders are git-ignored, so a `git:` version uses this checkout's `env/<env>/`. Build and test from this folder:
 `uv run pytest`.

@@ -1146,6 +1146,8 @@ dependencies = [
     { name = "jsonschema" },
     { name = "pyyaml" },
     { name = "sdlc-config-store" },
+    { name = "sdlc-directory" },
+    { name = "sdlc-policy" },
 ]
 
 [package.metadata]
@@ -1153,6 +1155,8 @@ requires-dist = [
     { name = "jsonschema", specifier = ">=4.25" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "sdlc-config-store", editable = "libs/sdlc_config_store" },
+    { name = "sdlc-directory", editable = "libs/sdlc_directory" },
+    { name = "sdlc-policy", editable = "libs/sdlc_policy" },
 ]
 
 [[package]]

@@ -1,5 +1,7 @@
 ## 2026-11-24
 
+* **Update**: [FR-CFG-002](requirements/functional/FR-CFG-002.md) built: `sdlc-config diff` in the
+  [Configuration Registry](components/configuration-registry.md), computed with the Access Policy and shown by CI.
 * **Update**: [user_agent_mcp](components/user-agent-mcp.md) deployed to development: one Cloud Storage volume per
   allowed prefix, IAM conditions also naming the prefixes as folders, ingress `all` until sdlc_ui runs there.
 * **Add**: [DEC-0010](decisions/DEC-0010.md), accepted by the user: for now sdlc_ui forwards the user from the verified IAP

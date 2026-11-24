@@ -72,10 +72,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the permission diff compares with the base revision
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --all-packages --frozen
       # Real environments are git-ignored; the example environment checks the shared files and the schemas.
       - run: uv run sdlc-config validate --env example
+      # Who gains or loses which tools (FR-CFG-002), in the job summary for the reviewer. Informational: a base
+      # in a shape this compiler predates is reported, not a failure.
+      - name: Permission diff
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "No base revision to compare with." >> "$GITHUB_STEP_SUMMARY"; exit 0
+          fi
+          {
+            echo '```'
+            uv run sdlc-config diff --env example --base "git:$BASE" 2>&1 || true
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
   ui:
     runs-on: ubuntu-latest

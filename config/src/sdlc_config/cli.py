@@ -4,6 +4,7 @@
     sdlc-config publish  --env local --to .data/config [--activate]
     sdlc-config activate --env dev --to gs://<config bucket> --version <version>
     sdlc-config show     --env dev --to gs://<config bucket>
+    sdlc-config diff     --env dev --base gs://<config bucket>@active [--head <version>]
 
 Publishing writes an immutable bundle; only `activate` (or `publish --activate`) changes what services use,
 and it records who activated which version and when (FR-CFG-003).
@@ -20,6 +21,7 @@ from sdlc_config_store import ConfigUnavailable, make_bundle, make_pointer, pars
 from sdlc_config_store.sources import bundle_name
 
 from sdlc_config import CONFIG_DIR, compile_config
+from sdlc_config.diff import VersionUnavailable, diff, load, render
 
 
 def _git(*args: str) -> str:
@@ -104,6 +106,17 @@ def cmd_show(args) -> int:
     return 0
 
 
+def cmd_diff(args) -> int:
+    head = args.head or str(args.dir)
+    try:
+        old, new = (load(v, args.env, args.dir) for v in (args.base, head))
+    except VersionUnavailable as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(render(diff(old, new), args.env, args.base, args.head or "working tree"), end="")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="sdlc-config")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -126,6 +139,10 @@ def main(argv: list[str] | None = None) -> int:
     activate.add_argument("--version", required=True)
     activate.add_argument("--by", help="who activates (default: git user.name)")
     command("show", cmd_show, "show the active version", needs_dir=False, needs_to=True)
+    versions = "a config folder, git:<ref>, or <folder or gs://bucket>@<version|active>"
+    diff_cmd = command("diff", cmd_diff, "who gains or loses which tools between two versions")
+    diff_cmd.add_argument("--base", required=True, help=f"the version before: {versions}")
+    diff_cmd.add_argument("--head", help=f"the version after (default: the working tree): {versions}")
 
     args = parser.parse_args(argv)
     return args.handler(args)

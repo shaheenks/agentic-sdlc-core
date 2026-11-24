@@ -82,8 +82,8 @@ changing it during a run needs the user's explicit confirmation in chat.
   tokens are off (`identity.mode: oauth` keeps them); sdlc_ui and the agent runtime forward the user in
   `X-SDLC-User-Id`/`X-SDLC-User-Email` with their service account's ID token (`caller_token`), or without proof
   locally (`trusted_header`); teams and user groups are listed per user in `users.yaml` and Cloud Identity
-  groups are not read. Not built yet: argument constraints, the permission diff, the connection test (with the
-  connectors, phase 4). Deployed to development (2026-11-24): Cloud Run service `user-agent-mcp` with invoker
+  groups are not read. The permission diff (FR-CFG-002) is built: `sdlc-config diff`, shown by CI on every
+  change. Not built yet: argument constraints and the connection test (both with the connectors, phase 4). Deployed to development (2026-11-24): Cloud Run service `user-agent-mcp` with invoker
   for sdlc_ui's and the interactive agents' service accounts, ingress `all` until sdlc_ui runs there (then
   internal), dev bundle active in `caller_token` mode; checked by calling as sdlc_ui (impersonated ID token):
   save, read, list and delete an artifact, save and revoke an encrypted connection, audit records naming the

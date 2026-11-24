@@ -68,8 +68,13 @@ validates it, turns it into an immutable bundle and publishes it where every ser
 # Realisation
 
 - Folder `config/`, self-contained: the YAML, one JSON Schema per kind in `config/schemas/`, and the `sdlc-config`
-  tool (`validate`, `publish`, `activate`, `show`) with its tests. The permission diff
-  ([FR-CFG-002](../requirements/functional/FR-CFG-002.md)) is not built yet.
+  tool (`validate`, `publish`, `activate`, `show`, `diff`) with its tests.
+- The permission diff ([FR-CFG-002](../requirements/functional/FR-CFG-002.md)): `sdlc-config diff` compares two
+  versions, each a config folder, a git revision or a published bundle. For each listed user, and for users not
+  listed, it shows the tools gained and lost in their own runs and in each of their teams' runs, per surface.
+  Access is computed with the [Access Policy](access-policy.md) library, so the diff shows what the servers would
+  decide. CI prints it for the example environment in the job summary of every pull request and push. Only tools
+  are compared: workflows, skills and data sources are not declared in configuration yet.
 - What differs per environment (the identity mode, allowed domains, the callers' service accounts or OAuth
   client IDs, the users with their teams and user groups, the block list) is in `config/env/<env>/`, which is
   not committed; `config/env/example/` shows the shape and is what CI
