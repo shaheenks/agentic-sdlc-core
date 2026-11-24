@@ -1,0 +1,241 @@
+site_name: Agentic SDLC v2 specification
+site_description: System specification for a platform that runs pre-defined agentic workflows for SDLC processes on behalf of users and teams.
+docs_dir: spec
+site_dir: site
+strict: true
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+hooks:
+  - tools/mkdocs_okf.py
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+plugins:
+  - search
+
+validation:
+  links:
+    absolute_links: relative_to_docs
+    unrecognized_links: warn
+
+nav:
+  - Home: index.md
+  - Conventions: conventions.md
+  - Components:
+      - components/index.md
+      - Experience:
+          - "A2A Router": components/a2a-router.md
+          - "Gemini Enterprise Agent": components/gemini-enterprise-agent.md
+          - "sdlc_ui": components/sdlc-ui.md
+      - Control:
+          - "Access Policy": components/access-policy.md
+          - "Configuration Registry": components/configuration-registry.md
+          - "Directory": components/directory.md
+          - "Identity": components/identity.md
+          - "Workflow Catalog": components/workflow-catalog.md
+      - Execution:
+          - "Agent Runtime": components/agent-runtime.md
+          - "ci_workflow_agent": components/ci-workflow-agent.md
+          - "Code Workspace": components/code-workspace.md
+          - "Event Gateway": components/event-gateway.md
+          - "Human Tasks": components/human-tasks.md
+          - "operations_agent": components/operations-agent.md
+          - "user_agent": components/user-agent.md
+          - "Workflow Engine": components/workflow-engine.md
+      - Capability:
+          - "Connectors": components/connectors.md
+          - "event_agent_mcp": components/event-agent-mcp.md
+          - "Skill Library": components/skill-library.md
+          - "user_agent_mcp": components/user-agent-mcp.md
+      - Knowledge:
+          - "Ingest Pipeline": components/ingest-pipeline.md
+          - "Knowledge Search": components/knowledge-search.md
+          - "Knowledge Store": components/knowledge-store.md
+      - Records:
+          - "Artifact Store": components/artifact-store.md
+          - "Audit Log": components/audit-log.md
+      - Platform:
+          - "GCP Foundation": components/gcp-foundation.md
+          - "Observability": components/observability.md
+          - "Secrets": components/secrets.md
+  - Requirements:
+      - requirements/index.md
+      - Functional Requirements:
+          - requirements/functional/index.md
+          - Surfaces:
+              - "FR-SURF-001 Custom UI": requirements/functional/FR-SURF-001.md
+              - "FR-SURF-002 A2A router": requirements/functional/FR-SURF-002.md
+              - "FR-SURF-003 Gemini Enterprise app": requirements/functional/FR-SURF-003.md
+              - "FR-SURF-004 Same behaviour on every surface": requirements/functional/FR-SURF-004.md
+              - "FR-SURF-005 Third-party AI surfaces over A2A": requirements/functional/FR-SURF-005.md
+              - "FR-SURF-006 Direct MCP access from coding harnesses": requirements/functional/FR-SURF-006.md
+          - Identity:
+              - "FR-IDN-001 Sign-in with Cloud Identity, federated from Entra ID": requirements/functional/FR-IDN-001.md
+              - "FR-IDN-002 Act as the user end to end": requirements/functional/FR-IDN-002.md
+              - "FR-IDN-003 Block list": requirements/functional/FR-IDN-003.md
+              - "FR-IDN-004 System identity for unattended runs": requirements/functional/FR-IDN-004.md
+          - Teams:
+              - "FR-TEAM-001 Teams from Cloud Identity groups": requirements/functional/FR-TEAM-001.md
+              - "FR-TEAM-002 Team context": requirements/functional/FR-TEAM-002.md
+              - "FR-TEAM-003 Team runs visible to the team": requirements/functional/FR-TEAM-003.md
+              - "FR-TEAM-004 Many teams per user": requirements/functional/FR-TEAM-004.md
+          - Authorization:
+              - "FR-AUTHZ-001 Access declared in configuration": requirements/functional/FR-AUTHZ-001.md
+              - "FR-AUTHZ-002 Selective disclosure": requirements/functional/FR-AUTHZ-002.md
+              - "FR-AUTHZ-003 Authorize every call": requirements/functional/FR-AUTHZ-003.md
+              - "FR-AUTHZ-004 Data scope": requirements/functional/FR-AUTHZ-004.md
+              - "FR-AUTHZ-005 Rate limits and quotas": requirements/functional/FR-AUTHZ-005.md
+              - "FR-AUTHZ-006 Tool groups per surface": requirements/functional/FR-AUTHZ-006.md
+              - "FR-AUTHZ-007 Grants to teams and user groups": requirements/functional/FR-AUTHZ-007.md
+              - "FR-AUTHZ-008 Per-user isolation of sessions, artifacts and secrets": requirements/functional/FR-AUTHZ-008.md
+          - Configuration:
+              - "FR-CFG-001 Versioned configuration bundles": requirements/functional/FR-CFG-001.md
+              - "FR-CFG-002 Permission diff": requirements/functional/FR-CFG-002.md
+              - "FR-CFG-003 Activation per environment": requirements/functional/FR-CFG-003.md
+              - "FR-CFG-004 YAML configuration in config/": requirements/functional/FR-CFG-004.md
+              - "FR-CFG-005 Configuration bucket": requirements/functional/FR-CFG-005.md
+          - Workflows:
+              - "FR-WFL-001 Workflow catalog": requirements/functional/FR-WFL-001.md
+              - "FR-WFL-002 Workflow definition": requirements/functional/FR-WFL-002.md
+              - "FR-WFL-003 Start a run": requirements/functional/FR-WFL-003.md
+              - "FR-WFL-004 Durable runs": requirements/functional/FR-WFL-004.md
+              - "FR-WFL-005 Run limits": requirements/functional/FR-WFL-005.md
+              - "FR-WFL-006 Reproducible runs": requirements/functional/FR-WFL-006.md
+              - "FR-WFL-007 Team parameter overrides": requirements/functional/FR-WFL-007.md
+              - "FR-WFL-008 Run events and history": requirements/functional/FR-WFL-008.md
+              - "FR-WFL-009 Resume after signing in again": requirements/functional/FR-WFL-009.md
+          - Triggers:
+              - "FR-TRIG-001 Event triggers": requirements/functional/FR-TRIG-001.md
+              - "FR-TRIG-002 Schedules": requirements/functional/FR-TRIG-002.md
+              - "FR-TRIG-003 Results of unattended runs go back to the systems involved": requirements/functional/FR-TRIG-003.md
+              - "FR-TRIG-004 CI workflow events": requirements/functional/FR-TRIG-004.md
+              - "FR-TRIG-005 Deployment and platform events": requirements/functional/FR-TRIG-005.md
+          - Human tasks:
+              - "FR-HUM-001 Human tasks pause a run": requirements/functional/FR-HUM-001.md
+              - "FR-HUM-002 Task routing": requirements/functional/FR-HUM-002.md
+              - "FR-HUM-003 Task signals inside the platform": requirements/functional/FR-HUM-003.md
+              - "FR-HUM-004 Separation of duties": requirements/functional/FR-HUM-004.md
+              - "FR-HUM-005 Approval before writes": requirements/functional/FR-HUM-005.md
+          - Agent steps:
+              - "FR-AGT-001 Bounded agent steps": requirements/functional/FR-AGT-001.md
+              - "FR-AGT-002 Sub-agents": requirements/functional/FR-AGT-002.md
+              - "FR-AGT-003 User agent MCP server": requirements/functional/FR-AGT-003.md
+              - "FR-AGT-004 Event agent MCP server": requirements/functional/FR-AGT-004.md
+              - "FR-AGT-005 Ad-hoc knowledge search and brainstorm chat": requirements/functional/FR-AGT-005.md
+          - Skills:
+              - "FR-SKILL-001 Skill packages": requirements/functional/FR-SKILL-001.md
+          - Connections:
+              - "FR-CONN-001 Per-user connections": requirements/functional/FR-CONN-001.md
+              - "FR-CONN-002 Reconnect instead of fail": requirements/functional/FR-CONN-002.md
+              - "FR-CONN-003 Downstream systems": requirements/functional/FR-CONN-003.md
+              - "FR-CONN-004 System connections": requirements/functional/FR-CONN-004.md
+              - "FR-CONN-005 Secrets never pass through agents": requirements/functional/FR-CONN-005.md
+          - Knowledge:
+              - "FR-KNOW-001 Ingest declared sources": requirements/functional/FR-KNOW-001.md
+              - "FR-KNOW-002 Knowledge search": requirements/functional/FR-KNOW-002.md
+              - "FR-KNOW-003 Ingest status": requirements/functional/FR-KNOW-003.md
+              - "FR-KNOW-004 Knowledge scope: broad in chat, team in workflows": requirements/functional/FR-KNOW-004.md
+          - Artifacts:
+              - "FR-ART-001 Artifacts with lineage": requirements/functional/FR-ART-001.md
+              - "FR-ART-002 Artifact ownership": requirements/functional/FR-ART-002.md
+              - "FR-ART-003 Artifact retention of 7 days": requirements/functional/FR-ART-003.md
+          - Models:
+              - "FR-MDL-001 Model classes": requirements/functional/FR-MDL-001.md
+              - "FR-MDL-002 Usage limits": requirements/functional/FR-MDL-002.md
+          - SDLC flow:
+              - "FR-SDLC-001 Approved artifact chain": requirements/functional/FR-SDLC-001.md
+              - "FR-SDLC-002 Features and user stories in Jira": requirements/functional/FR-SDLC-002.md
+              - "FR-SDLC-003 Design specification from approved Jira items": requirements/functional/FR-SDLC-003.md
+              - "FR-SDLC-004 Fresh-context document review": requirements/functional/FR-SDLC-004.md
+              - "FR-SDLC-005 Design specification pull request": requirements/functional/FR-SDLC-005.md
+              - "FR-SDLC-006 Implementation by ci_workflow_agent": requirements/functional/FR-SDLC-006.md
+              - "FR-SDLC-007 Security vulnerability analysis of pull requests": requirements/functional/FR-SDLC-007.md
+              - "FR-SDLC-008 Deployment handling": requirements/functional/FR-SDLC-008.md
+              - "FR-SDLC-009 Alert triage and log analysis": requirements/functional/FR-SDLC-009.md
+              - "FR-SDLC-010 Incident and bug reporting": requirements/functional/FR-SDLC-010.md
+              - "FR-SDLC-011 Quality assurance analysis of pull requests": requirements/functional/FR-SDLC-011.md
+              - "FR-SDLC-012 Jira tasks from findings": requirements/functional/FR-SDLC-012.md
+      - Non-Functional Requirements:
+          - requirements/non-functional/index.md
+          - Hosting:
+              - "NFR-HOST-001 Hosted on Google Cloud": requirements/non-functional/NFR-HOST-001.md
+              - "NFR-HOST-002 Infrastructure as code": requirements/non-functional/NFR-HOST-002.md
+              - "NFR-HOST-003 Separate environments": requirements/non-functional/NFR-HOST-003.md
+              - "NFR-HOST-004 Managed services first": requirements/non-functional/NFR-HOST-004.md
+              - "NFR-HOST-005 Single region europe-west3": requirements/non-functional/NFR-HOST-005.md
+          - Architecture:
+              - "NFR-ARCH-001 sdlc_ui is one container": requirements/non-functional/NFR-ARCH-001.md
+              - "NFR-ARCH-002 Hostnames and service URLs are configuration": requirements/non-functional/NFR-ARCH-002.md
+              - "NFR-ARCH-003 Self-contained components": requirements/non-functional/NFR-ARCH-003.md
+              - "NFR-ARCH-004 Knowledge backend isolated": requirements/non-functional/NFR-ARCH-004.md
+              - "NFR-ARCH-005 Google ADK agents and graph workflows": requirements/non-functional/NFR-ARCH-005.md
+              - "NFR-ARCH-006 Two MCP servers, one per class of caller": requirements/non-functional/NFR-ARCH-006.md
+          - Security:
+              - "NFR-SEC-001 Authorization only in the platform's services": requirements/non-functional/NFR-SEC-001.md
+              - "NFR-SEC-002 Deny by default, fail closed": requirements/non-functional/NFR-SEC-002.md
+              - "NFR-SEC-003 Tokens stay server side": requirements/non-functional/NFR-SEC-003.md
+              - "NFR-SEC-004 Where secrets live": requirements/non-functional/NFR-SEC-004.md
+              - "NFR-SEC-005 Outbound host allowlist": requirements/non-functional/NFR-SEC-005.md
+              - "NFR-SEC-006 Least-privilege service identities": requirements/non-functional/NFR-SEC-006.md
+              - "NFR-SEC-007 sdlc_ui behind Identity-Aware Proxy": requirements/non-functional/NFR-SEC-007.md
+          - Privacy:
+              - "NFR-PRIV-001 No sensitive content in telemetry": requirements/non-functional/NFR-PRIV-001.md
+              - "NFR-PRIV-002 Run transcripts under run access": requirements/non-functional/NFR-PRIV-002.md
+          - Auditability:
+              - "NFR-AUD-001 Audit every decision": requirements/non-functional/NFR-AUD-001.md
+              - "NFR-AUD-002 Audit retention": requirements/non-functional/NFR-AUD-002.md
+          - Observability:
+              - "NFR-OBS-001 End-to-end trace per run": requirements/non-functional/NFR-OBS-001.md
+              - "NFR-OBS-002 Operational metrics": requirements/non-functional/NFR-OBS-002.md
+              - "NFR-OBS-003 Event metadata on every trace of an unattended run": requirements/non-functional/NFR-OBS-003.md
+          - Reliability:
+              - "NFR-REL-001 99.5% availability": requirements/non-functional/NFR-REL-001.md
+              - "NFR-REL-002 Multi-zone production": requirements/non-functional/NFR-REL-002.md
+          - Performance:
+              - "NFR-PERF-001 Application response under 5 seconds on average": requirements/non-functional/NFR-PERF-001.md
+          - Operability:
+              - "NFR-OPS-001 Reproducible images": requirements/non-functional/NFR-OPS-001.md
+              - "NFR-OPS-002 Local Docker Compose environment": requirements/non-functional/NFR-OPS-002.md
+              - "NFR-OPS-003 Revoke and replace a leaked system connection PAT": requirements/non-functional/NFR-OPS-003.md
+  - Decisions:
+      - decisions/index.md
+      - "DEC-0001 sdlc_ui sign-in: Identity-Aware Proxy plus an internal OAuth app": decisions/DEC-0001.md
+      - "DEC-0002 One MCP server, user_agent_mcp, for every call made as a user": decisions/DEC-0002.md
+      - "DEC-0003 No operations database in the first release": decisions/DEC-0003.md
+      - "DEC-0004 Agents and workflows on Google ADK 2.0 graph workflows, deployed to Agent Runtime": decisions/DEC-0004.md
+      - "DEC-0005 Tool access enforced in the MCP servers, with shared code in libs/": decisions/DEC-0005.md
+      - "DEC-0006 User connection secrets in the artifact bucket, encrypted by the application": decisions/DEC-0006.md
+      - "DEC-0007 event_agent_mcp: a standalone MCP server for event-triggered agents": decisions/DEC-0007.md
+      - "DEC-0008 Hand-off from user_agent to the event-based agents through Jira and the product repository": decisions/DEC-0008.md
+      - "DEC-0009 Google account tokens identify the user on every surface; IAP enforces the perimeter only": decisions/DEC-0009.md
+  - Traceability: traceability.md
+  - Change log: log.md
