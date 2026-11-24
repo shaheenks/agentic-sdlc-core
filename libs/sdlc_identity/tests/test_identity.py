@@ -2,6 +2,7 @@ import asyncio
 
 import jwt
 import pytest
+import sdlc_identity
 from cryptography.hazmat.primitives.asymmetric import rsa
 from sdlc_identity import GoogleTokens, IdentitySettings, Rejected, check
 
@@ -9,7 +10,12 @@ NOW = 1_800_000_000
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 CONFIG = {
     "identity": {
+        "mode": "oauth",
         "allowed_domains": ["example.test"],
+        "callers": {
+            "sdlc_ui": ["sdlc-ui@proj.iam.gserviceaccount.com"],
+            "user_agent": ["user-agent@proj.iam.gserviceaccount.com"],
+        },
         "clients": {"sdlc_ui": ["ui-client"], "gemini_enterprise": ["ge-client"]},
     },
     "blocked": [{"email": "blocked@example.test", "reason": "left the company"}],
@@ -137,3 +143,63 @@ def test_block_list_applies_to_cached_tokens():
 def test_no_declared_clients_refuses_everyone():
     with pytest.raises(Rejected, match="undeclared_client"):
         identify(id_token(), settings=IdentitySettings.from_config({}))
+
+
+# Forwarded users (DEC-0010) ---------------------------------------------------------------------------------
+
+MCP_URL = "https://user-agent-mcp.example.test"
+UI_ACCOUNT = "sdlc-ui@proj.iam.gserviceaccount.com"
+
+
+def caller_token(**overrides) -> str:
+    return id_token(**{"aud": MCP_URL, "sub": "1100", "email": UI_ACCOUNT, "hd": None, **overrides})
+
+
+def forwarded(headers, mode="caller_token", env="dev", **extra):
+    settings = IdentitySettings.from_config({**CONFIG, "identity": {**CONFIG["identity"], "mode": mode}, **extra})
+    return asyncio.run(sdlc_identity.identify(headers, settings, tokens(), env=env, audiences={MCP_URL}))
+
+
+ADA = {"x-sdlc-user-id": "accounts.google.com:1001", "x-sdlc-user-email": "Ada@example.test"}
+
+
+def test_declared_caller_forwards_the_user():
+    who = forwarded({"authorization": f"Bearer {caller_token()}", **ADA})
+    assert (who.user_id, who.email, who.surface, who.caller) == ("1001", "ada@example.test", "sdlc_ui", UI_ACCOUNT)
+
+
+@pytest.mark.parametrize(
+    ("headers", "reason"),
+    [
+        (ADA, "no_token"),
+        ({"authorization": f"Bearer {caller_token(aud='https://elsewhere.test')}", **ADA}, "wrong_audience"),
+        (
+            {"authorization": f"Bearer {caller_token(email='other@proj.iam.gserviceaccount.com')}", **ADA},
+            "undeclared_caller",
+        ),
+        ({"authorization": "Bearer ya29.access-token", **ADA}, "not_an_id_token"),
+        ({"authorization": f"Bearer {caller_token()}"}, "no_user"),
+        ({"authorization": f"Bearer {caller_token()}", **ADA, "x-sdlc-user-id": "../1002"}, "invalid_user"),
+        ({"authorization": f"Bearer {caller_token()}", **ADA, "x-sdlc-user-email": "eve@other.test"}, "wrong_domain"),
+        ({"authorization": f"Bearer {caller_token()}", **ADA, "x-sdlc-user-email": "blocked@example.test"}, "blocked"),
+    ],
+)
+def test_forwarded_refusals(headers, reason):
+    with pytest.raises(Rejected) as exc:
+        forwarded(headers)
+    assert exc.value.reason == reason
+
+
+def test_trusted_header_only_in_local():
+    headers = {**ADA, "x-sdlc-surface": "user_agent"}
+    who = forwarded(headers, mode="trusted_header", env="local")
+    assert (who.user_id, who.surface, who.caller) == ("1001", "user_agent", "trusted_header")
+    with pytest.raises(Rejected, match="mode_not_allowed"):
+        forwarded(headers, mode="trusted_header", env="dev")
+    with pytest.raises(Rejected, match="undeclared_caller"):
+        forwarded({**ADA, "x-sdlc-surface": "gemini_enterprise"}, mode="trusted_header", env="local")
+
+
+def test_unconfigured_identity_refuses_everyone():
+    with pytest.raises(Rejected, match="identity_not_configured"):
+        forwarded({"authorization": f"Bearer {caller_token()}", **ADA}, mode="")

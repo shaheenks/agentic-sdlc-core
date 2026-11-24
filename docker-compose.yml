@@ -29,7 +29,6 @@ services:
       SDLC_UI_URL: ${SDLC_UI_URL:-http://localhost:3000}
       DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-}
       DATA_ENCRYPTION_KEY_VERSION: ${DATA_ENCRYPTION_KEY_VERSION:-1}
-      GOOGLE_CLOUD_QUOTA_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
     volumes:
       - ${STORE_HOST_PATH:-./.data/store}:/data/store
       - ${CONFIG_HOST_PATH:-./.data/config}:/data/config:ro

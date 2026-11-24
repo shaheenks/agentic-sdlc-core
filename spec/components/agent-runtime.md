@@ -21,8 +21,10 @@ stable release ([DEC-0004](../decisions/DEC-0004.md)). An agent has no privilege
 - Assemble the node context: instructions, the skills bound to the node, team instructions, the run's inputs and earlier outputs.
 - Run the model loop with Gemini on Vertex AI, mapping the node's model class to a concrete model from
   configuration ([FR-MDL-001](../requirements/functional/FR-MDL-001.md)).
-- Call every tool through [user_agent_mcp](user-agent-mcp.md), forwarding the user's access token as the bearer
-  token (or the system identity's for unattended runs); never a service credential on a user's behalf.
+- Call every tool through [user_agent_mcp](user-agent-mcp.md) for the session's user: for now forwarding the
+  account ID and email sdlc_ui started the session with, as `X-SDLC-User-Id` and `X-SDLC-User-Email`, with the
+  runtime's service account ID token ([DEC-0010](../decisions/DEC-0010.md)); later the user's access token. Unattended
+  runs use the system identity with event_agent_mcp.
 - Return structured output matching the node's declared output schema; fail the node if it cannot.
 - Support sub-agents (isolated reviewers, parallel workers) declared by the workflow.
 - Make no authorization decisions; hold no database or downstream credentials.

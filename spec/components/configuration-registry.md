@@ -70,8 +70,9 @@ validates it, turns it into an immutable bundle and publishes it where every ser
 - Folder `config/`, self-contained: the YAML, one JSON Schema per kind in `config/schemas/`, and the `sdlc-config`
   tool (`validate`, `publish`, `activate`, `show`) with its tests. The permission diff
   ([FR-CFG-002](../requirements/functional/FR-CFG-002.md)) is not built yet.
-- What differs per environment (OAuth client IDs, allowed domains, group emails, the static user list, the block
-  list) is in `config/env/<env>/`, which is not committed; `config/env/example/` shows the shape and is what CI
+- What differs per environment (the identity mode, allowed domains, the callers' service accounts or OAuth
+  client IDs, the users with their teams and user groups, the block list) is in `config/env/<env>/`, which is
+  not committed; `config/env/example/` shows the shape and is what CI
   validates.
 - A bundle is one JSON document `bundles/<version>.json`, whose version is a hash of its environment and content;
   `active.json` names the active version, and each activation also writes a record under `activations/`.

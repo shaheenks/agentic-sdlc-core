@@ -74,15 +74,18 @@ changing it during a run needs the user's explicit confirmation in chat.
   the bucket ([DEC-0006](../../spec/decisions/DEC-0006.md)), the identity tool, and per-user isolation
   (FR-AUTHZ-008). MCP revision 2026-07-28.
 - Exit gate: as two different users, neither can list, read or delete the other's artifacts or connections;
-  every call is audited without argument values; an undeclared OAuth client gets 401.
+  every call is audited without argument values; a caller that is not declared gets 401.
 - Status (2026-11-24, built, in review): libraries `sdlc_config_store`, `sdlc_identity`, `sdlc_directory` and
   `sdlc_policy`; `config/` with schemas, the example environment and `sdlc-config validate|publish|activate|show`;
   user_agent_mcp with the identity, artifact and connection tools and the HTTP API. The exit gate holds in
-  user_agent_mcp's tests, and in a local container called with a real gcloud token (401 without one; audit
-  records without the token, the email or argument values). Not built yet: argument constraints, the permission
-  diff, the connection test (with the connectors, phase 4). Not deployed: the Cloud Run service, the Groups Reader
-  role for its service account and the data-encryption key value are needed before user_agent_mcp runs in
-  development.
+  user_agent_mcp's tests. Then changed by [DEC-0010](../../spec/decisions/DEC-0010.md): OAuth user
+  tokens are off (`identity.mode: oauth` keeps them); sdlc_ui and the agent runtime forward the user in
+  `X-SDLC-User-Id`/`X-SDLC-User-Email` with their service account's ID token (`caller_token`), or without proof
+  locally (`trusted_header`); teams and user groups are listed per user in `users.yaml` and Cloud Identity
+  groups are not read. Not built yet: argument constraints, the permission diff, the connection test (with the
+  connectors, phase 4). Not deployed: the Cloud Run service (internal ingress, invoker for sdlc_ui's and the
+  agent runtime's service accounts), `config/env/dev/` and the data-encryption key value are needed before
+  user_agent_mcp runs in development.
 
 ### Phase 2: Knowledge
 
@@ -99,10 +102,11 @@ changing it during a run needs the user's explicit confirmation in chat.
 ### Phase 3: user_agent, chat and sdlc_ui
 
 - Interactive Agent Runtime deployment with user_agent: ad-hoc knowledge search and brainstorm chat
-  (FR-AGT-005), the user's token forwarded to user_agent_mcp only.
-- sdlc_ui behind IAP with its own OAuth client and encrypted session cookie
-  ([DEC-0001](../../spec/decisions/DEC-0001.md), [DEC-0009](../../spec/decisions/DEC-0009.md)): chat,
-  artifacts, connections, the user's own run history.
+  (FR-AGT-005), the session's user forwarded to user_agent_mcp with the runtime's ID token
+  ([DEC-0010](../../spec/decisions/DEC-0010.md)).
+- sdlc_ui behind IAP; the BFF verifies the IAP assertion and forwards the user's ID and email
+  ([DEC-0010](../../spec/decisions/DEC-0010.md); the OAuth client and session cookie of DEC-0001 and DEC-0009
+  wait for mode `oauth`): chat, artifacts, connections, the user's own run history.
 - Resume after signing in again from session history (FR-WFL-009).
 - Exit gate: a user chats, gets cited answers within their scope, saves an artifact, signs out and in, and
   resumes the same session.

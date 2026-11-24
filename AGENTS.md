@@ -19,8 +19,11 @@ Conventions: [spec/conventions.md](spec/conventions.md). Start at [spec/index.md
   first release) and the Gemini Enterprise app, which reaches user_agent through one A2A router (a small Cloud
   Run service, `a2a_router/`). Third-party A2A surfaces such as Microsoft Copilot use the same router later.
   Direct MCP access from coding harnesses is parked.
-- Identity: Cloud Identity Google accounts federated from Microsoft Entra ID. Google account tokens identify
-  the user on every surface; IAP only enforces the perimeter of sdlc_ui (DEC-0001, DEC-0009). Scheduled and
+- Identity: Cloud Identity Google accounts federated from Microsoft Entra ID. For now (DEC-0010)
+  sdlc_ui verifies the IAP assertion and forwards the user's ID and email; the agent runtime and user_agent_mcp
+  accept them only from declared service accounts proven by their Google ID token (no proof only in the local
+  environment), and teams come from `config/env/<env>/users.yaml`. Google account tokens on every surface
+  (DEC-0001, DEC-0009) return with `identity.mode: oauth`. Scheduled and
   event-triggered runs act as a system identity with the event's metadata; scheduled runs count as
   event-triggered.
 

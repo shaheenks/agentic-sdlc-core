@@ -9,7 +9,9 @@ import yaml
 from jsonschema import Draft202012Validator
 
 SHARED_KINDS = ("platform", "tool_groups", "surfaces", "teams", "user_groups", "grants", "limits", "providers")
-ENV_KINDS = ("identity", "groups", "users", "blocked")
+ENV_KINDS = ("identity", "users", "blocked")
+LOCAL_ONLY_MODES = ("trusted_header",)
+UNCONFIGURED = {"mode": "", "allowed_domains": [], "callers": {}, "clients": {}}
 
 
 @dataclass
@@ -52,7 +54,7 @@ def compile_config(config_dir: Path, env: str) -> Compiled:
             docs[kind] = doc
     env_dir = config_dir / "env" / env
     if not env_dir.is_dir():
-        warnings.append(f"env/{env}/: missing; services will refuse every token in this environment")
+        warnings.append(f"env/{env}/: missing; services will refuse every user in this environment")
     for kind in ENV_KINDS:
         path = env_dir / f"{kind}.yaml"
         if path.is_file():
@@ -62,39 +64,38 @@ def compile_config(config_dir: Path, env: str) -> Compiled:
     if problems:
         return Compiled({}, problems, warnings)
 
-    identity = docs.get("env.identity") or {
-        "allowed_domains": [],
-        "clients": {},
-        "directory": {"mode": "static"},
-    }
-    groups = docs.get("env.groups") or {}
+    identity = {**UNCONFIGURED, **(docs.get("env.identity") or {})}
+    users = (docs.get("env.users") or {}).get("users") or {}
     config: dict[str, Any] = {
         "platform": {k: v for k, v in docs["platform"].items() if k != "version"},
         "tool_groups": docs["tool_groups"]["tool_groups"],
         "surfaces": docs["surfaces"]["surfaces"],
-        "teams": {
-            team_id: {
-                **team,
-                "roles": {r: sorted((groups.get("teams") or {}).get(team_id, {}).get(r, [])) for r in team["roles"]},
-            }
-            for team_id, team in docs["teams"]["teams"].items()
-        },
-        "user_groups": {
-            ug_id: {**ug, "groups": sorted((groups.get("user_groups") or {}).get(ug_id, []))}
-            for ug_id, ug in docs["user_groups"]["user_groups"].items()
-        },
+        "teams": docs["teams"]["teams"],
+        "user_groups": docs["user_groups"]["user_groups"],
         "grants": docs["grants"]["grants"],
         "rate_limits": docs["limits"]["rate_limits"],
         "providers": docs["providers"]["providers"],
         "identity": identity,
-        "directory_users": (docs.get("env.users") or {}).get("users", {}),
+        "members": {email.lower(): _member(entry) for email, entry in users.items()},
         "blocked": (docs.get("env.blocked") or {}).get("blocked", []),
     }
-    _cross_check(config, groups, problems, warnings, env)
+    _cross_check(config, users, problems, warnings, env)
     return Compiled(config, problems, warnings)
 
 
-def _cross_check(config: dict, groups: dict, problems: list[str], warnings: list[str], env: str) -> None:
+def _member(entry: dict) -> dict:
+    """`teams: [payments, platform:lead]` to {team: [roles]}; a team alone means its member role."""
+    teams: dict[str, set[str]] = {}
+    for item in entry.get("teams") or ():
+        team, _, role = item.partition(":")
+        teams.setdefault(team, set()).add(role or "member")
+    return {
+        "teams": {t: sorted(r) for t, r in sorted(teams.items())},
+        "user_groups": sorted(entry.get("user_groups") or ()),
+    }
+
+
+def _cross_check(config: dict, users: dict, problems: list[str], warnings: list[str], env: str) -> None:
     tool_groups, surfaces, teams = config["tool_groups"], config["surfaces"], config["teams"]
     user_groups = config["user_groups"]
 
@@ -135,29 +136,27 @@ def _cross_check(config: dict, groups: dict, problems: list[str], warnings: list
     for override in config["rate_limits"]["tool_calls"].get("overrides") or ():
         check_selector(f"limits.yaml: {override['id']}", override["to"])
 
-    for surface_id in config["identity"]["clients"]:
-        if surface_id not in surfaces:
-            problems.append(f"env/{env}/identity.yaml: clients: unknown surface {surface_id!r}")
-    owners: dict[str, str] = {}
-    for surface_id, client_ids in config["identity"]["clients"].items():
-        for client_id in client_ids:
-            if client_id in owners:
-                problems.append(
-                    f"env/{env}/identity.yaml: client {client_id!r} is in {owners[client_id]!r} and {surface_id!r}"
-                )
-            owners[client_id] = surface_id
-    if not config["identity"]["clients"]:
-        warnings.append(f"env/{env}: no OAuth clients declared; every token will be refused")
-    for team_id, roles in (groups.get("teams") or {}).items():
-        if team_id not in teams:
-            problems.append(f"env/{env}/groups.yaml: unknown team {team_id!r}")
-            continue
-        for role in roles:
-            if role not in teams[team_id]["roles"]:
-                problems.append(f"env/{env}/groups.yaml: team {team_id!r} has no role {role!r}")
-    for ug in groups.get("user_groups") or {}:
-        if ug not in user_groups:
-            problems.append(f"env/{env}/groups.yaml: unknown user group {ug!r}")
-    mode = config["identity"]["directory"]["mode"]
-    if mode == "static" and not config["directory_users"]:
-        warnings.append(f"env/{env}: directory mode static with no users.yaml: nobody is in any team")
+    identity, where = config["identity"], f"env/{env}/identity.yaml"
+    for key in ("callers", "clients"):
+        owners: dict[str, str] = {}
+        for surface_id, ids in identity[key].items():
+            if surface_id not in surfaces:
+                problems.append(f"{where}: {key}: unknown surface {surface_id!r}")
+            for i in ids:
+                if i.lower() in owners:
+                    problems.append(f"{where}: {key}: {i!r} is in {owners[i.lower()]!r} and {surface_id!r}")
+                owners[i.lower()] = surface_id
+    mode = identity["mode"]
+    if not mode:
+        warnings.append(f"env/{env}: no identity mode; every user will be refused")
+    elif mode in LOCAL_ONLY_MODES and env != "local":
+        problems.append(f"{where}: mode {mode!r} is allowed only in the local environment")
+    elif mode in ("caller_token", "trusted_header") and not identity["callers"]:
+        warnings.append(f"env/{env}: no callers declared; every user will be refused")
+    elif mode == "oauth" and not identity["clients"]:
+        warnings.append(f"env/{env}: no OAuth clients declared; every user will be refused")
+    for email, entry in config["members"].items():
+        roles = [f"{team}:{role}" for team, team_roles in entry["teams"].items() for role in team_roles]
+        check_selector(f"env/{env}/users.yaml: {email}", {"teams": roles, "user_groups": entry["user_groups"]})
+    if not users:
+        warnings.append(f"env/{env}: no users.yaml: nobody is in any team")

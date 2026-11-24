@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from sdlc_config_store import Bundle, ConfigStore
-from sdlc_directory import Directory, Memberships
-from sdlc_identity import GoogleTokens, Identity, IdentitySettings, check
+from sdlc_directory import Memberships, memberships
+from sdlc_identity import GoogleTokens, Identity, IdentitySettings, identify
 from sdlc_logging import audit
 from sdlc_policy import EffectivePolicy, RateLimiter, effective_policy
 
@@ -36,6 +36,7 @@ class Caller:
         fields = {
             "user_id": self.identity.user_id,
             "surface": self.identity.surface,
+            "caller": self.identity.caller,
             "config_version": self.bundle.version,
         }
         if self.run_id:
@@ -56,7 +57,6 @@ class Platform:
         settings: Settings,
         store: ConfigStore,
         tokens: GoogleTokens,
-        directory: Directory,
         limiter: RateLimiter,
         artifacts: ArtifactStore,
         connections: ConnectionStore,
@@ -64,21 +64,24 @@ class Platform:
         self.settings = settings
         self.store = store
         self.tokens = tokens
-        self.directory = directory
+        # A forwarding service account's ID token must be minted for this server.
+        self.audiences = frozenset({settings.public_url, f"{settings.public_url}/mcp"})
         self.limiter = limiter
         self.artifacts = artifacts
         self.connections = connections
 
-    async def identify(self, token: str) -> tuple[Identity, Bundle]:
-        """Raises sdlc_identity.Rejected or sdlc_config_store.ConfigUnavailable."""
+    async def identify(self, headers: Mapping[str, str]) -> tuple[Identity, Bundle]:
+        """The user of a request under the active bundle's identity mode (DEC-0010). `headers` must look
+        names up case-insensitively. Raises sdlc_identity.Rejected or sdlc_config_store.ConfigUnavailable."""
         bundle = await self.store.acurrent()
-        claims = await self.tokens.claims(token)
-        return check(claims, IdentitySettings.from_config(bundle.config)), bundle
+        settings = IdentitySettings.from_config(bundle.config)
+        identity = await identify(headers, settings, self.tokens, env=self.settings.env, audiences=self.audiences)
+        return identity, bundle
 
     async def caller(self, identity: Identity, bundle: Bundle, headers: Mapping[str, str]) -> Caller:
-        memberships = await self.directory.memberships(identity.email, bundle.config)
-        policy = effective_policy(bundle.config, bundle.version, identity.surface, memberships)
-        return Caller(identity, memberships, policy, bundle, _label(headers, RUN_HEADER), _label(headers, STEP_HEADER))
+        member = memberships(bundle.config, identity.email)
+        policy = effective_policy(bundle.config, bundle.version, identity.surface, member)
+        return Caller(identity, member, policy, bundle, _label(headers, RUN_HEADER), _label(headers, STEP_HEADER))
 
     def visible_tools(self, caller: Caller, channel: str) -> list[Tool]:
         tools = [t for name, t in TOOLS.items() if caller.policy.authorize(name).allowed]

@@ -25,6 +25,8 @@ The system shall make its workflows available in the Gemini Enterprise app throu
 
 # Notes
 
+Waits for identity mode `oauth`, switched off for now ([DEC-0010](../../decisions/DEC-0010.md)).
+
 Google documents this flow: Gemini Enterprise obtains an OAuth access token or ID token on behalf of the signed-in user after consent and sends it in the `Authorization` header of calls to a registered A2A agent; an ADK agent on Agent Runtime receives it through the authorization ID named in its registration (the authorization needs the `cloud-platform` scope). The platform registers one A2A agent, the [A2A router](FR-SURF-002.md), for the whole catalog and ad-hoc chat.
 
 To verify: that Gemini Enterprise shows an A2A task in the *input-required* state as a question in the conversation and sends the user's reply, with the user's token, back to the A2A router.

@@ -1,7 +1,7 @@
 ---
 type: Component
 title: Identity
-description: Authenticates callers against the enterprise identity provider and turns a token into a verified platform identity.
+description: Establishes who the user of each request is, under the environment's identity mode, and refuses anyone it cannot verify.
 tags: [component, control, security]
 status: draft
 x-layer: control
@@ -16,9 +16,10 @@ Answers one question for every request: who is calling? Everything downstream ac
 
 # Responsibilities
 
-- Verify Google-issued tokens for accounts of the organisation's Cloud Identity account: ID tokens locally against Google's keys, access tokens by introspection, caching each verified token per instance for 300 seconds or until it expires if sooner. Accept only tokens issued to the platform's own OAuth clients ([DEC-0001](../decisions/DEC-0001.md)).
-- Map a token to the stable Google account ID and the account's email; group membership comes from the [Directory](directory.md).
-- Know each surface by the OAuth client its tokens were issued to (sdlc_ui, Gemini Enterprise, each declared third-party A2A or MCP surface, agents on Agent Runtime) and refuse tokens from undeclared clients.
+- For now ([DEC-0010](../decisions/DEC-0010.md)): accept a user forwarded by a declared caller (sdlc_ui, the agent runtime) in `X-SDLC-User-Id` and `X-SDLC-User-Email`, the caller proven by its service account's Google ID token for the receiving service; each caller names its surface. Without caller proof only in the local environment.
+- When `identity.mode` is `oauth` ([DEC-0001](../decisions/DEC-0001.md), [DEC-0009](../decisions/DEC-0009.md), suspended): verify the user's own Google-issued token, issued to one of the platform's OAuth clients, which names the surface.
+- Verify Google-issued tokens, ID tokens locally against Google's keys and access tokens by introspection, caching each verified token per instance for 300 seconds or until it expires if sooner.
+- Give every request the stable Google account ID and the account's email, in an allowed domain; group membership comes from the [Directory](directory.md).
 - Represent the system identity of unattended runs, a dedicated service account, as a distinct non-human identity.
 - Apply the block list; a blocked or unverifiable caller is refused (fail closed).
 - Obtain delegated tokens so downstream calls are made as the user where the provider supports it.
@@ -32,7 +33,7 @@ Answers one question for every request: who is calling? Everything downstream ac
 
 # Interfaces
 
-- Provides: `verify(token) -> Identity`; OAuth protected-resource metadata for clients.
+- Provides: `identify(headers) -> Identity` (account ID, email, surface, caller); OAuth protected-resource metadata for clients.
 - Consumes: identity-provider keys and metadata; identity settings from the [Configuration Registry](configuration-registry.md).
 
 # Depends on
@@ -62,14 +63,19 @@ Answers one question for every request: who is calling? Everything downstream ac
 # Realisation
 
 - Users: Cloud Identity accounts, provisioned from Microsoft Entra ID, with SAML single sign-on to Entra ID.
-- Tokens: Google OAuth 2.0 and OpenID Connect. ID tokens are verified against Google's published signing keys;
-  access tokens by Google's token introspection, which reports no hosted domain, so the domain is taken from the
-  verified email. Verified claims are cached per instance for 300 seconds, or until the token expires.
-- The configuration-dependent checks (declared OAuth client and its surface, `openid` and `email` scopes, allowed
-  domains, block list, no service accounts) run on every request against the active bundle, so a block or a
-  removed client takes effect at the next refresh even for a cached token.
-- Allowed domains and the OAuth client IDs of each surface are declared per environment in
-  `config/env/<env>/identity.yaml`, which is not committed.
+- Library `libs/sdlc_identity`, used by user_agent_mcp. `identity.mode` in `config/env/<env>/identity.yaml`
+  chooses how the user is established ([DEC-0010](../decisions/DEC-0010.md)):
+  - `caller_token`: the caller's `Authorization: Bearer` must be a Google ID token whose audience is the
+    service's `PUBLIC_URL` (or that URL with `/mcp`) and whose account is listed under `identity.callers` for a
+    surface. The user is taken from `X-SDLC-User-Id` (IAP's `accounts.google.com:` prefix accepted) and
+    `X-SDLC-User-Email`.
+  - `trusted_header`: the same user headers with `X-SDLC-Surface` naming a declared caller's surface and no
+    proof; refused by the configuration compiler and by the service in any environment but `local`.
+  - `oauth`: the user's own Google token, issued to an OAuth client listed under `identity.clients` for a
+    surface, with the `openid` and `email` scopes. ID tokens are verified against Google's published signing
+    keys; access tokens by Google's token introspection.
+- In every mode the account ID must be a plain identifier and the email well-formed, in an allowed domain, not
+  a service account and not on the block list. These checks run on every request against the active bundle,
+  so a block takes effect at the next refresh. Verified tokens are cached per instance for 300 seconds, or
+  until they expire.
 - System identity: a dedicated Google Cloud service account.
-- Library `libs/sdlc_identity`, used by user_agent_mcp; Knowledge Search and the sdlc_ui BFF use it when they are
-  built.

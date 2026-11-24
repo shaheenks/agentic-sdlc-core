@@ -26,16 +26,23 @@ def test_repository_config_validates_for_the_example_environment(capsys):
     assert "config ok" in capsys.readouterr().out
 
 
-def test_compiled_config_maps_groups_to_team_roles():
+def test_compiled_config_lists_members_with_their_roles():
     config = compile_config(CONFIG_DIR, "example").config
-    assert config["teams"]["payments"]["roles"]["lead"] == ["payments-leads@example.test"]
-    assert config["identity"]["clients"]["sdlc_ui"] == ["example-sdlc-ui.apps.googleusercontent.com"]
-    assert "ada@example.test" in config["directory_users"]
+    assert config["members"]["ada@example.test"] == {"teams": {"payments": ["lead", "member"]}, "user_groups": []}
+    assert config["members"]["grace@example.test"]["user_groups"] == ["early-adopters"]
+    assert config["identity"]["mode"] == "caller_token"
+    assert config["identity"]["callers"]["sdlc_ui"] == ["sdlc-ui@example-project.iam.gserviceaccount.com"]
+
+
+def test_trusted_header_is_refused_outside_local(config_dir, capsys):
+    edit(config_dir / "env/example/identity.yaml", lambda d: d.update({"mode": "trusted_header"}))
+    assert main(["validate", "--env", "example", "--dir", str(config_dir)]) == 1
+    assert "only in the local environment" in capsys.readouterr().err
 
 
 def test_missing_environment_warns_but_validates(config_dir, capsys):
     assert main(["validate", "--env", "nowhere", "--dir", str(config_dir)]) == 0
-    assert "refuse every token" in capsys.readouterr().err
+    assert "refuse every user" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
@@ -46,13 +53,27 @@ def test_missing_environment_warns_but_validates(config_dir, capsys):
         ("grants.yaml", lambda d: d["grants"][0]["tool_groups"].append("ghost"), "unknown tool group 'ghost'"),
         ("surfaces.yaml", lambda d: d["surfaces"]["sdlc_ui"]["tool_groups"].append("ghost"), "unknown tool group"),
         ("surfaces.yaml", lambda d: d["surfaces"]["sdlc_ui"].pop("description"), "'description' is a required"),
-        ("env/example/identity.yaml", lambda d: d["clients"].update({"desktop": ["x"]}), "unknown surface 'desktop'"),
+        ("env/example/identity.yaml", lambda d: d["callers"].update({"desktop": ["x"]}), "unknown surface 'desktop'"),
         (
             "env/example/identity.yaml",
-            lambda d: d["clients"]["gemini_enterprise"].append(d["clients"]["sdlc_ui"][0]),
+            lambda d: d["callers"]["user_agent"].append(d["callers"]["sdlc_ui"][0]),
             "is in",
         ),
-        ("env/example/groups.yaml", lambda d: d["teams"]["payments"].update({"boss": ["b@example.test"]}), "no role"),
+        (
+            "env/example/users.yaml",
+            lambda d: d["users"]["ada@example.test"]["teams"].append("payments:boss"),
+            "no role",
+        ),
+        (
+            "env/example/users.yaml",
+            lambda d: d["users"]["ada@example.test"].update({"teams": ["nope"]}),
+            "unknown team",
+        ),
+        (
+            "env/example/users.yaml",
+            lambda d: d["users"]["ada@example.test"].update({"user_groups": ["ghosts"]}),
+            "unknown user group 'ghosts'",
+        ),
         ("tool_groups.yaml", lambda d: d["tool_groups"]["identity"]["tools"].append("artifact_list"), "in both"),
     ],
 )

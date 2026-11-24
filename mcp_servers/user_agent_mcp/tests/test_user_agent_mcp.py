@@ -1,4 +1,5 @@
-"""user_agent_mcp end to end, through HTTP: identity, policy, isolation and audit (phase 1 exit gate)."""
+"""user_agent_mcp end to end, through HTTP: identity, policy, isolation and audit (phase 1 exit gate), with
+users forwarded by declared callers (DEC-0010)."""
 
 import base64
 import json
@@ -6,9 +7,11 @@ import logging
 import os
 from pathlib import Path
 
+import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
 from sdlc_config_store import ConfigStore, DirSource, make_bundle, make_pointer
-from sdlc_identity import GoogleTokens, Rejected
+from sdlc_identity import GoogleTokens
 from sdlc_logging import AUDIT_LOGGER
 from starlette.testclient import TestClient
 from user_agent_mcp import SERVICE, create_app, create_platform
@@ -16,6 +19,10 @@ from user_agent_mcp.settings import Settings
 
 NOW = 1_800_000_000
 PROTOCOL = "2026-07-28"
+PUBLIC_URL = "http://testserver"
+UI_ACCOUNT = "sdlc-ui@proj.iam.gserviceaccount.com"
+AGENT_ACCOUNT = "user-agent@proj.iam.gserviceaccount.com"
+KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 CONFIG = {
     "platform": {"artifacts": {"max_bytes": 1000, "content_types": ["text/markdown", "text/plain"]}},
     "tool_groups": {
@@ -29,9 +36,9 @@ CONFIG = {
     },
     "surfaces": {
         "sdlc_ui": {"description": "-", "tool_groups": ["identity", "artifacts", "connections", "connection_secrets"]},
-        "gemini_enterprise": {"description": "-", "tool_groups": ["identity", "artifacts", "connections"]},
+        "user_agent": {"description": "-", "tool_groups": ["identity", "artifacts", "connections"]},
     },
-    "teams": {"payments": {"name": "Payments", "description": "-", "roles": {"member": ["payments@example.test"]}}},
+    "teams": {"payments": {"name": "Payments", "description": "-", "roles": ["member", "lead"]}},
     "user_groups": {},
     "grants": [
         {
@@ -47,32 +54,39 @@ CONFIG = {
         "jira_dc": {"name": "Jira Data Center", "system": "jira", "edition": "data_center"},
     },
     "identity": {
+        "mode": "caller_token",
         "allowed_domains": ["example.test"],
-        "clients": {"sdlc_ui": ["ui-client"], "gemini_enterprise": ["ge-client"]},
-        "directory": {"mode": "static"},
+        "callers": {"sdlc_ui": [UI_ACCOUNT], "user_agent": [AGENT_ACCOUNT]},
+        "clients": {},
     },
-    "directory_users": {"ada@example.test": ["payments@example.test"]},
+    "members": {"ada@example.test": {"teams": {"payments": ["member"]}, "user_groups": []}},
     "blocked": [],
 }
-# Bearer token -> what Google's introspection would answer.
-USERS = {
-    "ya29.ada-ui": {"sub": "1001", "email": "ada@example.test", "aud": "ui-client"},
-    "ya29.ada-ge": {"sub": "1001", "email": "ada@example.test", "aud": "ge-client"},
-    "ya29.grace-ui": {"sub": "1002", "email": "grace@example.test", "aud": "ui-client"},
-    "ya29.mallory-other-client": {"sub": "1003", "email": "mallory@example.test", "aud": "someone-elses-client"},
+
+
+def caller_token(account: str, aud: str = PUBLIC_URL) -> str:
+    claims = {"iss": "https://accounts.google.com", "aud": aud, "sub": "9" + str(len(account)), "email": account}
+    return jwt.encode({**claims, "email_verified": True, "exp": NOW + 3600}, KEY, algorithm="RS256")
+
+
+def verify_locally(token: str) -> dict:
+    options = {"verify_aud": False, "verify_exp": False}
+    return jwt.decode(token, KEY.public_key(), algorithms=["RS256"], options=options)
+
+
+ADA = {"X-SDLC-User-Id": "accounts.google.com:1001", "X-SDLC-User-Email": "ada@example.test"}
+GRACE = {"X-SDLC-User-Id": "1002", "X-SDLC-User-Email": "grace@example.test"}
+# Who calls -> the headers the caller sends.
+WHO = {
+    "ada-ui": {"Authorization": f"Bearer {caller_token(UI_ACCOUNT)}", **ADA},
+    "ada-agent": {"Authorization": f"Bearer {caller_token(AGENT_ACCOUNT)}", **ADA},
+    "grace-ui": {"Authorization": f"Bearer {caller_token(UI_ACCOUNT)}", **GRACE},
+    "ada-undeclared-caller": {"Authorization": f"Bearer {caller_token('x@proj.iam.gserviceaccount.com')}", **ADA},
+    "ada-token-for-another-service": {"Authorization": f"Bearer {caller_token(UI_ACCOUNT, 'https://x.test')}", **ADA},
+    "ada-without-proof": ADA,
+    "nobody": {},
 }
 SECRET = "ghp_this-is-the-users-token-and-must-never-be-logged"
-
-
-async def introspect(token: str) -> dict:
-    if token not in USERS:
-        raise Rejected("invalid_token")
-    return {
-        **USERS[token],
-        "email_verified": "true",
-        "scope": "openid https://www.googleapis.com/auth/userinfo.email",
-        "exp": str(NOW + 3600),
-    }
 
 
 def publish(root: Path, config: dict) -> None:
@@ -90,30 +104,26 @@ def env(tmp_path):
         env="test",
         config_source=str(config_root),
         store_root=store_root,
-        public_url="http://testserver",
+        public_url=PUBLIC_URL,
         sdlc_ui_url="https://ui.example.test",
         encryption_key=os.urandom(32),
         encryption_key_version="1",
         config_refresh_seconds=0,
     )
-    platform = create_platform(settings, tokens=GoogleTokens(introspect=introspect, clock=lambda: NOW))
+    platform = create_platform(settings, tokens=GoogleTokens(verify_id_token=verify_locally, clock=lambda: NOW))
     platform.store.load()
     with TestClient(create_app(platform=platform)) as client:
         yield client, platform, config_root, store_root
 
 
-def mcp(client, token, method, params=None):
+def mcp(client, who, method, params=None):
     params = dict(params or {})
     params["_meta"] = {
         "io.modelcontextprotocol/protocolVersion": PROTOCOL,
         "io.modelcontextprotocol/clientInfo": {"name": "test", "version": "1"},
         "io.modelcontextprotocol/clientCapabilities": {},
     }
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/json, text/event-stream",
-        "MCP-Protocol-Version": PROTOCOL,
-    }
+    headers = {**WHO[who], "Accept": "application/json, text/event-stream", "MCP-Protocol-Version": PROTOCOL}
     if method == "tools/call":
         headers["Mcp-Method"] = "tools/call"
         headers["Mcp-Name"] = params["name"]
@@ -122,15 +132,15 @@ def mcp(client, token, method, params=None):
     return client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params}, headers=headers)
 
 
-def call(client, token, tool, /, **arguments):
-    response = mcp(client, token, "tools/call", {"name": tool, "arguments": arguments})
+def call(client, who, tool, /, **arguments):
+    response = mcp(client, who, "tools/call", {"name": tool, "arguments": arguments})
     assert response.status_code == 200, response.text
     result = response.json()["result"]
     return json.loads(result["content"][0]["text"]), result.get("isError", False)
 
 
-def api(client, token, method, path, **kwargs):
-    return client.request(method, path, headers={"Authorization": f"Bearer {token}"}, **kwargs)
+def api(client, who, method, path, **kwargs):
+    return client.request(method, path, headers=WHO[who], **kwargs)
 
 
 def test_healthz_and_metadata_are_public(env):
@@ -140,31 +150,43 @@ def test_healthz_and_metadata_are_public(env):
     assert meta["authorization_servers"] == ["https://accounts.google.com"]
 
 
-@pytest.mark.parametrize("token", [None, "ya29.mallory-other-client", "ya29.unknown"])
-def test_unverified_or_undeclared_callers_get_401(env, token, caplog):
+@pytest.mark.parametrize(
+    ("who", "reason"),
+    [
+        ("nobody", "no_token"),
+        ("ada-without-proof", "no_token"),
+        ("ada-undeclared-caller", "undeclared_caller"),
+        ("ada-token-for-another-service", "wrong_audience"),
+    ],
+)
+def test_users_not_forwarded_by_a_declared_caller_get_401(env, who, reason, caplog):
     client, *_ = env
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
     with caplog.at_level(logging.INFO, logger=AUDIT_LOGGER):
-        assert client.post("/mcp", json={}, headers=headers).status_code == 401
-        response = client.get("/api/me", headers=headers)
+        assert client.post("/mcp", json={}, headers=WHO[who]).status_code == 401
+        response = client.get("/api/me", headers=WHO[who])
     assert response.status_code == 401
-    assert "resource_metadata=" in response.headers["www-authenticate"]
     reasons = {r.reason for r in caplog.records if getattr(r, "event", "") == "auth.denied"}
-    assert reasons == {{None: "no_token", "ya29.unknown": "invalid_token"}.get(token, "undeclared_client")}
+    assert reasons == {reason}
+
+
+def test_trusted_header_mode_is_refused_outside_local(env):
+    client, _, config_root, _ = env
+    publish(config_root, {**CONFIG, "identity": {**CONFIG["identity"], "mode": "trusted_header"}})
+    assert client.get("/api/me", headers={**ADA, "X-SDLC-Surface": "sdlc_ui"}).status_code == 401
 
 
 def test_tools_listed_per_surface(env):
     client, *_ = env
     names = lambda token: {t["name"] for t in mcp(client, token, "tools/list").json()["result"]["tools"]}  # noqa: E731
-    ui = names("ya29.ada-ui")
+    ui = names("ada-ui")
     assert "artifact_save" in ui and "connection_start" in ui
     assert "connection_save" not in ui  # the secret is entered on the secure page only, never through MCP
-    assert names("ya29.ada-ge") == ui
+    assert names("ada-agent") == ui
 
 
 def test_whoami_shows_identity_teams_and_access(env):
     client, *_ = env
-    me, error = call(client, "ya29.ada-ui", "whoami")
+    me, error = call(client, "ada-ui", "whoami")
     assert not error
     assert me["user_id"] == "1001" and me["teams"] == {"payments": ["member"]}
     assert me["access"]["surface"] == "sdlc_ui"
@@ -172,53 +194,53 @@ def test_whoami_shows_identity_teams_and_access(env):
 
 def test_two_users_cannot_reach_each_others_artifacts(env):
     client, *_ = env
-    saved, error = call(client, "ya29.ada-ui", "artifact_save", name="design-notes", content="# Ada's notes")
+    saved, error = call(client, "ada-ui", "artifact_save", name="design-notes", content="# Ada's notes")
     assert not error and saved["version"] == 1 and saved["owner"] == "1001"
-    call(client, "ya29.ada-ui", "artifact_save", name="design-notes", content="# Ada's notes v2")
+    call(client, "ada-ui", "artifact_save", name="design-notes", content="# Ada's notes v2")
 
-    listed, _ = call(client, "ya29.grace-ui", "artifact_list")
+    listed, _ = call(client, "grace-ui", "artifact_list")
     assert listed == {"artifacts": []}
     for tool in ("artifact_read", "artifact_delete"):
-        result, error = call(client, "ya29.grace-ui", tool, name="design-notes")
+        result, error = call(client, "grace-ui", tool, name="design-notes")
         assert error and result["error"] == "not_found"
-    assert api(client, "ya29.grace-ui", "GET", "/api/artifacts/design-notes").status_code == 404
-    assert api(client, "ya29.grace-ui", "DELETE", "/api/artifacts/design-notes").status_code == 404
+    assert api(client, "grace-ui", "GET", "/api/artifacts/design-notes").status_code == 404
+    assert api(client, "grace-ui", "DELETE", "/api/artifacts/design-notes").status_code == 404
 
-    mine, _ = call(client, "ya29.ada-ge", "artifact_read", name="design-notes")  # same user, other surface
+    mine, _ = call(client, "ada-agent", "artifact_read", name="design-notes")  # same user, through the agent
     assert mine["content"] == "# Ada's notes v2" and mine["versions"] == [1, 2]
-    first, _ = call(client, "ya29.ada-ui", "artifact_read", name="design-notes", version=1)
+    first, _ = call(client, "ada-ui", "artifact_read", name="design-notes", version=1)
     assert first["content"] == "# Ada's notes"
 
 
 @pytest.mark.parametrize("name", ["../1002/x", "..", "a/b", "x" * 101, ""])
 def test_artifact_names_cannot_leave_the_users_prefix(env, name):
     client, *_ = env
-    result, error = call(client, "ya29.ada-ui", "artifact_save", name=name, content="x")
+    result, error = call(client, "ada-ui", "artifact_save", name=name, content="x")
     assert error and result["error"] in {"invalid_name", "invalid_argument"}
 
 
 def test_artifact_limits(env):
     client, *_ = env
-    too_big, _ = call(client, "ya29.ada-ui", "artifact_save", name="big", content="x" * 1001)
+    too_big, _ = call(client, "ada-ui", "artifact_save", name="big", content="x" * 1001)
     assert too_big["error"] == "too_large"
-    wrong_type, _ = call(client, "ya29.ada-ui", "artifact_save", name="img", content="x", content_type="image/png")
+    wrong_type, _ = call(client, "ada-ui", "artifact_save", name="img", content="x", content_type="image/png")
     assert wrong_type["error"] == "invalid_type"
 
 
 def test_connections_are_per_user_and_never_return_the_secret(env, caplog):
     client, platform, _, store_root = env
-    started, _ = call(client, "ya29.ada-ge", "connection_start", provider="github")
+    started, _ = call(client, "ada-agent", "connection_start", provider="github")
     assert started["entry_url"] == "https://ui.example.test/connections/github"
 
     with caplog.at_level(logging.DEBUG):
-        saved = api(client, "ya29.ada-ui", "PUT", "/api/connections/github", json={"secret": SECRET, "account": "ada"})
+        saved = api(client, "ada-ui", "PUT", "/api/connections/github", json={"secret": SECRET, "account": "ada"})
         assert saved.status_code == 200 and SECRET not in saved.text
-        # Gemini Enterprise has no connection_secrets tool group: no secret entry there.
-        assert api(client, "ya29.ada-ge", "PUT", "/api/connections/github", json={"secret": SECRET}).status_code == 403
-        listed, _ = call(client, "ya29.ada-ui", "connection_list")
+        # The agent has no connection_secrets tool group: secrets are entered in sdlc_ui only.
+        assert api(client, "ada-agent", "PUT", "/api/connections/github", json={"secret": SECRET}).status_code == 403
+        listed, _ = call(client, "ada-ui", "connection_list")
         assert [c["provider"] for c in listed["connections"]] == ["github"] and SECRET not in json.dumps(listed)
-        assert call(client, "ya29.grace-ui", "connection_list")[0]["connections"] == []
-        revoked, error = call(client, "ya29.grace-ui", "connection_revoke", provider="github")
+        assert call(client, "grace-ui", "connection_list")[0]["connections"] == []
+        revoked, error = call(client, "grace-ui", "connection_revoke", provider="github")
         assert error and revoked["error"] == "not_found"
 
     stored = next((store_root / "secrets" / "users" / "1001").iterdir()).read_text()
@@ -226,13 +248,13 @@ def test_connections_are_per_user_and_never_return_the_secret(env, caplog):
     assert platform.connections.secret("1001", "github") == SECRET
     assert SECRET not in caplog.text
 
-    assert call(client, "ya29.ada-ui", "connection_revoke", provider="github")[0]["revoked"] is True
-    assert call(client, "ya29.ada-ui", "connection_list")[0]["connections"] == []
+    assert call(client, "ada-ui", "connection_revoke", provider="github")[0]["revoked"] is True
+    assert call(client, "ada-ui", "connection_list")[0]["connections"] == []
 
 
 def test_a_secret_copied_to_another_user_cannot_be_decrypted(env):
     client, platform, _, store_root = env
-    api(client, "ya29.ada-ui", "PUT", "/api/connections/github", json={"secret": SECRET})
+    api(client, "ada-ui", "PUT", "/api/connections/github", json={"secret": SECRET})
     target = store_root / "secrets" / "users" / "1002"
     target.mkdir(parents=True)
     (target / "github.json").write_bytes((store_root / "secrets" / "users" / "1001" / "github.json").read_bytes())
@@ -242,15 +264,15 @@ def test_a_secret_copied_to_another_user_cannot_be_decrypted(env):
 
 def test_data_center_connection_needs_its_server_url(env):
     client, *_ = env
-    response = api(client, "ya29.ada-ui", "PUT", "/api/connections/jira_dc", json={"secret": "x"})
+    response = api(client, "ada-ui", "PUT", "/api/connections/jira_dc", json={"secret": "x"})
     assert response.status_code == 400 and response.json()["error"] == "invalid_base_url"
 
 
 def test_every_call_is_audited_without_argument_values(env, caplog):
     client, *_ = env
     with caplog.at_level(logging.INFO, logger=AUDIT_LOGGER):
-        call(client, "ya29.ada-ui", "artifact_save", name="secret-plan", content="the launch date is March")
-        call(client, "ya29.ada-ui", "no_such_tool")
+        call(client, "ada-ui", "artifact_save", name="secret-plan", content="the launch date is March")
+        call(client, "ada-ui", "no_such_tool")
     records = [r for r in caplog.records if getattr(r, "event", "") == "tool.call"]
     assert [(r.tool, r.decision) for r in records] == [("artifact_save", "allow"), ("no_such_tool", "deny")]
     saved = records[0]
@@ -262,7 +284,7 @@ def test_every_call_is_audited_without_argument_values(env, caplog):
 
 def test_run_and_step_headers_reach_the_audit_and_the_artifact(env, caplog):
     client, *_ = env
-    headers = {"Authorization": "Bearer ya29.ada-ui", "X-SDLC-Run-Id": "run-42", "X-SDLC-Step": "draft"}
+    headers = {**WHO["ada-ui"], "X-SDLC-Run-Id": "run-42", "X-SDLC-Step": "draft"}
     with caplog.at_level(logging.INFO, logger=AUDIT_LOGGER):
         response = client.get("/api/artifacts", headers=headers)
     assert response.status_code == 200
@@ -274,15 +296,15 @@ def test_activated_grant_change_applies_without_restart(env):
     client, _, config_root, _ = env
     revoked = {**CONFIG, "grants": [{**CONFIG["grants"][0], "tool_groups": ["identity"]}]}
     publish(config_root, revoked)
-    result, error = call(client, "ya29.ada-ui", "artifact_list")
+    result, error = call(client, "ada-ui", "artifact_list")
     assert error and result["error"] == "not_allowed"
 
 
 def test_block_list_applies_once_active(env):
     client, _, config_root, _ = env
     publish(config_root, {**CONFIG, "blocked": [{"user_id": "1001", "reason": "test"}]})
-    assert api(client, "ya29.ada-ui", "GET", "/api/me").status_code == 401
-    assert api(client, "ya29.grace-ui", "GET", "/api/me").status_code == 200
+    assert api(client, "ada-ui", "GET", "/api/me").status_code == 401
+    assert api(client, "grace-ui", "GET", "/api/me").status_code == 200
 
 
 def test_rate_limit_refuses_with_a_reason(env):
@@ -290,9 +312,9 @@ def test_rate_limit_refuses_with_a_reason(env):
     publish(
         config_root, {**CONFIG, "rate_limits": {"tool_calls": {"per_user_per_minute": 2, "per_team_per_minute": 9}}}
     )
-    results = [call(client, "ya29.ada-ui", "whoami")[0] for _ in range(3)]
+    results = [call(client, "ada-ui", "whoami")[0] for _ in range(3)]
     assert results[2]["error"] == "rate_limited"
-    assert api(client, "ya29.ada-ui", "GET", "/api/me").status_code == 429
+    assert api(client, "ada-ui", "GET", "/api/me").status_code == 429
 
 
 def test_service_refuses_to_start_without_a_bundle(tmp_path):

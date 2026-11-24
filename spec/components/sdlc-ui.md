@@ -30,7 +30,7 @@ UI:
 
 BFF:
 
-- Sign the user in as decided in [DEC-0001](../decisions/DEC-0001.md): behind Identity-Aware Proxy, verify the signed IAP header on every request, then obtain the user's Google tokens through the internal OAuth app. Hold the tokens server side and give the browser only a secure, HTTP-only session cookie. The IAP header only gates access to sdlc_ui; the Google account token is the user's identity for every backend call ([DEC-0009](../decisions/DEC-0009.md)).
+- Sign the user in behind Identity-Aware Proxy and verify the signed IAP assertion (`x-goog-iap-jwt-assertion`: signature, issuer, audience) on every request. For now ([DEC-0010](../decisions/DEC-0010.md)) take the user's account ID and email from it, never from IAP's unsigned headers, and forward them as `X-SDLC-User-Id` and `X-SDLC-User-Email` to the agent runtime and user_agent_mcp, calling with the BFF's service account ID token. Never forward the assertion. The internal OAuth app of [DEC-0001](../decisions/DEC-0001.md) and [DEC-0009](../decisions/DEC-0009.md) is suspended until another surface needs user tokens.
 - Forward the user's identity on every backend call; never call a backend with a service credential on the user's behalf.
 - Shape backend APIs for the UI and relay the run event stream to the browser.
 - Serve the UI's static assets, so the browser talks to one origin only.

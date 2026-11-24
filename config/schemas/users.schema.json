@@ -1,26 +1,30 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Group membership for directory mode static (env/<env>/users.yaml).",
+  "title": "Users and their teams and user groups in one environment (env/<env>/users.yaml).",
   "type": "object",
   "properties": {
     "users": {
       "type": "object",
-      "propertyNames": {
-        "type": "string",
-        "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
-      },
+      "propertyNames": {"type": "string", "pattern": "^[^@\\s/]+@[a-z0-9.-]+\\.[a-z]+$"},
       "additionalProperties": {
-        "type": "array",
-        "items": {
-          "type": "string",
-          "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+        "type": "object",
+        "properties": {
+          "teams": {
+            "description": "A team (its member role) or team:role.",
+            "type": "array",
+            "items": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*(:[a-z][a-z0-9_-]*)?$"},
+            "uniqueItems": true
+          },
+          "user_groups": {
+            "type": "array",
+            "items": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+            "uniqueItems": true
+          }
         },
-        "uniqueItems": true
+        "additionalProperties": false
       }
     }
   },
-  "required": [
-    "users"
-  ],
+  "required": ["users"],
   "additionalProperties": false
 }

@@ -1,5 +1,12 @@
 ## 2026-11-24
 
+* **Add**: [DEC-0010](decisions/DEC-0010.md), accepted by the user: for now sdlc_ui forwards the user from the verified IAP
+  assertion and user_agent_mcp trusts only declared callers' service accounts; membership is declared in
+  `users.yaml`, not read from Cloud Identity groups. [FR-TEAM-001](requirements/functional/FR-TEAM-001.md)
+  rewritten for configured membership; notes on FR-IDN-002 and FR-SURF-003. [Identity](components/identity.md),
+  [Directory](components/directory.md), [user_agent_mcp](components/user-agent-mcp.md),
+  [sdlc_ui](components/sdlc-ui.md), [Agent Runtime](components/agent-runtime.md) and
+  [Configuration Registry](components/configuration-registry.md) updated to match.
 * **Update**: Phase 1 code. Realisation of [Identity](components/identity.md),
   [Access Policy](components/access-policy.md), [Directory](components/directory.md),
   [Configuration Registry](components/configuration-registry.md), [user_agent_mcp](components/user-agent-mcp.md)

@@ -1,5 +1,5 @@
-# User groups (FR-AUTHZ-007): Google groups that receive grants whether or not they are teams. Their group
-# emails are mapped in env/<env>/groups.yaml.
+# User groups (FR-AUTHZ-007): sets of users that receive grants whether or not they are teams. Members are listed
+# per environment in env/<env>/users.yaml.
 user_groups:
   early-adopters:
     description: People who try new workflows and tools first.

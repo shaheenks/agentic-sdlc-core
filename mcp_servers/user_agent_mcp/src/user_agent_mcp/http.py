@@ -12,6 +12,7 @@ from sdlc_identity import Rejected
 from sdlc_logging import audit
 from sdlc_service import health_routes
 from starlette.applications import Starlette
+from starlette.datastructures import Headers
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -25,19 +26,11 @@ PROTECTED = ("/mcp", "/api/")
 METADATA_PATH = "/.well-known/oauth-protected-resource"
 
 
-def _bearer(scope: Scope) -> str:
-    for key, value in scope.get("headers") or ():
-        if key.lower() == b"authorization":
-            text = value.decode("latin-1")
-            if text[:7].lower() == "bearer ":
-                return text[7:].strip()
-    return ""
-
-
 class AuthMiddleware:
-    """Every request to /mcp and /api needs a verified Google account token of a declared surface; anything
-    else is refused before it reaches a handler, and the refusal is audited with its reason (FR-IDN-001,
-    NFR-SEC-002). Health checks and the metadata document are public."""
+    """Every request to /mcp and /api must identify its user under the active identity mode: forwarded by a
+    declared caller (DEC-0010) or, in mode oauth, by the user's own Google token. Anything else is refused
+    before it reaches a handler, and the refusal is audited with its reason (FR-IDN-001, NFR-SEC-002).
+    Health checks and the metadata document are public."""
 
     def __init__(self, app: ASGIApp, platform: Platform) -> None:
         self.app = app
@@ -50,10 +43,7 @@ class AuthMiddleware:
             await self.app(scope, receive, send)
             return
         try:
-            token = _bearer(scope)
-            if not token:
-                raise Rejected("no_token")
-            identity, bundle = await self.platform.identify(token)
+            identity, bundle = await self.platform.identify(Headers(scope=scope))
         except Rejected as exc:
             audit("auth.denied", reason=exc.reason, path=path)
             await self._refuse(scope, receive, send, 401, "invalid_token", "authentication required")
@@ -174,7 +164,7 @@ def build_app(platform: Platform, service: str) -> Starlette:
         streamable_http_path="/mcp",
         stateless_http=True,
         json_response=True,
-        # Bearer tokens, not cookies, authenticate every call, and Cloud Run sets the host name.
+        # Headers, not cookies, identify every call, and Cloud Run sets the host name.
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         custom_starlette_routes=health_routes(service) + metadata_routes(platform) + api_routes(platform),
     )

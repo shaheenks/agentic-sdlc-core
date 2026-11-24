@@ -1,4 +1,8 @@
-# Group membership for directory mode `static` (local runs without the Cloud Identity Groups API).
+# Users of this environment and their teams and user groups, by email (FR-TEAM-001, FR-AUTHZ-007).
+# `payments` means the team's member role; `payments:lead` names another role. A user not listed is in no team.
 users:
-  ada@example.test: [payments@example.test, payments-leads@example.test]
-  grace@example.test: [platform@example.test, early-adopters@example.test]
+  ada@example.test:
+    teams: [payments, payments:lead]
+  grace@example.test:
+    teams: [platform]
+    user_groups: [early-adopters]

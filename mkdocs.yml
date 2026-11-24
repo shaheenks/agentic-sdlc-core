@@ -107,7 +107,7 @@ nav:
               - "FR-IDN-003 Block list": requirements/functional/FR-IDN-003.md
               - "FR-IDN-004 System identity for unattended runs": requirements/functional/FR-IDN-004.md
           - Teams:
-              - "FR-TEAM-001 Teams from Cloud Identity groups": requirements/functional/FR-TEAM-001.md
+              - "FR-TEAM-001 Teams declared in configuration": requirements/functional/FR-TEAM-001.md
               - "FR-TEAM-002 Team context": requirements/functional/FR-TEAM-002.md
               - "FR-TEAM-003 Team runs visible to the team": requirements/functional/FR-TEAM-003.md
               - "FR-TEAM-004 Many teams per user": requirements/functional/FR-TEAM-004.md
@@ -240,6 +240,7 @@ nav:
       - "DEC-0007 event_agent_mcp: a standalone MCP server for event-triggered agents": decisions/DEC-0007.md
       - "DEC-0008 Hand-off from user_agent to the event-based agents through Jira and the product repository": decisions/DEC-0008.md
       - "DEC-0009 Google account tokens identify the user on every surface; IAP enforces the perimeter only": decisions/DEC-0009.md
+      - "DEC-0010 For now, sdlc_ui forwards the user from the IAP assertion, and membership is declared in configuration": decisions/DEC-0010.md
   - Traceability: traceability.md
   - Change log: log.md
   - Docs:

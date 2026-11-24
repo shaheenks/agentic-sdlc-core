@@ -1,6 +1,9 @@
 # sdlc_identity
 
-Google account token verification ([Identity](../../spec/components/identity.md); DEC-0001, DEC-0009). ID tokens
-are checked against Google's signing keys and access tokens by introspection; verified claims are cached for 300
-seconds. `check` then applies the active configuration: declared OAuth client (the surface), `openid` and `email`
-scopes, allowed domain, no service accounts, the block list. Test from this folder: `uv run pytest`.
+Who the user of a request is ([Identity](../../spec/components/identity.md); DEC-0010, DEC-0001, DEC-0009).
+`identify` follows `identity.mode` in the active configuration: `caller_token` (the user forwarded in
+`X-SDLC-User-Id` and `X-SDLC-User-Email` by a declared service account, proven by its Google ID token),
+`trusted_header` (the same without proof, local environment only) or `oauth` (the user's own Google token,
+off for now). Every mode then requires an allowed domain, no service account and no block. Google tokens are
+verified against Google's signing keys or by introspection and cached for 300 seconds. Test from this folder:
+`uv run pytest`.

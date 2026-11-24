@@ -1,13 +1,13 @@
 """The MCP server for calls made as a user (DEC-0002, DEC-0005).
 
-Every request to /mcp or /api carries the user's Google account token. The server verifies it, resolves the
-user's effective policy from the active configuration bundle, lists and allows only the tools that the
-user and the calling surface may use, and audits every list and call without argument values. Artifacts
-and connection secrets live under the user's own prefix of the mounted artifact bucket (DEC-0006).
+Every request to /mcp or /api names its user: forwarded by sdlc_ui or the agent runtime, which prove who
+they are with their service account's Google ID token (DEC-0010). The server checks that, resolves the
+user's teams and effective policy from the active configuration bundle, lists and allows only the tools
+that the user and the calling surface may use, and audits every list and call without argument values.
+Artifacts and connection secrets live under the user's own prefix of the mounted artifact bucket (DEC-0006).
 """
 
 from sdlc_config_store import ConfigStore, source_from_url
-from sdlc_directory import Directory
 from sdlc_identity import GoogleTokens
 from sdlc_policy import RateLimiter
 from starlette.applications import Starlette
@@ -28,7 +28,6 @@ def create_platform(settings: Settings, **overrides) -> Platform:
     parts = {
         "store": ConfigStore(source_from_url(settings.config_source), settings.env, settings.config_refresh_seconds),
         "tokens": GoogleTokens(),
-        "directory": Directory(),
         "limiter": RateLimiter(),
         "artifacts": ArtifactStore(settings.store_root),
         "connections": ConnectionStore(settings.store_root, cipher),

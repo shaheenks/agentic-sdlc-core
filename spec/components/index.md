@@ -9,7 +9,7 @@
 * [Access Policy](access-policy.md) - Resolves a user's effective permissions from declared roles and decides, deny by default, every request to list or use a workflow, tool, skill or data source.
 * [Configuration Registry](configuration-registry.md) - Schema-validated YAML in config/ - teams, user groups, grants, workflows, skills, tools, surfaces, sources - compiled into versioned bundles on a dedicated configuration bucket that services read while answering requests.
 * [Directory](directory.md) - Knows the platform's users and teams, who belongs to which team, and in what team role.
-* [Identity](identity.md) - Authenticates callers against the enterprise identity provider and turns a token into a verified platform identity.
+* [Identity](identity.md) - Establishes who the user of each request is, under the environment's identity mode, and refuses anyone it cannot verify.
 * [Workflow Catalog](workflow-catalog.md) - The library of pre-defined, versioned SDLC workflow definitions - their steps, inputs, outputs, gates and who may run them.
 
 # Execution
@@ -28,7 +28,7 @@
 * [Connectors](connectors.md) - Adapters to downstream SDLC systems - source control, issue trackers, wikis, CI - that read and write as the user with the user's own connection.
 * [event_agent_mcp](event-agent-mcp.md) - The standalone MCP server for scheduled and event-triggered runs: agents call it as the system identity, and it reaches only system connections and system artifacts.
 * [Skill Library](skill-library.md) - Versioned instruction packages that teach an agent step how to do one SDLC task, global or team-specific.
-* [user_agent_mcp](user-agent-mcp.md) - The MCP server for agents acting for a user: agents on Agent Runtime call it with the user's token, and every action is scoped to the user ID in it.
+* [user_agent_mcp](user-agent-mcp.md) - The MCP server for agents acting for a user: sdlc_ui and agents on Agent Runtime call it for a verified user, and every action is scoped to that user's ID.
 
 # Knowledge
 

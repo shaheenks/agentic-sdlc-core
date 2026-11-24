@@ -16,7 +16,7 @@
 
 # Teams
 
-* [FR-TEAM-001: Teams from Cloud Identity groups](FR-TEAM-001.md) - A user's teams and team roles come from Cloud Identity groups, provisioned from Entra ID and mapped in configuration.
+* [FR-TEAM-001: Teams declared in configuration](FR-TEAM-001.md) - A user's teams, team roles and user groups are declared per environment in configuration.
 * [FR-TEAM-002: Team context](FR-TEAM-002.md) - A user who belongs to several teams chooses which team a run is for.
 * [FR-TEAM-003: Team runs visible to the team](FR-TEAM-003.md) - Members of a team see the team's runs and artifacts as their team role allows.
 * [FR-TEAM-004: Many teams per user](FR-TEAM-004.md) - A user can belong to any number of teams and user groups, and sees what any of them grants.

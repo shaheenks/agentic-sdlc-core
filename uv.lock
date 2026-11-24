@@ -1170,16 +1170,6 @@ requires-dist = [{ name = "google-cloud-storage", specifier = ">=3.4" }]
 name = "sdlc-directory"
 version = "0.0.0"
 source = { editable = "libs/sdlc_directory" }
-dependencies = [
-    { name = "google-auth" },
-    { name = "httpx" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "google-auth", specifier = ">=2.40" },
-    { name = "httpx", specifier = ">=0.28" },
-]
 
 [[package]]
 name = "sdlc-event-agent-mcp"

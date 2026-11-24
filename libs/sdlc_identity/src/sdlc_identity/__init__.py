@@ -1,18 +1,33 @@
-"""Who is calling: Google account tokens, verified and checked against the active configuration.
+"""Who is calling, checked against the active configuration (Identity component; DEC-0010).
 
-Two steps (Identity component; DEC-0001, DEC-0009):
+`identify(headers, settings, tokens, env=..., audiences=...)` follows `identity.mode`:
 
-1. `GoogleTokens.claims(token)` proves the token is Google's and still valid: an ID token (a JWT) is checked
-   locally against Google's signing keys, an access token by Google's token introspection. Verified claims
-   are cached per instance for 300 seconds, or until the token expires if sooner.
-2. `check(claims, settings)` applies the active configuration on every request: the token must be issued to a
-   declared OAuth client (which names the surface), carry the `openid` and `email` scopes, belong to an
-   allowed Cloud Identity domain, not be a service account, and not be on the block list.
+- `caller_token`: sdlc_ui or the agent runtime forwards the user in `X-SDLC-User-Id` and
+  `X-SDLC-User-Email`, and proves who it is with its service account's Google ID token. Only declared
+  callers can speak for a user; each names the surface.
+- `trusted_header`: the same headers without caller proof, for the local environment only.
+- `oauth` (DEC-0001, off for now): the user's own Google token, issued to a declared OAuth client.
 
-Every refusal is a `Rejected` with a reason for the audit record; the token itself is never logged.
+Whatever the mode, the user must have a well-formed account ID and email in an allowed domain, not be a
+service account and not be on the block list. Google tokens are verified by `GoogleTokens`: ID tokens
+against Google's signing keys, access tokens by introspection, cached per instance for 300 seconds.
+
+Every refusal is a `Rejected` with a reason for the audit record; tokens are never logged.
 """
 
-from sdlc_identity.check import Identity, IdentitySettings, check
+from sdlc_identity.check import MODES, Identity, IdentitySettings, check
+from sdlc_identity.forwarded import SURFACE_HEADER, USER_EMAIL_HEADER, USER_ID_HEADER, identify
 from sdlc_identity.tokens import GoogleTokens, Rejected
 
-__all__ = ["GoogleTokens", "Identity", "IdentitySettings", "Rejected", "check"]
+__all__ = [
+    "MODES",
+    "SURFACE_HEADER",
+    "USER_EMAIL_HEADER",
+    "USER_ID_HEADER",
+    "GoogleTokens",
+    "Identity",
+    "IdentitySettings",
+    "Rejected",
+    "check",
+    "identify",
+]

@@ -4,9 +4,16 @@ The MCP server for calls made as a user ([DEC-0002](../../spec/decisions/DEC-000
 [component](../../spec/components/user-agent-mcp.md)). Cloud Run service; MCP revision 2026-07-28 over
 streamable HTTP, stateless, so any instance serves any request.
 
-Every request to `/mcp` and `/api/*` needs the user's Google account token, issued to an OAuth client that the
-active configuration declares for a surface. The server:
-- verifies the token (`libs/sdlc_identity`) and refuses anything else with 401;
+Every request to `/mcp` and `/api/*` names its user, as the active configuration's `identity.mode` requires
+([DEC-0010](../../spec/decisions/DEC-0010.md)):
+- `caller_token`: `X-SDLC-User-Id` and `X-SDLC-User-Email`, sent by sdlc_ui (from the IAP assertion it verified)
+  or the agent runtime, with `Authorization: Bearer <Google ID token>` of the caller's service account for this
+  server's `PUBLIC_URL`. The account must be listed under `identity.callers`, which names the surface.
+- `trusted_header` (local only): the same user headers plus `X-SDLC-Surface`, with no proof.
+- `oauth` (off for now): the user's own Google token, issued to a declared OAuth client.
+
+The server:
+- identifies the user (`libs/sdlc_identity`) and refuses anything else with 401;
 - resolves the user's teams and user groups (`libs/sdlc_directory`) and effective policy (`libs/sdlc_policy`) from
   the active bundle, read from `CONFIG_SOURCE` and re-checked every 30 seconds;
 - lists and allows only the tools of the surface's tool groups that the user is granted, with per-user and
@@ -31,11 +38,12 @@ Build and test from this folder: `uv run pytest`. Locally:
 ```sh
 uv run sdlc-config publish --env local --to .data/config --activate   # from the repository root
 docker compose --env-file compose/local.env up --build user-agent-mcp
-curl -H "Authorization: Bearer $(gcloud auth print-access-token)" http://localhost:8080/api/me
+curl -H "X-SDLC-Surface: sdlc_ui" -H "X-SDLC-User-Id: 1001" -H "X-SDLC-User-Email: you@your-domain" \
+  http://localhost:8080/api/me
 ```
 
-The last line works when `config/env/local/identity.yaml` declares the gcloud CLI's OAuth client for the
-`developer_cli` surface and allows your domain.
+The last line works when `config/env/local/identity.yaml` has `mode: trusted_header`, allows your domain and
+declares the `sdlc_ui` caller; `users.yaml` gives you your teams.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -45,11 +53,10 @@ The last line works when `config/env/local/identity.yaml` declares the gcloud CL
 | `CONFIG_SOURCE` | - (required) | Published bundles: a folder, or `gs://<configuration bucket>[/prefix]` |
 | `CONFIG_REFRESH_SECONDS` | `30` | How often the active-version pointer is re-read |
 | `STORE_MOUNT_PATH` | - (required) | Mount point of the artifact bucket (a local folder in the `local` profile) |
-| `PUBLIC_URL` | `http://localhost:$PORT` | This server's URL, for the protected-resource metadata |
+| `PUBLIC_URL` | `http://localhost:$PORT` | This server's URL: the audience callers' ID tokens must carry, and the protected-resource metadata |
 | `SDLC_UI_URL` | - | sdlc_ui's URL; `connection_start` links to `<SDLC_UI_URL>/connections/<provider>` |
 | `DATA_ENCRYPTION_KEY` | - | Base64 of 32 bytes, from Secret Manager; without it, secrets cannot be saved |
 | `DATA_ENCRYPTION_KEY_VERSION` | `1` | Recorded with each encrypted secret |
-| `GOOGLE_CLOUD_QUOTA_PROJECT` | - | Billing project for the Groups API with user credentials (local runs only) |
 
-On Google Cloud, directory modes `direct` and `transitive` need the service account to hold the Groups Reader
-admin role in the Google Admin console.
+On Google Cloud the service has internal ingress, and only sdlc_ui's and the agent runtime's service accounts
+hold its invoker role.

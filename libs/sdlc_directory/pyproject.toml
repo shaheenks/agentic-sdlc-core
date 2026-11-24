@@ -1,9 +1,9 @@
 [project]
 name = "sdlc-directory"
 version = "0.0.0"
-description = "A user's teams, team roles and user groups, from the Google groups mapped in configuration."
+description = "A user's teams, team roles and user groups, from the users declared in configuration."
 requires-python = ">=3.12"
-dependencies = ["httpx>=0.28", "google-auth>=2.40"]
+dependencies = []
 
 [build-system]
 requires = ["hatchling"]

@@ -3,54 +3,36 @@
   "title": "Identity settings of one environment (env/<env>/identity.yaml).",
   "type": "object",
   "properties": {
+    "mode": {
+      "description": "How user_agent_mcp learns who the user is (DEC-0010).",
+      "enum": ["caller_token", "trusted_header", "oauth"]
+    },
     "allowed_domains": {
       "type": "array",
-      "items": {
-        "type": "string",
-        "pattern": "^[a-z0-9.-]+\\.[a-z]+$"
-      },
+      "items": {"type": "string", "pattern": "^[a-z0-9.-]+\\.[a-z]+$"},
       "uniqueItems": true
     },
-    "clients": {
+    "callers": {
+      "description": "Per surface, the service accounts (email or unique ID) that may forward a user.",
       "type": "object",
-      "propertyNames": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9_-]*$"
-      },
+      "propertyNames": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
       "additionalProperties": {
         "type": "array",
-        "items": {
-          "type": "string",
-          "minLength": 1
-        },
+        "items": {"type": "string", "minLength": 1},
         "uniqueItems": true
       }
     },
-    "directory": {
+    "clients": {
+      "description": "Mode oauth: per surface, the OAuth client IDs users' tokens may be issued to.",
       "type": "object",
-      "properties": {
-        "mode": {
-          "enum": [
-            "static",
-            "direct",
-            "transitive"
-          ]
-        },
-        "cache_seconds": {
-          "type": "integer",
-          "minimum": 0
-        }
-      },
-      "required": [
-        "mode"
-      ],
-      "additionalProperties": false
+      "propertyNames": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string", "minLength": 1},
+        "uniqueItems": true
+      }
     }
   },
-  "required": [
-    "allowed_domains",
-    "clients",
-    "directory"
-  ],
+  "required": ["mode", "allowed_domains"],
   "additionalProperties": false
 }

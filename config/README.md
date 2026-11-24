@@ -13,13 +13,13 @@ bundle and published to the configuration bucket. Services use a bundle only onc
 | `grants.yaml` | Which tool groups go to everyone, to teams (or one team role) or to user groups |
 | `limits.yaml` | Rate limits on tool calls per user and team, with overrides |
 | `providers.yaml` | Connection providers (GitHub, Bitbucket, Jira; cloud and Data Center) |
-| `env/<env>/identity.yaml` | Allowed Cloud Identity domains, each surface's OAuth client IDs, the directory mode |
-| `env/<env>/groups.yaml` | The Google groups behind each team role and user group |
-| `env/<env>/users.yaml` | Group membership for directory mode `static` (local runs) |
+| `env/<env>/identity.yaml` | The identity mode, allowed Cloud Identity domains, each surface's callers (service accounts) or OAuth client IDs |
+| `env/<env>/users.yaml` | Users by email with their teams (`team` or `team:role`) and user groups |
 | `env/<env>/blocked.yaml` | Users refused on every surface |
 
-`env/<env>/` holds client IDs, domains and emails, so it is git-ignored; only `env/example/` is committed. Copy it
-to `env/local/` (or `env/dev/`) and fill in real values.
+`env/<env>/` holds service accounts, client IDs, domains and emails, so it is git-ignored; only `env/example/` is
+committed. Copy it to `env/local/` (or `env/dev/`) and fill in real values; locally, `mode: trusted_header` lets
+you call without a caller token (DEC-0010).
 
 ```sh
 uv run sdlc-config validate --env local

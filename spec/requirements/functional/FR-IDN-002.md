@@ -22,3 +22,5 @@ The system shall make every tool call, data read and downstream call of a run st
 # Notes
 
 Scheduled and event-triggered runs act as the system identity instead: [FR-IDN-004](FR-IDN-004.md).
+
+For now the user's identity is forwarded between sdlc_ui, the agent runtime and user_agent_mcp by declared service accounts rather than as the user's own token ([DEC-0010](../../decisions/DEC-0010.md)).
