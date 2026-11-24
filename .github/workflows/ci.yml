@@ -1,0 +1,118 @@
+# CI: lint, the specification bundle and docs site, tests per component, sdlc_ui, images and Terraform.
+# No secrets and no cloud access.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_PYTHON_DOWNLOADS: automatic
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --all-packages --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  spec:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run python tools/okf_bundle.py lint
+      - run: uv run mkdocs build --strict
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - mcp_servers/user_agent_mcp
+          - mcp_servers/event_agent_mcp
+          - a2a_router
+          - knowledge_search
+          - event_gateway
+          - knowledge_ingest
+          - code_workspace
+          - interactive_agents/user_agent
+          - event_based_agents/ci_workflow_agent
+          - event_based_agents/operations_agent
+          - libs/sdlc_logging
+          - libs/sdlc_service
+          - config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --all-packages --frozen
+      - name: Tests of ${{ matrix.component }}, from its own folder
+        working-directory: ${{ matrix.component }}
+        run: uv run pytest
+
+  config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --all-packages --frozen
+      - run: uv run sdlc-config validate --env local
+
+  ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdlc_ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: sdlc_ui/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  images:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - mcp_servers/user_agent_mcp
+          - mcp_servers/event_agent_mcp
+          - a2a_router
+          - knowledge_search
+          - event_gateway
+          - knowledge_ingest
+          - code_workspace
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f ${{ matrix.component }}/Dockerfile .
+
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/gcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false
+      - run: terraform validate

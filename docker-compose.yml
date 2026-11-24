@@ -1,0 +1,86 @@
+# Local stack (NFR-OPS-002). Profiles are environment files:
+#   docker compose --env-file compose/local.env up --build     everything local
+#   docker compose --env-file compose/gcp-dev.env up --build   Google Cloud dependencies in the development project
+# Services publish on 127.0.0.1 only. Copy compose/gcp-dev.env.example to compose/gcp-dev.env and fill it in;
+# that file is git-ignored.
+name: agentic-sdlc-v2
+
+x-common: &common
+  restart: unless-stopped
+
+x-common-env: &common-env
+  SDLC_ENV: ${SDLC_ENV:-local}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
+
+services:
+  user-agent-mcp:
+    build:
+      context: .
+      dockerfile: mcp_servers/user_agent_mcp/Dockerfile
+    <<: *common
+    environment:
+      <<: *common-env
+      PORT: "8080"
+      STORE_MOUNT_PATH: /data/store
+    volumes:
+      - ${STORE_HOST_PATH:-./.data/store}:/data/store
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  event-agent-mcp:
+    build:
+      context: .
+      dockerfile: mcp_servers/event_agent_mcp/Dockerfile
+    <<: *common
+    environment:
+      <<: *common-env
+      PORT: "8081"
+      STORE_MOUNT_PATH: /data/store
+    volumes:
+      - ${STORE_HOST_PATH:-./.data/store}:/data/store
+    ports:
+      - "127.0.0.1:8081:8081"
+
+  a2a-router:
+    build:
+      context: .
+      dockerfile: a2a_router/Dockerfile
+    <<: *common
+    environment:
+      <<: *common-env
+      PORT: "8082"
+    ports:
+      - "127.0.0.1:8082:8082"
+
+  knowledge-search:
+    build:
+      context: .
+      dockerfile: knowledge_search/Dockerfile
+    <<: *common
+    environment:
+      <<: *common-env
+      PORT: "8083"
+    ports:
+      - "127.0.0.1:8083:8083"
+
+  event-gateway:
+    build:
+      context: .
+      dockerfile: event_gateway/Dockerfile
+    <<: *common
+    environment:
+      <<: *common-env
+      PORT: "8084"
+    ports:
+      - "127.0.0.1:8084:8084"
+
+  sdlc-ui:
+    build:
+      context: sdlc_ui
+    <<: *common
+    environment:
+      <<: *common-env
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:3000:3000"

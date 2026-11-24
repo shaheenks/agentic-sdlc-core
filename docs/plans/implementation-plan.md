@@ -58,6 +58,11 @@ changing it during a run needs the user's explicit confirmation in chat.
   (7-day lifecycle on `artifacts/`), Secret Manager secrets, Artifact Registry, networking for internal ingress.
   Claude runs `fmt`, `validate` and `plan`; every `apply` is announced and run only with your approval.
 - Exit gate: every component builds and tests in CI; `terraform plan` for development is clean and reviewed.
+- Status (2026-11-24, in progress): workspace, `libs/sdlc_logging` and `libs/sdlc_service`, a skeleton for every
+  component with tests, sdlc_ui (Next.js, CopilotKit later), Docker Compose (`compose/local.env`,
+  `compose/gcp-dev.env`), CI in `.github/workflows/ci.yml`, and Terraform in `infra/gcp` (formatted and
+  validated) are in place. Open: a CI run (the repository has no remote yet) and `terraform plan` against the
+  development project.
 
 ### Phase 1: Identity, access and user_agent_mcp
 

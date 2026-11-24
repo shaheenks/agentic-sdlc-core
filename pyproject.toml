@@ -1,8 +1,8 @@
 [project]
 name = "agentic-sdlc-v2"
 version = "0.0.0"
-description = "Specification for a platform that runs pre-defined agentic SDLC workflows for users and teams."
-requires-python = ">=3.12"
+description = "Platform that runs pre-defined agentic SDLC workflows for users and teams."
+requires-python = ">=3.12,<3.14"
 dependencies = []
 
 [dependency-groups]
@@ -11,7 +11,56 @@ docs = [
     "mkdocs-material>=9.6",
     "pyyaml>=6.0.4",
 ]
+dev = [
+    "pytest>=8.4",
+    "httpx2",
+    "ruff>=0.12",
+]
 
 [tool.uv]
 package = false
-default-groups = ["docs"]
+default-groups = ["docs", "dev"]
+
+[tool.uv.workspace]
+# Explicit list: add each new component or library here as it lands.
+members = [
+    "mcp_servers/user_agent_mcp",
+    "mcp_servers/event_agent_mcp",
+    "a2a_router",
+    "knowledge_search",
+    "event_gateway",
+    "knowledge_ingest",
+    "code_workspace",
+    "interactive_agents/user_agent",
+    "event_based_agents/ci_workflow_agent",
+    "event_based_agents/operations_agent",
+    "libs/sdlc_logging",
+    "libs/sdlc_service",
+    "config",
+]
+
+[tool.uv.sources]
+sdlc-user-agent-mcp = { workspace = true }
+sdlc-event-agent-mcp = { workspace = true }
+sdlc-a2a-router = { workspace = true }
+sdlc-knowledge-search = { workspace = true }
+sdlc-event-gateway = { workspace = true }
+sdlc-knowledge-ingest = { workspace = true }
+sdlc-code-workspace = { workspace = true }
+sdlc-user-agent = { workspace = true }
+sdlc-ci-workflow-agent = { workspace = true }
+sdlc-operations-agent = { workspace = true }
+sdlc-logging = { workspace = true }
+sdlc-service = { workspace = true }
+sdlc-config = { workspace = true }
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["sdlc_ui", "site"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+# Test modules are named test_<component>.py, so their names stay unique across the workspace.

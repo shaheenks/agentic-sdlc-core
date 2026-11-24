@@ -1,3 +1,13 @@
 site/
 .venv/
 __pycache__/
+.ruff_cache/
+.pytest_cache/
+.data/
+compose/gcp-dev.env
+config/env/*/users.yaml
+config/env/*/blocked.yaml
+infra/**/.terraform/
+infra/**/*.tfvars
+infra/**/*.tfbackend
+infra/**/*.tfstate*

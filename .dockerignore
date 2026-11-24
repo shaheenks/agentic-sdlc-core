@@ -1,0 +1,14 @@
+.git
+.venv
+**/.venv
+**/__pycache__
+**/.pytest_cache
+.ruff_cache
+site
+spec
+docs
+overrides
+infra
+sdlc_ui
+.data
+compose

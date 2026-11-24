@@ -1,0 +1,3 @@
+# Platform-wide settings. Teams, user groups, grants, workflows, tools and sources are added in phase 1.
+# Hostnames, project IDs, group IDs and user emails never go in this repository.
+version: 1

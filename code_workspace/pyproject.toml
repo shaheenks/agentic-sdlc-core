@@ -1,0 +1,16 @@
+[project]
+name = "sdlc-code-workspace"
+version = "0.0.0"
+description = "Cloud Run job where ci_workflow_agent edits code and runs a repository's build and tests."
+requires-python = ">=3.12"
+dependencies = ["sdlc-logging"]
+
+[project.scripts]
+sdlc-code-workspace = "code_workspace.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/code_workspace"]

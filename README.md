@@ -5,8 +5,8 @@ users and teams. People work with an interactive agent to explore ideas, write f
 design changes. Event-based agents then implement, review, deploy and operate those changes. Every stage ends
 with an artifact that a person approves.
 
-**Status:** specification. This repository holds the system specification and the implementation plan; no
-platform code exists yet.
+**Status:** phase 0 (foundations) of the [implementation plan](docs/plans/implementation-plan.md): the workspace,
+component skeletons, Docker Compose, CI and Terraform are in place; no platform features yet.
 
 ## How it works
 
@@ -54,9 +54,11 @@ one else.
 | `tools/` | The bundle tool (indexes, traceability, lint) and the MkDocs hook |
 | `mkdocs.yml`, `overrides/` | The documentation site, built from `spec/` and `docs/`; `overrides/` widens the Material theme |
 
-The planned code folders (`sdlc_ui/`, `a2a_router/`, `interactive_agents/`, `event_based_agents/`,
-`mcp_servers/`, `knowledge_search/`, `knowledge_ingest/`, `event_gateway/`, `code_workspace/`, `config/`,
-`infra/`, `libs/`) are listed in [AGENTS.md](AGENTS.md).
+Code folders, one per deployable component, each building and testing on its own: `sdlc_ui/`, `a2a_router/`,
+`interactive_agents/`, `event_based_agents/`, `mcp_servers/`, `knowledge_search/`, `knowledge_ingest/`,
+`event_gateway/`, `code_workspace/`, `config/` and `infra/`; shared Python libraries in `libs/`. Local stack:
+`docker compose --env-file compose/local.env up --build`. Python tests: `uv run pytest` (or from a component's
+folder).
 
 ## Working with the specification
 

@@ -21,12 +21,29 @@ MKDOCS = ROOT / "mkdocs.yml"
 
 LAYERS = ["experience", "control", "execution", "capability", "knowledge", "records", "platform"]
 AREAS = {
-    "SURF": "Surfaces", "IDN": "Identity", "TEAM": "Teams", "AUTHZ": "Authorization",
-    "CFG": "Configuration", "WFL": "Workflows", "TRIG": "Triggers", "HUM": "Human tasks",
-    "AGT": "Agent steps", "SKILL": "Skills", "CONN": "Connections", "KNOW": "Knowledge",
-    "ART": "Artifacts", "MDL": "Models", "SDLC": "SDLC flow",
-    "HOST": "Hosting", "ARCH": "Architecture", "SEC": "Security", "PRIV": "Privacy",
-    "AUD": "Auditability", "OBS": "Observability", "REL": "Reliability", "PERF": "Performance",
+    "SURF": "Surfaces",
+    "IDN": "Identity",
+    "TEAM": "Teams",
+    "AUTHZ": "Authorization",
+    "CFG": "Configuration",
+    "WFL": "Workflows",
+    "TRIG": "Triggers",
+    "HUM": "Human tasks",
+    "AGT": "Agent steps",
+    "SKILL": "Skills",
+    "CONN": "Connections",
+    "KNOW": "Knowledge",
+    "ART": "Artifacts",
+    "MDL": "Models",
+    "SDLC": "SDLC flow",
+    "HOST": "Hosting",
+    "ARCH": "Architecture",
+    "SEC": "Security",
+    "PRIV": "Privacy",
+    "AUD": "Auditability",
+    "OBS": "Observability",
+    "REL": "Reliability",
+    "PERF": "Performance",
     "OPS": "Operability",
 }
 REQ_TYPES = {"Functional Requirement": "functional", "Non-Functional Requirement": "non-functional"}
@@ -103,9 +120,11 @@ def build() -> None:
         members = [c for c in comps if c.meta.get("x-layer") == layer]
         if members:
             lines += [f"# {layer.capitalize()}", ""]
-            lines += [f"* [{c.meta['title']}]({c.name}.md) - "
-                      f"{'*Retired.* ' if c.meta.get('status') == 'deprecated' else ''}{c.meta.get('description', '')}"
-                      for c in members]
+            lines += [
+                f"* [{c.meta['title']}]({c.name}.md) - "
+                f"{'*Retired.* ' if c.meta.get('status') == 'deprecated' else ''}{c.meta.get('description', '')}"
+                for c in members
+            ]
             lines.append("")
     (SPEC / "components" / "index.md").write_text("\n".join(lines), encoding="utf-8")
 
@@ -121,43 +140,67 @@ def build() -> None:
             lines += [f"# {AREAS[area]}", ""]
             lines += [f"* [{r.name}: {r.meta['title']}]({r.name}.md) - {r.meta.get('description', '')}" for r in group]
             lines.append("")
-            top_lines.append(f"* [{AREAS[area]}]({folder}/index.md#{AREAS[area].lower().replace(' ', '-')}) - {len(group)}")
+            top_lines.append(
+                f"* [{AREAS[area]}]({folder}/index.md#{AREAS[area].lower().replace(' ', '-')}) - {len(group)}"
+            )
         (SPEC / "requirements" / folder / "index.md").write_text("\n".join(lines), encoding="utf-8")
         top += top_lines + [""]
     (SPEC / "requirements" / "index.md").write_text("\n".join(top), encoding="utf-8")
 
     # traceability.md
-    t = ["---", "type: Traceability Matrix", "title: Traceability",
-         "description: Generated matrix from requirements to the components that satisfy them, with gaps.",
-         "tags: [meta, generated]", "---", "", GENERATED, "",
-         "# Requirements to components", "",
-         "| Requirement | Priority | Implementation | Satisfied by |", "|---|---|---|---|"]
+    t = [
+        "---",
+        "type: Traceability Matrix",
+        "title: Traceability",
+        "description: Generated matrix from requirements to the components that satisfy them, with gaps.",
+        "tags: [meta, generated]",
+        "---",
+        "",
+        GENERATED,
+        "",
+        "# Requirements to components",
+        "",
+        "| Requirement | Priority | Implementation | Satisfied by |",
+        "|---|---|---|---|",
+    ]
     for r in reqs:
         sub = REQ_TYPES[r.meta["type"]]
         cs = ", ".join(f"[{c.meta['title']}](components/{c.name}.md)" for c in satisfied_by.get(r.cid, []))
-        t.append(f"| [{r.name}](requirements/{sub}/{r.name}.md) {r.meta['title']} | {r.meta.get('x-priority', '')} "
-                 f"| {r.meta.get('x-implementation', '')} | {cs or '-'} |")
+        t.append(
+            f"| [{r.name}](requirements/{sub}/{r.name}.md) {r.meta['title']} | {r.meta.get('x-priority', '')} "
+            f"| {r.meta.get('x-implementation', '')} | {cs or '-'} |"
+        )
     gaps = [r for r in reqs if not satisfied_by.get(r.cid)]
     t += ["", "# Gaps", "", "Requirements no component satisfies yet:", ""]
-    t += [f"* [{r.name}: {r.meta['title']}](requirements/{REQ_TYPES[r.meta['type']]}/{r.name}.md)" for r in gaps] or ["* None."]
+    t += [f"* [{r.name}: {r.meta['title']}](requirements/{REQ_TYPES[r.meta['type']]}/{r.name}.md)" for r in gaps] or [
+        "* None."
+    ]
     (SPEC / "traceability.md").write_text("\n".join(t) + "\n", encoding="utf-8")
 
     # decisions/index.md
     decisions = sorted(by_type(concepts, "Decision"), key=lambda c: c.name)
     if decisions:
         lines = ["# Decisions", ""]
-        lines += [f"* [{d.name}: {d.meta['title']}]({d.name}.md) - `{d.meta.get('x-state', '')}` - "
-                  f"{d.meta.get('description', '')}" for d in decisions]
+        lines += [
+            f"* [{d.name}: {d.meta['title']}]({d.name}.md) - `{d.meta.get('x-state', '')}` - "
+            f"{d.meta.get('description', '')}"
+            for d in decisions
+        ]
         (SPEC / "decisions" / "index.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     # mkdocs nav
-    nav = ["nav:", "  - Home: index.md", "  - Conventions: conventions.md", "  - Components:",
-           "      - components/index.md"]
+    nav = [
+        "nav:",
+        "  - Home: index.md",
+        "  - Conventions: conventions.md",
+        "  - Components:",
+        "      - components/index.md",
+    ]
     for layer in LAYERS:
         members = [c for c in comps if c.meta.get("x-layer") == layer]
         if members:
             nav.append(f"      - {layer.capitalize()}:")
-            nav += [f"          - \"{c.meta['title']}\": components/{c.name}.md" for c in members]
+            nav += [f'          - "{c.meta["title"]}": components/{c.name}.md' for c in members]
     nav += ["  - Requirements:", "      - requirements/index.md"]
     for rtype, folder in REQ_TYPES.items():
         nav += [f"      - {rtype}s:", f"          - requirements/{folder}/index.md"]
@@ -165,18 +208,22 @@ def build() -> None:
             group = [r for r in reqs if r.meta["type"] == rtype and r.meta.get("x-area") == area]
             if group:
                 nav.append(f"          - {AREAS[area]}:")
-                nav += [f"              - \"{r.name} {r.meta['title']}\": requirements/{folder}/{r.name}.md" for r in group]
+                nav += [
+                    f'              - "{r.name} {r.meta["title"]}": requirements/{folder}/{r.name}.md' for r in group
+                ]
     if decisions:
         nav += ["  - Decisions:", "      - decisions/index.md"]
-        nav += [f"      - \"{d.name} {d.meta['title']}\": decisions/{d.name}.md" for d in decisions]
+        nav += [f'      - "{d.name} {d.meta["title"]}": decisions/{d.name}.md' for d in decisions]
     nav += ["  - Traceability: traceability.md", "  - Change log: log.md"]
     docs_pages = sorted((ROOT / "docs").rglob("*.md"))
     if docs_pages:
         nav.append("  - Docs:")
         for page in docs_pages:
-            heading = next((ln[2:].strip() for ln in page.read_text(encoding="utf-8").splitlines()
-                            if ln.startswith("# ")), page.stem)
-            nav.append(f"      - \"{heading}\": {page.relative_to(ROOT).as_posix()}")
+            heading = next(
+                (ln[2:].strip() for ln in page.read_text(encoding="utf-8").splitlines() if ln.startswith("# ")),
+                page.stem,
+            )
+            nav.append(f'      - "{heading}": {page.relative_to(ROOT).as_posix()}')
     text = MKDOCS.read_text(encoding="utf-8")
     text = re.sub(r"^nav:\n.*\Z", "\n".join(nav) + "\n", text, flags=re.S | re.M)
     MKDOCS.write_text(text, encoding="utf-8")
@@ -195,7 +242,9 @@ def lint() -> int:
         errors.append(f"{c.path.relative_to(ROOT).as_posix()}: {msg}")
 
     for c in concepts:
-        required = ("title", "description") if c.meta["type"] == "Traceability Matrix" else ("title", "description", "status")
+        required = (
+            ("title", "description") if c.meta["type"] == "Traceability Matrix" else ("title", "description", "status")
+        )
         for key in required:
             if not c.meta.get(key):
                 err(c, f"missing `{key}`")

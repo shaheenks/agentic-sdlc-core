@@ -25,8 +25,9 @@ _FENCE = re.compile(r"^(```|~~~)")
 def on_files(files, config):
     for path in sorted(_EXTRA.rglob("*.md")):
         rel = path.relative_to(_ROOT).as_posix()
-        files.append(File(rel, src_dir=str(_ROOT), dest_dir=config["site_dir"],
-                          use_directory_urls=config["use_directory_urls"]))
+        files.append(
+            File(rel, src_dir=str(_ROOT), dest_dir=config["site_dir"], use_directory_urls=config["use_directory_urls"])
+        )
     return files
 
 
