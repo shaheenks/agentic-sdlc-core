@@ -1,0 +1,6 @@
+# Approximate rate limits on tool calls (FR-AUTHZ-005, FR-MDL-002), counted per service instance.
+rate_limits:
+  tool_calls:
+    per_user_per_minute: 120
+    per_team_per_minute: 1200
+    overrides: []

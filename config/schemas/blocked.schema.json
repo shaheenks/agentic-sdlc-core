@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Blocked users (env/<env>/blocked.yaml).",
+  "type": "object",
+  "properties": {
+    "blocked": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "email": {
+            "type": "string",
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "minProperties": 2,
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "blocked"
+  ],
+  "additionalProperties": false
+}

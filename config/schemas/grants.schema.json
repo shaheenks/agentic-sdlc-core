@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Grants of tool groups.",
+  "type": "object",
+  "properties": {
+    "grants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tool_groups": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*$"
+            },
+            "uniqueItems": true,
+            "minItems": 1
+          },
+          "to": {
+            "type": "object",
+            "properties": {
+              "everyone": {
+                "const": true
+              },
+              "teams": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]*(:[a-z][a-z0-9_-]*)?$"
+                },
+                "uniqueItems": true
+              },
+              "user_groups": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]*$"
+                },
+                "uniqueItems": true
+              }
+            },
+            "additionalProperties": false,
+            "minProperties": 1
+          }
+        },
+        "required": [
+          "id",
+          "description",
+          "tool_groups",
+          "to"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "grants"
+  ],
+  "additionalProperties": false
+}

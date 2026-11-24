@@ -1,0 +1,29 @@
+# Connection providers (FR-CONN-001, FR-CONN-003): GitHub, Bitbucket and Jira in both editions first;
+# Confluence follows. A Data Center connection names its server's base URL when the user saves it.
+providers:
+  github:
+    name: GitHub
+    system: github
+    edition: cloud
+    base_url: https://api.github.com
+  github_enterprise:
+    name: GitHub Enterprise Server
+    system: github
+    edition: data_center
+  bitbucket_cloud:
+    name: Bitbucket Cloud
+    system: bitbucket
+    edition: cloud
+    base_url: https://api.bitbucket.org
+  bitbucket_dc:
+    name: Bitbucket Data Center
+    system: bitbucket
+    edition: data_center
+  jira_cloud:
+    name: Jira Cloud
+    system: jira
+    edition: cloud
+  jira_dc:
+    name: Jira Data Center
+    system: jira
+    edition: data_center

@@ -23,8 +23,16 @@ services:
       <<: *common-env
       PORT: "8080"
       STORE_MOUNT_PATH: /data/store
+      # A folder of published bundles (local), or gs://<configuration bucket> (gcp-dev).
+      CONFIG_SOURCE: ${CONFIG_SOURCE:-/data/config}
+      PUBLIC_URL: ${USER_AGENT_MCP_PUBLIC_URL:-http://localhost:8080}
+      SDLC_UI_URL: ${SDLC_UI_URL:-http://localhost:3000}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-}
+      DATA_ENCRYPTION_KEY_VERSION: ${DATA_ENCRYPTION_KEY_VERSION:-1}
+      GOOGLE_CLOUD_QUOTA_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
     volumes:
       - ${STORE_HOST_PATH:-./.data/store}:/data/store
+      - ${CONFIG_HOST_PATH:-./.data/config}:/data/config:ro
     ports:
       - "127.0.0.1:8080:8080"
 

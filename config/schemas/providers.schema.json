@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Connection providers.",
+  "type": "object",
+  "properties": {
+    "providers": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "system": {
+            "enum": [
+              "github",
+              "bitbucket",
+              "jira",
+              "confluence"
+            ]
+          },
+          "edition": {
+            "enum": [
+              "cloud",
+              "data_center"
+            ]
+          },
+          "base_url": {
+            "type": "string",
+            "pattern": "^https://"
+          }
+        },
+        "required": [
+          "name",
+          "system",
+          "edition"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "providers"
+  ],
+  "additionalProperties": false
+}

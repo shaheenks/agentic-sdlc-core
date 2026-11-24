@@ -1,0 +1,15 @@
+# Surfaces that call user_agent_mcp, known by the OAuth client their users' tokens were issued to
+# (FR-AUTHZ-006). The client IDs of each surface are declared per environment in env/<env>/identity.yaml;
+# a surface with no client there cannot be reached in that environment.
+surfaces:
+  sdlc_ui:
+    description: The platform's web UI and its backend; the only place connection secrets are entered.
+    tool_groups: [identity, artifacts, connections, connection_secrets]
+  gemini_enterprise:
+    description: The Gemini Enterprise app, through the A2A router and user_agent.
+    tool_groups: [identity, artifacts, connections]
+  developer_cli:
+    description: >-
+      gcloud tokens of developers testing the server directly. Declare its client only for the local and
+      development environments.
+    tool_groups: [identity, artifacts, connections, connection_secrets]

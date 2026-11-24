@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Group membership for directory mode static (env/<env>/users.yaml).",
+  "type": "object",
+  "properties": {
+    "users": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+        },
+        "uniqueItems": true
+      }
+    }
+  },
+  "required": [
+    "users"
+  ],
+  "additionalProperties": false
+}

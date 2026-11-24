@@ -5,6 +5,7 @@ description: Resolves a user's effective permissions from declared roles and dec
 tags: [component, control, security]
 status: draft
 x-layer: control
+x-folder: libs/sdlc_policy/
 x-depends-on: [/components/directory, /components/configuration-registry, /components/audit-log]
 x-satisfies: [/requirements/functional/FR-SURF-004, /requirements/functional/FR-IDN-004, /requirements/functional/FR-TEAM-002, /requirements/functional/FR-TEAM-003, /requirements/functional/FR-TEAM-004, /requirements/functional/FR-AUTHZ-001, /requirements/functional/FR-AUTHZ-002, /requirements/functional/FR-AUTHZ-003, /requirements/functional/FR-AUTHZ-004, /requirements/functional/FR-AUTHZ-005, /requirements/functional/FR-AUTHZ-006, /requirements/functional/FR-AUTHZ-007, /requirements/functional/FR-CFG-005, /requirements/functional/FR-WFL-003, /requirements/functional/FR-HUM-002, /requirements/functional/FR-SKILL-001, /requirements/functional/FR-ART-002, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-SEC-001, /requirements/non-functional/NFR-SEC-002, /requirements/non-functional/NFR-AUD-001, /requirements/functional/FR-KNOW-004]
 ---
@@ -69,6 +70,15 @@ prompts. The services that own each resource enforce the decision.
 
 # Realisation
 
-- A library under `libs/`, embedded in user_agent_mcp and event_agent_mcp ([DEC-0005](../decisions/DEC-0005.md)).
-- A shared library under `libs/`, self-contained, used by user_agent_mcp, Knowledge Search and the sdlc_ui BFF.
-- A team run gets the intersection of the starter's own effective permissions and the team's grants, plus what everyone is granted; the starter's personal denies still apply ([FR-TEAM-002](../requirements/functional/FR-TEAM-002.md)).
+- Library `libs/sdlc_policy`, embedded in user_agent_mcp and later event_agent_mcp
+  ([DEC-0005](../decisions/DEC-0005.md)).
+- Grants give tool groups to everyone, to teams (a whole team, or one role such as `payments:lead`) or to user
+  groups; a surface narrows them to its declared tool groups. Each decision names its rule as
+  `grant:<id>/tool_group:<group>/surface:<surface>`, or `default-deny`.
+- A team run gets the intersection of the starter's own effective permissions and the team's grants, plus what
+  everyone is granted; the starter's personal denies still apply
+  ([FR-TEAM-002](../requirements/functional/FR-TEAM-002.md)).
+- Rate limits on tool calls per user (with overrides per team or user group, the most generous applying) and per
+  team, in one-minute sliding windows counted per service instance.
+- Argument constraints are not implemented yet; the first tools that need them (repository and tracker tools)
+  come with the connectors.

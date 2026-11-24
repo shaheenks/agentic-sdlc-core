@@ -66,3 +66,6 @@ The output of a workflow (a design review, a test plan, generated stories) lives
 - One Cloud Storage bucket per environment in europe-west3: uniform bucket-level access, lifecycle rule deleting
   objects under `artifacts/` 7 days after creation, IAM conditions on object-name prefixes per service account.
   No database ([DEC-0003](../decisions/DEC-0003.md)). Prefix layout: [DEC-0006](../decisions/DEC-0006.md).
+- Each version of an artifact is two objects, `<name>/<NNNN>.json` (metadata and lineage) and
+  `<name>/<NNNN>.content`, so each version expires on its own and earlier versions stay readable meanwhile.
+  Size and content-type limits come from `platform.yaml`.

@@ -1,3 +1,7 @@
-# Platform-wide settings. Teams, user groups, grants, workflows, tools and sources are added in phase 1.
-# Hostnames, project IDs, group IDs and user emails never go in this repository.
+# Platform-wide settings. Hostnames, project IDs, OAuth client IDs, group emails and user emails never go in
+# this folder's shared files; they go in config/env/<env>/, which is git-ignored except for the example.
 version: 1
+
+artifacts:
+  max_bytes: 1048576
+  content_types: [text/markdown, text/plain, application/json, application/yaml]

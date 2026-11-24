@@ -55,6 +55,10 @@ jobs:
           - event_based_agents/operations_agent
           - libs/sdlc_logging
           - libs/sdlc_service
+          - libs/sdlc_config_store
+          - libs/sdlc_identity
+          - libs/sdlc_directory
+          - libs/sdlc_policy
           - config
     steps:
       - uses: actions/checkout@v4
@@ -70,7 +74,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uv sync --all-packages --frozen
-      - run: uv run sdlc-config validate --env local
+      # Real environments are git-ignored; the example environment checks the shared files and the schemas.
+      - run: uv run sdlc-config validate --env example
 
   ui:
     runs-on: ubuntu-latest

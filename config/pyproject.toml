@@ -1,9 +1,9 @@
 [project]
 name = "sdlc-config"
 version = "0.0.0"
-description = "The platform's declared access model and the tool that validates and publishes it."
+description = "The platform's declared access model and the tool that validates, publishes and activates it."
 requires-python = ">=3.12"
-dependencies = ["pyyaml>=6.0.2"]
+dependencies = ["pyyaml>=6.0.2", "jsonschema>=4.25", "sdlc-config-store"]
 
 [project.scripts]
 sdlc-config = "sdlc_config.cli:main"

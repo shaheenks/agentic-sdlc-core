@@ -5,8 +5,9 @@ __pycache__/
 .pytest_cache/
 .data/
 compose/gcp-dev.env
-config/env/*/users.yaml
-config/env/*/blocked.yaml
+# Environment configuration holds client IDs, domains, group and user emails: only the example is committed.
+config/env/*
+!config/env/example/
 infra/**/.terraform/
 infra/**/*.tfvars
 infra/**/*.tfbackend

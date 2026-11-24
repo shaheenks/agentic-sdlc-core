@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Identity settings of one environment (env/<env>/identity.yaml).",
+  "type": "object",
+  "properties": {
+    "allowed_domains": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9.-]+\\.[a-z]+$"
+      },
+      "uniqueItems": true
+    },
+    "clients": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "uniqueItems": true
+      }
+    },
+    "directory": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": [
+            "static",
+            "direct",
+            "transitive"
+          ]
+        },
+        "cache_seconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "allowed_domains",
+    "clients",
+    "directory"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,14 @@
+# Identity settings of one environment. Copy env/example/ to env/<env>/ (git-ignored) and fill in real values.
+# Only tokens of accounts in these Cloud Identity domains are accepted.
+allowed_domains: [example.test]
+
+# OAuth client IDs per surface. A token issued to any other client is refused (401).
+clients:
+  sdlc_ui: [example-sdlc-ui.apps.googleusercontent.com]
+  gemini_enterprise: [example-gemini-enterprise.apps.googleusercontent.com]
+  # developer_cli: the gcloud CLI's client ID, only in local and development environments.
+
+# How group membership is read: static (users.yaml), direct (Cloud Identity Free) or transitive (Premium).
+directory:
+  mode: static
+  cache_seconds: 300

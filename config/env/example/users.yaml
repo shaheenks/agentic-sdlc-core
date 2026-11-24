@@ -1,0 +1,4 @@
+# Group membership for directory mode `static` (local runs without the Cloud Identity Groups API).
+users:
+  ada@example.test: [payments@example.test, payments-leads@example.test]
+  grace@example.test: [platform@example.test, early-adopters@example.test]

@@ -67,7 +67,19 @@ validates it, turns it into an immutable bundle and publishes it where every ser
 
 # Realisation
 
-- Folder `config/`, self-contained: YAML, JSON Schemas, and the validate, diff and publish tool with its tests.
-- One Cloud Storage bucket per environment in europe-west3, object versioning on, written only by the publishing
-  pipeline, read by platform service accounts. Locally, a profile may read `config/` directly instead.
-- A published bundle becomes active in an environment only when a person activates it for that environment; merging does not activate it.
+- Folder `config/`, self-contained: the YAML, one JSON Schema per kind in `config/schemas/`, and the `sdlc-config`
+  tool (`validate`, `publish`, `activate`, `show`) with its tests. The permission diff
+  ([FR-CFG-002](../requirements/functional/FR-CFG-002.md)) is not built yet.
+- What differs per environment (OAuth client IDs, allowed domains, group emails, the static user list, the block
+  list) is in `config/env/<env>/`, which is not committed; `config/env/example/` shows the shape and is what CI
+  validates.
+- A bundle is one JSON document `bundles/<version>.json`, whose version is a hash of its environment and content;
+  `active.json` names the active version, and each activation also writes a record under `activations/`.
+- One Cloud Storage bucket per environment in europe-west3, object versioning on, read by platform service
+  accounts. Locally, the same layout in a folder.
+- A published bundle becomes active in an environment only when a person activates it for that environment;
+  merging does not activate it.
+- Services read the active bundle through the library `libs/sdlc_config_store`: the pointer is re-read at most
+  every 30 seconds and a bundle is loaded only when the pointer's generation changed; a bundle that does not
+  verify is refused and the last verified one is kept; with none, requests are refused and the service does not
+  start.

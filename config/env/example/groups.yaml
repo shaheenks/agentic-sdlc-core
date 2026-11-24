@@ -1,0 +1,9 @@
+# The Google groups that give each team role and user group in this environment.
+teams:
+  payments:
+    member: [payments@example.test]
+    lead: [payments-leads@example.test]
+  platform:
+    member: [platform@example.test]
+user_groups:
+  early-adopters: [early-adopters@example.test]

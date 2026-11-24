@@ -114,13 +114,17 @@ The MCP server for user calls ([DEC-0002](../decisions/DEC-0002.md), accepted; [
 
 # Realisation
 
-- Folder `mcp_servers/user_agent_mcp/`, self-contained; shares token verification, policy, audit and connector
-  code with event_agent_mcp through libraries under `libs/`.
+- Folder `mcp_servers/user_agent_mcp/`, self-contained; shares token verification, policy, directory and
+  configuration code with event_agent_mcp through libraries under `libs/`.
 - One Cloud Run service `user-agent-mcp` in europe-west3 (Cloud Run service names allow no underscores), with the
   artifact bucket mounted as a Cloud Storage volume; IAM conditions limit its service account to
   `artifacts/users/` and `secrets/users/`.
-- MCP specification revision 2026-07-28, the current stable one; its stateless core (no protocol sessions)
-  lets any Cloud Run instance serve any request.
+- MCP specification revision 2026-07-28, the current stable one, through the official Python SDK; its stateless
+  core (no protocol sessions) lets any Cloud Run instance serve any request.
+- Built in phase 1: the identity tool (`whoami`), the artifact tools, and the connection tools without a
+  connection test (it comes with the connectors). Saving a secret is an HTTP API operation only, in its own tool
+  group, which only sdlc_ui's surface is given. The HTTP API maps each route to its tool, so the same policy, rate
+  limits and audit apply. Calls may carry `X-SDLC-Run-Id` and `X-SDLC-Step` for the audit record and lineage.
 - Runs in the local Docker Compose environment against local or development-project dependencies.
 
 # Open questions

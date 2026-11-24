@@ -75,6 +75,14 @@ changing it during a run needs the user's explicit confirmation in chat.
   (FR-AUTHZ-008). MCP revision 2026-07-28.
 - Exit gate: as two different users, neither can list, read or delete the other's artifacts or connections;
   every call is audited without argument values; an undeclared OAuth client gets 401.
+- Status (2026-11-24, built, in review): libraries `sdlc_config_store`, `sdlc_identity`, `sdlc_directory` and
+  `sdlc_policy`; `config/` with schemas, the example environment and `sdlc-config validate|publish|activate|show`;
+  user_agent_mcp with the identity, artifact and connection tools and the HTTP API. The exit gate holds in
+  user_agent_mcp's tests, and in a local container called with a real gcloud token (401 without one; audit
+  records without the token, the email or argument values). Not built yet: argument constraints, the permission
+  diff, the connection test (with the connectors, phase 4). Not deployed: the Cloud Run service, the Groups Reader
+  role for its service account and the data-encryption key value are needed before user_agent_mcp runs in
+  development.
 
 ### Phase 2: Knowledge
 

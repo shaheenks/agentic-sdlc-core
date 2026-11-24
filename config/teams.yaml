@@ -1,0 +1,11 @@
+# Teams (FR-TEAM-001). Membership comes only from the Google groups mapped to each role in
+# env/<env>/groups.yaml; the platform has no other way to change it.
+teams:
+  payments:
+    name: Payments
+    description: Payment services.
+    roles: [member, lead]
+  platform:
+    name: Platform
+    description: The team that runs this platform.
+    roles: [member, lead]

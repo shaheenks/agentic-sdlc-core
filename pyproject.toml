@@ -36,6 +36,10 @@ members = [
     "event_based_agents/operations_agent",
     "libs/sdlc_logging",
     "libs/sdlc_service",
+    "libs/sdlc_config_store",
+    "libs/sdlc_identity",
+    "libs/sdlc_directory",
+    "libs/sdlc_policy",
     "config",
 ]
 
@@ -52,6 +56,10 @@ sdlc-ci-workflow-agent = { workspace = true }
 sdlc-operations-agent = { workspace = true }
 sdlc-logging = { workspace = true }
 sdlc-service = { workspace = true }
+sdlc-config-store = { workspace = true }
+sdlc-identity = { workspace = true }
+sdlc-directory = { workspace = true }
+sdlc-policy = { workspace = true }
 sdlc-config = { workspace = true }
 
 [tool.ruff]

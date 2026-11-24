@@ -1,0 +1,15 @@
+# Tool groups of user_agent_mcp (FR-AUTHZ-006). A tool is listed and allowed only when a grant gives the user
+# one of its groups and the calling surface may use that group.
+tool_groups:
+  identity:
+    description: The caller's identity and effective access.
+    tools: [whoami]
+  artifacts:
+    description: The user's own artifacts (FR-ART-001, FR-ART-002).
+    tools: [artifact_list, artifact_read, artifact_save, artifact_delete]
+  connections:
+    description: The user's own connections to downstream systems, without their secrets (FR-CONN-001).
+    tools: [connection_list, connection_start, connection_revoke]
+  connection_secrets:
+    description: Saving a connection secret; only on the secure entry page, never as an MCP tool (FR-CONN-005).
+    tools: [connection_save]

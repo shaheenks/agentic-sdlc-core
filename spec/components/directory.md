@@ -5,6 +5,7 @@ description: Knows the platform's users and teams, who belongs to which team, an
 tags: [component, control]
 status: draft
 x-layer: control
+x-folder: libs/sdlc_directory/
 x-depends-on: [/components/configuration-registry]
 x-satisfies: [/requirements/functional/FR-IDN-001, /requirements/functional/FR-TEAM-001, /requirements/functional/FR-TEAM-002, /requirements/functional/FR-TEAM-004, /requirements/functional/FR-AUTHZ-007, /requirements/functional/FR-WFL-007, /requirements/functional/FR-HUM-002, /requirements/non-functional/NFR-HOST-001]
 ---
@@ -51,6 +52,14 @@ user in, and as what?"
 
 # Realisation
 
-- Cloud Identity Groups API, read by the component's service account with group-reader access; results cached per user for a short time.
-- A shared library under `libs/`, self-contained, used by user_agent_mcp, Knowledge Search and the sdlc_ui BFF.
-- Teams and their membership are declared only in configuration (the groups that give membership and team roles); the platform has no screen or tool to change membership.
+- Library `libs/sdlc_directory`, used by user_agent_mcp.
+- Teams, their roles and user groups are declared in `config/`; the Google groups behind each role and user group
+  are mapped per environment in `config/env/<env>/groups.yaml`, which is not committed. Only those groups are
+  looked up.
+- Lookups by mode, per environment: `static` (a user list in `config/env/<env>/users.yaml`, for local runs),
+  `direct` (Cloud Identity Groups API, one membership lookup per mapped group; Cloud Identity Free, no nested
+  groups) or `transitive` (one search of the user's groups, including nested ones; Premium). The service account
+  needs the Groups Reader admin role. Answers are cached per user for 300 seconds; a group whose lookup fails
+  removes only the memberships that depend on it.
+- Teams and their membership are declared only in configuration; the platform has no screen or tool to change
+  membership.

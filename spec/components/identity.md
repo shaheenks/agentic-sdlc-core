@@ -5,6 +5,7 @@ description: Authenticates callers against the enterprise identity provider and 
 tags: [component, control, security]
 status: draft
 x-layer: control
+x-folder: libs/sdlc_identity/
 x-depends-on: [/components/configuration-registry, /components/audit-log]
 x-satisfies: [/requirements/functional/FR-SURF-002, /requirements/functional/FR-SURF-003, /requirements/functional/FR-SURF-005, /requirements/functional/FR-IDN-001, /requirements/functional/FR-IDN-002, /requirements/functional/FR-IDN-003, /requirements/functional/FR-IDN-004, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-SEC-002, /requirements/non-functional/NFR-SEC-003, /requirements/non-functional/NFR-SEC-007, /requirements/non-functional/NFR-AUD-001]
 ---
@@ -61,6 +62,14 @@ Answers one question for every request: who is calling? Everything downstream ac
 # Realisation
 
 - Users: Cloud Identity accounts, provisioned from Microsoft Entra ID, with SAML single sign-on to Entra ID.
-- Tokens: Google OAuth 2.0 and OpenID Connect.
+- Tokens: Google OAuth 2.0 and OpenID Connect. ID tokens are verified against Google's published signing keys;
+  access tokens by Google's token introspection, which reports no hosted domain, so the domain is taken from the
+  verified email. Verified claims are cached per instance for 300 seconds, or until the token expires.
+- The configuration-dependent checks (declared OAuth client and its surface, `openid` and `email` scopes, allowed
+  domains, block list, no service accounts) run on every request against the active bundle, so a block or a
+  removed client takes effect at the next refresh even for a cached token.
+- Allowed domains and the OAuth client IDs of each surface are declared per environment in
+  `config/env/<env>/identity.yaml`, which is not committed.
 - System identity: a dedicated Google Cloud service account.
-- A shared library under `libs/`, self-contained, used by user_agent_mcp, Knowledge Search and the sdlc_ui BFF.
+- Library `libs/sdlc_identity`, used by user_agent_mcp; Knowledge Search and the sdlc_ui BFF use it when they are
+  built.

@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Rate limits on tool calls.",
+  "type": "object",
+  "properties": {
+    "rate_limits": {
+      "type": "object",
+      "properties": {
+        "tool_calls": {
+          "type": "object",
+          "properties": {
+            "per_user_per_minute": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "per_team_per_minute": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "overrides": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_-]*$"
+                  },
+                  "to": {
+                    "type": "object",
+                    "properties": {
+                      "everyone": {
+                        "const": true
+                      },
+                      "teams": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9_-]*(:[a-z][a-z0-9_-]*)?$"
+                        },
+                        "uniqueItems": true
+                      },
+                      "user_groups": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9_-]*$"
+                        },
+                        "uniqueItems": true
+                      }
+                    },
+                    "additionalProperties": false,
+                    "minProperties": 1
+                  },
+                  "per_user_per_minute": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "id",
+                  "to",
+                  "per_user_per_minute"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "per_user_per_minute",
+            "per_team_per_minute"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "tool_calls"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "rate_limits"
+  ],
+  "additionalProperties": false
+}

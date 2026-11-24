@@ -6,7 +6,7 @@ tags: [requirement, auditability]
 status: draft
 x-area: AUD
 x-priority: should
-x-implementation: planned
+x-implementation: built
 ---
 
 # Statement

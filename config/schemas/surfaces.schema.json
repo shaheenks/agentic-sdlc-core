@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Surfaces and the tool groups each may use.",
+  "type": "object",
+  "properties": {
+    "surfaces": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tool_groups": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*$"
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "description",
+          "tool_groups"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "surfaces"
+  ],
+  "additionalProperties": false
+}
