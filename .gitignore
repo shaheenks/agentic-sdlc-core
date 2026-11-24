@@ -10,4 +10,5 @@ config/env/*/blocked.yaml
 infra/**/.terraform/
 infra/**/*.tfvars
 infra/**/*.tfbackend
+infra/**/*.tfplan
 infra/**/*.tfstate*
