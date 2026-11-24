@@ -67,6 +67,8 @@ The read side of the knowledge backend, isolated from the MCP servers ([NFR-ARCH
   hops) and `POST /status` (the ingest run, for the readable sources). Each needs `filter.sources`; the store is
   narrowed to those sources before anything is scored, keyword statistics included, and graph traversal never
   visits another source's nodes or edges.
+- Deployed to development as `knowledge-search` with internal ingress; `knowledge_ingest/cloudbuild.yaml`
+  builds each image with the store inside and rolls it out.
 - Callers: a Google ID token with this service's URL as audience, from an account in `ALLOWED_CALLERS`;
   `CALLER_AUTH=none` only in the local environment. Vector queries are refused when the store's embedding model
   differs from the service's. Query text is never logged.

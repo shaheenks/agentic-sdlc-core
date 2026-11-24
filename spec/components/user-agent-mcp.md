@@ -140,4 +140,5 @@ The MCP server for user calls ([DEC-0002](../decisions/DEC-0002.md), accepted; [
   proxy to [Knowledge Search](knowledge-search.md) (`KNOWLEDGE_SEARCH_URL`) with the readable sources of the
   caller's effective policy as the filter attribute, and this service's own ID token from the metadata server.
   A run's team comes from the declared caller's `X-SDLC-Team` header; a team the user is not in is refused
-  (403, audited) and a team run reads only its team's sources ([FR-KNOW-004](../requirements/functional/FR-KNOW-004.md)).
+  (403, audited) and a team run reads only its team's sources. Knowledge Search accepts internal traffic only,
+  so the service sends all egress through the platform VPC (Private Google Access; no Cloud NAT yet) ([FR-KNOW-004](../requirements/functional/FR-KNOW-004.md)).

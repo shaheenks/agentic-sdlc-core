@@ -1,0 +1,90 @@
+# Knowledge refresh: one pipeline run (FR-KNOW-001, DEC-0011). Runs as the knowledge_ingest service account:
+#   1. fetch the previous store, so only changed files are embedded and extracted again;
+#   2. ingest the active configuration's sources into knowledge_search/knowledge;
+#   3. keep the new store for the next run;
+#   4. build and push the Knowledge Search image with the store inside;
+#   5. roll Knowledge Search out to it (when the service exists).
+# Start it from the repository root (see knowledge_ingest/README.md):
+#   gcloud builds submit --config knowledge_ingest/cloudbuild.yaml --region <region> \
+#     --service-account projects/<project>/serviceAccounts/<knowledge_ingest account> \
+#     --gcs-source-staging-dir gs://<knowledge bucket>/source \
+#     --substitutions _CONFIG_BUCKET=<config bucket>,_KNOWLEDGE_BUCKET=<knowledge bucket> .
+# A source that fails stops the run before anything is kept or rolled out.
+
+substitutions:
+  _ENV: dev
+  _REGION: europe-west3
+  _REPOSITORY: sdlc-dev
+  _CONFIG_BUCKET: ""
+  _KNOWLEDGE_BUCKET: ""
+  _SERVICE: knowledge-search
+  _IMAGE: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/knowledge-search:${BUILD_ID}
+
+steps:
+  - id: previous-store
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        if gcloud storage ls "gs://${_KNOWLEDGE_BUCKET}/store/manifest.json" >/dev/null 2>&1; then
+          gcloud storage rsync --recursive "gs://${_KNOWLEDGE_BUCKET}/store" knowledge_search/knowledge
+        else
+          echo "no previous store: everything is ingested afresh"
+        fi
+
+  - id: ingest
+    name: python:3.12-bookworm # has git, for git sources
+    entrypoint: bash
+    env:
+      - EMBEDDINGS=vertex
+      - GOOGLE_CLOUD_PROJECT=${PROJECT_ID}
+      - VERTEX_LOCATION=${_REGION}
+      - UV_PYTHON_DOWNLOADS=never
+      - UV_LINK_MODE=copy
+    args:
+      - -c
+      - |
+        set -e
+        pip install --quiet --root-user-action=ignore uv==0.12.16
+        uv sync --frozen --no-dev --package sdlc-knowledge-ingest
+        .venv/bin/sdlc-knowledge-ingest --env "${_ENV}" --config "gs://${_CONFIG_BUCKET}" --root . \
+          --out knowledge_search/knowledge
+
+  - id: keep-store
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - storage
+      - rsync
+      - --recursive
+      - --delete-unmatched-destination-objects
+      - --exclude=^\.gitkeep$
+      - knowledge_search/knowledge
+      - gs://${_KNOWLEDGE_BUCKET}/store
+
+  - id: image
+    name: gcr.io/cloud-builders/docker
+    args: [build, --file, knowledge_search/Dockerfile, --tag, "${_IMAGE}", .]
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: [push, "${_IMAGE}"]
+
+  - id: roll-out
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        if gcloud run services describe "${_SERVICE}" --region "${_REGION}" --format="value(name)" >/dev/null 2>&1; then
+          gcloud run services update "${_SERVICE}" --region "${_REGION}" --image "${_IMAGE}"
+        else
+          echo "${_SERVICE} does not exist yet: set knowledge_search_image = \"${_IMAGE}\" in the tfvars and apply"
+        fi
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  substitution_option: ALLOW_LOOSE
+  dynamic_substitutions: true # _IMAGE uses BUILD_ID
+timeout: 3600s

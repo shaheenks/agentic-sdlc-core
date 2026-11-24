@@ -20,6 +20,24 @@ GOOGLE_CLOUD_PROJECT=<project> uv run sdlc-knowledge-ingest --env dev --config g
   keeps its previous records.
 - `extractions.jsonl` caches the model's answer per file; Knowledge Search does not read it.
 
+## Refresh in Google Cloud
+
+A refresh is one Cloud Build run of [cloudbuild.yaml](cloudbuild.yaml), as the knowledge_ingest service
+account. It fetches the previous store from the knowledge bucket, ingests, keeps the new store, builds and
+pushes the Knowledge Search image, and rolls `knowledge-search` out to it. From the repository root, with the
+Terraform outputs `knowledge_bucket`, `config_bucket` and `knowledge_ingest_service_account` (you must be in
+`knowledge_refreshers`):
+
+```sh
+gcloud builds submit --config knowledge_ingest/cloudbuild.yaml --region europe-west3 \
+  --service-account projects/<project>/serviceAccounts/<knowledge_ingest_service_account> \
+  --gcs-source-staging-dir gs://<knowledge_bucket>/source \
+  --substitutions _CONFIG_BUCKET=<config_bucket>,_KNOWLEDGE_BUCKET=<knowledge_bucket> .
+```
+
+The upload skips what `.gitignore` lists; folder sources such as `spec/` are read from it. A failed source
+stops the build before anything is kept or rolled out.
+
 Build and test from this folder: `uv run pytest`.
 
 | Variable | Default | Meaning |

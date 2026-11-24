@@ -22,3 +22,15 @@ output "subnet" {
 output "user_agent_mcp_url" {
   value = local.user_agent_mcp_url
 }
+
+output "knowledge_bucket" {
+  value = google_storage_bucket.knowledge.name
+}
+
+output "knowledge_search_url" {
+  value = local.knowledge_search_url
+}
+
+output "knowledge_ingest_service_account" {
+  value = google_service_account.component["knowledge_ingest"].email
+}

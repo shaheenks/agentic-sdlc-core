@@ -49,3 +49,14 @@ variable "sdlc_ui_testers" {
   type        = list(string)
   default     = []
 }
+variable "knowledge_search_image" {
+  description = "First image of knowledge_search (built by knowledge_ingest/cloudbuild.yaml). Empty: the service, and user_agent_mcp's knowledge settings, are not created yet. Later refreshes roll out their own images."
+  type        = string
+  default     = ""
+}
+
+variable "knowledge_refreshers" {
+  description = "Members (user:, group:) who may run the knowledge refresh as the knowledge_ingest service account."
+  type        = list(string)
+  default     = []
+}

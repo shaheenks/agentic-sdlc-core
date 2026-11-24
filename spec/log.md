@@ -1,5 +1,8 @@
 ## 2026-11-24
 
+* **Update**: Phase 2 deployed to development: the knowledge refresh as one Cloud Build run
+  ([Ingest Pipeline](components/ingest-pipeline.md)), [Knowledge Search](components/knowledge-search.md) with
+  internal ingress, [user_agent_mcp](components/user-agent-mcp.md) with VPC egress. NFR-ARCH-004 built.
 * **Add**: [DEC-0011](decisions/DEC-0011.md), accepted by the user, with their choices: git and folder sources,
   access by source ID without a classification ceiling yet, structural and Gemini-extracted graph,
   `gemini-embedding-001`. Phase 2 code: [Ingest Pipeline](components/ingest-pipeline.md),
@@ -8,7 +11,7 @@
   [user_agent_mcp](components/user-agent-mcp.md), sources in [Access Policy](components/access-policy.md) and
   [Configuration Registry](components/configuration-registry.md). Built: FR-KNOW-001, FR-KNOW-002, FR-KNOW-003.
   Partly built and still planned: FR-AUTHZ-004 (no ceiling), FR-KNOW-004 (the confirmation comes with workflow
-  runs), NFR-ARCH-004 (not deployed yet).
+  runs).
 * **Update**: [FR-CFG-002](requirements/functional/FR-CFG-002.md) built: `sdlc-config diff` in the
   [Configuration Registry](components/configuration-registry.md), computed with the Access Policy and shown by CI.
 * **Update**: [user_agent_mcp](components/user-agent-mcp.md) deployed to development: one Cloud Storage volume per

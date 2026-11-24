@@ -12,3 +12,5 @@ infra
 sdlc_ui
 .data
 compose
+# The ingest pipeline's per-file extraction cache stays out of the Knowledge Search image.
+knowledge_search/knowledge/extractions.jsonl

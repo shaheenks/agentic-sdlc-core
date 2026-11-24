@@ -45,7 +45,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     configure_logging(NAME)
-    for noisy in ("httpx", "google_genai"):  # one line per model request otherwise
+    for noisy in ("httpx", "httpx2", "google_genai"):  # one line per model request otherwise
         logging.getLogger(noisy).setLevel(logging.WARNING)
     log = logging.getLogger(NAME)
     args = _parser().parse_args(argv)

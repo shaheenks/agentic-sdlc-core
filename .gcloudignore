@@ -1,0 +1,13 @@
+# What `gcloud builds submit .` leaves out (the knowledge refresh, knowledge_ingest/cloudbuild.yaml): everything
+# git ignores, and folders the build does not use. Environment configuration never leaves this machine.
+#!include:.gitignore
+.git
+.gitignore
+.gcloudignore
+**/node_modules/
+sdlc_ui/
+site/
+infra/
+docs/
+overrides/
+.github/

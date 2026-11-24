@@ -7,3 +7,10 @@ user_agent_mcp_image = ""
 
 # Development only: who may impersonate sdlc_ui's service account to test user_agent_mcp.
 sdlc_ui_testers = [] # ["user:you@example.test"]
+
+# Empty until the first knowledge refresh has built an image:
+# europe-west3-docker.pkg.dev/<project>/sdlc-dev/knowledge-search:<tag>
+knowledge_search_image = ""
+
+# Who may run the knowledge refresh (knowledge_ingest/cloudbuild.yaml) as the ingest service account.
+knowledge_refreshers = [] # ["user:you@example.test"]
