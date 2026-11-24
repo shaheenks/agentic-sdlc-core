@@ -18,3 +18,7 @@ output "image_repository" {
 output "subnet" {
   value = google_compute_subnetwork.platform.id
 }
+
+output "user_agent_mcp_url" {
+  value = local.user_agent_mcp_url
+}

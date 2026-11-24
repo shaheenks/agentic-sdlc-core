@@ -39,6 +39,8 @@ resource "google_storage_bucket" "artifacts" {
 
 locals {
   artifact_objects = "projects/_/buckets/${google_storage_bucket.artifacts.name}/objects"
+  # Cloud Storage FUSE lists a mounted prefix as a folder (only-dir mounts), checked against this name.
+  artifact_folders = "projects/_/buckets/${google_storage_bucket.artifacts.name}/folders"
   store_prefixes = {
     user_agent_mcp  = ["artifacts/users/", "secrets/users/"]
     event_agent_mcp = ["artifacts/system/"]
@@ -56,6 +58,7 @@ resource "google_storage_bucket_iam_member" "artifact_prefixes" {
     expression = join(" || ", concat(
       ["resource.type == \"storage.googleapis.com/Bucket\""],
       [for p in each.value : "resource.name.startsWith(\"${local.artifact_objects}/${p}\")"],
+      [for p in each.value : "resource.name.startsWith(\"${local.artifact_folders}/${p}\")"],
     ))
   }
 }

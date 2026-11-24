@@ -83,9 +83,11 @@ changing it during a run needs the user's explicit confirmation in chat.
   `X-SDLC-User-Id`/`X-SDLC-User-Email` with their service account's ID token (`caller_token`), or without proof
   locally (`trusted_header`); teams and user groups are listed per user in `users.yaml` and Cloud Identity
   groups are not read. Not built yet: argument constraints, the permission diff, the connection test (with the
-  connectors, phase 4). Not deployed: the Cloud Run service (internal ingress, invoker for sdlc_ui's and the
-  agent runtime's service accounts), `config/env/dev/` and the data-encryption key value are needed before
-  user_agent_mcp runs in development.
+  connectors, phase 4). Deployed to development (2026-11-24): Cloud Run service `user-agent-mcp` with invoker
+  for sdlc_ui's and the interactive agents' service accounts, ingress `all` until sdlc_ui runs there (then
+  internal), dev bundle active in `caller_token` mode; checked by calling as sdlc_ui (impersonated ID token):
+  save, read, list and delete an artifact, save and revoke an encrypted connection, audit records naming the
+  caller and no email, token or secret in the service's logs.
 
 ### Phase 2: Knowledge
 

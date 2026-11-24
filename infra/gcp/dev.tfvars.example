@@ -1,3 +1,9 @@
 # Copy to dev.tfvars (git-ignored) and fill in.
 project_id = ""
 env        = "dev"
+
+# europe-west3-docker.pkg.dev/<project>/sdlc-dev/user-agent-mcp:<commit>
+user_agent_mcp_image = ""
+
+# Development only: who may impersonate sdlc_ui's service account to test user_agent_mcp.
+sdlc_ui_testers = [] # ["user:you@example.test"]

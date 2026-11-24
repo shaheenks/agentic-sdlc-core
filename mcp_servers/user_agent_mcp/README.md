@@ -58,5 +58,16 @@ declares the `sdlc_ui` caller; `users.yaml` gives you your teams.
 | `DATA_ENCRYPTION_KEY` | - | Base64 of 32 bytes, from Secret Manager; without it, secrets cannot be saved |
 | `DATA_ENCRYPTION_KEY_VERSION` | `1` | Recorded with each encrypted secret |
 
-On Google Cloud the service has internal ingress, and only sdlc_ui's and the agent runtime's service accounts
-hold its invoker role.
+On Google Cloud (`infra/gcp/user_agent_mcp.tf`) only sdlc_ui's and the agent runtime's service accounts hold its
+invoker role; ingress is `all` until sdlc_ui runs in the environment, then internal. The artifact bucket is
+mounted per prefix (`/data/store/artifacts/users`, `/data/store/secrets/users`). Cloud Run reserves paths
+ending in `z`, so `/healthz` is reachable only by its probes. To call it by hand in development (as one of
+`sdlc_ui_testers`):
+
+```sh
+URL=$(terraform -chdir=infra/gcp output -raw user_agent_mcp_url)
+TOKEN=$(gcloud auth print-identity-token --impersonate-service-account=<sdlc_ui service account> \
+  --audiences=$URL --include-email)
+curl -H "Authorization: Bearer $TOKEN" -H "X-SDLC-User-Id: <your account ID>" \
+  -H "X-SDLC-User-Email: <your email>" $URL/api/me
+```

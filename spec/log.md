@@ -1,5 +1,7 @@
 ## 2026-11-24
 
+* **Update**: [user_agent_mcp](components/user-agent-mcp.md) deployed to development: one Cloud Storage volume per
+  allowed prefix, IAM conditions also naming the prefixes as folders, ingress `all` until sdlc_ui runs there.
 * **Add**: [DEC-0010](decisions/DEC-0010.md), accepted by the user: for now sdlc_ui forwards the user from the verified IAP
   assertion and user_agent_mcp trusts only declared callers' service accounts; membership is declared in
   `users.yaml`, not read from Cloud Identity groups. [FR-TEAM-001](requirements/functional/FR-TEAM-001.md)

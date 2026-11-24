@@ -26,3 +26,26 @@ variable "subnet_cidr" {
   type        = string
   default     = "10.10.0.0/24"
 }
+
+variable "user_agent_mcp_image" {
+  description = "Image of user_agent_mcp, tagged with the commit it was built from."
+  type        = string
+}
+
+variable "user_agent_mcp_ingress" {
+  description = "Cloud Run ingress of user_agent_mcp: INGRESS_TRAFFIC_ALL until sdlc_ui runs here, then INGRESS_TRAFFIC_INTERNAL_ONLY."
+  type        = string
+  default     = "INGRESS_TRAFFIC_ALL"
+}
+
+variable "sdlc_ui_url" {
+  description = "sdlc_ui's URL, for connection_start links; empty until sdlc_ui is deployed."
+  type        = string
+  default     = ""
+}
+
+variable "sdlc_ui_testers" {
+  description = "Development only: members (user:<email>) who may impersonate sdlc_ui's service account to call user_agent_mcp. Set in the git-ignored <env>.tfvars."
+  type        = list(string)
+  default     = []
+}

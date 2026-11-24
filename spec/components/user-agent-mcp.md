@@ -117,10 +117,13 @@ The MCP server for user calls ([DEC-0002](../decisions/DEC-0002.md), accepted; [
 
 - Folder `mcp_servers/user_agent_mcp/`, self-contained; shares identity, policy, directory and configuration
   code with event_agent_mcp through libraries under `libs/`.
-- One Cloud Run service `user-agent-mcp` in europe-west3 (Cloud Run service names allow no underscores), with the
-  artifact bucket mounted as a Cloud Storage volume; IAM conditions limit its service account to
-  `artifacts/users/` and `secrets/users/`. Internal ingress; the invoker role only for sdlc_ui's and the agent
-  runtime's service accounts ([DEC-0010](../decisions/DEC-0010.md)).
+- One Cloud Run service `user-agent-mcp` in europe-west3 (Cloud Run service names allow no underscores). The
+  artifact bucket's `artifacts/users/` and `secrets/users/` are mounted as two Cloud Storage volumes
+  (`only-dir`), since Cloud Storage FUSE writes a folder object for each directory it creates; IAM conditions
+  limit its service account to those prefixes, as objects and as folders. The invoker role only for sdlc_ui's
+  and the agent runtime's service accounts ([DEC-0010](../decisions/DEC-0010.md)); ingress `all` in development
+  until sdlc_ui runs there, internal from then on. Cloud Run reserves paths ending in `z`, so `/healthz` answers
+  only the platform's own probes.
 - MCP specification revision 2026-07-28, the current stable one, through the official Python SDK; its stateless
   core (no protocol sessions) lets any Cloud Run instance serve any request.
 - Built in phase 1: the identity tool (`whoami`), the artifact tools, and the connection tools without a
