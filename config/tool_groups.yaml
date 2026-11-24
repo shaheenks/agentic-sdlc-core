@@ -13,3 +13,6 @@ tool_groups:
   connection_secrets:
     description: Saving a connection secret; only on the secure entry page, never as an MCP tool (FR-CONN-005).
     tools: [connection_save]
+  knowledge:
+    description: Search the knowledge sources you may read, by meaning, keyword or graph (FR-KNOW-002).
+    tools: [knowledge_search, knowledge_graph]

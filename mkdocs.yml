@@ -241,6 +241,7 @@ nav:
       - "DEC-0008 Hand-off from user_agent to the event-based agents through Jira and the product repository": decisions/DEC-0008.md
       - "DEC-0009 Google account tokens identify the user on every surface; IAP enforces the perimeter only": decisions/DEC-0009.md
       - "DEC-0010 For now, sdlc_ui forwards the user from the IAP assertion, and membership is declared in configuration": decisions/DEC-0010.md
+      - "DEC-0011 First knowledge pipeline: git and folder sources, access by source ID, structural and Gemini graph, gemini-embedding-001": decisions/DEC-0011.md
   - Traceability: traceability.md
   - Change log: log.md
   - Docs:

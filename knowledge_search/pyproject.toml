@@ -3,7 +3,7 @@ name = "sdlc-knowledge-search"
 version = "0.0.0"
 description = "Knowledge search over the JSONL knowledge store, filtered by the caller's data scope."
 requires-python = ">=3.12"
-dependencies = ["sdlc-service"]
+dependencies = ["sdlc-service", "sdlc-identity", "sdlc-knowledge", "numpy>=2.2"]
 
 [project.scripts]
 sdlc-knowledge-search = "knowledge_search.__main__:main"

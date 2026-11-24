@@ -10,7 +10,8 @@ bundle and published to the configuration bucket. Services use a bundle only onc
 | `tool_groups.yaml` | Named sets of user_agent_mcp tools |
 | `surfaces.yaml` | Each surface and the tool groups it may use |
 | `teams.yaml`, `user_groups.yaml` | Teams with their roles; user groups that receive grants |
-| `grants.yaml` | Which tool groups go to everyone, to teams (or one team role) or to user groups |
+| `grants.yaml` | Which tool groups and knowledge sources go to everyone, to teams (or one team role) or to user groups |
+| `sources.yaml` | Knowledge sources the ingest pipeline reads (git repositories and folders), with their classification |
 | `limits.yaml` | Rate limits on tool calls per user and team, with overrides |
 | `providers.yaml` | Connection providers (GitHub, Bitbucket, Jira; cloud and Data Center) |
 | `env/<env>/identity.yaml` | The identity mode, allowed Cloud Identity domains, each surface's callers (service accounts) or OAuth client IDs |

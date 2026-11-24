@@ -100,6 +100,23 @@ changing it during a run needs the user's explicit confirmation in chat.
 - Exit gate: a query from a user without access to a source never returns its records; a query without a
   filter is refused; a workflow run sees only its team's sources until the user confirms a change; a refresh
   is one pipeline run.
+- Status (2026-11-24, code built and tested, not deployed): [DEC-0011](../../spec/decisions/DEC-0011.md)
+  (accepted) records the choices: git and folder sources, access by source ID (no classification ceiling
+  yet), a structural graph plus Gemini extraction, `gemini-embedding-001`. Built:
+  - `config/sources.yaml`, and `sources` in grants; the effective policy lists readable sources, and the
+    permission diff shows them.
+  - `libs/sdlc_knowledge`: the JSONL record format and the embedders.
+  - `knowledge_ingest`: incremental by content hash, with per-source status in `manifest.json`.
+  - `knowledge_search`: search and graph, filtered before ranking; declared callers only; the store built into
+    the image.
+  - user_agent_mcp: `knowledge_search` and `knowledge_graph`, with the run's team from `X-SDLC-Team`.
+
+  Checked locally through user_agent_mcp: chat reads every granted source, a team run only its team's, a team
+  the user is not in gets 403. A real ingest of `spec/` on Vertex AI (767 chunks, 150 files extracted)
+  took 7½ minutes. `gemini-3.8-flash` runs in `eu`, since it has no europe-west3 endpoint. Still to do:
+  - the refresh pipeline (ingest, image build, deploy) and the Cloud Run service (internal ingress, invoker for
+    user_agent_mcp, VPC egress for user_agent_mcp);
+  - the user's confirmation of a team-scope change, which comes with workflow runs.
 
 ### Phase 3: user_agent, chat and sdlc_ui
 

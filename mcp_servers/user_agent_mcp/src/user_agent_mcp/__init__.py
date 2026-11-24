@@ -5,6 +5,7 @@ they are with their service account's Google ID token (DEC-0010). The server che
 user's teams and effective policy from the active configuration bundle, lists and allows only the tools
 that the user and the calling surface may use, and audits every list and call without argument values.
 Artifacts and connection secrets live under the user's own prefix of the mounted artifact bucket (DEC-0006).
+Knowledge queries are proxied to Knowledge Search with the sources the user may read (DEC-0011).
 """
 
 from sdlc_config_store import ConfigStore, source_from_url
@@ -15,6 +16,7 @@ from starlette.applications import Starlette
 from user_agent_mcp.artifacts import ArtifactStore
 from user_agent_mcp.connections import Cipher, ConnectionStore
 from user_agent_mcp.http import build_app
+from user_agent_mcp.knowledge import KnowledgeClient
 from user_agent_mcp.platform import Platform
 from user_agent_mcp.settings import Settings
 
@@ -31,6 +33,11 @@ def create_platform(settings: Settings, **overrides) -> Platform:
         "limiter": RateLimiter(),
         "artifacts": ArtifactStore(settings.store_root),
         "connections": ConnectionStore(settings.store_root, cipher),
+        "knowledge": (
+            KnowledgeClient(settings.knowledge_search_url, settings.knowledge_auth)
+            if settings.knowledge_search_url
+            else None
+        ),
         **overrides,
     }
     return Platform(settings, **parts)

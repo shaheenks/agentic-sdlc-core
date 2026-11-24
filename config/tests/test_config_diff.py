@@ -97,7 +97,27 @@ def test_unlisted_users_and_blocking_are_shown(config_dir):
     assert [(c.surface, c.lost) for c in unlisted] == [
         ("user_agent", ("artifact_delete", "artifact_list", "artifact_read", "artifact_save"))
     ]
+    assert all("source:platform-spec" in c.lost for c in ada)
     assert changes[-1].user == UNLISTED  # listed users first
+
+
+def test_sources_granted_to_a_team_show_in_its_members_rows(config_dir):
+    edit(
+        config_dir / "sources.yaml",
+        lambda d: d["sources"].update(
+            {"payments-repo": {**d["sources"]["platform-spec"], "name": "Payments", "location": "payments"}}
+        ),
+    )
+    before = compiled(config_dir)
+    edit(
+        config_dir / "grants.yaml",
+        add_grant(
+            {"id": "payments-code", "description": "-", "sources": ["payments-repo"], "to": {"teams": ["payments"]}}
+        ),
+    )
+    rows = {(c.user, c.context, c.surface): c.gained for c in diff(before, compiled(config_dir))}
+    assert rows[("ada@example.test", "payments runs", "user_agent")] == ("source:payments-repo",)
+    assert all(user == "ada@example.test" for user, _, _ in rows)
 
 
 def test_cli_compares_two_folders(config_dir, tmp_path, capsys):
@@ -118,16 +138,26 @@ def test_cli_reads_published_bundles(config_dir, tmp_path, capsys):
     assert main(["diff", "--env", "example", "--dir", str(config_dir), "--base", f"{store}@active"]) == 0
     assert main(["diff", "--env", "example", "--base", f"{store}@{version}", "--head", str(config_dir)]) == 0
     out = capsys.readouterr().out
-    assert out.count("No one gains or loses a tool.") == 2
+    assert out.count("No one gains or loses a tool or knowledge source.") == 2
 
 
-def test_cli_reads_a_git_revision(capsys):
+def test_cli_reads_a_git_revision(config_dir, capsys):
+    repo = config_dir.parent
+
+    def git(*args):
+        subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+
     try:
-        subprocess.run(["git", "rev-parse", "HEAD"], cwd=CONFIG_DIR, check=True, capture_output=True)
+        git("init", "-q")
+        git("add", "config")
+        git("-c", "user.name=t", "-c", "user.email=t@example.test", "commit", "-q", "-m", "base")
     except (OSError, subprocess.CalledProcessError):
-        pytest.skip("not in a git checkout")
-    assert main(["diff", "--env", "example", "--base", "git:HEAD"]) == 0
-    assert "Permission diff for env example: git:HEAD -> working tree" in capsys.readouterr().out
+        pytest.skip("git is not available")
+    edit(config_dir / "surfaces.yaml", lambda d: d["surfaces"]["user_agent"]["tool_groups"].remove("identity"))
+    assert main(["diff", "--env", "example", "--dir", str(config_dir), "--base", "git:HEAD"]) == 0
+    out = capsys.readouterr().out
+    assert "Permission diff for env example: git:HEAD -> working tree" in out
+    assert "own runs, user_agent: - whoami" in out
 
 
 def test_cli_reports_an_unreadable_version(tmp_path, capsys):

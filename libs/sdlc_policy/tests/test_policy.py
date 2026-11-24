@@ -77,6 +77,42 @@ def test_team_run_for_a_team_the_user_is_not_in():
         policy(NOBODY, team="payments")
 
 
+SOURCES = {
+    **CONFIG,
+    "teams": {"payments": {}, "platform": {}},
+    "sources": {"handbook": {}, "payments-repo": {}, "platform-repo": {}, "labs": {}, "retired": {}},
+    "grants": [
+        *CONFIG["grants"],
+        {"id": "all-handbook", "sources": ["handbook"], "to": {"everyone": True}},
+        {"id": "payments-code", "sources": ["payments-repo"], "to": {"teams": ["payments"]}},
+        {"id": "platform-code", "sources": ["platform-repo"], "to": {"teams": ["platform"]}},
+        {"id": "labs", "sources": ["labs"], "to": {"user_groups": ["early-adopters"]}},
+        {"id": "gone", "sources": ["undeclared"], "to": {"everyone": True}},
+    ],
+}
+BOTH_TEAMS = Memberships({"payments": frozenset({"member"}), "platform": frozenset({"member"})})
+
+
+def test_readable_sources_in_own_runs_are_everything_granted_to_the_user():
+    p = effective_policy(SOURCES, "v1", "sdlc_ui", LEAD)
+    assert set(p.sources) == {"handbook", "payments-repo", "labs"}
+    assert p.sources["payments-repo"] == "grant:payments-code"
+    assert set(effective_policy(SOURCES, "v1", "sdlc_ui", BOTH_TEAMS).sources) == {
+        "handbook",
+        "payments-repo",
+        "platform-repo",
+    }
+    assert set(effective_policy(SOURCES, "v1", "sdlc_ui", NOBODY).sources) == {"handbook"}
+
+
+def test_a_team_run_reads_only_its_teams_and_everyones_sources():
+    assert set(effective_policy(SOURCES, "v1", "sdlc_ui", BOTH_TEAMS, "payments").sources) == {
+        "handbook",
+        "payments-repo",
+    }
+    assert set(effective_policy(SOURCES, "v1", "sdlc_ui", LEAD, "payments").sources) == {"handbook", "payments-repo"}
+
+
 def test_rate_limit_per_user_with_overrides():
     now = [0.0]
     limiter = RateLimiter(clock=lambda: now[0])

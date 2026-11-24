@@ -1,0 +1,18 @@
+# Knowledge sources (FR-KNOW-001, DEC-0011). The ingest pipeline reads each one with its own service identity
+# and tags every record with the source ID and classification. Who may read a source is a grant (grants.yaml),
+# so knowledge search returns a source's records only to users and team runs it is granted to.
+#
+# kind: git     location: https clone URL; ref: branch, tag or commit; credential: Secret Manager secret
+#               with a read token, for a private repository.
+# kind: folder  location: a path relative to the ingest root (the build checkout), or gs://bucket/prefix.
+# classification: public, internal, confidential or restricted; a label on every record, no ceiling yet.
+sources:
+  platform-spec:
+    name: Platform specification
+    description: This platform's requirements, components and decisions.
+    kind: folder
+    location: spec
+    include: ["**/*.md"]
+    exclude: ["traceability.md", "**/index.md"]
+    link: https://github.com/shaheenks/agentic-sdlc-core/blob/main-v2/spec/{path}
+    classification: internal

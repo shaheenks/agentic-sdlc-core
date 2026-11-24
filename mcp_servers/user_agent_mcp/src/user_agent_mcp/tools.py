@@ -62,6 +62,53 @@ async def whoami(platform: "Platform", caller: "Caller", args: dict[str, Any]) -
     }
 
 
+# Knowledge (DEC-0011) ------------------------------------------------------------------------------------
+
+MODES = ("hybrid", "vector", "keyword")
+
+
+def _scope(caller: "Caller") -> dict[str, Any]:
+    """The filter attribute: the sources the effective policy lets this user read here. No argument widens it."""
+    return {"sources": sorted(caller.policy.sources)}
+
+
+def _int_arg(args: dict[str, Any], key: str, default: int, low: int, high: int) -> int:
+    value = args.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+        raise ToolError("invalid_argument", f"{key} must be an integer from {low} to {high}")
+    return value
+
+
+async def _knowledge(platform: "Platform", path: str, body: dict[str, Any]) -> dict[str, Any]:
+    if platform.knowledge is None:
+        raise ToolError("knowledge_unavailable", "knowledge search is not configured here")
+    return await platform.knowledge.post(path, body)
+
+
+async def knowledge_search(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    query = _str(args, "query")
+    mode = args.get("mode", "hybrid")
+    if mode not in MODES:
+        raise ToolError("invalid_argument", f"mode must be one of {', '.join(MODES)}")
+    scope = _scope(caller)
+    found = await _knowledge(
+        platform,
+        "/search",
+        {"query": query, "mode": mode, "limit": _int_arg(args, "limit", 8, 1, 20), "filter": scope},
+    )
+    return {"team": caller.policy.team, "sources": scope["sources"], "results": found.get("results", [])}
+
+
+async def knowledge_graph(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    entity, name = _str(args, "entity", required=False), _str(args, "name", required=False)
+    if not entity and not name:
+        raise ToolError("invalid_argument", "give a name or an entity ID")
+    body = {"depth": _int_arg(args, "depth", 1, 1, 2), "filter": _scope(caller)}
+    body |= {"entity": entity} if entity else {"name": name}
+    found = await _knowledge(platform, "/graph", body)
+    return {"team": caller.policy.team, **{k: found.get(k, []) for k in ("seeds", "nodes", "edges")}}
+
+
 # Artifacts -----------------------------------------------------------------------------------------------
 
 
@@ -212,6 +259,33 @@ TOOLS: dict[str, Tool] = {
             connection_save,
             write=True,
             http_only=True,
+        ),
+        Tool(
+            "knowledge_search",
+            "Search the knowledge sources you may read (in a team's run: that team's sources) by meaning, keyword "
+            "or both. Each result has its source, a link to the original and the matching text.",
+            _schema(
+                {
+                    "query": {"type": "string", "description": "What to look for, in words."},
+                    "mode": {"type": "string", "enum": list(MODES), "description": "Default hybrid."},
+                    "limit": {"type": "integer", "minimum": 1, "maximum": 20, "description": "Default 8."},
+                },
+                ("query",),
+            ),
+            knowledge_search,
+        ),
+        Tool(
+            "knowledge_graph",
+            "Explore the knowledge graph around an entity, found by name or ID: files, sections, code symbols "
+            "and concepts, and how they link, within the sources you may read.",
+            _schema(
+                {
+                    "name": {"type": "string", "description": "Part of an entity's name, e.g. a concept or file."},
+                    "entity": {"type": "string", "description": "An entity ID from an earlier answer."},
+                    "depth": {"type": "integer", "minimum": 1, "maximum": 2, "description": "Default 1."},
+                },
+            ),
+            knowledge_graph,
         ),
     )
 }

@@ -1,7 +1,12 @@
-# Grants (FR-AUTHZ-007): each gives tool groups to everyone, to teams (`payments`, or one role:
-# `payments:lead`) or to user groups. A tool group no grant names is available to no one.
+# Grants (FR-AUTHZ-007): each gives tool groups and knowledge sources (DEC-0011) to everyone, to teams
+# (`payments`, or one role: `payments:lead`) or to user groups. A tool group or source no grant names is
+# available to no one. A team run keeps only what is also granted to its team or to everyone.
 grants:
   - id: everyone-basics
     description: Every user's own identity, artifacts and connections.
-    tool_groups: [identity, artifacts, connections, connection_secrets]
+    tool_groups: [identity, artifacts, connections, connection_secrets, knowledge]
+    to: {everyone: true}
+  - id: everyone-platform-knowledge
+    description: The platform's own specification, for everyone.
+    sources: [platform-spec]
     to: {everyone: true}

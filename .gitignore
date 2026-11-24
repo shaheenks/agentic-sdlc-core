@@ -13,3 +13,6 @@ infra/**/*.tfvars
 infra/**/*.tfbackend
 infra/**/*.tfplan
 infra/**/*.tfstate*
+# The knowledge store built into the Knowledge Search image by the ingest pipeline (DEC-0011).
+knowledge_search/knowledge/*
+!knowledge_search/knowledge/.gitkeep

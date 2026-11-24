@@ -15,11 +15,14 @@ from sdlc_policy import EffectivePolicy, RateLimiter, effective_policy
 from user_agent_mcp.artifacts import ArtifactStore
 from user_agent_mcp.connections import ConnectionStore
 from user_agent_mcp.errors import ToolError
+from user_agent_mcp.knowledge import KnowledgeClient
 from user_agent_mcp.settings import Settings
 from user_agent_mcp.tools import TOOLS, Tool
 
 LABEL = re.compile(r"^[A-Za-z0-9._:/-]{1,128}$")
 RUN_HEADER, STEP_HEADER = "x-sdlc-run-id", "x-sdlc-step"
+# The team a run is for, set by the declared caller from the session or run (FR-KNOW-004, DEC-0011).
+TEAM_HEADER = "x-sdlc-team"
 
 
 @dataclass(frozen=True)
@@ -39,6 +42,8 @@ class Caller:
             "caller": self.identity.caller,
             "config_version": self.bundle.version,
         }
+        if self.policy.team:
+            fields["team"] = self.policy.team
         if self.run_id:
             fields["run_id"] = self.run_id
         if self.step:
@@ -60,6 +65,7 @@ class Platform:
         limiter: RateLimiter,
         artifacts: ArtifactStore,
         connections: ConnectionStore,
+        knowledge: KnowledgeClient | None = None,
     ) -> None:
         self.settings = settings
         self.store = store
@@ -69,6 +75,7 @@ class Platform:
         self.limiter = limiter
         self.artifacts = artifacts
         self.connections = connections
+        self.knowledge = knowledge
 
     async def identify(self, headers: Mapping[str, str]) -> tuple[Identity, Bundle]:
         """The user of a request under the active bundle's identity mode (DEC-0010). `headers` must look
@@ -78,9 +85,17 @@ class Platform:
         identity = await identify(headers, settings, self.tokens, env=self.settings.env, audiences=self.audiences)
         return identity, bundle
 
+    def team_allowed(self, identity: Identity, bundle: Bundle, headers: Mapping[str, str]) -> bool:
+        """A run's team, when its caller names one, must be one of the user's teams."""
+        team = headers.get(TEAM_HEADER)
+        return team is None or team in memberships(bundle.config, identity.email).teams
+
     async def caller(self, identity: Identity, bundle: Bundle, headers: Mapping[str, str]) -> Caller:
+        """The user's effective policy: in their own runs, or in the run of the team the caller names (the
+        intersection with the team's grants). `team_allowed` has been checked before."""
         member = memberships(bundle.config, identity.email)
-        policy = effective_policy(bundle.config, bundle.version, identity.surface, member)
+        team = headers.get(TEAM_HEADER) or None
+        policy = effective_policy(bundle.config, bundle.version, identity.surface, member, team)
         return Caller(identity, member, policy, bundle, _label(headers, RUN_HEADER), _label(headers, STEP_HEADER))
 
     def visible_tools(self, caller: Caller, channel: str) -> list[Tool]:

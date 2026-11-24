@@ -1,6 +1,7 @@
 """YAML files to one compiled, cross-checked configuration."""
 
 import json
+import pathlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -8,7 +9,17 @@ from typing import Any
 import yaml
 from jsonschema import Draft202012Validator
 
-SHARED_KINDS = ("platform", "tool_groups", "surfaces", "teams", "user_groups", "grants", "limits", "providers")
+SHARED_KINDS = (
+    "platform",
+    "tool_groups",
+    "surfaces",
+    "teams",
+    "user_groups",
+    "grants",
+    "limits",
+    "providers",
+    "sources",
+)
 ENV_KINDS = ("identity", "users", "blocked")
 LOCAL_ONLY_MODES = ("trusted_header",)
 UNCONFIGURED = {"mode": "", "allowed_domains": [], "callers": {}, "clients": {}}
@@ -75,6 +86,7 @@ def compile_config(config_dir: Path, env: str) -> Compiled:
         "grants": docs["grants"]["grants"],
         "rate_limits": docs["limits"]["rate_limits"],
         "providers": docs["providers"]["providers"],
+        "sources": docs["sources"]["sources"],
         "identity": identity,
         "members": {email.lower(): _member(entry) for email, entry in users.items()},
         "blocked": (docs.get("env.blocked") or {}).get("blocked", []),
@@ -121,18 +133,37 @@ def _cross_check(config: dict, users: dict, problems: list[str], warnings: list[
             if group not in tool_groups:
                 problems.append(f"surfaces.yaml: {surface_id}: unknown tool group {group!r}")
     granted: set[str] = set()
+    readable: set[str] = set()
     grant_ids: set[str] = set()
     for grant in config["grants"]:
         if grant["id"] in grant_ids:
             problems.append(f"grants.yaml: duplicate grant id {grant['id']!r}")
         grant_ids.add(grant["id"])
-        for group in grant["tool_groups"]:
+        for group in grant.get("tool_groups") or ():
             if group not in tool_groups:
                 problems.append(f"grants.yaml: {grant['id']}: unknown tool group {group!r}")
             granted.add(group)
+        for source in grant.get("sources") or ():
+            if source not in config["sources"]:
+                problems.append(f"grants.yaml: {grant['id']}: unknown source {source!r}")
+            readable.add(source)
         check_selector(f"grants.yaml: {grant['id']}", grant["to"])
     for group in sorted(set(tool_groups) - granted):
         warnings.append(f"tool group {group!r} has no grant: available to no one")
+    for source in sorted(set(config["sources"]) - readable):
+        warnings.append(f"source {source!r} has no grant: readable by no one")
+    for source_id, source in config["sources"].items():
+        if source["kind"] == "git" and not source["location"].startswith("https://"):
+            problems.append(f"sources.yaml: {source_id}: a git location must be an https URL")
+        if source["kind"] != "git" and ("ref" in source or "credential" in source):
+            problems.append(f"sources.yaml: {source_id}: ref and credential are for git sources only")
+        location = source["location"]
+        if (
+            source["kind"] == "folder"
+            and not location.startswith("gs://")
+            and (".." in pathlib.PurePosixPath(location).parts or location.startswith(("/", "\\")) or ":" in location)
+        ):
+            problems.append(f"sources.yaml: {source_id}: a folder location cannot leave the ingest root")
     for override in config["rate_limits"]["tool_calls"].get("overrides") or ():
         check_selector(f"limits.yaml: {override['id']}", override["to"])
 

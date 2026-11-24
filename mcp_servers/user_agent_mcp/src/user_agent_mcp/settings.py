@@ -17,6 +17,8 @@ class Settings:
     encryption_key: bytes | None
     encryption_key_version: str
     config_refresh_seconds: float = 30.0
+    knowledge_search_url: str | None = None
+    knowledge_auth: str = "id_token"  # or none, in the local environment only
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
@@ -32,8 +34,15 @@ class Settings:
                 raise SystemExit("DATA_ENCRYPTION_KEY must be base64") from exc
             if len(key) != 32:
                 raise SystemExit("DATA_ENCRYPTION_KEY must be 32 bytes (AES-256)")
+        env = e.get("SDLC_ENV", "local")
+        knowledge_auth = e.get("KNOWLEDGE_AUTH", "id_token")
+        knowledge_url = (e.get("KNOWLEDGE_SEARCH_URL") or "").rstrip("/") or None
+        if knowledge_auth not in ("id_token", "none") or (
+            knowledge_auth == "none" and env != "local" and knowledge_url
+        ):
+            raise SystemExit("KNOWLEDGE_AUTH must be id_token, or none in the local environment (fail closed)")
         return cls(
-            env=e.get("SDLC_ENV", "local"),
+            env=env,
             config_source=e["CONFIG_SOURCE"],
             store_root=Path(e["STORE_MOUNT_PATH"]),
             public_url=e.get("PUBLIC_URL", f"http://localhost:{e.get('PORT', '8080')}").rstrip("/"),
@@ -41,4 +50,6 @@ class Settings:
             encryption_key=key,
             encryption_key_version=e.get("DATA_ENCRYPTION_KEY_VERSION", "1"),
             config_refresh_seconds=float(e.get("CONFIG_REFRESH_SECONDS", "30")),
+            knowledge_search_url=knowledge_url,
+            knowledge_auth=knowledge_auth,
         )

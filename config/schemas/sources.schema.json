@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Knowledge sources the ingest pipeline reads (FR-KNOW-001, DEC-0011).",
+  "type": "object",
+  "properties": {
+    "sources": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "enum": [
+              "git",
+              "folder"
+            ]
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "description": "git: the clone URL (https). folder: a path relative to the ingest root, or gs://bucket/prefix."
+          },
+          "ref": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._/-]{1,200}$",
+            "description": "git: a branch, tag or full commit SHA (default: the default branch)."
+          },
+          "link": {
+            "type": "string",
+            "pattern": "^https://",
+            "description": "Base URL of a file's page; '{path}' is replaced by the file's path, '{ref}' by the commit."
+          },
+          "include": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "exclude": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uniqueItems": true
+          },
+          "classification": {
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "credential": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,255}$",
+            "description": "git: the Secret Manager secret holding a read token for a private repository."
+          },
+          "extract": {
+            "type": "boolean",
+            "description": "Extract concepts with Gemini (default true when the run enables extraction)."
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "kind",
+          "location",
+          "classification"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "sources"
+  ],
+  "additionalProperties": false
+}

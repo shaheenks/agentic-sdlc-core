@@ -1,9 +1,10 @@
-"""Who gains or loses which tools between two configuration versions (FR-CFG-002).
+"""Who gains or loses which tools and knowledge sources between two configuration versions (FR-CFG-002).
 
 Access is computed with the Access Policy itself (`sdlc_policy.effective_policy`), so the diff shows what the
 MCP servers would decide, for every listed user, in their own runs and in each of their teams' runs, on every
-surface. Users not listed in `users.yaml` are one more row: they are in no team and no user group, so they get
-only what is granted to everyone. A user blocked by email gets nothing.
+surface; a readable knowledge source shows as `source:<id>`. Users not listed in `users.yaml` are one more
+row: they are in no team and no user group, so they get only what is granted to everyone. A user blocked by
+email gets nothing.
 
 A version is one of:
 
@@ -35,6 +36,7 @@ UNLISTED = "(users not listed)"
 OWN = "own runs"
 GIT = "git:"
 ACTIVE = "active"
+SOURCE = "source:"
 
 
 class VersionUnavailable(Exception):
@@ -55,7 +57,7 @@ def _blocked_emails(config: Mapping[str, Any]) -> set[str]:
 
 
 def access(config: Mapping[str, Any]) -> dict[tuple[str, str, str], frozenset[str]]:
-    """(user, context, surface) -> the tools allowed there. Rows with no tools are left out."""
+    """(user, context, surface) -> the tools and `source:<id>` allowed there. Empty rows are left out."""
     blocked = _blocked_emails(config)
     users: dict[str, Memberships] = {UNLISTED: Memberships()}
     for email in config.get("members") or {}:
@@ -67,9 +69,10 @@ def access(config: Mapping[str, Any]) -> dict[tuple[str, str, str], frozenset[st
         contexts: list[tuple[str, str | None]] = [(OWN, None)] + [(f"{t} runs", t) for t in sorted(member.teams)]
         for surface in config.get("surfaces") or {}:
             for label, team in contexts:
-                tools = frozenset(effective_policy(config, "", surface, member, team).tools)
-                if tools:
-                    result[(user, label, surface)] = tools
+                policy = effective_policy(config, "", surface, member, team)
+                allowed = frozenset(policy.tools) | {f"{SOURCE}{s}" for s in policy.sources}
+                if allowed:
+                    result[(user, label, surface)] = allowed
     return result
 
 
@@ -86,7 +89,7 @@ def diff(old: Mapping[str, Any], new: Mapping[str, Any]) -> list[Change]:
 def render(changes: list[Change], env: str, base: str, head: str) -> str:
     lines = [f"Permission diff for env {env}: {base} -> {head}", ""]
     if not changes:
-        lines.append("No one gains or loses a tool.")
+        lines.append("No one gains or loses a tool or knowledge source.")
         return "\n".join(lines) + "\n"
     user = None
     for change in changes:
@@ -98,7 +101,7 @@ def render(changes: list[Change], env: str, base: str, head: str) -> str:
             f"- {', '.join(change.lost)}" if change.lost else "",
         ]
         lines.append(f"  {change.context}, {change.surface}: {'; '.join(p for p in parts if p)}")
-    lines += ["", "Tools only: workflows, skills and data sources are not declared in configuration yet."]
+    lines += ["", "Tools and knowledge sources only: workflows and skills are not declared in configuration yet."]
     return "\n".join(lines) + "\n"
 
 

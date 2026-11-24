@@ -32,6 +32,8 @@ HTTP API for sdlc_ui, same policy and audit: `GET /api/me`, `GET /api/artifacts`
 `GET /.well-known/oauth-protected-resource`, which names Google as the authorization server.
 
 Calls can carry `X-SDLC-Run-Id` and `X-SDLC-Step`; they go into the audit record and the artifact lineage.
+A team run also carries `X-SDLC-Team`: the policy is then the intersection with that team's grants, and the
+knowledge tools read only its sources (DEC-0011). A team the user is not in is refused with 403.
 
 Build and test from this folder: `uv run pytest`. Locally:
 
@@ -57,6 +59,8 @@ declares the `sdlc_ui` caller; `users.yaml` gives you your teams.
 | `SDLC_UI_URL` | - | sdlc_ui's URL; `connection_start` links to `<SDLC_UI_URL>/connections/<provider>` |
 | `DATA_ENCRYPTION_KEY` | - | Base64 of 32 bytes, from Secret Manager; without it, secrets cannot be saved |
 | `DATA_ENCRYPTION_KEY_VERSION` | `1` | Recorded with each encrypted secret |
+| `KNOWLEDGE_SEARCH_URL` | - | Knowledge Search; without it the knowledge tools answer `knowledge_unavailable` |
+| `KNOWLEDGE_AUTH` | `id_token` | Its own ID token from the metadata server; `none` only in the `local` environment |
 
 On Google Cloud (`infra/gcp/user_agent_mcp.tf`) only sdlc_ui's and the agent runtime's service accounts hold its
 invoker role; ingress is `all` until sdlc_ui runs in the environment, then internal. The artifact bucket is

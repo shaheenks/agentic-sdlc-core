@@ -1,6 +1,4 @@
-"""Ingests declared sources into JSONL files; runs in the build pipeline.
-
-Phase 0 skeleton: runs, logs one line and exits.
-"""
+"""Ingests the declared knowledge sources into the JSONL knowledge store (Ingest Pipeline; FR-KNOW-001,
+FR-KNOW-003, DEC-0011). Runs as a step of the build pipeline, before the Knowledge Search image is built."""
 
 NAME = "knowledge_ingest"

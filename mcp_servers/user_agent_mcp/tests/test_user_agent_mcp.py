@@ -7,6 +7,7 @@ import logging
 import os
 from pathlib import Path
 
+import httpx
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -15,6 +16,7 @@ from sdlc_identity import GoogleTokens
 from sdlc_logging import AUDIT_LOGGER
 from starlette.testclient import TestClient
 from user_agent_mcp import SERVICE, create_app, create_platform
+from user_agent_mcp.knowledge import KnowledgeClient
 from user_agent_mcp.settings import Settings
 
 NOW = 1_800_000_000
@@ -336,3 +338,129 @@ def test_encryption_key_must_be_32_bytes():
 def test_config_store_is_the_one_loaded(env):
     _, platform, *_ = env
     assert isinstance(platform.store, ConfigStore)
+
+
+# Knowledge (FR-KNOW-002, FR-KNOW-004, FR-AUTHZ-004; DEC-0011) ----------------------------------------------
+
+KNOWLEDGE_URL = "https://knowledge.example.test"
+KNOWLEDGE_CONFIG = {
+    **CONFIG,
+    "tool_groups": {
+        **CONFIG["tool_groups"],
+        "knowledge": {"description": "-", "tools": ["knowledge_search", "knowledge_graph"]},
+    },
+    "surfaces": {
+        "sdlc_ui": {"description": "-", "tool_groups": [*CONFIG["surfaces"]["sdlc_ui"]["tool_groups"], "knowledge"]},
+        "user_agent": {
+            "description": "-",
+            "tool_groups": [*CONFIG["surfaces"]["user_agent"]["tool_groups"], "knowledge"],
+        },
+    },
+    "teams": {**CONFIG["teams"], "platform": {"name": "Platform", "description": "-", "roles": ["member"]}},
+    "sources": {"handbook": {}, "payments-repo": {}, "platform-repo": {}},
+    "grants": [
+        {**CONFIG["grants"][0], "tool_groups": [*CONFIG["grants"][0]["tool_groups"], "knowledge"]},
+        {"id": "handbook", "description": "-", "sources": ["handbook"], "to": {"everyone": True}},
+        {"id": "payments-code", "description": "-", "sources": ["payments-repo"], "to": {"teams": ["payments"]}},
+        {"id": "platform-code", "description": "-", "sources": ["platform-repo"], "to": {"teams": ["platform"]}},
+    ],
+    "members": {
+        "ada@example.test": {"teams": {"payments": ["member"], "platform": ["member"]}, "user_groups": []},
+    },
+}
+
+
+@pytest.fixture
+def kenv(tmp_path):
+    """user_agent_mcp with Knowledge Search faked: each request it receives is recorded."""
+    config_root = tmp_path / "config"
+    publish(config_root, KNOWLEDGE_CONFIG)
+    received = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        received.append((request.url.path, body))
+        if request.url.path == "/search":
+            return httpx.Response(200, json={"results": [{"source_id": s} for s in body["filter"]["sources"]]})
+        return httpx.Response(200, json={"seeds": [], "nodes": [], "edges": []})
+
+    settings = Settings("test", str(config_root), tmp_path / "store", PUBLIC_URL, None, None, "1", 0)
+    knowledge = KnowledgeClient(KNOWLEDGE_URL, "none", http=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    platform = create_platform(
+        settings, tokens=GoogleTokens(verify_id_token=verify_locally, clock=lambda: NOW), knowledge=knowledge
+    )
+    platform.store.load()
+    with TestClient(create_app(platform=platform)) as client:
+        yield client, received
+
+
+def kcall(client, headers, tool, **arguments):
+    params = {
+        "name": tool,
+        "arguments": arguments,
+        "_meta": {
+            "io.modelcontextprotocol/protocolVersion": PROTOCOL,
+            "io.modelcontextprotocol/clientInfo": {"name": "test", "version": "1"},
+            "io.modelcontextprotocol/clientCapabilities": {},
+        },
+    }
+    headers = {
+        **headers,
+        "Accept": "application/json, text/event-stream",
+        "MCP-Protocol-Version": PROTOCOL,
+        "Mcp-Method": "tools/call",
+        "Mcp-Name": tool,
+    }
+    response = client.post(
+        "/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": params}, headers=headers
+    )
+    return response
+
+
+def test_chat_searches_every_source_the_user_may_read(kenv):
+    client, received = kenv
+    response = kcall(client, WHO["ada-agent"], "knowledge_search", query="refund flow")
+    result = json.loads(response.json()["result"]["content"][0]["text"])
+    assert result["team"] is None
+    assert received == [
+        (
+            "/search",
+            {
+                "query": "refund flow",
+                "mode": "hybrid",
+                "limit": 8,
+                "filter": {"sources": ["handbook", "payments-repo", "platform-repo"]},
+            },
+        )
+    ]
+
+
+def test_a_team_run_searches_only_its_teams_sources_and_arguments_cannot_widen_it(kenv):
+    client, received = kenv
+    headers = {**WHO["ada-agent"], "X-SDLC-Team": "payments"}
+    kcall(client, headers, "knowledge_search", query="refunds", sources=["platform-repo"], filter={"sources": ["x"]})
+    kcall(client, headers, "knowledge_graph", name="Ledger", depth=2)
+    assert [body["filter"]["sources"] for _, body in received] == [["handbook", "payments-repo"]] * 2
+
+
+def test_a_team_the_user_is_not_in_is_refused(kenv, caplog):
+    client, received = kenv
+    with caplog.at_level(logging.INFO, logger=AUDIT_LOGGER):
+        response = kcall(client, {**WHO["ada-agent"], "X-SDLC-Team": "risk"}, "knowledge_search", query="x")
+    assert response.status_code == 403 and received == []
+    assert any(getattr(r, "reason", "") == "not_a_team_member" for r in caplog.records)
+
+
+def test_knowledge_arguments_never_reach_the_audit_log(kenv, caplog):
+    client, _ = kenv
+    with caplog.at_level(logging.INFO, logger=AUDIT_LOGGER):
+        kcall(client, WHO["ada-agent"], "knowledge_search", query="a very private question")
+    assert "a very private question" not in caplog.text
+    assert any(getattr(r, "tool", "") == "knowledge_search" for r in caplog.records)
+
+
+def test_knowledge_without_a_search_service_is_unavailable(env):
+    client, *_ = env
+    publish(env[2], {**KNOWLEDGE_CONFIG, "members": CONFIG["members"]})
+    result, error = call(client, "ada-agent", "knowledge_search", query="x")
+    assert error and result["error"] == "knowledge_unavailable"

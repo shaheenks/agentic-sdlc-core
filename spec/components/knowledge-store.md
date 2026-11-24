@@ -5,6 +5,7 @@ description: Stores chunks, embeddings and the knowledge graph and answers seman
 tags: [component, knowledge, data]
 status: draft
 x-layer: knowledge
+x-folder: libs/sdlc_knowledge/
 x-depends-on: [/components/access-policy]
 x-satisfies: [/requirements/functional/FR-AUTHZ-004, /requirements/functional/FR-KNOW-001, /requirements/functional/FR-KNOW-002, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-ARCH-004]
 ---
@@ -56,5 +57,8 @@ rows a user may not read.
   them, and the directory is built into the Knowledge Search image, which reads it at start-up; vector search
   is done in memory. New or changed knowledge reaches search by re-running ingest, rebuilding the image and
   deploying it.
+- Library `libs/sdlc_knowledge` holds the record format (`chunks.jsonl`, `entities.jsonl`, `edges.jsonl`,
+  `manifest.json`; reading refuses a record without `source_id` or `classification`) and the embedders shared by
+  ingest and search ([DEC-0011](../decisions/DEC-0011.md)).
 - Next upgrade: PostgreSQL with pgvector, the graph as edge tables and row-level security for the filter; zone
   redundancy for production ([NFR-REL-002](../requirements/non-functional/NFR-REL-002.md)) comes with it.

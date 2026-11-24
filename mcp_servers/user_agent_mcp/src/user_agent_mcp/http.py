@@ -52,6 +52,12 @@ class AuthMiddleware:
             audit("auth.denied", reason="config_unavailable", path=path)
             await self._refuse(scope, receive, send, 503, "unavailable", "configuration unavailable")
             return
+        if not self.platform.team_allowed(identity, bundle, Headers(scope=scope)):
+            audit("auth.denied", reason="not_a_team_member", path=path, user_id=identity.user_id)
+            await JSONResponse({"error": "forbidden", "error_description": "not a member of that team"}, 403)(
+                scope, receive, send
+            )
+            return
         scope["sdlc.identity"], scope["sdlc.bundle"] = identity, bundle
         await self.app(scope, receive, send)
 

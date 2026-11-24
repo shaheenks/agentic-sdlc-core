@@ -8,7 +8,9 @@ RUN uv sync --frozen --no-dev --no-editable --package sdlc-knowledge-search
 
 FROM python:3.12-slim
 COPY --from=build /app/.venv /app/.venv
-ENV PATH=/app/.venv/bin:$PATH PORT=8083
+# The JSONL store the ingest pipeline wrote just before this build (DEC-0011); read-only at run time.
+COPY knowledge_search/knowledge/ /app/knowledge/
+ENV PATH=/app/.venv/bin:$PATH PORT=8083 KNOWLEDGE_PATH=/app/knowledge
 USER nobody
 EXPOSE 8083
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \

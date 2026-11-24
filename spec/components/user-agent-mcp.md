@@ -136,3 +136,8 @@ The MCP server for user calls ([DEC-0002](../decisions/DEC-0002.md), accepted; [
 # Open questions
 
 - Parked with the coding-harness surface: is URL-mode elicitation supported by the harnesses we need?
+- Knowledge tools ([DEC-0011](../decisions/DEC-0011.md)): `knowledge_search` and `knowledge_graph`
+  proxy to [Knowledge Search](knowledge-search.md) (`KNOWLEDGE_SEARCH_URL`) with the readable sources of the
+  caller's effective policy as the filter attribute, and this service's own ID token from the metadata server.
+  A run's team comes from the declared caller's `X-SDLC-Team` header; a team the user is not in is refused
+  (403, audited) and a team run reads only its team's sources ([FR-KNOW-004](../requirements/functional/FR-KNOW-004.md)).

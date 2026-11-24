@@ -57,4 +57,16 @@ Gives workflows a grounded view of a team's systems: code, designs, tickets, doc
 - Folder `knowledge_ingest/`, self-contained, separate from the MCP servers and from Knowledge Search; the only
   writer of the Knowledge Store. For now it runs as a step of the build pipeline, before the Knowledge Search image is built, and writes the JSONL
   directory into that image's build input; a refresh is a new ingest run followed by a new image.
+- Built ([DEC-0011](../decisions/DEC-0011.md)): `sdlc-knowledge-ingest` reads the sources of the
+  active configuration bundle. A `git` source is shallow-cloned at its ref, with a read token from Secret
+  Manager passed in an HTTP header through git's environment for a private repository; a `folder` source is a
+  path under the build checkout or a `gs://` prefix. Text files only, filtered by include and exclude patterns.
+- Chunks: Markdown by heading, other files by 60-line windows; embedded with `gemini-embedding-001` (768
+  dimensions, europe-west3). Graph: the source, files (described by their title), Markdown sections, Python
+  classes and functions, with `contains`, `links_to` and `imports` edges; and concepts with their relations,
+  extracted per file by `gemini-3.8-flash` (in `eu`, where it is served), linked by `mentions`.
+- Incremental: an unchanged file keeps its chunks, embeddings and cached extraction from the previous store; a
+  file that is gone is left out. A source that cannot be read keeps its previous records and is reported as
+  failed, and the run exits 1. `manifest.json` records the run and each source's status
+  ([FR-KNOW-003](../requirements/functional/FR-KNOW-003.md)).
 - Runs with one service identity, a dedicated service account, for every source. Every record carries the `source_id` of its source; the teams that may read a source are declared in configuration, and Knowledge Search filters on `source_id` ([FR-AUTHZ-004](../requirements/functional/FR-AUTHZ-004.md)).

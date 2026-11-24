@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Grants of tool groups.",
+  "title": "Grants of tool groups and knowledge sources.",
   "type": "object",
   "properties": {
     "grants": {
@@ -17,6 +17,15 @@
             "minLength": 1
           },
           "tool_groups": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*$"
+            },
+            "uniqueItems": true,
+            "minItems": 1
+          },
+          "sources": {
             "type": "array",
             "items": {
               "type": "string",
@@ -55,10 +64,21 @@
         "required": [
           "id",
           "description",
-          "tool_groups",
           "to"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "anyOf": [
+          {
+            "required": [
+              "tool_groups"
+            ]
+          },
+          {
+            "required": [
+              "sources"
+            ]
+          }
+        ]
       }
     }
   },

@@ -3,7 +3,7 @@ name = "sdlc-knowledge-ingest"
 version = "0.0.0"
 description = "Ingests declared sources into JSONL files; runs in the build pipeline."
 requires-python = ">=3.12"
-dependencies = ["sdlc-logging"]
+dependencies = ["sdlc-logging", "sdlc-config-store", "sdlc-knowledge", "google-genai>=1.20", "httpx>=0.28"]
 
 [project.scripts]
 sdlc-knowledge-ingest = "knowledge_ingest.__main__:main"

@@ -29,6 +29,9 @@ services:
       SDLC_UI_URL: ${SDLC_UI_URL:-http://localhost:3000}
       DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-}
       DATA_ENCRYPTION_KEY_VERSION: ${DATA_ENCRYPTION_KEY_VERSION:-1}
+      KNOWLEDGE_SEARCH_URL: ${KNOWLEDGE_SEARCH_URL-http://knowledge-search:8083}  # empty: knowledge off
+      # Only locally may it call Knowledge Search without its service account's ID token.
+      KNOWLEDGE_AUTH: ${KNOWLEDGE_AUTH:-none}
     volumes:
       - ${STORE_HOST_PATH:-./.data/store}:/data/store
       - ${CONFIG_HOST_PATH:-./.data/config}:/data/config:ro
@@ -68,6 +71,14 @@ services:
     environment:
       <<: *common-env
       PORT: "8083"
+      # Locally the store is mounted from the last ingest run; in Google Cloud it is built into the image.
+      KNOWLEDGE_PATH: /data/knowledge
+      CALLER_AUTH: ${KNOWLEDGE_CALLER_AUTH:-none}
+      ALLOWED_CALLERS: ${KNOWLEDGE_ALLOWED_CALLERS:-}
+      EMBEDDINGS: ${EMBEDDINGS:-hash}
+      VERTEX_LOCATION: ${VERTEX_LOCATION:-europe-west3}
+    volumes:
+      - ${KNOWLEDGE_HOST_PATH:-./.data/knowledge}:/data/knowledge:ro
     ports:
       - "127.0.0.1:8083:8083"
 

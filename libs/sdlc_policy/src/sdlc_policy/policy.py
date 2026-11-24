@@ -1,7 +1,7 @@
 """Effective policy and per-call decisions."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from sdlc_directory import Memberships
@@ -43,6 +43,7 @@ class EffectivePolicy:
     config_version: str
     tools: Mapping[str, str]  # allowed tool -> the rule that allows it
     tool_groups: Mapping[str, str]  # allowed tool group -> the grant that allows it
+    sources: Mapping[str, str] = field(default_factory=dict)  # readable knowledge source -> the grant (DEC-0011)
 
     def authorize(self, tool: str) -> Decision:
         rule = self.tools.get(tool)
@@ -57,23 +58,25 @@ class EffectivePolicy:
             "config_version": self.config_version,
             "tool_groups": sorted(self.tool_groups),
             "tools": sorted(self.tools),
+            "sources": sorted(self.sources),
         }
 
 
-def _granted(config: Mapping[str, Any], memberships: Memberships, team: str | None) -> dict[str, str]:
-    """Tool group -> first grant that gives it to this user (and, for a team run, to the team)."""
+def _granted(config: Mapping[str, Any], memberships: Memberships, team: str | None, kind: str) -> dict[str, str]:
+    """Tool group or source (`kind` is the grant's key) -> first grant that gives it to this user (and, for a
+    team run, to the team)."""
     personal: dict[str, str] = {}
     team_wide: set[str] = set()
     for grant in config.get("grants") or ():
         to = grant.get("to") or {}
-        for group in grant.get("tool_groups") or ():
+        for item in grant.get(kind) or ():
             if matches(to, memberships):
-                personal.setdefault(group, f"grant:{grant['id']}")
+                personal.setdefault(item, f"grant:{grant['id']}")
             if team is not None and _names_team(to, team):
-                team_wide.add(group)
+                team_wide.add(item)
     if team is None:
         return personal
-    return {group: rule for group, rule in personal.items() if group in team_wide}
+    return {item: rule for item, rule in personal.items() if item in team_wide}
 
 
 def effective_policy(
@@ -85,7 +88,9 @@ def effective_policy(
 ) -> EffectivePolicy:
     if team is not None and team not in memberships.teams:
         raise NotATeamMember(team)
-    granted = _granted(config, memberships, team)
+    granted = _granted(config, memberships, team, "tool_groups")
+    declared_sources = config.get("sources") or {}
+    sources = {s: r for s, r in _granted(config, memberships, team, "sources").items() if s in declared_sources}
     surface_groups = set(((config.get("surfaces") or {}).get(surface) or {}).get("tool_groups") or ())
     tool_groups = {g: rule for g, rule in granted.items() if g in surface_groups}
     tools: dict[str, str] = {}
@@ -93,4 +98,4 @@ def effective_policy(
     for group, rule in sorted(tool_groups.items()):
         for tool in (declared.get(group) or {}).get("tools") or ():
             tools.setdefault(tool, f"{rule}/tool_group:{group}/surface:{surface}")
-    return EffectivePolicy(surface, team, config_version, tools, tool_groups)
+    return EffectivePolicy(surface, team, config_version, tools, tool_groups, sources)

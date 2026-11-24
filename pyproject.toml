@@ -40,6 +40,7 @@ members = [
     "libs/sdlc_identity",
     "libs/sdlc_directory",
     "libs/sdlc_policy",
+    "libs/sdlc_knowledge",
     "config",
 ]
 
@@ -60,6 +61,7 @@ sdlc-config-store = { workspace = true }
 sdlc-identity = { workspace = true }
 sdlc-directory = { workspace = true }
 sdlc-policy = { workspace = true }
+sdlc-knowledge = { workspace = true }
 sdlc-config = { workspace = true }
 
 [tool.ruff]

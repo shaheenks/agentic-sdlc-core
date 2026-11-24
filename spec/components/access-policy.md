@@ -80,5 +80,8 @@ prompts. The services that own each resource enforce the decision.
   ([FR-TEAM-002](../requirements/functional/FR-TEAM-002.md)).
 - Rate limits on tool calls per user (with overrides per team or user group, the most generous applying) and per
   team, in one-minute sliding windows counted per service instance.
+- Grants also give knowledge sources ([DEC-0011](../decisions/DEC-0011.md)). The effective policy
+  lists the readable sources: in the user's own runs every source granted to them, in a team run only those also
+  granted to the team or to everyone. There is no classification ceiling yet.
 - Argument constraints are not implemented yet; the first tools that need them (repository and tracker tools)
   come with the connectors.

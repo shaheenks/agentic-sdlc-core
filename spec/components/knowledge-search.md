@@ -62,3 +62,11 @@ The read side of the knowledge backend, isolated from the MCP servers ([NFR-ARCH
 - Folder `knowledge_search/`, self-contained; a Cloud Run service in europe-west3 with internal-only ingress,
   reached by the two MCP servers through their VPC egress, with Cloud Run invoker granted to their service
   accounts alone.
+- Built ([DEC-0011](../decisions/DEC-0011.md)): `POST /search` (vector, keyword and hybrid by
+  reciprocal rank fusion), `POST /graph` (an entity's neighbourhood, found by ID, name or title, at most two
+  hops) and `POST /status` (the ingest run, for the readable sources). Each needs `filter.sources`; the store is
+  narrowed to those sources before anything is scored, keyword statistics included, and graph traversal never
+  visits another source's nodes or edges.
+- Callers: a Google ID token with this service's URL as audience, from an account in `ALLOWED_CALLERS`;
+  `CALLER_AUTH=none` only in the local environment. Vector queries are refused when the store's embedding model
+  differs from the service's. Query text is never logged.
