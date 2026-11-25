@@ -315,32 +315,45 @@ async def repo_read_file(platform: "Platform", caller: "Caller", args: dict[str,
 # The connection test (FR-CONN-001) ------------------------------------------------------------------------
 
 
-async def connection_test(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
-    """Signs in to the provider with the user's connection and says as whom; the token is never returned."""
-    provider = args.get("provider")
-    system, edition = _edition(caller, provider) if isinstance(provider, str) else ("", "")
-    if not system:
-        raise ToolError("unknown_provider", "unknown provider")
-    credential = _credential(platform, caller, provider)
-    stored = platform.connections.metadata(caller.identity.user_id, provider)
-    base_url = stored.get("base_url")
+REFUSED = ("unauthorized", "forbidden", "invalid")
+
+
+async def sign_in(caller: "Caller", provider: str, credential: Credential, base_url: str | None) -> dict[str, Any]:
+    """Signs in to the provider with a credential and says as whom: `ok` with the account, `refused` when the
+    provider rejects it, or `untested` when there is nothing to test against or the server cannot be reached."""
+    system, edition = _edition(caller, provider)
     if system == "confluence":
-        raise ToolError(
-            "unavailable", "Confluence connections are stored; testing them comes with the Confluence tools"
-        )
+        return {"status": "untested", "reason": "Confluence sign-in is checked once the Confluence tools exist"}
     if system == "jira" and not base_url:  # Jira Cloud: the site of one of the user's teams
         sites = [
             j["base_url"] for s in scope(caller).values() for j in s.get("jira") or () if j["provider"] == provider
         ]
         base_url = sites[0] if sites else None
     if not base_url:
-        raise ToolError("unavailable", "no site to test against: none of your teams uses this provider here")
-    if system == "jira":
-        client: Any = Jira(base_url, edition, credential)
-    else:
-        client = repository(system, edition, base_url, "x/x", credential)
+        return {
+            "status": "untested",
+            "reason": "none of your teams uses this provider here, so there is no site to test",
+        }
     try:
+        client: Any = (
+            Jira(base_url, edition, credential)
+            if system == "jira"
+            else repository(system, edition, base_url, "x/x", credential)
+        )
         who = await asyncio.to_thread(client.whoami)
     except ConnectorError as exc:
-        return {"provider": provider, "status": "failed", "reason": exc.code}
-    return {"provider": provider, "status": "ok", "account": who.get("account")}
+        if exc.code in REFUSED or exc.code == "account_required":
+            return {"status": "refused", "reason": exc.code}
+        return {"status": "untested", "reason": f"the server could not be checked ({exc.code})"}
+    return {"status": "ok", "account": who.get("account")}
+
+
+async def connection_test(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    """Signs in to the provider with the user's stored connection and says as whom; the token is never returned."""
+    provider = args.get("provider")
+    system, _ = _edition(caller, provider) if isinstance(provider, str) else ("", "")
+    if not system:
+        raise ToolError("unknown_provider", "unknown provider")
+    credential = _credential(platform, caller, provider)
+    stored = platform.connections.metadata(caller.identity.user_id, provider)
+    return {"provider": provider, **(await sign_in(caller, provider, credential, stored.get("base_url")))}

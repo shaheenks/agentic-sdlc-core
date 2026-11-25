@@ -220,8 +220,6 @@ changing it during a run needs the user's explicit confirmation in chat.
   adapted from EGM's Goldfish reviewers (Apache-2.0, `skills/NOTICE`), with one JSON findings contract. All load
   with ADK's skill loader.
 
-### Phase 5: Event path and ci_workflow_agent
-
 - Milestone 3 built (2026-11-25), tested against faked systems:
   - user_agent_mcp: `control_publish`, `control_status`; `jira_create_feature` and `jira_link_design` only from
     artifacts approved on the team's control repository, with their results recorded there. The design pull
@@ -244,6 +242,8 @@ changing it during a run needs the user's explicit confirmation in chat.
   package) and sdlc_ui; a knowledge refresh added the team's repository (50 files, 176 chunks, Gemini extraction
   without errors). Next: the user's connections, then the exit gate from a team chat.
 
+### Phase 5: Event path and ci_workflow_agent
+
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).
@@ -251,13 +251,14 @@ changing it during a run needs the user's explicit confirmation in chat.
   variables, repository and tracker write tools ([DEC-0007](../../spec/decisions/DEC-0007.md), FR-AGT-004).
 - Code Workspace: a Cloud Run job in `code_workspace/` that checks out the repository, applies the agent's
   changes, runs the repository's build and tests and pushes the working branch; started only by event_agent_mcp.
-- ci_workflow_agent: `plan.md` pull request on the design specification's merge when the feature's Jira status
-  allows development, implementation pull request on plan merge, iterating through the Code Workspace
+- ci_workflow_agent: a `plan-<repo>.md` pull request on the team's control repository when its `design.md` is merged
+  there (no Jira status gate; DEC-0012), an implementation pull request on the product repository once the plan is
+  merged, results recorded in `links.yaml`, iterating through the Code Workspace
   (FR-SDLC-006), CI failure explanations.
 - Two review workflows on ci_workflow_agent, each with its own trigger, skills and configuration: security
   vulnerability analysis (FR-SDLC-007) and quality assurance analysis (FR-SDLC-011), each raising a Jira task for
   findings at or above the declared severity (FR-SDLC-012).
-- Exit gate: in a test repository, merging a design specification produces a plan pull request; merging that
+- Exit gate: merging a design specification on a test control repository produces a plan pull request there; merging that
   produces an implementation pull request whose tests pass in CI; both get security and quality findings from
   the two workflows; the agent cannot merge.
 
@@ -313,13 +314,13 @@ Decided:
 - **Scheduled runs:** count as event-triggered (DEC-0007).
 - **Notifications:** findings become Jira tasks (FR-SDLC-012); waiting human tasks are signalled only inside the platform (inbox count, waiting list on opening the chat).
 - **Operations scope:** the platform's own services in development first, a pilot team's service later; alerts for 5xx rate, p95 latency, build, rollout and job failures; Jira only; no pre-approved runbooks (rollback in development is the first candidate).
-- **Design pull request:** on the first target repository the specification names.
+- **Design hand-off:** a pull request with `design.md` on the team's control repository; its merge hands the design to ci_workflow_agent (DEC-0012).
 - **User secrets:** stay in the storage bucket with the artifacts for now, to be reviewed later (DEC-0006).
 - **sdlc_ui:** CopilotKit with an AG-UI stream; no admin view in the first release.
 - **Human tasks:** answered in sdlc_ui, in the Gemini Enterprise conversation for runs started there (long documents linked to the sdlc_ui preview), or by Jira, Confluence or Git approvals.
 - **Telemetry:** standard OpenTelemetry, with no step transcripts.
-- **Jira:** issue types Feature and User Story; the Jira status allows design and development runs.
-- **Hand-off and code:** [DEC-0008](../../spec/decisions/DEC-0008.md) accepted. ci_workflow_agent edits code and runs tests in a Cloud Run job (the Code Workspace).
+- **Jira:** issue types Feature and User Story; no status gates (2026-11-25).
+- **Hand-off and code:** [DEC-0012](../../spec/decisions/DEC-0012.md) accepted (superseding [DEC-0008](../../spec/decisions/DEC-0008.md)): every agent write rests on an artifact approved on the team's sdlc-control repository and is recorded there. ci_workflow_agent edits code and runs tests in a Cloud Run job (the Code Workspace).
 
 ## Risks
 

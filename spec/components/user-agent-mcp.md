@@ -158,3 +158,8 @@ The MCP server for user calls ([DEC-0002](../decisions/DEC-0002.md), accepted; [
   `jira_link_design` refuse (`not_approved`) unless the artifact is approved, refuse a second creation
   (`already_done`), and record their results (or the error) in `links.yaml` with the artifact commit and who
   approved it. All need a team run.
+- Connections are checked when saved: `connection_save` signs in to the provider with the token first and refuses
+  one the provider rejects (`invalid_token`, nothing stored); a token that cannot be checked here (no team site,
+  the server unreachable, Confluence) is stored as untested. A Jira Cloud token needs the account email.
+  `POST /api/connections/{provider}/test` runs `connection_test`, which signs in with the stored token and says
+  as whom ([FR-CONN-001](../requirements/functional/FR-CONN-001.md)).

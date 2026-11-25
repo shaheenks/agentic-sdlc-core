@@ -156,7 +156,10 @@ async def connection_list(platform: "Platform", caller: "Caller", args: dict[str
     providers = caller.bundle.config.get("providers") or {}
     return {
         "connections": platform.connections.list(caller.identity.user_id, providers),
-        "providers": {pid: {"name": p["name"], "edition": p["edition"]} for pid, p in sorted(providers.items())},
+        "providers": {
+            pid: {"name": p["name"], "system": p["system"], "edition": p["edition"]}
+            for pid, p in sorted(providers.items())
+        },
     }
 
 
@@ -173,15 +176,27 @@ async def connection_start(platform: "Platform", caller: "Caller", args: dict[st
 
 
 async def connection_save(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    """Signs in with the token first: a token the provider refuses is not stored. One that cannot be checked here
+    (no site to test against, the server unreachable) is stored as untested."""
+    from sdlc_connectors import Credential
+
     provider, config = _provider(platform, caller, args)
-    return platform.connections.save(
-        caller.identity.user_id,
-        provider,
-        config,
-        args.get("secret"),
-        _str(args, "account", required=False),
-        _str(args, "base_url", required=False),
-    )
+    secret, account = args.get("secret"), _str(args, "account", required=False)
+    base_url = _str(args, "base_url", required=False)
+    if not isinstance(secret, str) or not secret.strip() or len(secret) > 4096:
+        raise ToolError("invalid_secret", "the secret must be 1-4096 characters")
+    if config["edition"] == "data_center" and (not base_url or not base_url.startswith("https://")):
+        raise ToolError("invalid_base_url", "a Data Center connection needs its server's https:// URL")
+    if config["system"] == "jira" and config["edition"] == "cloud" and not account:
+        raise ToolError("account_required", "a Jira Cloud token signs in with your Atlassian account email: give it")
+    test_url = base_url if config["edition"] == "data_center" else config.get("base_url")
+    checked = await systems.sign_in(caller, provider, Credential(secret, account), test_url)
+    if checked["status"] == "refused":
+        raise ToolError(
+            "invalid_token", f"{config['name']} did not accept this token ({checked['reason']}); nothing was saved"
+        )
+    saved = platform.connections.save(caller.identity.user_id, provider, config, secret, account, base_url)
+    return {**saved, **checked}
 
 
 async def connection_revoke(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:

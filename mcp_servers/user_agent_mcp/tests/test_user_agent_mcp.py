@@ -35,7 +35,10 @@ CONFIG = {
             "description": "-",
             "tools": ["artifact_list", "artifact_read", "artifact_save", "artifact_delete"],
         },
-        "connections": {"description": "-", "tools": ["connection_list", "connection_start", "connection_revoke"]},
+        "connections": {
+            "description": "-",
+            "tools": ["connection_list", "connection_start", "connection_revoke", "connection_test"],
+        },
         "connection_secrets": {"description": "-", "tools": ["connection_save"]},
     },
     "surfaces": {
@@ -56,6 +59,7 @@ CONFIG = {
     "providers": {
         "github": {"name": "GitHub", "system": "github", "edition": "cloud", "base_url": "https://api.github.com"},
         "jira_dc": {"name": "Jira Data Center", "system": "jira", "edition": "data_center"},
+        "jira_cloud": {"name": "Jira Cloud", "system": "jira", "edition": "cloud"},
     },
     "identity": {
         "mode": "caller_token",
@@ -100,8 +104,36 @@ def publish(root: Path, config: dict) -> None:
     source.write("active.json", json.dumps(make_pointer(doc["version"], "tester", None)).encode())
 
 
+REAL_CLIENT = httpx.Client  # before any fixture replaces it
+
+
+class Providers:
+    """The providers' sign-in endpoints, faked: a saved token is checked against them. SECRET signs in as ada;
+    any other token is refused; anything else is unknown here."""
+
+    def __init__(self):
+        self.revoked = False
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        token = request.headers.get("authorization", "")
+        ok = SECRET in token and not self.revoked
+        if request.url.path == "/user":  # GitHub
+            return httpx.Response(200, json={"login": "ada-gh"}) if ok else httpx.Response(401)
+        return httpx.Response(404)
+
+
 @pytest.fixture
-def env(tmp_path):
+def providers(monkeypatch):
+    fake = Providers()
+    real_client = REAL_CLIENT
+    monkeypatch.setattr(
+        "sdlc_connectors.base.httpx.Client", lambda **kw: real_client(transport=httpx.MockTransport(fake))
+    )
+    return fake
+
+
+@pytest.fixture
+def env(tmp_path, providers):
     config_root, store_root = tmp_path / "config", tmp_path / "store"
     publish(config_root, CONFIG)
     settings = Settings(
@@ -264,6 +296,40 @@ def test_a_secret_copied_to_another_user_cannot_be_decrypted(env):
     (target / "github.json").write_bytes((store_root / "secrets" / "users" / "1001" / "github.json").read_bytes())
     with pytest.raises(Exception, match="cannot be decrypted"):
         platform.connections.secret("1002", "github")
+
+
+def test_a_token_the_provider_refuses_is_not_saved(env):
+    client, *_ = env
+    refused = api(client, "ada-ui", "PUT", "/api/connections/github", json={"secret": "wrong-token"})
+    assert refused.status_code == 400 and refused.json()["error"] == "invalid_token"
+    assert "wrong-token" not in refused.text
+    assert call(client, "ada-ui", "connection_list")[0]["connections"] == []
+
+
+def test_a_saved_token_is_verified_and_can_be_tested_again(env, providers):
+    client, *_ = env
+    saved = api(client, "ada-ui", "PUT", "/api/connections/github", json={"secret": SECRET}).json()
+    assert (saved["status"], saved["account"]) == ("ok", "ada-gh")
+    assert api(client, "ada-ui", "POST", "/api/connections/github/test").json() == {
+        "provider": "github",
+        "status": "ok",
+        "account": "ada-gh",
+    }
+    providers.revoked = True  # the token was revoked at GitHub
+    tested = api(client, "ada-ui", "POST", "/api/connections/github/test").json()
+    assert tested["status"] == "refused" and tested["reason"] == "unauthorized"
+    assert api(client, "ada-ui", "POST", "/api/connections/gitlab/test").status_code in (400, 404)
+
+
+def test_a_token_that_cannot_be_checked_here_is_saved_as_untested(env):
+    client, *_ = env
+    # no team of ada's uses Jira Cloud in this configuration, so there is no site to sign in to
+    saved = api(
+        client, "ada-ui", "PUT", "/api/connections/jira_cloud", json={"secret": "t", "account": "ada@example.test"}
+    )
+    assert saved.status_code == 200 and saved.json()["status"] == "untested"
+    missing = api(client, "ada-ui", "PUT", "/api/connections/jira_cloud", json={"secret": "t"})
+    assert missing.json()["error"] == "account_required"
 
 
 def test_data_center_connection_needs_its_server_url(env):
@@ -684,7 +750,7 @@ def senv(env, monkeypatch, ctrl):
             return httpx.Response(201, json={"number": 5, "html_url": "https://github.com/org/payments/pull/5"})
         return httpx.Response(404)
 
-    real_client = httpx.Client
+    real_client = REAL_CLIENT
     monkeypatch.setattr(
         "sdlc_connectors.base.httpx.Client", lambda **kw: real_client(transport=httpx.MockTransport(handler))
     )

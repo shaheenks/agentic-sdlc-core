@@ -1,5 +1,7 @@
 ## 2026-11-25
 
+* **Update**: connection tokens are checked when saved (a refused token is not stored) and can be tested again
+  from the Connections page ([user_agent_mcp](components/user-agent-mcp.md), [sdlc_ui](components/sdlc-ui.md)).
 * **Update**: 4a milestones 3 and 4 deployed to development with the first real team; the knowledge refresh added
   its repository. Fixes found on the way: user_agent_mcp declares PyYAML, the user_agent engine reads its packaged
   skills, and the chat takes the page's colours.

@@ -146,6 +146,7 @@ def api_routes(platform: Platform) -> list[Route]:
         Route("/api/connections", endpoint("connection_list", nothing), methods=["GET"]),
         Route("/api/connections/{provider}", endpoint("connection_save", secret), methods=["PUT"]),
         Route("/api/connections/{provider}", endpoint("connection_revoke", provider), methods=["DELETE"]),
+        Route("/api/connections/{provider}/test", endpoint("connection_test", provider), methods=["POST"]),
     ]
 
 

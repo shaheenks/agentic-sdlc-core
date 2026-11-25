@@ -109,4 +109,6 @@ BFF:
     shows its questions and answers, and an unanswered one can still be answered.
   - Only the root agent's messages are shown as chat: the drafts and reviewers' JSON of a workflow's own agents
     stay out of it.
-
+- Connections: each provider's form asks for what it signs in with (an Atlassian email for Jira Cloud, the server
+  URL for Data Center editions, a username only for a Bitbucket app password), saving checks the token first and
+  says as whom, and each saved connection has a Test button.

@@ -491,3 +491,28 @@ input {
   color: var(--text);
   border-color: var(--line);
 }
+
+/* Connection checks */
+.check {
+  display: block;
+  margin-top: 0.15rem;
+}
+.check-ok {
+  color: #067647;
+}
+.check-refused {
+  color: var(--danger);
+}
+.check-untested {
+  color: var(--muted);
+}
+@media (prefers-color-scheme: dark) {
+  .check-ok {
+    color: #75e0a7;
+  }
+}
+form .hint {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
