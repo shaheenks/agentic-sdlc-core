@@ -14,7 +14,7 @@ from starlette.testclient import TestClient
 from user_agent.__main__ import create_server
 from user_agent.agent import title_from_first_message
 from user_agent.identity import EMAIL_KEY, IdTokens, mcp_headers, tokens_from_env
-from user_agent.runtime import Refused, UserAgentApp
+from user_agent.runtime import Refused, UserAgentApp, adk_app
 
 
 class FakeLlm(BaseLlm):
@@ -25,9 +25,21 @@ class FakeLlm(BaseLlm):
         yield LlmResponse(content=types.Content(role="model", parts=[types.Part(text=f"echo: {asked}")]))
 
 
+@pytest.fixture(autouse=True)
+def no_cloud_project(monkeypatch):
+    """The Vertex SDK looks for a default project and credentials when the app is built; tests never call Google
+    and must not depend on the machine's gcloud configuration (CI has none)."""
+    import google.auth
+    from google.auth.credentials import AnonymousCredentials
+
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "europe-west3")
+    monkeypatch.setattr(google.auth, "default", lambda *a, **k: (AnonymousCredentials(), "test-project"))
+
+
 def app() -> UserAgentApp:
     agent = Agent(name="user_agent", model=FakeLlm(), instruction="-", before_agent_callback=title_from_first_message)
-    return UserAgentApp(agent=agent)
+    return UserAgentApp(app=adk_app(agent))
 
 
 def run(coro):
