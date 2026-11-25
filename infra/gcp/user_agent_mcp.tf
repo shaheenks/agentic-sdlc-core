@@ -33,8 +33,7 @@ resource "google_cloud_run_v2_service" "user_agent_mcp" {
     }
 
     # Knowledge Search accepts internal traffic only: all egress goes through the VPC, whose subnet has Private
-    # Google Access. There is no Cloud NAT yet, so no route to the public internet (none is needed until the
-    # connectors, phase 4).
+    # Google Access; the connectors reach the public internet through Cloud NAT (network.tf).
     dynamic "vpc_access" {
       for_each = var.knowledge_search_image == "" ? [] : [1]
       content {

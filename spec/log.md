@@ -1,5 +1,7 @@
 ## 2026-11-25
 
+* **Update**: [GCP Foundation](components/gcp-foundation.md): Cloud NAT on the platform subnet, so user_agent_mcp
+  (all egress through the VPC) reaches GitHub, Bitbucket and Atlassian; connection checks failed without it.
 * **Update**: connection tokens are checked when saved (a refused token is not stored) and can be tested again
   from the Connections page ([user_agent_mcp](components/user-agent-mcp.md), [sdlc_ui](components/sdlc-ui.md)).
 * **Update**: 4a milestones 3 and 4 deployed to development with the first real team; the knowledge refresh added
