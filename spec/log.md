@@ -1,5 +1,7 @@
 ## 2026-11-25
 
+* **Update**: [sdlc_ui](components/sdlc-ui.md)'s Cloud Run request timeout is 60 minutes: a chat run streams through
+  one request, and a design workflow ran past the default five minutes and was cut while drafting.
 * **Update**: [sdlc_ui](components/sdlc-ui.md): tool cards summarise each call from its result (what it touched and
   what came of it, errors in plain words, items, previews and links to inspect); a running workflow shows its stage
   (drafting, reviewers done, revising, waiting), sent by the BFF as the agent's state.
