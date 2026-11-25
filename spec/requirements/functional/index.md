@@ -108,11 +108,11 @@
 
 # SDLC flow
 
-* [FR-SDLC-001: Approved artifact chain](FR-SDLC-001.md) - Each stage of the SDLC flow ends with an approved artifact in its system of record (Jira for features and stories, the repository from the design on), and the next stage starts from it.
-* [FR-SDLC-002: Features and user stories in Jira](FR-SDLC-002.md) - user_agent drafts features and user stories with the user, from an idea, ticket or bug record, and adds them to Jira as the user once the user approves them in chat.
-* [FR-SDLC-003: Design specification from approved Jira items](FR-SDLC-003.md) - user_agent drafts a design specification from an approved Jira feature and its user stories, read with the user's own connection; it is reviewed by fresh-context reviewers and approved by the user in chat.
+* [FR-SDLC-001: Approved artifact chain](FR-SDLC-001.md) - Every artifact an agent's write to Jira, Confluence or a repository rests on is approved in the team's sdlc-control repository, by a person merging its pull request, before the write; the next stage starts from it.
+* [FR-SDLC-002: Features and user stories](FR-SDLC-002.md) - user_agent drafts a feature and its user stories with the user as the user's own artifact; when the user asks to add them to Jira, the draft goes to the team's control repository, and once a person merges it the Jira issues are created as the user and recorded.
+* [FR-SDLC-003: Design specification](FR-SDLC-003.md) - user_agent drafts a design specification from the user's own feature artifact or from a published Jira feature and its stories; it is reviewed by fresh-context reviewers and saved as the user's artifact until the user publishes it.
 * [FR-SDLC-004: Fresh-context document review](FR-SDLC-004.md) - Documents are reviewed by reviewer agents that read only the written document and permitted evidence, never the drafting conversation; the user decides which findings to apply.
-* [FR-SDLC-005: Design specification pull request](FR-SDLC-005.md) - Once the user approves a design specification, user_agent opens a pull request with it on the respective repository, as the user; merging it hands the work to ci_workflow_agent.
+* [FR-SDLC-005: Design specification hand-off](FR-SDLC-005.md) - When the user hands a design specification to implementation, user_agent opens a pull request with it as design.md on the team's control repository, as the user; a person merging it approves it and hands the work to ci_workflow_agent.
 * [FR-SDLC-006: Implementation by ci_workflow_agent](FR-SDLC-006.md) - ci_workflow_agent turns a merged design specification into an implementation plan and, once the plan is merged, into a pull request with code and tests.
 * [FR-SDLC-007: Security vulnerability analysis of pull requests](FR-SDLC-007.md) - A ci_workflow_agent workflow of its own analyses each pull request in a declared repository for security vulnerabilities and posts the findings; people approve and merge.
 * [FR-SDLC-008: Deployment handling](FR-SDLC-008.md) - operations_agent follows builds and deployments, reports their outcome where the change came from, checks health after a rollout, and explains failures.
@@ -120,3 +120,4 @@
 * [FR-SDLC-010: Incident and bug reporting](FR-SDLC-010.md) - operations_agent records incidents and bugs from diagnosed alerts and failed deployments, so they can re-enter the flow as new features and stories.
 * [FR-SDLC-011: Quality assurance analysis of pull requests](FR-SDLC-011.md) - A ci_workflow_agent workflow of its own analyses each pull request in a declared repository for quality and posts the findings; people approve and merge.
 * [FR-SDLC-012: Jira tasks from findings](FR-SDLC-012.md) - Findings that need someone's attention are raised as Jira tasks, linked to the user stories, feature or incident they concern; Jira is the notification channel.
+* [FR-SDLC-013: Team control repository](FR-SDLC-013.md) - Each team's sdlc-control repository holds the approved artifacts every agent write rests on and the record of those writes, in one layout the MCP servers check before writing.

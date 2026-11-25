@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from user_agent_mcp import systems
+from user_agent_mcp import control, systems
 from user_agent_mcp.errors import ToolError
 
 if TYPE_CHECKING:
@@ -295,10 +295,15 @@ TOOLS: dict[str, Tool] = {
         ),
         Tool(
             "jira_create_feature",
-            "Create the approved feature and its user stories in the run's team's Jira project, as you. Only after "
-            "the user approved them in the chat.",
+            "Create the feature and its user stories in one of the run's team's Jira projects, as you, from a "
+            "feature.md approved on the team's control repository (control_publish, then a person merges). The keys "
+            "are recorded there. Refused while the feature is not approved, and once it is already in Jira.",
             _schema(
                 {
+                    "control_id": {
+                        "type": "string",
+                        "description": "The published feature, such as F-20261125-refunds.",
+                    },
                     "project": {
                         "type": "string",
                         "description": "A Jira project key of the run's team; its default project if left out.",
@@ -317,24 +322,63 @@ TOOLS: dict[str, Tool] = {
                         },
                     },
                 },
-                ("feature", "stories"),
+                ("control_id", "feature", "stories"),
             ),
             systems.jira_create_feature,
             write=True,
         ),
         Tool(
-            "jira_link_pull_request",
-            "Link a pull request to a Jira issue of the run's team's project.",
+            "jira_link_design",
+            "Link a design specification approved on the team's control repository to its Jira feature; recorded "
+            "there.",
+            _schema({"control_id": {"type": "string"}}, ("control_id",)),
+            systems.jira_link_design,
+            write=True,
+        ),
+        Tool(
+            "control_publish",
+            "Open a pull request on the run's team's control repository with a feature and its stories (kind "
+            "feature) or a design specification (kind design), as you. A person merging it approves it; only then "
+            "can it be written to Jira or handed to implementation. Use only when the user asks to add the work "
+            "to Jira or hand it on; drafts otherwise stay the user's artifacts.",
             _schema(
                 {
-                    "key": {"type": "string", "description": "A Jira issue key, such as PAY-12."},
-                    "url": {"type": "string"},
+                    "kind": {"type": "string", "enum": ["feature", "design"]},
+                    "content": {"type": "string", "description": "The artifact's Markdown, without front matter."},
+                    "control_id": {
+                        "type": "string",
+                        "description": "For a design: the published feature it is for. Left out for a new feature.",
+                    },
+                    "feature": {
+                        "type": "string",
+                        "description": "For a design whose feature is not published yet: the feature's Markdown.",
+                    },
+                    "summary": {"type": "string", "description": "A few words naming the feature, for its ID."},
+                    "jira_keys": {"type": "array", "items": {"type": "string"}},
                     "title": {"type": "string"},
+                    "description": {
+                        "type": "string",
+                        "description": "The pull request text: the review findings and what the user decided.",
+                    },
                 },
-                ("key", "url"),
+                ("kind", "content"),
             ),
-            systems.jira_link_pull_request,
+            control.control_publish,
             write=True,
+        ),
+        Tool(
+            "control_status",
+            "Whether a feature's artifacts (feature.md, design.md) are approved on the run's team's control "
+            "repository, who merged them, what has been written from them, and on request their text. Give the "
+            "control ID or the Jira key of a feature created from it.",
+            _schema(
+                {
+                    "control_id": {"type": "string"},
+                    "jira_key": {"type": "string"},
+                    "include_content": {"type": "boolean"},
+                }
+            ),
+            control.control_status,
         ),
         Tool(
             "repo_list",
@@ -367,33 +411,6 @@ TOOLS: dict[str, Tool] = {
                 ("repo", "path"),
             ),
             systems.repo_read_file,
-        ),
-        Tool(
-            "repo_open_design_pull_request",
-            "Open a pull request that adds the approved design specification under the repository's design path, "
-            "in a folder named for the feature, committed as you. Only after the user approved the design.",
-            _schema(
-                {
-                    "repo": {
-                        "type": "string",
-                        "description": "owner/name of one of your team's repositories (team_systems).",
-                    },
-                    "feature_key": {"type": "string", "description": "A Jira issue key, such as PAY-12."},
-                    "title": {"type": "string"},
-                    "body": {"type": "string"},
-                    "files": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {"name": {"type": "string"}, "content": {"type": "string"}},
-                            "required": ["name", "content"],
-                        },
-                    },
-                },
-                ("repo", "feature_key", "files"),
-            ),
-            systems.repo_open_design_pull_request,
-            write=True,
         ),
         Tool(
             "knowledge_search",

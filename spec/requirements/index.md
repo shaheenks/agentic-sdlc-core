@@ -16,7 +16,7 @@
 * [Knowledge](functional/index.md#knowledge) - 4
 * [Artifacts](functional/index.md#artifacts) - 3
 * [Models](functional/index.md#models) - 2
-* [SDLC flow](functional/index.md#sdlc-flow) - 12
+* [SDLC flow](functional/index.md#sdlc-flow) - 13
 
 # Non-Functional Requirements
 

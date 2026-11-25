@@ -137,8 +137,10 @@ def test_github_reads_and_opens_a_pull_request_on_a_new_branch():
     )
     assert (pr.number, pr.url) == (7, "https://github.com/o/r/pull/7")
     assert json.loads(fake.seen[2].content) == {"ref": "refs/heads/design/PAY-1", "sha": "abc"}
-    put = json.loads(fake.seen[3].content)
+    assert fake.seen[3].method == "GET"  # does the file exist on the branch? (404: no)
+    put = json.loads(fake.seen[4].content)
     assert put["branch"] == "design/PAY-1" and base64.b64decode(put["content"]) == b"# Design"
+    assert "sha" not in put
 
 
 @pytest.mark.parametrize("bad", ["../etc/passwd", "/abs", "a//b", "a/../b"])
@@ -182,3 +184,91 @@ def test_bitbucket_data_center_branch_file_and_pull_request():
     pr = repo.open_pull_request("design/PAY-1", "main", "t", "b", [FileChange("docs/d.md", "x")], "m")
     assert (pr.number, pr.url) == (9, "https://bb/pr/9")
     assert json.loads(fake.seen[0].content) == {"name": "design/PAY-1", "startPoint": "refs/heads/main"}
+
+
+# The control repository (DEC-0012): who merged the last change to a file, and a direct commit ---------------------
+
+
+def test_github_last_change_names_the_merged_pull_request_and_who_merged_it():
+    fake = Fake(
+        {
+            ("GET", "/repos/o/c/commits"): httpx.Response(200, json=[{"sha": "m1"}]),
+            ("GET", "/repos/o/c/commits/m1/pulls"): httpx.Response(
+                200,
+                json=[
+                    {"number": 3, "merged_at": None, "base": {"ref": "main"}},
+                    {"number": 4, "merged_at": "2026-11-25T10:00:00Z", "base": {"ref": "main"}, "html_url": "u"},
+                ],
+            ),
+            ("GET", "/repos/o/c/pulls/4"): httpx.Response(200, json={"merged_by": {"login": "grace"}}),
+        }
+    )
+    repo = repository("github", "cloud", "https://api.github.com", "o/c", Credential(TOKEN), fake.client())
+    change = repo.last_change("features/F-1/feature.md", "main")
+    assert (change.commit, change.pull_request, change.merged_by, change.url) == ("m1", 4, "grace", "u")
+    assert dict(fake.seen[0].url.params) == {"path": "features/F-1/feature.md", "sha": "main", "per_page": "1"}
+
+
+def test_github_last_change_of_a_pushed_commit_has_no_pull_request():
+    fake = Fake(
+        {
+            ("GET", "/repos/o/c/commits"): httpx.Response(200, json=[{"sha": "p1"}]),
+            ("GET", "/repos/o/c/commits/p1/pulls"): httpx.Response(200, json=[]),
+        }
+    )
+    repo = repository("github", "cloud", "https://api.github.com", "o/c", Credential(TOKEN), fake.client())
+    change = repo.last_change("features/F-1/feature.md", "main")
+    assert change.commit == "p1" and change.pull_request is None and change.merged_by is None
+
+
+def test_github_commit_file_replaces_an_existing_file_with_its_sha():
+    fake = Fake(
+        {
+            ("GET", "/repos/o/c/contents/features/F-1/links.yaml"): httpx.Response(200, json={"sha": "old"}),
+            ("PUT", "/repos/o/c/contents/features/F-1/links.yaml"): httpx.Response(
+                200, json={"commit": {"sha": "new"}}
+            ),
+        }
+    )
+    repo = repository("github", "cloud", "https://api.github.com", "o/c", Credential(TOKEN), fake.client())
+    assert repo.commit_file("features/F-1/links.yaml", "a: 1\n", "main", "Record links") == "new"
+    put = json.loads(fake.seen[1].content)
+    assert put["sha"] == "old" and put["branch"] == "main"
+
+
+def test_bitbucket_cloud_last_change_and_who_closed_it():
+    base = "/2.0/repositories/ws/c"
+    fake = Fake(
+        {
+            ("GET", f"{base}/commits/main"): httpx.Response(200, json={"values": [{"hash": "h1"}]}),
+            ("GET", f"{base}/commit/h1/pullrequests"): httpx.Response(
+                200,
+                json={"values": [{"id": 8, "state": "MERGED", "destination": {"branch": {"name": "main"}}}]},
+            ),
+            ("GET", f"{base}/pullrequests/8"): httpx.Response(200, json={"closed_by": {"nickname": "grace"}}),
+        }
+    )
+    repo = repository("bitbucket", "cloud", "https://api.bitbucket.org", "ws/c", Credential(TOKEN), fake.client())
+    change = repo.last_change("features/F-1/feature.md", "main")
+    assert (change.commit, change.pull_request, change.merged_by) == ("h1", 8, "grace")
+
+
+def test_bitbucket_data_center_last_change_reads_the_merge_activity():
+    base = "/rest/api/1.0/projects/PAY/repos/c"
+    fake = Fake(
+        {
+            ("GET", f"{base}/commits"): httpx.Response(200, json={"values": [{"id": "d1"}]}),
+            ("GET", f"{base}/commits/d1/pull-requests"): httpx.Response(
+                200, json={"values": [{"id": 2, "state": "MERGED", "toRef": {"displayId": "main"}}]}
+            ),
+            ("GET", f"{base}/pull-requests/2/activities"): httpx.Response(
+                200, json={"values": [{"action": "COMMENTED"}, {"action": "MERGED", "user": {"name": "grace"}}]}
+            ),
+            ("PUT", f"{base}/browse/features/F-1/links.yaml"): httpx.Response(200, json={"id": "d2"}),
+        }
+    )
+    repo = repository("bitbucket", "data_center", "https://bb.example.test", "PAY/c", Credential(TOKEN), fake.client())
+    change = repo.last_change("features/F-1/feature.md", "main")
+    assert (change.commit, change.pull_request, change.merged_by) == ("d1", 2, "grace")
+    assert repo.commit_file("features/F-1/links.yaml", "a: 1\n", "main", "Record links") == "d2"
+    assert b'name="sourceCommitId"' in fake.seen[-1].content  # replacing a file names its last commit

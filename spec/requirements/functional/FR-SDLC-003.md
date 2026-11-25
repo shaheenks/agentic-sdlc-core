@@ -1,31 +1,39 @@
 ---
 type: Functional Requirement
-title: "Design specification from approved Jira items"
-description: "user_agent drafts a design specification from an approved Jira feature and its user stories, read with the user's own connection; it is reviewed by fresh-context reviewers and approved by the user in chat."
+title: "Design specification"
+description: "user_agent drafts a design specification from the user's own feature artifact or from a published Jira feature and its stories; it is reviewed by fresh-context reviewers and saved as the user's artifact until the user publishes it."
 tags: [requirement, sdlc, agents]
 status: draft
 x-area: SDLC
 x-priority: must
-x-implementation: planned
+x-implementation: built
 ---
 
 # Statement
 
-The system shall let user_agent draft a design specification from an approved Jira feature and its user stories, read on behalf of the user, have it reviewed by fresh-context reviewers, and hand it on only after the user approves it in chat.
+The system shall let user_agent draft a design specification from the user's own feature artifact or from a
+published Jira feature and its user stories, have it reviewed by fresh-context reviewers, and keep it as the user's
+artifact until the user publishes it ([FR-SDLC-005](FR-SDLC-005.md)).
 
 # Acceptance criteria
 
-- The user names a Feature (or user_agent finds it); user_agent reads it and its User Stories from Jira with the user's own connection, and starts only if the feature's Jira status is **In Design**.
-- It also reads existing designs and code through knowledge search within the run's team scope ([FR-KNOW-004](FR-KNOW-004.md)).
-- It names the target repositories for the code: one or more of the repositories declared for the team the run is for (a team can have several); the user confirms them.
-- It covers context, goals and non-goals, the design (components, interfaces, data and flows), alternatives considered, security and privacy, the test approach, rollout and operations, risks and open questions, and maps every user story, by Jira key, to the sections that satisfy it.
-- Policy skills declared for the team (for example security, architecture, compliance) are applied while drafting, and any conflict with a policy is flagged for the user.
-- It is reviewed by fresh-context reviewers ([FR-SDLC-004](FR-SDLC-004.md)) before it is offered for approval.
-- The user approves in chat; then user_agent opens the pull request ([FR-SDLC-005](FR-SDLC-005.md)). A rejection with comments returns to drafting.
+- From the user's own feature artifact, user_agent starts without any check on the control repository.
+- From a Jira feature, it reads the feature and its User Stories with the user's own connection and starts only if
+  the feature's `feature.md` is approved on the team's control repository with the feature's key recorded in its
+  `links.yaml`, and the feature's Jira status is **In Design**.
+- It reads existing designs and code through knowledge search within the run's team scope
+  ([FR-KNOW-004](FR-KNOW-004.md)) and the team's repositories.
+- It names the target repositories for the code: one or more of the team's repositories (the default unless the user
+  names others); the user confirms them.
+- It covers context, goals and non-goals, the design (components, interfaces, data and flows), alternatives
+  considered, security and privacy, the test approach, rollout and operations, risks and open questions, and maps
+  every user story to the sections that satisfy it.
+- Policy skills declared for the team are applied while drafting, and any conflict with a policy is flagged.
+- It is reviewed by fresh-context reviewers ([FR-SDLC-004](FR-SDLC-004.md)) and saved as the user's artifact.
 
 # Notes
 
-Corresponds to the playbook's Design stage (`spec.md`) and EGM's draft and review steps.
+Corresponds to the playbook's Design stage (`spec.md`) and EGM's draft and review steps. Decided in [DEC-0012](../../decisions/DEC-0012.md) (accepted).
 
 # Citations
 

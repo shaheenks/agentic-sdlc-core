@@ -23,6 +23,10 @@ The system shall have ci_workflow_agent implement a merged design specification:
 - It never merges, approves or pushes to a protected branch; people review and merge.
 - If the plan cannot be built as written, or open questions block it, the agent comments on the pull request and stops rather than guessing.
 - It acts as the system identity through event_agent_mcp with system connections; its writes are declared as allowed without approval ([FR-TRIG-003](FR-TRIG-003.md)), because approval happens at the merge.
+- The design and plans come from the team's control repository ([FR-SDLC-013](FR-SDLC-013.md)): a merge of
+  `design.md` starts the run, and each plan is proposed as `plan-<repo>.md` by pull request there; implementation
+  pull requests are opened only after the plan is approved, and their links are recorded in `links.yaml`
+  ([DEC-0012](../../decisions/DEC-0012.md) (accepted)).
 
 # Notes
 

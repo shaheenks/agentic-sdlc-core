@@ -3,18 +3,17 @@ FR-AUTHZ-003, FR-SDLC-002, FR-SDLC-003, FR-SDLC-005).
 
 Argument constraints: which Jira projects and repositories a call may touch comes from the configuration
 (`team_systems`), never from the arguments. Reads may touch the systems of any of the user's teams (in a team
-run, that team's only); writes need a team run and touch that team's systems only. A team lists its Jira
-projects, Confluence spaces and repositories, each with one default, used when a call names none. A design pull
-request adds files only under the repository's declared design path, in a folder named for the feature.
+run, that team's only); writes need a team run and touch that team's systems only, and each rests on an artifact
+approved on the team's control repository and is recorded there (DEC-0012, `control.py`). A team lists its Jira
+projects, Confluence spaces and repositories, each with one default, used when a call names none.
 """
 
 import asyncio
 import re
-import secrets
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from sdlc_connectors import ConnectorError, Credential, FileChange, Jira, repository
+from sdlc_connectors import ConnectorError, Credential, Jira, repository
 
 from user_agent_mcp.errors import ToolError
 
@@ -22,7 +21,6 @@ if TYPE_CHECKING:
     from user_agent_mcp.platform import Caller, Platform
 
 ISSUE_KEY = re.compile(r"^([A-Z][A-Z0-9_]{0,19})-[1-9][0-9]{0,9}$")
-FILE_NAME = re.compile(r"^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,99}\.(md|markdown|txt|yaml|yml|json)$")
 CONSTRAINT = "constraint_denied"
 
 
@@ -174,7 +172,10 @@ async def jira_search(platform: "Platform", caller: "Caller", args: dict[str, An
 
 
 async def jira_create_feature(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
-    """The approved feature and its user stories, created in the run's team's project as the user."""
+    """The feature and its user stories, created as the user in one of the run's team's projects, only from a
+    feature.md approved on the team's control repository; the keys are recorded there (DEC-0012)."""
+    from user_agent_mcp.control import CONTROL_ID, Control, path_of
+
     allowed = _jira_projects(caller, write=True)
     if not allowed:
         raise ToolError(CONSTRAINT, "your team has no Jira project in this environment")
@@ -182,46 +183,99 @@ async def jira_create_feature(platform: "Platform", caller: "Caller", args: dict
     if project not in allowed:
         raise ToolError(CONSTRAINT, f"{project} is not a Jira project of your team")
     _, settings = allowed[project]
+    control_id = args.get("control_id")
+    if not isinstance(control_id, str) or not CONTROL_ID.match(control_id):
+        raise ToolError("invalid_argument", "control_id of the published feature (such as F-20261125-refunds)")
     feature, stories = args.get("feature") or {}, args.get("stories") or []
     if not isinstance(feature, dict) or not isinstance(stories, list) or not 1 <= len(stories) <= 30:
         raise ToolError("invalid_argument", "give a feature and 1 to 30 stories")
     for item in [feature, *stories]:
         if not isinstance(item, dict) or not isinstance(item.get("summary"), str) or not item["summary"].strip():
             raise ToolError("invalid_argument", "every item needs a summary")
+    control = Control(platform, caller)
+    approved = await _call(lambda: control.require_approved(control_id, "feature"))
+    done = [
+        w
+        for w in (await _call(lambda: control.links(control_id))).get("writes") or ()
+        if w.get("action") == "create_feature"
+    ]
+    if done:
+        raise ToolError("already_done", f"{control_id} is already in Jira as {done[-1]['results'].get('feature')}")
     jira = _jira(platform, caller, settings)
-    created = await _call(
-        lambda: jira.create_issue(
-            project, settings["feature_type"], feature["summary"], str(feature.get("description") or "")
+    results: dict[str, Any] = {"project": project, "site": settings["base_url"], "stories": []}
+    entry = {
+        "action": "create_feature",
+        "system": "jira",
+        "artifact": path_of(control_id, "feature"),
+        "artifact_commit": approved["commit"],
+        "approved_by": approved.get("merged_by"),
+        "results": results,
+    }
+    try:
+        created = await _call(
+            lambda: jira.create_issue(
+                project, settings["feature_type"], feature["summary"], str(feature.get("description") or "")
+            )
         )
-    )
-    keys = []
-    for story in stories:
-        description = str(story.get("description") or "")
-        if settings["story_link"] == "parent":
-            made = await _call(
-                lambda s=story, d=description: jira.create_issue(
-                    project, settings["story_type"], s["summary"], d, parent=created.key
+        results["feature"] = created.key
+        for story in stories:
+            description = str(story.get("description") or "")
+            if settings["story_link"] == "parent":
+                made = await _call(
+                    lambda s=story, d=description: jira.create_issue(
+                        project, settings["story_type"], s["summary"], d, parent=created.key
+                    )
                 )
-            )
-        else:
-            made = await _call(
-                lambda s=story, d=description: jira.create_issue(project, settings["story_type"], s["summary"], d)
-            )
-            await _call(lambda m=made: jira.link_issues(created.key, m.key))
-        keys.append(made.key)
-    return {"feature": {"key": created.key, "url": created.url}, "stories": keys, "project": project}
+            else:
+                made = await _call(
+                    lambda s=story, d=description: jira.create_issue(project, settings["story_type"], s["summary"], d)
+                )
+                await _call(lambda m=made: jira.link_issues(created.key, m.key))
+            results["stories"].append(made.key)
+        link = approved.get("url") or f"{control.settings['repo']}/{path_of(control_id, 'feature')}"
+        await _call(lambda: jira.add_web_link(created.key, link, f"sdlc-control {control_id}"))
+    except ToolError as exc:
+        entry["error"] = exc.code
+        await _call(lambda: control.record(control_id, entry))
+        raise
+    await _call(lambda: control.record(control_id, entry))
+    return {
+        "control_id": control_id,
+        "feature": {"key": created.key, "url": created.url},
+        "stories": results["stories"],
+        "project": project,
+        "recorded": f"features/{control_id}/links.yaml",
+    }
 
 
-async def jira_link_pull_request(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+async def jira_link_design(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    """Links the approved design specification to its Jira feature, and records the link (DEC-0012)."""
+    from user_agent_mcp.control import CONTROL_ID, Control, path_of
+
+    control_id = args.get("control_id")
+    if not isinstance(control_id, str) or not CONTROL_ID.match(control_id):
+        raise ToolError("invalid_argument", "control_id of the published design (such as F-20261125-refunds)")
+    control = Control(platform, caller)
+    approved = await _call(lambda: control.require_approved(control_id, "design"))
+    writes = (await _call(lambda: control.links(control_id))).get("writes") or []
+    key = next((w["results"].get("feature") for w in writes if w.get("action") == "create_feature"), None)
+    if not key:
+        raise ToolError("not_found", f"{control_id} has no Jira feature recorded")
     allowed = _jira_projects(caller, write=True)
-    key, url = args.get("key") or "", args.get("url") or ""
     project = _project_of(key, allowed)
-    if not isinstance(url, str) or not url.startswith("https://") or len(url) > 500:
-        raise ToolError("invalid_argument", "url must be the pull request's https:// address")
-    _, settings = allowed[project]
-    jira = _jira(platform, caller, settings)
-    await _call(lambda: jira.add_web_link(key, url, str(args.get("title") or "Design specification")))
-    return {"key": key, "linked": url}
+    jira = _jira(platform, caller, allowed[project][1])
+    url = approved.get("url") or path_of(control_id, "design")
+    await _call(lambda: jira.add_web_link(key, url, f"Design specification ({control_id})"))
+    entry = {
+        "action": "link_design",
+        "system": "jira",
+        "artifact": path_of(control_id, "design"),
+        "artifact_commit": approved["commit"],
+        "approved_by": approved.get("merged_by"),
+        "results": {"feature": key, "url": url},
+    }
+    await _call(lambda: control.record(control_id, entry))
+    return {"control_id": control_id, "feature": key, "linked": url}
 
 
 # Repositories ---------------------------------------------------------------------------------------------
@@ -258,42 +312,6 @@ async def repo_read_file(platform: "Platform", caller: "Caller", args: dict[str,
     path = str(args.get("path") or "")
     content = await _call(lambda: client.read_file(path, args.get("ref")))
     return {"repo": repo["repo"], "path": path, "content": content[:100_000], "truncated": len(content) > 100_000}
-
-
-async def repo_open_design_pull_request(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
-    """The approved design specification as a pull request on one of the run's team's repositories (FR-SDLC-005):
-    files under `<design_path>/<feature key>/`, on a new branch, committed with the user's own connection."""
-    client, repo = _repo(platform, caller, args.get("repo"), write=True)
-    feature = args.get("feature_key") or ""
-    _project_of(feature, _jira_projects(caller, write=True))
-    files = args.get("files") or []
-    if not isinstance(files, list) or not 1 <= len(files) <= 10:
-        raise ToolError("invalid_argument", "give 1 to 10 files")
-    changes = []
-    for f in files:
-        name, content = (f or {}).get("name"), (f or {}).get("content")
-        if (
-            not isinstance(name, str)
-            or not FILE_NAME.match(name)
-            or not isinstance(content, str)
-            or len(content) > 500_000
-        ):
-            raise ToolError("invalid_argument", "each file needs a plain name (such as design.md) and its text")
-        changes.append(FileChange(f"{repo['design_path']}/{feature}/{name}", content))
-    title, body = str(args.get("title") or f"{feature}: design specification")[:200], str(args.get("body") or "")
-    branch = f"design/{feature}-{secrets.token_hex(3)}"
-    pr = await _call(
-        lambda: client.open_pull_request(
-            branch, repo["default_branch"], title, body, changes, f"{feature}: design specification"
-        )
-    )
-    return {
-        "repo": repo["repo"],
-        "number": pr.number,
-        "url": pr.url,
-        "branch": pr.branch,
-        "files": [c.path for c in changes],
-    }
 
 
 # The connection test (FR-CONN-001) ------------------------------------------------------------------------

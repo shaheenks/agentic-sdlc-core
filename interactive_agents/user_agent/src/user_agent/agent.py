@@ -1,4 +1,5 @@
-"""user_agent: ad-hoc knowledge search and brainstorming for the signed-in user (FR-AGT-005).
+"""user_agent: knowledge search, brainstorming and the SDLC workflows for the signed-in user (FR-AGT-005,
+FR-SDLC-002 to FR-SDLC-005).
 
 Every tool is a user_agent_mcp tool, listed and allowed for this user and surface by user_agent_mcp itself; the
 agent holds no credential of its own beyond proving it is the runtime (DEC-0010)."""
@@ -10,6 +11,9 @@ from google.adk.models.google_llm import Gemini
 from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
 
 from user_agent.identity import TITLE_KEY, header_provider, tokens_from_env
+from user_agent.mcp_client import McpCaller
+from user_agent.skills import skill
+from user_agent.workflows import Kit, build_workflows
 
 DEFAULT_MODEL = "gemini-3.8-flash"
 # The runtime runs in europe-west3; this model is served in `eu` (NFR-HOST-005).
@@ -25,7 +29,25 @@ signed-in user find things out from the knowledge they may read, and think probl
 - You see only the sources this user may read. Do not speculate about what else exists.
 - When brainstorming, be concrete: options, trade-offs, open questions. Offer to save a result as an artifact
   (artifact_save) and save it only when the user agrees.
-- Keep answers short unless the user asks for depth."""
+- Keep answers short unless the user asks for depth.
+
+Workflows (your tools of the same names). Each works for one of the user's teams: before starting one, make sure
+which team it is for (whoami lists the user's teams) and pass it as `team`.
+- features_and_stories: when the user wants a feature and user stories. First make sure the problem, users, scope,
+  constraints, success measure and open questions are clear (brainstorm with them; the brainstorm skill's
+  questions), then pass the brief.
+- design_specification: when the user wants a design. Pass the user's own feature artifact (read it with
+  artifact_read), or the Jira key or control ID of a published feature.
+- Both return a reviewed draft. Save it with artifact_save (text/markdown) and show it. It stays the user's own: the
+  user can keep working on it or go on to the next step with it, and nothing is written anywhere else.
+- publish_feature: only when the user asks to add the feature and stories to Jira. Pass the reviewed Markdown and the
+  feature and stories as items (summary, description with the acceptance criteria).
+- hand_off_design: only when the user asks to hand a design to implementation.
+- Both open a pull request on the team's control repository and wait until a person has merged it: that merge is the
+  approval, and only then is anything written to Jira or handed on. Never call control_publish, jira_create_feature
+  or jira_link_design yourself; the workflows do.
+- When a workflow asks the user something (review findings, a team change, waiting for a merge), pass on its
+  question plainly and send back the user's answer."""
 
 
 def model() -> Gemini:
@@ -56,16 +78,23 @@ def title_from_first_message(callback_context) -> None:
 
 def build_agent() -> Agent:
     mcp_url = os.environ.get("SDLC_MCP_URL", "http://127.0.0.1:8080/mcp")
-    toolset = McpToolset(
-        connection_params=StreamableHTTPConnectionParams(
-            url=mcp_url, timeout=float(os.environ.get("SDLC_MCP_TIMEOUT", "30"))
-        ),
-        header_provider=header_provider(tokens_from_env(mcp_url)),
-    )
+    timeout = float(os.environ.get("SDLC_MCP_TIMEOUT", "30"))
+    tokens = tokens_from_env(mcp_url)
+
+    def tools(only: list[str] | None = None) -> McpToolset:
+        return McpToolset(
+            connection_params=StreamableHTTPConnectionParams(url=mcp_url, timeout=timeout),
+            header_provider=header_provider(tokens),
+            tool_filter=only,
+        )
+
+    # Drafting and reviewing agents get read-only tools; the workflows' own steps call user_agent_mcp directly.
+    kit = Kit(model=model, caller=McpCaller(mcp_url, tokens, timeout), toolset=tools, skill=skill)
+    toolset = tools()
     return Agent(
         name="user_agent",
         model=model(),
         instruction=INSTRUCTION,
-        tools=[toolset],
+        tools=[toolset, *build_workflows(kit)],
         before_agent_callback=title_from_first_message,
     )

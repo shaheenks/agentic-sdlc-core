@@ -19,6 +19,8 @@ The system shall have operations_agent create or update an incident or bug recor
 - It is created in the team's Jira project through the system Jira connection; Jira is the only tracker for now.
 - A bug record carries what is needed to reproduce it, and a user can start features and stories from it ([FR-SDLC-002](FR-SDLC-002.md)).
 - Once the incident is resolved, the agent drafts a post-incident summary into the record.
+- Before an incident or bug is written to Jira, it is committed as a `records/` file on the team's control
+  repository, and the created keys are added after the write ([DEC-0012](../../decisions/DEC-0012.md) (accepted)).
 
 # Notes
 

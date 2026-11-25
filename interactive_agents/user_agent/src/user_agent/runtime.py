@@ -8,11 +8,14 @@ another user is never found (FR-AUTHZ-008).
 Compared with `AdkApp`, a query must name an existing session (whose state holds the email), cannot inject
 session events, and memory operations are not offered."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from vertexai.agent_engines import AdkApp
 
 from user_agent.identity import EMAIL_KEY, TEAM_KEY, TITLE_KEY
+
+if TYPE_CHECKING:
+    from google.adk.apps import App
 
 ALLOWED_STATE = {EMAIL_KEY, TEAM_KEY, TITLE_KEY}
 
@@ -47,7 +50,14 @@ class UserAgentApp(AdkApp):
             yield event
 
 
+def adk_app(agent) -> "App":
+    """Resumable, so a workflow waiting for the user (a review decision, a merge) continues with the answer."""
+    from google.adk.apps import App, ResumabilityConfig
+
+    return App(name="user_agent", root_agent=agent, resumability_config=ResumabilityConfig(is_resumable=True))
+
+
 def create_app() -> UserAgentApp:
     from user_agent.agent import build_agent
 
-    return UserAgentApp(agent=build_agent())
+    return UserAgentApp(app=adk_app(build_agent()))

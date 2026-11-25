@@ -143,6 +143,15 @@ class Jira:
         body = {"type": {"name": link_type}, "outwardIssue": {"key": outward}, "inwardIssue": {"key": inward}}
         self.http.request("POST", f"{self.api}/issueLink", json=body)
 
+    def remote_links(self, key: str) -> list[dict[str, str]]:
+        """The issue's links to web pages: [{url, title}]."""
+        found = self.http.request("GET", f"{self.api}/issue/{key}/remotelink") or []
+        return [
+            {"url": (link.get("object") or {}).get("url", ""), "title": (link.get("object") or {}).get("title", "")}
+            for link in found
+            if isinstance(link, dict)
+        ]
+
     def add_web_link(self, key: str, url: str, title: str) -> None:
         """A link from the issue to a web page (a pull request)."""
         body = {"globalId": url, "object": {"url": url, "title": title[:250]}}

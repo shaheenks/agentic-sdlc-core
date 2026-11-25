@@ -5,11 +5,13 @@ import base64
 import json
 import logging
 import os
+import re
 from pathlib import Path
 
 import httpx
 import jwt
 import pytest
+import yaml
 from cryptography.hazmat.primitives.asymmetric import rsa
 from sdlc_config_store import ConfigStore, DirSource, make_bundle, make_pointer
 from sdlc_identity import GoogleTokens
@@ -478,16 +480,22 @@ SYSTEMS_CONFIG = {
         },
         "jira": {
             "description": "-",
-            "tools": ["team_systems", "jira_get_issue", "jira_search", "jira_create_feature", "jira_link_pull_request"],
+            "tools": ["team_systems", "jira_get_issue", "jira_search", "jira_create_feature", "jira_link_design"],
         },
-        "repositories": {"description": "-", "tools": ["repo_list", "repo_read_file", "repo_open_design_pull_request"]},
+        "repositories": {"description": "-", "tools": ["repo_list", "repo_read_file"]},
+        "control": {"description": "-", "tools": ["control_publish", "control_status"]},
     },
     "surfaces": {
-        s: {"description": "-", "tool_groups": [*CONFIG["surfaces"][s]["tool_groups"], "jira", "repositories"]}
+        s: {
+            "description": "-",
+            "tool_groups": [*CONFIG["surfaces"][s]["tool_groups"], "jira", "repositories", "control"],
+        }
         for s in CONFIG["surfaces"]
     },
     "teams": {**CONFIG["teams"], "risk": {"name": "Risk", "description": "-", "roles": ["member"]}},
-    "grants": [{**CONFIG["grants"][0], "tool_groups": [*CONFIG["grants"][0]["tool_groups"], "jira", "repositories"]}],
+    "grants": [
+        {**CONFIG["grants"][0], "tool_groups": [*CONFIG["grants"][0]["tool_groups"], "jira", "repositories", "control"]}
+    ],
     "providers": {**CONFIG["providers"], "jira_cloud": {"name": "Jira Cloud", "system": "jira", "edition": "cloud"}},
     "team_systems": {
         "payments": {
@@ -532,7 +540,12 @@ SYSTEMS_CONFIG = {
                     "default": False,
                 },
             ],
-            "control_repo": {"provider": "github", "repo": "org/payments-sdlc-control", "branch": "main"},
+            "control_repo": {
+                "provider": "github",
+                "repo": "org/payments-sdlc-control",
+                "branch": "main",
+                "system_accounts": ["sdlc-bot"],
+            },
         },
         "risk": {
             "jira": [],
@@ -551,8 +564,80 @@ SYSTEMS_CONFIG = {
 }
 
 
+class FakeControl:
+    """org/payments-sdlc-control on GitHub, in memory: pull requests hold files until `merge`; a PUT on main is a
+    direct push."""
+
+    BASE = "/repos/org/payments-sdlc-control"
+
+    def __init__(self):
+        self.main: dict[str, str] = {}
+        self.branches: dict[str, dict[str, str]] = {}
+        self.prs: dict[int, dict] = {}
+        self.how: dict[str, tuple[int | None, str | None]] = {}  # path on main -> (pull request, merged by)
+        self.pushes: list[str] = []
+
+    def merge(self, number: int, by: str = "grace") -> None:
+        pr = self.prs[number]
+        for path, content in self.branches[pr["head"]].items():
+            self.main[path] = content
+            self.how[path] = (number, by)
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        path, method, params = request.url.path[len(self.BASE) :], request.method, dict(request.url.params)
+        if method == "GET" and path == "/commits":
+            file = params["path"]
+            return httpx.Response(200, json=[{"sha": f"c:{file}:{len(self.pushes)}"}] if file in self.main else [])
+        if method == "GET" and path.startswith("/commits/c:"):
+            file = path.split(":")[1]
+            number, by = self.how.get(file, (None, None))
+            if number is None:
+                return httpx.Response(200, json=[])
+            pr = {"number": number, "merged_at": "t", "base": {"ref": "main"}, "html_url": f"https://gh/pr/{number}"}
+            return httpx.Response(200, json=[pr])
+        if method == "GET" and path.startswith("/pulls/"):
+            number = int(path.rsplit("/", 1)[-1])
+            return httpx.Response(200, json={"merged_by": {"login": self.how_by(number)}})
+        if path.startswith("/contents/"):
+            file, ref = path[len("/contents/") :], params.get("ref", "main")
+            files = self.main if ref == "main" else self.branches.get(ref, {})
+            if method == "GET":
+                if file not in files:
+                    return httpx.Response(404)
+                content = base64.b64encode(files[file].encode()).decode()
+                return httpx.Response(200, json={"type": "file", "content": content, "sha": "s"})
+            body = json.loads(request.content)
+            text = base64.b64decode(body["content"]).decode()
+            if body["branch"] == "main":
+                self.main[file] = text
+                self.how[file] = (None, None)
+                self.pushes.append(file)
+            else:
+                self.branches.setdefault(body["branch"], {})[file] = text
+            return httpx.Response(200, json={"commit": {"sha": "d"}})
+        if method == "GET" and path == "/git/ref/heads/main":
+            return httpx.Response(200, json={"object": {"sha": "head"}})
+        if method == "POST" and path == "/git/refs":
+            self.branches[json.loads(request.content)["ref"].removeprefix("refs/heads/")] = {}
+            return httpx.Response(201, json={})
+        if method == "POST" and path == "/pulls":
+            body = json.loads(request.content)
+            number = len(self.prs) + 1
+            self.prs[number] = body
+            return httpx.Response(201, json={"number": number, "html_url": f"https://gh/pr/{number}"})
+        return httpx.Response(404)
+
+    def how_by(self, number: int) -> str | None:
+        return next((by for n, by in self.how.values() if n == number), None)
+
+
 @pytest.fixture
-def senv(env, monkeypatch):
+def ctrl():
+    return FakeControl()
+
+
+@pytest.fixture
+def senv(env, monkeypatch, ctrl):
     """The `env` service with team systems, Ada's Jira and GitHub connections, and Jira and GitHub faked."""
     client, platform, config_root, _ = env
     publish(config_root, SYSTEMS_CONFIG)
@@ -572,9 +657,19 @@ def senv(env, monkeypatch):
         }
         return {"key": key, "fields": fields | ({"parent": {"key": parent}} if parent else {})}
 
+    remote: dict[str, list] = {}
+
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
         path, method = request.url.path, request.method
+        if path.startswith(FakeControl.BASE):
+            return ctrl.handle(request)
+        if path.endswith("/remotelink"):
+            key = path.split("/")[-2]
+            if method == "POST":
+                remote.setdefault(key, []).append(json.loads(request.content))
+                return httpx.Response(201, json={})
+            return httpx.Response(200, json=remote.get(key, []))
         if path == "/rest/api/3/issue/PAY-1":
             return httpx.Response(200, json=issue("PAY-1"))
         if path == "/rest/api/3/search/jql":
@@ -642,54 +737,116 @@ def test_a_team_lists_its_systems_with_their_defaults(senv):
     assert found["control_repo"] == {"repo": "org/payments-sdlc-control", "provider": "github", "branch": "main"}
 
 
-def test_a_feature_goes_to_the_named_project_or_the_default(senv):
-    client, seen = senv
-    team = {**WHO["ada-ui"], "X-SDLC-Team": "payments"}
-    args = {"feature": {"summary": "Cards"}, "stories": [{"summary": "As a payer, I want a card"}]}
-    assert tool(client, team, "jira_create_feature", project="CARD", **args)["project"] == "CARD"
-    assert json.loads(seen[0].content)["fields"]["project"] == {"key": "CARD"}
-    assert tool(client, team, "jira_create_feature", project="RISK", **args)["error"] == "constraint_denied"
-    assert tool(client, team, "jira_create_feature", **args)["project"] == "PAY"
-
-
 def test_a_call_without_a_repository_uses_the_team_default(senv):
     client, seen = senv
     tool(client, {**WHO["ada-ui"], "X-SDLC-Team": "payments"}, "repo_read_file", path="README.md")
     assert seen[0].url.path.startswith("/repos/org/payments/contents/README.md")
 
 
+TEAM = {**WHO["ada-ui"], "X-SDLC-Team": "payments"}
+FEATURE = {"feature": {"summary": "Refunds"}, "stories": [{"summary": "As a payer, I want a refund"}]}
+
+
+def published(client, ctrl, merge_by="grace"):
+    """Publishes a feature and, unless merge_by is None, has it merged; returns its control ID."""
+    out = tool(
+        client, TEAM, "control_publish", kind="feature", content="---\nx: y\n---\n# Refunds\n", summary="Refunds!"
+    )
+    if merge_by:
+        ctrl.merge(out["pull_request"]["number"], merge_by)
+    return out["control_id"]
+
+
 def test_writes_need_a_run_for_the_team(senv):
     client, _ = senv
-    args = {"feature": {"summary": "Refunds"}, "stories": [{"summary": "As a payer, I want a refund"}]}
-    assert tool(client, WHO["ada-ui"], "jira_create_feature", **args)["error"] == "team_run_required"
-    made = tool(client, {**WHO["ada-ui"], "X-SDLC-Team": "payments"}, "jira_create_feature", **args)
-    assert made["feature"]["key"] == "PAY-101" and made["stories"] == ["PAY-102"]
+    assert tool(client, WHO["ada-ui"], "control_publish", kind="feature", content="# F")["error"] == "team_run_required"
+    assert tool(client, WHO["ada-ui"], "jira_create_feature", control_id="F-20261125-x", **FEATURE)["error"] == (
+        "team_run_required"
+    )
 
 
-def test_a_design_pull_request_adds_files_under_the_design_path_only(senv):
+def test_a_feature_is_published_by_pull_request_with_front_matter_written_by_the_server(senv, ctrl):
+    client, _ = senv
+    out = tool(
+        client, TEAM, "control_publish", kind="feature", content="---\nteam: risk\n---\n# Refunds\n", summary="Refunds!"
+    )
+    control_id = out["control_id"]
+    assert re.match(r"^F-[0-9]{8}-refunds$", control_id) and out["files"] == [f"features/{control_id}/feature.md"]
+    assert out["pull_request"]["branch"].startswith(f"sdlc/{control_id}/feature-")
+    text = ctrl.branches[out["pull_request"]["branch"]][f"features/{control_id}/feature.md"]
+    meta = yaml.safe_load(text.split("---")[1])
+    assert meta["team"] == "payments" and meta["drafted_by"] == "ada@example.test"  # not the model's front matter
+    assert "Merging this pull request approves it" in ctrl.prs[1]["body"]
+    status = tool(client, TEAM, "control_status", control_id=control_id)
+    assert status["artifacts"]["feature"] == {
+        "path": f"features/{control_id}/feature.md",
+        "published": False,
+        "approved": False,
+    }
+
+
+def test_jira_issues_are_created_only_from_an_approved_feature_and_recorded(senv, ctrl):
     client, seen = senv
-    team = {**WHO["ada-ui"], "X-SDLC-Team": "payments"}
-    bad = tool(
-        client,
-        team,
-        "repo_open_design_pull_request",
-        repo="org/payments",
-        feature_key="PAY-1",
-        files=[{"name": "../../x.md", "content": "x"}],
+    control_id = published(client, ctrl, merge_by=None)
+    refused = tool(client, TEAM, "jira_create_feature", control_id=control_id, **FEATURE)
+    assert refused["error"] == "not_approved"
+    assert not any("atlassian" in str(r.url) for r in seen)  # no Jira call before approval
+
+    ctrl.merge(1, "grace")
+    made = tool(client, TEAM, "jira_create_feature", control_id=control_id, project="CARD", **FEATURE)
+    assert made["feature"]["key"] == "PAY-101" and made["stories"] == ["PAY-102"] and made["project"] == "CARD"
+    links = yaml.safe_load(ctrl.main[f"features/{control_id}/links.yaml"])
+    write = links["writes"][0]
+    assert write["action"] == "create_feature" and write["by"] == "ada@example.test"
+    assert write["approved_by"] == "grace" and write["results"]["feature"] == "PAY-101"
+    assert write["results"]["stories"] == ["PAY-102"]
+    again = tool(client, TEAM, "jira_create_feature", control_id=control_id, **FEATURE)
+    assert again["error"] == "already_done"
+
+    status = tool(client, TEAM, "control_status", jira_key="PAY-101", include_content=True)
+    assert status["control_id"] == control_id and status["jira_feature_recorded"] is True
+    assert status["artifacts"]["feature"]["approved"] and "# Refunds" in status["artifacts"]["feature"]["content"]
+
+
+def test_a_direct_push_or_a_merge_by_a_system_account_does_not_approve(senv, ctrl):
+    client, _ = senv
+    by_bot = published(client, ctrl, merge_by="sdlc-bot")
+    assert tool(client, TEAM, "jira_create_feature", control_id=by_bot, **FEATURE)["error"] == "not_approved"
+    ctrl.main["features/F-20261125-pushed/feature.md"] = "# pushed"
+    ctrl.how["features/F-20261125-pushed/feature.md"] = (None, None)
+    status = tool(client, TEAM, "control_status", control_id="F-20261125-pushed")
+    assert status["artifacts"]["feature"]["published"] and not status["artifacts"]["feature"]["approved"]
+
+
+def test_a_design_names_its_feature_or_brings_it_and_links_to_jira_once_approved(senv, ctrl):
+    client, _ = senv
+    control_id = published(client, ctrl)
+    out = tool(client, TEAM, "control_publish", kind="design", content="# Design", control_id=control_id)
+    design = ctrl.branches[out["pull_request"]["branch"]][f"features/{control_id}/design.md"]
+    previous = yaml.safe_load(design.split("---")[1])["previous"]
+    assert previous["path"] == f"features/{control_id}/feature.md" and previous["approved"] is True
+    assert tool(client, TEAM, "jira_link_design", control_id=control_id)["error"] == "not_approved"
+    ctrl.merge(out["pull_request"]["number"])
+    assert tool(client, TEAM, "jira_link_design", control_id=control_id)["error"] == "not_found"  # no Jira feature yet
+    tool(client, TEAM, "jira_create_feature", control_id=control_id, **FEATURE)
+    linked = tool(client, TEAM, "jira_link_design", control_id=control_id)
+    assert linked["feature"] == "PAY-101"
+    actions = [w["action"] for w in yaml.safe_load(ctrl.main[f"features/{control_id}/links.yaml"])["writes"]]
+    assert actions == ["create_feature", "link_design"]
+
+    both = tool(
+        client, TEAM, "control_publish", kind="design", content="# D2", feature="# New feature", summary="Cards"
     )
-    assert bad["error"] == "invalid_argument"
-    pr = tool(
-        client,
-        team,
-        "repo_open_design_pull_request",
-        repo="org/payments",
-        feature_key="PAY-1",
-        files=[{"name": "design.md", "content": "# D"}],
-    )
-    assert pr["url"] == "https://github.com/org/payments/pull/5" and pr["files"] == ["docs/specs/PAY-1/design.md"]
-    assert pr["branch"].startswith("design/PAY-1-")
-    assert any(r.url.path == "/repos/org/payments/contents/docs/specs/PAY-1/design.md" for r in seen)
-    assert all(r.headers.get("authorization") == "Bearer gh-token" for r in seen)
+    assert both["files"] == [f"features/{both['control_id']}/feature.md", f"features/{both['control_id']}/design.md"]
+
+
+def test_a_team_without_a_control_repository_cannot_publish(senv, env):
+    client, platform, config_root, _ = env
+    systems = {**SYSTEMS_CONFIG["team_systems"]}
+    systems["payments"] = {k: v for k, v in systems["payments"].items() if k != "control_repo"}
+    publish(config_root, {**SYSTEMS_CONFIG, "team_systems": systems})
+    out = tool(client, TEAM, "control_publish", kind="feature", content="# F")
+    assert out["error"] == "constraint_denied" and "no control repository" in out["message"]
 
 
 def test_without_a_connection_the_user_is_told_to_connect(senv, env):

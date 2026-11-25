@@ -1,29 +1,36 @@
 ---
 type: Functional Requirement
-title: "Design specification pull request"
-description: "Once the user approves a design specification, user_agent opens a pull request with it on the respective repository, as the user; merging it hands the work to ci_workflow_agent."
+title: "Design specification hand-off"
+description: "When the user hands a design specification to implementation, user_agent opens a pull request with it as design.md on the team's control repository, as the user; a person merging it approves it and hands the work to ci_workflow_agent."
 tags: [requirement, sdlc, agents]
 status: draft
 x-area: SDLC
 x-priority: must
-x-implementation: planned
+x-implementation: built
 ---
 
 # Statement
 
-The system shall, once the user approves a design specification, have user_agent open a pull request with it on the respective repository with the user's own connection.
+The system shall, when the user hands a design specification to implementation, have user_agent open a pull request
+with it on the team's control repository with the user's own connection; merging it is the approval and the
+hand-off.
 
 # Acceptance criteria
 
-- The respective repository is the first target repository the design specification names ([FR-SDLC-003](FR-SDLC-003.md)); the specification lists every target repository.
-- The pull request adds the design specification under a declared path (for example `docs/specs/<Jira key>/`), with the Jira keys of the feature and stories in its title and description, the approval (who and when) and links to the sources used.
-- It is opened with the user's own connection ([FR-CONN-001](FR-CONN-001.md)), so the commit is the user's; the Jira feature gets a link to the pull request.
-- Merging the pull request under the repository's branch protection is the hand-off: the merge event reaches ci_workflow_agent through the event gateway ([FR-SDLC-006](FR-SDLC-006.md)).
-- The event-based agents never read the user's artifact store; Jira and the repository are the only channels ([FR-AUTHZ-008](FR-AUTHZ-008.md)).
+- The pull request adds `features/<control-id>/design.md` on the team's control repository; if the feature is not
+  published yet, `feature.md` comes in the same pull request.
+- Its title, description and branch name carry the feature's Jira keys when they exist; the description lists the
+  review findings and what the user decided about them, and the sources used.
+- It is opened with the user's own connection ([FR-CONN-001](FR-CONN-001.md)), so the commit is the user's.
+- A person merging it under the control repository's branch protection approves it; the merge event reaches
+  ci_workflow_agent through the event gateway ([FR-SDLC-006](FR-SDLC-006.md)).
+- The design is not opened as a pull request on a product repository.
+- The event-based agents never read the user's artifact store; the control repository and Jira are their only
+  channels ([FR-AUTHZ-008](FR-AUTHZ-008.md)).
 
 # Notes
 
-Decided in [DEC-0008](../../decisions/DEC-0008.md) (accepted).
+Decided in [DEC-0012](../../decisions/DEC-0012.md) (accepted), which replaces the design pull request of [DEC-0008](../../decisions/DEC-0008.md).
 
 # Citations
 

@@ -20,6 +20,8 @@ The system shall notify people of findings by creating Jira tasks from them, lin
 - A new analysis of the same pull request or problem updates the open task instead of creating another.
 - Tasks go to the team's Jira project and are created through the system Jira connection.
 - Jira's own notifications (assignee, watchers) reach people; the platform sends no e-mail, chat or other messages of its own.
+- Before a finding is raised as a Jira task, it is committed as a `records/` file on the team's control
+  repository, and the created keys are added after the write ([DEC-0012](../../decisions/DEC-0012.md) (accepted)).
 
 # Notes
 

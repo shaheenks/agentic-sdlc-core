@@ -7,7 +7,7 @@ status: draft
 x-layer: capability
 x-folder: mcp_servers/user_agent_mcp/
 x-depends-on: [/components/identity, /components/access-policy, /components/configuration-registry, /components/artifact-store, /components/connectors, /components/secrets, /components/knowledge-search, /components/workflow-catalog, /components/workflow-engine, /components/human-tasks, /components/audit-log, /components/observability]
-x-satisfies: [/requirements/functional/FR-SURF-004, /requirements/functional/FR-SURF-006, /requirements/functional/FR-IDN-001, /requirements/functional/FR-IDN-002, /requirements/functional/FR-AUTHZ-002, /requirements/functional/FR-AUTHZ-003, /requirements/functional/FR-AUTHZ-005, /requirements/functional/FR-AUTHZ-006, /requirements/functional/FR-CFG-005, /requirements/functional/FR-WFL-003, /requirements/functional/FR-HUM-005, /requirements/functional/FR-AGT-001, /requirements/functional/FR-AGT-003, /requirements/functional/FR-CONN-001, /requirements/functional/FR-CONN-005, /requirements/functional/FR-KNOW-002, /requirements/functional/FR-ART-001, /requirements/functional/FR-ART-002, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-ARCH-002, /requirements/non-functional/NFR-ARCH-003, /requirements/non-functional/NFR-ARCH-004, /requirements/non-functional/NFR-SEC-001, /requirements/non-functional/NFR-SEC-004, /requirements/non-functional/NFR-PRIV-001, /requirements/non-functional/NFR-AUD-001, /requirements/non-functional/NFR-OBS-001, /requirements/non-functional/NFR-REL-001, /requirements/non-functional/NFR-PERF-001, /requirements/non-functional/NFR-OPS-001, /requirements/non-functional/NFR-OPS-002, /requirements/functional/FR-AUTHZ-008, /requirements/functional/FR-WFL-009, /requirements/non-functional/NFR-ARCH-006, /requirements/functional/FR-AGT-005, /requirements/functional/FR-SDLC-005, /requirements/functional/FR-KNOW-004, /requirements/functional/FR-MDL-002]
+x-satisfies: [/requirements/functional/FR-SURF-004, /requirements/functional/FR-SURF-006, /requirements/functional/FR-IDN-001, /requirements/functional/FR-IDN-002, /requirements/functional/FR-AUTHZ-002, /requirements/functional/FR-AUTHZ-003, /requirements/functional/FR-AUTHZ-005, /requirements/functional/FR-AUTHZ-006, /requirements/functional/FR-CFG-005, /requirements/functional/FR-WFL-003, /requirements/functional/FR-HUM-005, /requirements/functional/FR-AGT-001, /requirements/functional/FR-AGT-003, /requirements/functional/FR-CONN-001, /requirements/functional/FR-CONN-005, /requirements/functional/FR-KNOW-002, /requirements/functional/FR-ART-001, /requirements/functional/FR-ART-002, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-ARCH-002, /requirements/non-functional/NFR-ARCH-003, /requirements/non-functional/NFR-ARCH-004, /requirements/non-functional/NFR-SEC-001, /requirements/non-functional/NFR-SEC-004, /requirements/non-functional/NFR-PRIV-001, /requirements/non-functional/NFR-AUD-001, /requirements/non-functional/NFR-OBS-001, /requirements/non-functional/NFR-REL-001, /requirements/non-functional/NFR-PERF-001, /requirements/non-functional/NFR-OPS-001, /requirements/non-functional/NFR-OPS-002, /requirements/functional/FR-AUTHZ-008, /requirements/functional/FR-WFL-009, /requirements/non-functional/NFR-ARCH-006, /requirements/functional/FR-AGT-005, /requirements/functional/FR-SDLC-005, /requirements/functional/FR-KNOW-004, /requirements/functional/FR-MDL-002, /requirements/functional/FR-SDLC-013]
 ---
 
 # Purpose
@@ -109,9 +109,10 @@ The MCP server for user calls ([DEC-0002](../decisions/DEC-0002.md), accepted; [
 - [FR-WFL-009: Resume after signing in again](../requirements/functional/FR-WFL-009.md)
 - [NFR-ARCH-006: Two MCP servers, one per class of caller](../requirements/non-functional/NFR-ARCH-006.md)
 - [FR-AGT-005: Ad-hoc knowledge search and brainstorm chat](../requirements/functional/FR-AGT-005.md)
-- [FR-SDLC-005: Design specification pull request](../requirements/functional/FR-SDLC-005.md)
+- [FR-SDLC-005: Design specification hand-off](../requirements/functional/FR-SDLC-005.md)
 - [FR-KNOW-004: Knowledge scope: broad in chat, team in workflows](../requirements/functional/FR-KNOW-004.md)
 - [FR-MDL-002: Usage limits](../requirements/functional/FR-MDL-002.md)
+- [FR-SDLC-013: Team control repository](../requirements/functional/FR-SDLC-013.md)
 
 # Realisation
 
@@ -143,8 +144,17 @@ The MCP server for user calls ([DEC-0002](../decisions/DEC-0002.md), accepted; [
   (403, audited) and a team run reads only its team's sources. Knowledge Search accepts internal traffic only,
   so the service sends all egress through the platform VPC (Private Google Access; no Cloud NAT yet) ([FR-KNOW-004](../requirements/functional/FR-KNOW-004.md)).
 - Jira and repository tools (phase 4a): `team_systems`, `jira_get_issue`, `jira_search`, `jira_create_feature`,
-  `jira_link_pull_request`, `repo_list`, `repo_read_file`, `repo_open_design_pull_request` and `connection_test`,
+  `jira_link_design`, `repo_list`, `repo_read_file` and `connection_test`,
   with the user's own connection. Argument constraints ([FR-AUTHZ-003](../requirements/functional/FR-AUTHZ-003.md)):
   the Jira projects and repositories come from the team's systems in configuration, never from arguments; reads
   reach the user's teams' systems (in a team run, that team's), writes need a team run; the server builds the JQL,
-  and a design pull request adds files only under the repository's design path, in a folder named for the feature.
+  and a team's lists of Jira projects and repositories each have a default.
+- The team's control repository ([DEC-0012](../decisions/DEC-0012.md), [FR-SDLC-013](../requirements/functional/FR-SDLC-013.md)):
+  `control_publish` opens a pull request with `features/<control-id>/feature.md` or `design.md` (front matter
+  written by the server: control ID, team, author, the previous artifact) on a branch `sdlc/<control-id>/<kind>-…`;
+  `control_status` reports each artifact's approval (on the main branch, last changed by a pull request merged by
+  someone who is not a declared system account), the writes recorded in `links.yaml`, and on request the text; it
+  finds a feature by control ID or by the `sdlc-control <id>` link on its Jira feature. `jira_create_feature` and
+  `jira_link_design` refuse (`not_approved`) unless the artifact is approved, refuse a second creation
+  (`already_done`), and record their results (or the error) in `links.yaml` with the artifact commit and who
+  approved it. All need a team run.

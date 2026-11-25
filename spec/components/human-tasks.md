@@ -58,8 +58,8 @@ Human tasks make those gates explicit nodes of a workflow graph ([DEC-0004](../d
 - [NFR-ARCH-005: Google ADK agents and graph workflows](../requirements/non-functional/NFR-ARCH-005.md)
 - [NFR-AUD-001: Audit every decision](../requirements/non-functional/NFR-AUD-001.md)
 - [NFR-PERF-001: Application response under 5 seconds on average](../requirements/non-functional/NFR-PERF-001.md)
-- [FR-SDLC-002: Features and user stories in Jira](../requirements/functional/FR-SDLC-002.md)
-- [FR-SDLC-003: Design specification from approved Jira items](../requirements/functional/FR-SDLC-003.md)
+- [FR-SDLC-002: Features and user stories](../requirements/functional/FR-SDLC-002.md)
+- [FR-SDLC-003: Design specification](../requirements/functional/FR-SDLC-003.md)
 
 # Realisation
 

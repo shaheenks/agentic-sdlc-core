@@ -54,6 +54,8 @@ def stage(commit: str) -> Path:
         target / "user_agent",
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "__main__.py"),
     )
+    # The skills the workflows use (user_agent/skills.py reads them from the package).
+    shutil.copytree(ROOT / "skills", target / "user_agent" / "skills")
     uv = shutil.which("uv") or "uv"
     requirements = run(
         uv, "export", "--package", "sdlc-user-agent", "--no-dev", "--no-hashes", "--no-emit-workspace", "--frozen"

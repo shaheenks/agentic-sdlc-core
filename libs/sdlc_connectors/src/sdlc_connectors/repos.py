@@ -1,7 +1,9 @@
 """Repositories: GitHub (cloud and Enterprise Server) and Bitbucket (Cloud and Data Center), behind one interface.
 
 Everything a design run needs: read a file or a folder, and open a pull request that adds files on a new branch.
-Commits are made with the connection's own credential, so they are the connection owner's.
+For a team's control repository (DEC-0012) also: the last change to a file on a branch, with the pull request it was
+merged through and who merged it, and a direct commit of one file. Commits are made with the connection's own
+credential, so they are the connection owner's.
 """
 
 import base64
@@ -31,6 +33,16 @@ class PullRequest:
     branch: str
 
 
+@dataclass(frozen=True)
+class Change:
+    """The last commit that changed a file on a branch, and the merged pull request it came from, if any."""
+
+    commit: str
+    pull_request: int | None = None
+    merged_by: str | None = None
+    url: str | None = None
+
+
 class Repository(Protocol):
     def whoami(self) -> dict[str, Any]: ...
     def read_file(self, path: str, ref: str | None = None) -> str: ...
@@ -38,6 +50,8 @@ class Repository(Protocol):
     def open_pull_request(
         self, branch: str, base: str, title: str, body: str, files: list[FileChange], message: str
     ) -> PullRequest: ...
+    def last_change(self, path: str, branch: str) -> Change | None: ...
+    def commit_file(self, path: str, content: str, branch: str, message: str) -> str: ...
 
 
 def _check(path: str = "", branch: str = "") -> None:
@@ -86,17 +100,43 @@ class GitHub:
             "POST", f"/repos/{self.repo}/git/refs", json={"ref": f"refs/heads/{branch}", "sha": head["object"]["sha"]}
         )
         for change in files:
-            _check(path=change.path)
-            content = base64.b64encode(change.content.encode()).decode()
-            self.http.request(
-                "PUT",
-                f"/repos/{self.repo}/contents/{quote(change.path)}",
-                json={"message": message, "content": content, "branch": branch},
-            )
+            self._put(change.path, change.content, branch, message)
         pr = self.http.request(
             "POST", f"/repos/{self.repo}/pulls", json={"title": title, "body": body, "head": branch, "base": base}
         )
         return PullRequest(pr["number"], pr["html_url"], branch)
+
+    def _put(self, path: str, content: str, branch: str, message: str) -> str:
+        """Creates or replaces one file on a branch; returns the commit."""
+        _check(path=path, branch=branch)
+        body = {"message": message, "content": base64.b64encode(content.encode()).decode(), "branch": branch}
+        try:
+            found = self.http.request("GET", f"/repos/{self.repo}/contents/{quote(path)}", params={"ref": branch})
+            if isinstance(found, dict) and found.get("sha"):
+                body["sha"] = found["sha"]
+        except ConnectorError as exc:
+            if exc.code != "not_found":
+                raise
+        done = self.http.request("PUT", f"/repos/{self.repo}/contents/{quote(path)}", json=body)
+        return ((done or {}).get("commit") or {}).get("sha", "")
+
+    def commit_file(self, path: str, content: str, branch: str, message: str) -> str:
+        return self._put(path, content, branch, message)
+
+    def last_change(self, path: str, branch: str) -> Change | None:
+        _check(path=path, branch=branch)
+        commits = self.http.request(
+            "GET", f"/repos/{self.repo}/commits", params={"path": path, "sha": branch, "per_page": 1}
+        )
+        if not commits:
+            return None
+        sha = commits[0]["sha"]
+        for pr in self.http.request("GET", f"/repos/{self.repo}/commits/{sha}/pulls") or ():
+            if pr.get("merged_at") and (pr.get("base") or {}).get("ref") == branch:
+                full = self.http.request("GET", f"/repos/{self.repo}/pulls/{pr['number']}")
+                merged_by = (full.get("merged_by") or {}).get("login")
+                return Change(sha, pr["number"], merged_by, pr.get("html_url"))
+        return Change(sha)
 
 
 class BitbucketCloud:
@@ -165,6 +205,35 @@ class BitbucketCloud:
         )
         return PullRequest(pr["id"], pr["links"]["html"]["href"], branch)
 
+    def commit_file(self, path: str, content: str, branch: str, message: str) -> str:
+        _check(path=path, branch=branch)
+        self.http.request(
+            "POST", f"/2.0/repositories/{self.repo}/src", data={path: content, "message": message, "branch": branch}
+        )
+        change = self.last_change(path, branch)
+        return change.commit if change else ""
+
+    def last_change(self, path: str, branch: str) -> Change | None:
+        _check(path=path, branch=branch)
+        found = self.http.request(
+            "GET", f"/2.0/repositories/{self.repo}/commits/{quote(branch)}", params={"path": path, "pagelen": 1}
+        )
+        values = (found or {}).get("values") or []
+        if not values:
+            return None
+        sha = values[0]["hash"]
+        prs = self.http.request("GET", f"/2.0/repositories/{self.repo}/commit/{sha}/pullrequests") or {}
+        for pr in prs.get("values") or ():
+            if (
+                pr.get("state") == "MERGED"
+                and ((pr.get("destination") or {}).get("branch") or {}).get("name") == branch
+            ):
+                full = self.http.request("GET", f"/2.0/repositories/{self.repo}/pullrequests/{pr['id']}")
+                closed_by = full.get("closed_by") or {}
+                merged_by = closed_by.get("nickname") or closed_by.get("display_name")
+                return Change(sha, pr["id"], merged_by, ((pr.get("links") or {}).get("html") or {}).get("href"))
+        return Change(sha)
+
 
 class BitbucketDataCenter:
     """Bitbucket Data Center (`https://<host>`), repository `PROJECT/slug`, with a personal access token."""
@@ -204,12 +273,7 @@ class BitbucketDataCenter:
         _check(branch=branch)
         self.http.request("POST", f"{self.base}/branches", json={"name": branch, "startPoint": f"refs/heads/{base}"})
         for change in files:
-            _check(path=change.path)
-            self.http.request(
-                "PUT",
-                f"{self.base}/browse/{quote(change.path)}",
-                files={"content": (None, change.content), "message": (None, message), "branch": (None, branch)},
-            )
+            self._put(change.path, change.content, branch, message)
         repository = {"slug": self.slug, "project": {"key": self.project}}
         pr = self.http.request(
             "POST",
@@ -222,6 +286,44 @@ class BitbucketDataCenter:
             },
         )
         return PullRequest(pr["id"], pr["links"]["self"][0]["href"], branch)
+
+    def _last_commit(self, path: str, branch: str) -> str | None:
+        try:
+            found = self.http.request("GET", f"{self.base}/commits", params={"path": path, "until": branch, "limit": 1})
+        except ConnectorError as exc:
+            if exc.code == "not_found":
+                return None
+            raise
+        values = (found or {}).get("values") or []
+        return values[0]["id"] if values else None
+
+    def _put(self, path: str, content: str, branch: str, message: str) -> str:
+        """Creates or replaces one file on a branch; replacing needs the file's last commit."""
+        _check(path=path, branch=branch)
+        form: dict[str, Any] = {"content": (None, content), "message": (None, message), "branch": (None, branch)}
+        previous = self._last_commit(path, branch)
+        if previous:
+            form["sourceCommitId"] = (None, previous)
+        done = self.http.request("PUT", f"{self.base}/browse/{quote(path)}", files=form)
+        return (done or {}).get("id", "") if isinstance(done, dict) else ""
+
+    def commit_file(self, path: str, content: str, branch: str, message: str) -> str:
+        return self._put(path, content, branch, message)
+
+    def last_change(self, path: str, branch: str) -> Change | None:
+        _check(path=path, branch=branch)
+        sha = self._last_commit(path, branch)
+        if not sha:
+            return None
+        prs = self.http.request("GET", f"{self.base}/commits/{sha}/pull-requests") or {}
+        for pr in prs.get("values") or ():
+            if pr.get("state") == "MERGED" and (pr.get("toRef") or {}).get("displayId") == branch:
+                activities = self.http.request("GET", f"{self.base}/pull-requests/{pr['id']}/activities") or {}
+                merged = next((a for a in activities.get("values") or () if a.get("action") == "MERGED"), {})
+                merged_by = (merged.get("user") or {}).get("name")
+                link = (((pr.get("links") or {}).get("self") or [{}])[0]).get("href")
+                return Change(sha, pr["id"], merged_by, link)
+        return Change(sha)
 
 
 def repository(system: str, edition: str, base_url: str, repo: str, credential: Credential, client=None) -> Repository:

@@ -203,10 +203,10 @@ changing it during a run needs the user's explicit confirmation in chat.
      review loop (FR-SDLC-004), approval in chat, and the team scope set at start. The design pull request
      (FR-SDLC-005).
   4. sdlc_ui: starting a workflow for one of the user's teams, approvals in the chat, the run's progress.
-- Waiting on [DEC-0012](../../spec/decisions/DEC-0012.md) (proposed 2026-11-25): with each team's sdlc-control
+- [DEC-0012](../../spec/decisions/DEC-0012.md), accepted 2026-11-25: with each team's sdlc-control
   repository, drafts stay the user's own artifacts; when the user asks for a write to Jira or a repository, the
   artifacts it rests on go to the team's control repository as a pull request, the merge approves them, and the
-  write and its links follow. The design is no longer a pull request on a product repository. Milestone 3 starts once the user accepts or changes it.
+  write and its links follow. The design is no longer a pull request on a product repository.
 - 4a status (2026-11-25): milestone 1 built and tested against faked APIs:
   - each team's Jira projects, Confluence spaces and repositories (lists, each with one default) and its
     control repository are its `systems` in `config/env/<env>/teams.yaml` (2026-11-25; teams, user groups and
@@ -222,6 +222,18 @@ changing it during a run needs the user's explicit confirmation in chat.
   with ADK's skill loader.
 
 ### Phase 5: Event path and ci_workflow_agent
+
+- Milestone 3 built (2026-11-25), tested against faked systems:
+  - user_agent_mcp: `control_publish`, `control_status`; `jira_create_feature` and `jira_link_design` only from
+    artifacts approved on the team's control repository, with their results recorded there. The design pull
+    request on product repositories is gone.
+  - Connectors: the last change to a file with its merged pull request and who merged it, and a direct commit, for
+    GitHub and Bitbucket in both editions.
+  - user_agent: the workflows `features_and_stories`, `design_specification` (both with the review loop),
+    `publish_feature` and `hand_off_design`, as ADK graph workflows in a resumable app; the team scope at start.
+  - Checking on real systems needs the test Jira Cloud project, the GitHub control and product repositories in
+    `config/env/dev/teams/<team>.yaml`, the user's connections, and milestone 4 to answer the workflows' questions
+    in sdlc_ui.
 
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching

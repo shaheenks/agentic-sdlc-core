@@ -7,7 +7,7 @@ status: draft
 x-layer: control
 x-folder: config/
 x-depends-on: [/components/audit-log]
-x-satisfies: [/requirements/functional/FR-SURF-005, /requirements/functional/FR-TEAM-001, /requirements/functional/FR-TEAM-004, /requirements/functional/FR-AUTHZ-001, /requirements/functional/FR-AUTHZ-006, /requirements/functional/FR-AUTHZ-007, /requirements/functional/FR-CFG-001, /requirements/functional/FR-CFG-002, /requirements/functional/FR-CFG-003, /requirements/functional/FR-CFG-004, /requirements/functional/FR-CFG-005, /requirements/functional/FR-WFL-001, /requirements/functional/FR-KNOW-001, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-HOST-003, /requirements/non-functional/NFR-ARCH-002, /requirements/non-functional/NFR-ARCH-003, /requirements/non-functional/NFR-SEC-002, /requirements/non-functional/NFR-AUD-001]
+x-satisfies: [/requirements/functional/FR-SURF-005, /requirements/functional/FR-TEAM-001, /requirements/functional/FR-TEAM-004, /requirements/functional/FR-AUTHZ-001, /requirements/functional/FR-AUTHZ-006, /requirements/functional/FR-AUTHZ-007, /requirements/functional/FR-CFG-001, /requirements/functional/FR-CFG-002, /requirements/functional/FR-CFG-003, /requirements/functional/FR-CFG-004, /requirements/functional/FR-CFG-005, /requirements/functional/FR-WFL-001, /requirements/functional/FR-KNOW-001, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-HOST-003, /requirements/non-functional/NFR-ARCH-002, /requirements/non-functional/NFR-ARCH-003, /requirements/non-functional/NFR-SEC-002, /requirements/non-functional/NFR-AUD-001, /requirements/functional/FR-SDLC-013]
 ---
 
 # Purpose
@@ -64,6 +64,7 @@ validates it, turns it into an immutable bundle and publishes it where every ser
 - [NFR-ARCH-003: Self-contained components](../requirements/non-functional/NFR-ARCH-003.md)
 - [NFR-SEC-002: Deny by default, fail closed](../requirements/non-functional/NFR-SEC-002.md)
 - [NFR-AUD-001: Audit every decision](../requirements/non-functional/NFR-AUD-001.md)
+- [FR-SDLC-013: Team control repository](../requirements/functional/FR-SDLC-013.md)
 
 # Realisation
 

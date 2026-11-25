@@ -57,9 +57,9 @@ The output of a workflow (a design review, a test plan, generated stories) lives
 - [NFR-PERF-001: Application response under 5 seconds on average](../requirements/non-functional/NFR-PERF-001.md)
 - [FR-AUTHZ-008: Per-user isolation of sessions, artifacts and secrets](../requirements/functional/FR-AUTHZ-008.md)
 - [NFR-SEC-004: Where secrets live](../requirements/non-functional/NFR-SEC-004.md)
-- [FR-SDLC-002: Features and user stories in Jira](../requirements/functional/FR-SDLC-002.md)
-- [FR-SDLC-003: Design specification from approved Jira items](../requirements/functional/FR-SDLC-003.md)
-- [FR-SDLC-005: Design specification pull request](../requirements/functional/FR-SDLC-005.md)
+- [FR-SDLC-002: Features and user stories](../requirements/functional/FR-SDLC-002.md)
+- [FR-SDLC-003: Design specification](../requirements/functional/FR-SDLC-003.md)
+- [FR-SDLC-005: Design specification hand-off](../requirements/functional/FR-SDLC-005.md)
 
 # Realisation
 

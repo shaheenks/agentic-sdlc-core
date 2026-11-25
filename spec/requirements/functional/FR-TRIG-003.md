@@ -20,6 +20,8 @@ The system shall deliver the results of every scheduled or event-triggered run t
 - The delivery records the downstream link it created, in the run's session and audit record.
 - A failed delivery fails the run's last step visibly in the audit log and is retried as the step declares.
 - Intermediate artifacts under `artifacts/system/` are deleted after 7 days like any artifact.
+- Writes to Jira, Confluence or repositories are recorded on the team's control repository: a `records/` file
+  committed before the write, with its results after it ([DEC-0012](../../decisions/DEC-0012.md) (accepted)).
 
 # Notes
 

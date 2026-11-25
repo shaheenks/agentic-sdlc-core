@@ -4,9 +4,10 @@ credential, a request or a response body in an error."""
 
 from sdlc_connectors.base import ConnectorError, Credential
 from sdlc_connectors.jira import Issue, Jira, adf_to_text, text_to_adf
-from sdlc_connectors.repos import FileChange, PullRequest, Repository, repository
+from sdlc_connectors.repos import Change, FileChange, PullRequest, Repository, repository
 
 __all__ = [
+    "Change",
     "ConnectorError",
     "Credential",
     "FileChange",

@@ -24,9 +24,16 @@ tool_groups:
     tools: [knowledge_search, knowledge_graph]
   jira:
     everyone: true
-    description: Read and, in a team's run, create issues in the team's Jira project as the user (FR-SDLC-002).
-    tools: [team_systems, jira_get_issue, jira_search, jira_create_feature, jira_link_pull_request]
+    description: Read and, in a team's run, create issues from approved artifacts in the team's Jira projects as the user
+      (FR-SDLC-002).
+    tools: [team_systems, jira_get_issue, jira_search, jira_create_feature, jira_link_design]
   repositories:
     everyone: true
-    description: Read the team's repositories and, in a team's run, open design pull requests as the user (FR-SDLC-005).
-    tools: [repo_list, repo_read_file, repo_open_design_pull_request]
+    description: Read the team's repositories as the user (FR-SDLC-003).
+    tools: [repo_list, repo_read_file]
+  control:
+    everyone: true
+    description: >-
+      The run's team's control repository: publish artifacts by pull request and check their approval
+      (FR-SDLC-013, DEC-0012).
+    tools: [control_publish, control_status]

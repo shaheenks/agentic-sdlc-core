@@ -1,5 +1,12 @@
 ## 2026-11-25
 
+* **Update**: [DEC-0012](decisions/DEC-0012.md) accepted by the user; [DEC-0008](decisions/DEC-0008.md) superseded.
+  FR-SDLC-001, FR-SDLC-002, FR-SDLC-003, FR-SDLC-005, FR-SDLC-006, FR-SDLC-010, FR-SDLC-012, FR-TRIG-003 and
+  FR-HUM-005 changed to the control repository; new [FR-SDLC-013](requirements/functional/FR-SDLC-013.md).
+  4a milestone 3: the control repository tools and gated Jira writes in
+  [user_agent_mcp](components/user-agent-mcp.md), their [Connectors](components/connectors.md) support, and the
+  workflows in [user_agent](components/user-agent.md). Built: FR-SDLC-002, FR-SDLC-003, FR-SDLC-004,
+  FR-SDLC-005, FR-SDLC-013.
 * **Update**: [Configuration Registry](components/configuration-registry.md): a user group can list `teams`
   (or one team role); their members join the group, for their own runs only (membership, not team grants).
 * **Update**: [Configuration Registry](components/configuration-registry.md): teams and sources can be one

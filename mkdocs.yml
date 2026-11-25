@@ -176,10 +176,10 @@ nav:
               - "FR-MDL-002 Usage limits": requirements/functional/FR-MDL-002.md
           - SDLC flow:
               - "FR-SDLC-001 Approved artifact chain": requirements/functional/FR-SDLC-001.md
-              - "FR-SDLC-002 Features and user stories in Jira": requirements/functional/FR-SDLC-002.md
-              - "FR-SDLC-003 Design specification from approved Jira items": requirements/functional/FR-SDLC-003.md
+              - "FR-SDLC-002 Features and user stories": requirements/functional/FR-SDLC-002.md
+              - "FR-SDLC-003 Design specification": requirements/functional/FR-SDLC-003.md
               - "FR-SDLC-004 Fresh-context document review": requirements/functional/FR-SDLC-004.md
-              - "FR-SDLC-005 Design specification pull request": requirements/functional/FR-SDLC-005.md
+              - "FR-SDLC-005 Design specification hand-off": requirements/functional/FR-SDLC-005.md
               - "FR-SDLC-006 Implementation by ci_workflow_agent": requirements/functional/FR-SDLC-006.md
               - "FR-SDLC-007 Security vulnerability analysis of pull requests": requirements/functional/FR-SDLC-007.md
               - "FR-SDLC-008 Deployment handling": requirements/functional/FR-SDLC-008.md
@@ -187,6 +187,7 @@ nav:
               - "FR-SDLC-010 Incident and bug reporting": requirements/functional/FR-SDLC-010.md
               - "FR-SDLC-011 Quality assurance analysis of pull requests": requirements/functional/FR-SDLC-011.md
               - "FR-SDLC-012 Jira tasks from findings": requirements/functional/FR-SDLC-012.md
+              - "FR-SDLC-013 Team control repository": requirements/functional/FR-SDLC-013.md
       - Non-Functional Requirements:
           - requirements/non-functional/index.md
           - Hosting:
