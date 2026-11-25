@@ -1,5 +1,7 @@
 ## 2026-11-25
 
+* **Update**: [sdlc_ui](components/sdlc-ui.md): tool calls as concise cards, knowledge queries collapsed with their
+  results; elapsed time per answer and per turn.
 * **Update**: [GCP Foundation](components/gcp-foundation.md): Cloud NAT on the platform subnet, so user_agent_mcp
   (all egress through the VPC) reaches GitHub, Bitbucket and Atlassian; connection checks failed without it.
 * **Update**: connection tokens are checked when saved (a refused token is not stored) and can be tested again

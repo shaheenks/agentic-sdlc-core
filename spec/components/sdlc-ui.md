@@ -112,3 +112,7 @@ BFF:
 - Connections: each provider's form asks for what it signs in with (an Atlassian email for Jira Cloud, the server
   URL for Data Center editions, a username only for a Bitbucket app password), saving checks the token first and
   says as whom, and each saved connection has a Test button.
+- Tool calls show as concise cards: what was done, its main argument and how it went; knowledge searches and graph
+  queries keep their results (path, source, lines, score; nodes and links) in a collapsed section to inspect;
+  workflows show their outcome. Each assistant message shows its time after the user's message, and a turn's last
+  one the total; timing is measured in the browser while the chat is open (a reopened chat shows none).

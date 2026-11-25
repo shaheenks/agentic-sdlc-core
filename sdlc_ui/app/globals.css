@@ -516,3 +516,96 @@ form .hint {
   color: var(--muted);
   font-size: 0.8rem;
 }
+
+/* Tool call cards and timings */
+.tool-card {
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  padding: 0.3rem 0.55rem;
+  margin: 0.3rem 0;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: var(--surface);
+}
+.tool-card > summary {
+  cursor: pointer;
+  list-style-position: inside;
+}
+.tool-card > summary,
+div.tool-card {
+  display: flex;
+  gap: 0.45rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.tool-label {
+  font-weight: 600;
+}
+.tool-detail,
+.tool-meta,
+.tool-empty {
+  color: var(--muted);
+}
+.tool-mark {
+  width: 1em;
+  text-align: center;
+}
+.tool-done {
+  color: #067647;
+}
+.tool-failed {
+  color: var(--danger);
+}
+.tool-stopped {
+  color: var(--muted);
+}
+.tool-running {
+  color: var(--accent);
+}
+@media (prefers-color-scheme: dark) {
+  .tool-done {
+    color: #75e0a7;
+  }
+}
+.tool-body {
+  margin-top: 0.4rem;
+  max-height: 22rem;
+  overflow: auto;
+}
+.tool-hits,
+.tool-nodes {
+  margin: 0;
+  padding-left: 1.3rem;
+  display: grid;
+  gap: 0.4rem;
+}
+.tool-hits p {
+  margin: 0.15rem 0 0;
+}
+.tool-hits a {
+  color: var(--accent);
+}
+.tool-heading {
+  font-style: italic;
+}
+.tool-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.15rem 0.75rem;
+  margin: 0;
+}
+.tool-facts div {
+  display: contents;
+}
+.tool-facts dt {
+  color: var(--muted);
+}
+.tool-facts dd {
+  margin: 0;
+}
+.timed .elapsed {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin: -0.1rem 0 0.4rem;
+}

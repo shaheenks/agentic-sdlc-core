@@ -3,9 +3,11 @@
 import "@copilotkit/react-core/v2/styles.css";
 
 import { CopilotChat, CopilotKit, useConfigureSuggestions } from "@copilotkit/react-core/v2";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ChatList } from "@/components/ChatList";
+import { clockFor, timedMessageView } from "@/components/TimedMessages";
+import { ToolCards } from "@/components/ToolCards";
 import { WorkflowQuestions } from "@/components/WorkflowQuestions";
 import { api, type Chat, latestTurn } from "@/lib/client";
 
@@ -37,6 +39,7 @@ export default function ChatPage() {
   const [teams, setTeams] = useState<string[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const messageView = useMemo(() => (chatId ? timedMessageView(clockFor(chatId)) : undefined), [chatId]);
 
   const refresh = useCallback(() => {
     api<{ chats: Chat[] }>("/api/chats").then(
@@ -89,6 +92,7 @@ export default function ChatPage() {
   return (
     <CopilotKit runtimeUrl="/api/copilotkit" useSingleEndpoint={false} showDevConsole={false} enableInspector={false} messageFilter={latestTurn}>
       <WorkflowQuestions />
+      <ToolCards />
       <TeamSuggestions team={chats.find((c) => c.id === chatId)?.team} />
       <div className="workspace">
         <ChatList chats={chats} teams={teams} activeId={chatId} onSelect={open} onNew={startNew} onDelete={remove} />
@@ -98,6 +102,7 @@ export default function ChatPage() {
             <CopilotChat
               key={chatId}
               threadId={chatId}
+              messageView={messageView}
               onError={() => refresh()}
               labels={{ chatInputPlaceholder: "Ask about requirements, designs, decisions or code…" }}
             />
