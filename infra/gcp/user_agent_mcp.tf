@@ -70,7 +70,7 @@ resource "google_cloud_run_v2_service" "user_agent_mcp" {
         value = local.user_agent_mcp_url
       }
       dynamic "env" {
-        for_each = var.sdlc_ui_url == "" ? [] : [var.sdlc_ui_url]
+        for_each = var.sdlc_ui_url != "" ? [var.sdlc_ui_url] : (local.sdlc_ui_on ? [local.sdlc_ui_url] : [])
         content {
           name  = "SDLC_UI_URL"
           value = env.value

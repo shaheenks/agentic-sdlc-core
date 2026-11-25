@@ -60,3 +60,34 @@ variable "knowledge_refreshers" {
   type        = list(string)
   default     = []
 }
+
+variable "sdlc_ui_image" {
+  description = "sdlc_ui's image. Empty: the service is not created yet."
+  type        = string
+  default     = ""
+}
+
+variable "agent_engine" {
+  description = "user_agent's Agent Runtime resource: projects/<number>/locations/<region>/reasoningEngines/<id> (printed by interactive_agents/user_agent/deploy.py)."
+  type        = string
+  default     = ""
+}
+
+variable "sdlc_ui_users" {
+  description = "Who may pass IAP to sdlc_ui (user:, group: or domain: members)."
+  type        = list(string)
+  default     = []
+}
+
+variable "iap_oauth_client_id" {
+  description = "IAP's own OAuth client, for users outside the project's organisation. Empty: the Google-managed client."
+  type        = string
+  default     = ""
+}
+
+variable "iap_oauth_client_secret" {
+  description = "The secret of iap_oauth_client_id (kept in state)."
+  type        = string
+  default     = ""
+  sensitive   = true
+}

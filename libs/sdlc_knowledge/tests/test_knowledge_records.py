@@ -54,6 +54,7 @@ def test_a_missing_store_is_an_error(tmp_path):
 
 def test_tokens_split_snake_case():
     assert tokens("Read artifact_save now") == ["read", "artifact_save", "artifact", "save", "now"]
+    assert tokens("see FR-AUTHZ-004.") == ["see", "fr-authz-004", "fr", "authz", "004"]
 
 
 def test_hash_embedder_is_deterministic_and_normalised():
@@ -77,7 +78,7 @@ def test_vertex_embedder_asks_for_the_task_and_size_and_normalises():
 
 
 def test_embedder_from_env():
-    assert embedder_from_env({"EMBEDDINGS": "hash"}).model == "hash-v1"
+    assert embedder_from_env({"EMBEDDINGS": "hash"}).model == "hash-v2"
     with pytest.raises(SystemExit):
         embedder_from_env({"EMBEDDINGS": "vertex"})
     with pytest.raises(SystemExit):

@@ -78,3 +78,9 @@ stable release ([DEC-0004](../decisions/DEC-0004.md)). An agent has no privilege
 - Gemini through Vertex AI with Application Default Credentials: the deployment's service account in Google
   Cloud, the developer's gcloud credentials locally.
 - Every model, language and embedding, is called on Vertex AI at its europe-west3 endpoint, or `eu` where it has none; there is no separate model gateway.
+- user_agent is deployed by `interactive_agents/user_agent/deploy.py` as engine `sdlc-user-agent-<env>`,
+  running as the interactive agents' service account. Its application offers only the session operations
+  and `async_stream_query`; a query must name an existing session of the same user, whose state holds the
+  email sdlc_ui set when it created it ([DEC-0010](../decisions/DEC-0010.md)). Gemini runs in `eu`, where the
+  model is served; sessions stay in europe-west3. Locally, `python -m user_agent` serves the same operations
+  in the runtime's request shape.

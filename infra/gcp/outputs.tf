@@ -34,3 +34,15 @@ output "knowledge_search_url" {
 output "knowledge_ingest_service_account" {
   value = google_service_account.component["knowledge_ingest"].email
 }
+
+output "project_id" {
+  value = var.project_id
+}
+
+output "interactive_agents_service_account" {
+  value = google_service_account.component["interactive_agents"].email
+}
+
+output "sdlc_ui_url" {
+  value = local.sdlc_ui_url
+}

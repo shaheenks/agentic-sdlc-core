@@ -93,6 +93,25 @@ services:
     ports:
       - "127.0.0.1:8084:8084"
 
+  # user_agent's runtime application, in Agent Runtime's request shape. Gemini needs Google credentials: your
+  # gcloud Application Default Credentials are mounted read-only (GCLOUD_CONFIG_DIR).
+  user-agent:
+    build:
+      context: .
+      dockerfile: interactive_agents/user_agent/Dockerfile
+    <<: *common
+    environment:
+      <<: *common-env
+      PORT: "8085"
+      SDLC_MCP_URL: http://user-agent-mcp:8080/mcp
+      SDLC_CALLER_AUTH: ${SDLC_CALLER_AUTH:-none}
+      SDLC_MODEL_LOCATION: ${SDLC_MODEL_LOCATION:-eu}
+      GOOGLE_APPLICATION_CREDENTIALS: /gcloud/application_default_credentials.json
+    volumes:
+      - ${GCLOUD_CONFIG_DIR:-~/.config/gcloud}:/gcloud:ro
+    ports:
+      - "127.0.0.1:8085:8085"
+
   sdlc-ui:
     build:
       context: sdlc_ui
@@ -100,5 +119,13 @@ services:
     environment:
       <<: *common-env
       PORT: "3000"
+      # Locally a fixed user stands in for IAP (SDLC_ENV=local only).
+      SDLC_AUTH: ${SDLC_AUTH:-local}
+      SDLC_LOCAL_USER_ID: ${SDLC_LOCAL_USER_ID:-}
+      SDLC_LOCAL_USER_EMAIL: ${SDLC_LOCAL_USER_EMAIL:-}
+      SDLC_AGENT_URL: ${SDLC_AGENT_URL:-http://user-agent:8085/v1/local}
+      SDLC_AGENT_AUTH: ${SDLC_AGENT_AUTH:-none}
+      SDLC_MCP_URL: ${SDLC_MCP_URL:-http://user-agent-mcp:8080}
+      SDLC_MCP_AUTH: ${SDLC_MCP_AUTH:-none}
     ports:
       - "127.0.0.1:3000:3000"

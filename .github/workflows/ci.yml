@@ -124,6 +124,7 @@ jobs:
           - event_gateway
           - knowledge_ingest
           - code_workspace
+          - interactive_agents/user_agent
     steps:
       - uses: actions/checkout@v4
       - run: docker build -f ${{ matrix.component }}/Dockerfile .

@@ -138,6 +138,20 @@ changing it during a run needs the user's explicit confirmation in chat.
 - Resume after signing in again from session history (FR-WFL-009).
 - Exit gate: a user chats, gets cited answers within their scope, saves an artifact, signs out and in, and
   resumes the same session.
+- Status (2026-11-24, code built and tested locally, not deployed):
+  - user_agent: an ADK agent on `AdkApp`, offering only the session operations and `async_stream_query`.
+    A query must name the same user's existing session, whose state holds the email sdlc_ui set. Calls to
+    user_agent_mcp carry the session's user and the runtime's ID token. `gemini-3.8-flash` runs in `eu`.
+    `deploy.py` deploys it as the interactive agents' service account.
+  - sdlc_ui: the user comes from the IAP assertion, verified on every request. A chat is a runtime session
+    created for that user; answers stream as AG-UI to CopilotKit, and reopening a chat replays its history
+    from the runtime. Pages for artifacts and connections, with the secure entry page.
+
+  Checked locally, end to end: sdlc_ui to user_agent to user_agent_mcp to Knowledge Search, with real Gemini.
+  The answers were cited, a forged user header was replaced by the verified user, a reopened chat showed its
+  history, and chats are titled from their first message. Still to do: deploy (`infra/gcp/sdlc_ui.tf`, the
+  engine), IAP's OAuth client if the users are outside the project's organisation, and the exit-gate check on
+  dev.
 
 ### Phase 4: Design flow and Gemini Enterprise
 

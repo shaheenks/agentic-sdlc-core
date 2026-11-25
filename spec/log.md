@@ -1,5 +1,10 @@
 ## 2026-11-24
 
+* **Update**: Phase 3 code: [user_agent](components/user-agent.md) on [Agent Runtime](components/agent-runtime.md)
+  (chat with cited knowledge answers, the session's user forwarded to user_agent_mcp) and
+  [sdlc_ui](components/sdlc-ui.md) (IAP-verified user, chats as runtime sessions, CopilotKit with AG-UI,
+  artifacts and connections pages). FR-AGT-005 and FR-WFL-009 partly built: Gemini Enterprise, workflows and
+  waiting runs come later.
 * **Update**: Phase 2 deployed to development: the knowledge refresh as one Cloud Build run
   ([Ingest Pipeline](components/ingest-pipeline.md)), [Knowledge Search](components/knowledge-search.md) with
   internal ingress, [user_agent_mcp](components/user-agent-mcp.md) with VPC egress. NFR-ARCH-004 built.

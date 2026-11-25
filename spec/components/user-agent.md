@@ -72,3 +72,6 @@ Elephant-Goldfish Model: it holds the whole conversation, and its documents are 
 - Python, Google ADK, in `interactive_agents/user_agent/`, on the interactive Agent Runtime deployment.
 - Reviewers run as ADK sub-agents with their own context, each given only the document and permitted evidence.
 - Stage instructions and reviewer standards are skills in `skills/` (SKILL.md).
+- Built for ad-hoc chat (phase 3): an ADK agent whose tools are user_agent_mcp's, listed for the session's
+  user; it answers from knowledge search with cited links and saves artifacts when the user agrees. A chat is
+  titled from its first message. Features, designs and reviews come with the workflows.

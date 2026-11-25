@@ -109,7 +109,7 @@ def test_every_record_is_tagged_and_located(root):
     assert refunds.link == "https://example.test/payments.md" and refunds.start_line == 5
     status = s.manifest["sources"]["docs"]
     assert status["status"] == "ok" and status["files"] == 5 and status["skipped"] == 2  # skip.md, image.md
-    assert s.manifest["embedding"] == {"model": "hash-v1", "dimensions": 16}
+    assert s.manifest["embedding"] == {"model": "hash-v2", "dimensions": 16}
 
 
 def test_structural_graph(root):

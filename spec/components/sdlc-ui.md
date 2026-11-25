@@ -92,3 +92,8 @@ BFF:
 - Folder `sdlc_ui/`, self-contained; dependency URLs (user_agent_mcp, the ADK application) from environment variables; runs in the local Docker Compose environment.
 - CopilotKit for the UI and BFF, with an AG-UI event stream from the agents.
 - No admin view (effective-permission explorer) in the first release.
+- Built (phase 3): the BFF verifies the IAP assertion on every request (locally, a fixed user), starts each
+  chat as a runtime session for the verified user, streams answers through CopilotKit's runtime as AG-UI and
+  replays a chat's history from the runtime for the same user; it stores nothing. Artifacts and connections
+  pages use user_agent_mcp's HTTP API. Deployed as `sdlc-ui` with IAP on the service (`infra/gcp/sdlc_ui.tf`),
+  IAP's service agent the only invoker.

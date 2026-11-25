@@ -12,18 +12,18 @@ DOCUMENT, QUERY = "RETRIEVAL_DOCUMENT", "RETRIEVAL_QUERY"
 DEFAULT_MODEL = "gemini-embedding-001"
 DEFAULT_DIMENSIONS = 768
 DEFAULT_LOCATION = "europe-west3"
-HASH_MODEL = "hash-v1"
+HASH_MODEL = "hash-v2"  # v2: hyphenated identifiers are words too
 MAX_CHARS = 8000  # well inside the model's input limit; chunks are much smaller
-WORD = re.compile(r"[a-z0-9]+(?:_[a-z0-9]+)*")
+WORD = re.compile(r"[a-z0-9]+(?:[_-][a-z0-9]+)*")
 
 
 def tokens(text: str) -> list[str]:
-    """Lower-case words; `snake_case` names also yield their parts."""
+    """Lower-case words; `snake_case` names and hyphenated IDs (`FR-AUTHZ-004`) also yield their parts."""
     out: list[str] = []
     for word in WORD.findall(text.lower()):
         out.append(word)
-        if "_" in word:
-            out.extend(p for p in word.split("_") if p)
+        if "_" in word or "-" in word:
+            out.extend(p for p in re.split(r"[_-]", word) if p)
     return out
 
 

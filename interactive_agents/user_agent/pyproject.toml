@@ -3,7 +3,7 @@ name = "sdlc-user-agent"
 version = "0.0.0"
 description = "The interactive agent (knowledge search, brainstorming, features, design)."
 requires-python = ">=3.12"
-dependencies = ["sdlc-logging"]
+dependencies = ["sdlc-logging", "sdlc-service", "google-adk[mcp]>=2.10,<3", "google-cloud-aiplatform[agent-engines]>=1.165,<2"]
 
 [project.scripts]
 sdlc-user-agent = "user_agent.__main__:main"

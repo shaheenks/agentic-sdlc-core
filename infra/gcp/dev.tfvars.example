@@ -14,3 +14,10 @@ knowledge_search_image = ""
 
 # Who may run the knowledge refresh (knowledge_ingest/cloudbuild.yaml) as the ingest service account.
 knowledge_refreshers = [] # ["user:you@example.test"]
+
+# Phase 3: user_agent on Agent Runtime (printed by interactive_agents/user_agent/deploy.py) and sdlc_ui's image.
+agent_engine  = "" # projects/<number>/locations/europe-west3/reasoningEngines/<id>
+sdlc_ui_image = "" # europe-west3-docker.pkg.dev/<project>/sdlc-dev/sdlc-ui:<commit>
+sdlc_ui_users = [] # ["user:you@example.test"] or ["domain:example.test"]
+# IAP's own OAuth client when users are outside the project's organisation (secret: TF_VAR_iap_oauth_client_secret).
+iap_oauth_client_id = ""
