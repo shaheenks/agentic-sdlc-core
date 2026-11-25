@@ -9,10 +9,16 @@ tool_groups:
     tools: [artifact_list, artifact_read, artifact_save, artifact_delete]
   connections:
     description: The user's own connections to downstream systems, without their secrets (FR-CONN-001).
-    tools: [connection_list, connection_start, connection_revoke]
+    tools: [connection_list, connection_start, connection_revoke, connection_test]
   connection_secrets:
     description: Saving a connection secret; only on the secure entry page, never as an MCP tool (FR-CONN-005).
     tools: [connection_save]
   knowledge:
     description: Search the knowledge sources you may read, by meaning, keyword or graph (FR-KNOW-002).
     tools: [knowledge_search, knowledge_graph]
+  jira:
+    description: Read and, in a team's run, create issues in the team's Jira project as the user (FR-SDLC-002).
+    tools: [team_systems, jira_get_issue, jira_search, jira_create_feature, jira_link_pull_request]
+  repositories:
+    description: Read the team's repositories and, in a team's run, open design pull requests as the user (FR-SDLC-005).
+    tools: [repo_list, repo_read_file, repo_open_design_pull_request]

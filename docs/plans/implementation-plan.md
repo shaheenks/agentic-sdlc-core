@@ -138,8 +138,8 @@ changing it during a run needs the user's explicit confirmation in chat.
 - Resume after signing in again from session history (FR-WFL-009).
 - Exit gate: a user chats, gets cited answers within their scope, saves an artifact, signs out and in, and
   resumes the same session.
-- Status (2026-11-25, deployed to development; chat and artifacts confirmed by the user in the browser,
-  the sign-out and resume check still open):
+- Status (2026-11-25, done; exit gate met on development: the user chatted with cited answers, saved an
+  artifact, signed out and in, and resumed the same chat):
   - user_agent: an ADK agent on `AdkApp`, offering only the session operations and `async_stream_query`.
     A query must name the same user's existing session, whose state holds the email sdlc_ui set. Calls to
     user_agent_mcp carry the session's user and the runtime's ID token. `gemini-3.8-flash` runs in `eu`.
@@ -183,6 +183,33 @@ changing it during a run needs the user's explicit confirmation in chat.
 - Exit gate: from Gemini Enterprise and from sdlc_ui, a user takes an idea to an approved feature and stories
   in a test Jira project, then to an approved design specification opened as a pull request on the mapped test
   repository; the Jira feature links to the pull request.
+- Split (2026-11-25, the user's choice):
+  - **4a, the design flow in sdlc_ui.** Exit gate: the one above, from sdlc_ui, on a test Jira Cloud project and
+    a test GitHub repository. Bitbucket and the Data Center editions are built against their APIs with tests and
+    checked on real systems later.
+  - **4b, the A2A router and Gemini Enterprise.** Gemini Enterprise reaches user_agent only with the user's own
+    token, while DEC-0010 switched user tokens off. A decision record on running identity mode `oauth` for that
+    surface next to `caller_token` for sdlc_ui comes first.
+
+  Reviewer skills are adapted from EGM's reviewers (google/elephant-goldfish-model, Apache-2.0), with
+  attribution.
+- 4a milestones:
+  1. Each team's Jira project and repositories (with design paths) per environment. Connector adapters for Jira,
+     GitHub and Bitbucket in both editions. user_agent_mcp tools for Jira and repositories, acting with the
+     user's own connection, with argument constraints limiting them to the run's team (FR-AUTHZ-003).
+     The connection test.
+  2. Skills in `skills/`: brainstorm, features and stories, design specification, and the seven reviewers.
+  3. Workflows: features and stories (FR-SDLC-002) and the design specification (FR-SDLC-003). Each has the
+     review loop (FR-SDLC-004), approval in chat, and the team scope set at start. The design pull request
+     (FR-SDLC-005).
+  4. sdlc_ui: starting a workflow for one of the user's teams, approvals in the chat, the run's progress.
+- 4a status (2026-11-25): milestone 1 built and tested against faked APIs:
+  - `config/env/<env>/systems.yaml` holds each team's Jira project and repositories;
+  - `libs/sdlc_connectors` has the adapters;
+  - user_agent_mcp has the Jira and repository tools and the connection test, all confined to the team's
+    systems.
+
+  Checking them on real systems needs a test Jira Cloud project and a GitHub repository.
 
 ### Phase 5: Event path and ci_workflow_agent
 

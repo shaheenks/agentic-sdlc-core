@@ -4,6 +4,7 @@ title: Connectors
 description: Adapters to downstream SDLC systems - source control, issue trackers, wikis, CI - that read and write as the user with the user's own connection.
 tags: [component, capability]
 status: draft
+x-folder: libs/sdlc_connectors/
 x-layer: capability
 x-depends-on: [/components/secrets, /components/configuration-registry]
 x-satisfies: [/requirements/functional/FR-IDN-002, /requirements/functional/FR-CONN-001, /requirements/functional/FR-CONN-002, /requirements/functional/FR-CONN-003, /requirements/functional/FR-CONN-004, /requirements/functional/FR-CONN-005, /requirements/functional/FR-KNOW-001, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-SEC-005, /requirements/functional/FR-TRIG-003, /requirements/functional/FR-SDLC-012]
@@ -63,3 +64,8 @@ do this as the user, so the downstream system's own permissions still apply.
 - Every adapter supports user connections (user_agent, with the user's own token) and system connections (the
   event-based agents, with tokens from Secret Manager); the edition decides the sign-in (OAuth or API token in
   the cloud, personal access tokens in Data Center) and the webhook format the event gateway verifies.
+- Built (phase 4a): library `libs/sdlc_connectors` with Jira (Cloud: REST v3, account email and API token; Data
+  Center: REST v2, personal access token), GitHub (github.com and Enterprise Server) and Bitbucket (Cloud and
+  Data Center) behind one repository interface: read files and folders, open a pull request that adds files on a
+  new branch. Errors carry a code and the status, never the credential, the request or a response body. Checked
+  against faked APIs; the cloud editions of Jira and GitHub are checked on real systems at phase 4a's exit gate.

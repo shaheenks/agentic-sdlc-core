@@ -101,6 +101,16 @@ class ConnectionStore:
         path.unlink()
         return {"provider": provider, "revoked": True}
 
+    def metadata(self, user_id: str, provider: str) -> dict:
+        path = self._user_dir(user_id) / f"{provider}.json"
+        if not path.is_file():
+            raise ToolError("not_found", "no such connection")
+        return json.loads(path.read_text(encoding="utf-8")).get("metadata", {})
+
+    def credential(self, user_id: str, provider: str) -> tuple[str, str | None]:
+        """The secret and account name, for connectors acting as the user; never returned by a tool."""
+        return self.secret(user_id, provider), self.metadata(user_id, provider).get("account")
+
     def secret(self, user_id: str, provider: str) -> str:
         """For connectors acting as the user; never returned by a tool."""
         if self.cipher is None:

@@ -4,7 +4,7 @@
 grants:
   - id: everyone-basics
     description: Every user's own identity, artifacts and connections.
-    tool_groups: [identity, artifacts, connections, connection_secrets, knowledge]
+    tool_groups: [identity, artifacts, connections, connection_secrets, knowledge, jira, repositories]
     to: {everyone: true}
   - id: everyone-platform-knowledge
     description: The platform's own specification, for everyone.

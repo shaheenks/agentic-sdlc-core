@@ -77,6 +77,8 @@ validates it, turns it into an immutable bundle and publishes it where every ser
   are compared: workflows, skills and data sources are not declared in configuration yet.
 - `sources.yaml` declares the knowledge sources ([DEC-0011](../decisions/DEC-0011.md)); grants
   give them, like tool groups, and the permission diff shows them as `source:<id>`.
+- `env/<env>/systems.yaml` maps each team to its Jira project (site, project key, issue types, the statuses that
+  allow design and development runs) and its repositories (provider, design path, default branch).
 - What differs per environment (the identity mode, allowed domains, the callers' service accounts or OAuth
   client IDs, the users with their teams and user groups, the block list) is in `config/env/<env>/`, which is
   not committed; `config/env/example/` shows the shape and is what CI

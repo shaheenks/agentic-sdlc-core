@@ -1,0 +1,13 @@
+# Each team's systems in this environment (FR-SDLC-002, FR-SDLC-003, FR-SDLC-005): the Jira project that holds its
+# features and stories, and the repositories a design can target, with where design specifications go. Tools act
+# with the user's own connection to the provider, and only on the systems of the run's team (FR-AUTHZ-003).
+teams:
+  payments:
+    jira:
+      provider: jira_cloud
+      base_url: https://example.atlassian.net
+      project: PAY
+    repositories:
+      - provider: github
+        repo: example-org/payments-service
+        design_path: docs/specs

@@ -49,6 +49,23 @@ def test_missing_environment_warns_but_validates(config_dir, capsys):
     ("file", "change", "message"),
     [
         ("grants.yaml", lambda d: d["grants"][0]["to"].update({"teams": ["nope"]}), "unknown team 'nope'"),
+        (
+            "env/example/systems.yaml",
+            lambda d: d["teams"].update({"nope": {"repositories": []}}),
+            "unknown team 'nope'",
+        ),
+        (
+            "env/example/systems.yaml",
+            lambda d: d["teams"]["payments"]["jira"].update({"provider": "github"}),
+            "not a Jira provider",
+        ),
+        (
+            "env/example/systems.yaml",
+            lambda d: d["teams"]["payments"]["repositories"].append(
+                {"provider": "bitbucket_dc", "repo": "P/s", "design_path": "d"}
+            ),
+            "needs base_url",
+        ),
         ("grants.yaml", lambda d: d["grants"][0]["to"].update({"teams": ["payments:boss"]}), "has no role 'boss'"),
         ("grants.yaml", lambda d: d["grants"][0]["tool_groups"].append("ghost"), "unknown tool group 'ghost'"),
         ("surfaces.yaml", lambda d: d["surfaces"]["sdlc_ui"]["tool_groups"].append("ghost"), "unknown tool group"),

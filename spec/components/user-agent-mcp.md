@@ -142,3 +142,9 @@ The MCP server for user calls ([DEC-0002](../decisions/DEC-0002.md), accepted; [
   A run's team comes from the declared caller's `X-SDLC-Team` header; a team the user is not in is refused
   (403, audited) and a team run reads only its team's sources. Knowledge Search accepts internal traffic only,
   so the service sends all egress through the platform VPC (Private Google Access; no Cloud NAT yet) ([FR-KNOW-004](../requirements/functional/FR-KNOW-004.md)).
+- Jira and repository tools (phase 4a): `team_systems`, `jira_get_issue`, `jira_search`, `jira_create_feature`,
+  `jira_link_pull_request`, `repo_list`, `repo_read_file`, `repo_open_design_pull_request` and `connection_test`,
+  with the user's own connection. Argument constraints ([FR-AUTHZ-003](../requirements/functional/FR-AUTHZ-003.md)):
+  the Jira projects and repositories come from the team's systems in configuration, never from arguments; reads
+  reach the user's teams' systems (in a team run, that team's), writes need a team run; the server builds the JQL,
+  and a design pull request adds files only under the repository's design path, in a folder named for the feature.

@@ -20,7 +20,7 @@ SHARED_KINDS = (
     "providers",
     "sources",
 )
-ENV_KINDS = ("identity", "users", "blocked")
+ENV_KINDS = ("identity", "users", "blocked", "systems")
 LOCAL_ONLY_MODES = ("trusted_header",)
 UNCONFIGURED = {"mode": "", "allowed_domains": [], "callers": {}, "clients": {}}
 
@@ -90,9 +90,32 @@ def compile_config(config_dir: Path, env: str) -> Compiled:
         "identity": identity,
         "members": {email.lower(): _member(entry) for email, entry in users.items()},
         "blocked": (docs.get("env.blocked") or {}).get("blocked", []),
+        "team_systems": _team_systems((docs.get("env.systems") or {}).get("teams") or {}),
     }
     _cross_check(config, users, problems, warnings, env)
     return Compiled(config, problems, warnings)
+
+
+JIRA_DEFAULTS = {
+    "feature_type": "Feature",
+    "story_type": "User Story",
+    "story_link": "parent",
+    "design_status": "In Design",
+    "development_status": "In Development",
+}
+
+
+def _team_systems(teams: dict) -> dict:
+    """Each team's Jira project and repositories, with defaults filled in."""
+    out = {}
+    for team, systems in teams.items():
+        entry: dict = {"repositories": []}
+        if systems.get("jira"):
+            entry["jira"] = {**JIRA_DEFAULTS, **systems["jira"], "base_url": systems["jira"]["base_url"].rstrip("/")}
+        for repo in systems.get("repositories") or ():
+            entry["repositories"].append({"default_branch": "main", **repo})
+        out[team] = entry
+    return out
 
 
 def _member(entry: dict) -> dict:
@@ -186,6 +209,24 @@ def _cross_check(config: dict, users: dict, problems: list[str], warnings: list[
         warnings.append(f"env/{env}: no callers declared; every user will be refused")
     elif mode == "oauth" and not identity["clients"]:
         warnings.append(f"env/{env}: no OAuth clients declared; every user will be refused")
+    where = f"env/{env}/systems.yaml"
+    providers = config["providers"]
+    for team, systems in config["team_systems"].items():
+        if team not in teams:
+            problems.append(f"{where}: unknown team {team!r}")
+        jira = systems.get("jira")
+        if jira and (providers.get(jira["provider"]) or {}).get("system") != "jira":
+            problems.append(f"{where}: {team}: {jira['provider']!r} is not a Jira provider")
+        seen_repos: set[str] = set()
+        for repo in systems["repositories"]:
+            system = (providers.get(repo["provider"]) or {}).get("system")
+            if system not in ("github", "bitbucket"):
+                problems.append(f"{where}: {team}: {repo['provider']!r} is not a repository provider")
+            elif (providers[repo["provider"]].get("edition") == "data_center") and not repo.get("base_url"):
+                problems.append(f"{where}: {team}: {repo['repo']}: a Data Center repository needs base_url")
+            if repo["repo"].lower() in seen_repos:
+                problems.append(f"{where}: {team}: {repo['repo']!r} is listed twice")
+            seen_repos.add(repo["repo"].lower())
     for email, entry in config["members"].items():
         roles = [f"{team}:{role}" for team, team_roles in entry["teams"].items() for role in team_roles]
         check_selector(f"env/{env}/users.yaml: {email}", {"teams": roles, "user_groups": entry["user_groups"]})

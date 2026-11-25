@@ -1,0 +1,292 @@
+"""Jira and repository tools, acting with the user's own connection on their team's systems only (FR-CONN-001,
+FR-AUTHZ-003, FR-SDLC-002, FR-SDLC-003, FR-SDLC-005).
+
+Argument constraints: which Jira projects and repositories a call may touch comes from the configuration
+(`team_systems`), never from the arguments. Reads may touch the systems of any of the user's teams (in a team
+run, that team's only); writes need a team run and touch that team's systems only. A design pull request adds
+files only under the repository's declared design path, in a folder named for the feature.
+"""
+
+import asyncio
+import re
+import secrets
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
+from sdlc_connectors import ConnectorError, Credential, FileChange, Jira, repository
+
+from user_agent_mcp.errors import ToolError
+
+if TYPE_CHECKING:
+    from user_agent_mcp.platform import Caller, Platform
+
+ISSUE_KEY = re.compile(r"^([A-Z][A-Z0-9_]{0,19})-[1-9][0-9]{0,9}$")
+FILE_NAME = re.compile(r"^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,99}\.(md|markdown|txt|yaml|yml|json)$")
+CONSTRAINT = "constraint_denied"
+
+
+def scope(caller: "Caller") -> dict[str, dict[str, Any]]:
+    """The systems this call may read: the run's team's, or in the user's own runs, those of all their teams."""
+    systems = caller.bundle.config.get("team_systems") or {}
+    teams = [caller.policy.team] if caller.policy.team else sorted(caller.memberships.teams)
+    return {t: systems[t] for t in teams if t in systems}
+
+
+def _run_team(caller: "Caller") -> str:
+    if not caller.policy.team:
+        raise ToolError(
+            "team_run_required", "changes to Jira or a repository are made only in a run for one of your teams"
+        )
+    return caller.policy.team
+
+
+def _credential(platform: "Platform", caller: "Caller", provider: str) -> Credential:
+    try:
+        token, account = platform.connections.credential(caller.identity.user_id, provider)
+    except ToolError as exc:
+        if exc.code == "not_found":
+            raise ToolError("not_connected", f"connect your {provider} account first (connection_start)") from exc
+        raise
+    return Credential(token, account)
+
+
+async def _call[T](fn: Callable[[], T]) -> T:
+    try:
+        return await asyncio.to_thread(fn)
+    except ConnectorError as exc:
+        raise ToolError(f"downstream_{exc.code}", exc.message) from exc
+
+
+def _edition(caller: "Caller", provider: str) -> tuple[str, str]:
+    config = (caller.bundle.config.get("providers") or {}).get(provider) or {}
+    return config.get("system", ""), config.get("edition", "")
+
+
+# Jira -----------------------------------------------------------------------------------------------------
+
+
+def _jira_projects(caller: "Caller", write: bool) -> dict[str, tuple[str, dict[str, Any]]]:
+    """Project key -> (team, Jira settings) that this call may touch."""
+    teams = {(t := _run_team(caller)): (scope(caller).get(t) or {})} if write else scope(caller)
+    return {s["jira"]["project"]: (team, s["jira"]) for team, s in teams.items() if s.get("jira")}
+
+
+def _jira(platform: "Platform", caller: "Caller", settings: dict[str, Any]) -> Jira:
+    _, edition = _edition(caller, settings["provider"])
+    return Jira(settings["base_url"], edition, _credential(platform, caller, settings["provider"]))
+
+
+def _project_of(key: str, allowed: dict[str, Any]) -> str:
+    match = ISSUE_KEY.match(key or "")
+    if not match:
+        raise ToolError("invalid_argument", "key must be a Jira issue key such as PAY-12")
+    if match.group(1) not in allowed:
+        raise ToolError(CONSTRAINT, f"{match.group(1)} is not a Jira project of your team")
+    return match.group(1)
+
+
+async def team_systems(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "team": caller.policy.team,
+        "teams": {
+            team: {
+                "jira": {k: s["jira"][k] for k in ("project", "base_url", "design_status", "development_status")}
+                if s.get("jira")
+                else None,
+                "repositories": [
+                    {k: r[k] for k in ("repo", "provider", "default_branch", "design_path")} for r in s["repositories"]
+                ],
+            }
+            for team, s in scope(caller).items()
+        },
+    }
+
+
+async def jira_get_issue(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    allowed = _jira_projects(caller, write=False)
+    key = args.get("key") or ""
+    project = _project_of(key, allowed)
+    _, settings = allowed[project]
+    jira = _jira(platform, caller, settings)
+    issue = await _call(lambda: jira.get_issue(key))
+    found = issue.describe()
+    if issue.issue_type == settings["feature_type"]:
+        stories = await _call(lambda: jira.children(key, project))
+        found["stories"] = [s.describe() for s in stories]
+    found["allows_design"] = issue.status == settings["design_status"]
+    found["allows_development"] = issue.status == settings["development_status"]
+    return found
+
+
+def _jql_text(text: str) -> str:
+    cleaned = re.sub(r'["\\]', " ", text).strip()[:200]
+    return f'text ~ "{cleaned}"' if cleaned else ""
+
+
+async def jira_search(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    """Issues of the team's projects matching words, an issue type or a status. The query is built here; the
+    model never writes JQL, so it cannot reach another project."""
+    allowed = _jira_projects(caller, write=False)
+    if not allowed:
+        return {"issues": []}
+    results = []
+    for project, (_, settings) in sorted(allowed.items()):
+        clauses = [f'project = "{project}"']
+        if args.get("text"):
+            clauses.append(_jql_text(str(args["text"])))
+        for arg, field in (("issue_type", "issuetype"), ("status", "status")):
+            value = args.get(arg)
+            if value:
+                if not isinstance(value, str) or not re.match(r"^[A-Za-z0-9 _-]{1,60}$", value):
+                    raise ToolError("invalid_argument", f"{arg} must be a plain name")
+                clauses.append(f'{field} = "{value}"')
+        jql = " AND ".join(c for c in clauses if c) + " ORDER BY updated DESC"
+        jira = _jira(platform, caller, settings)
+        found = await _call(lambda jira=jira, jql=jql: jira.search(jql, limit=20))
+        results.extend(i.describe() | {"description": i.description[:500]} for i in found)
+    return {"issues": results[:20]}
+
+
+async def jira_create_feature(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    """The approved feature and its user stories, created in the run's team's project as the user."""
+    allowed = _jira_projects(caller, write=True)
+    if not allowed:
+        raise ToolError(CONSTRAINT, "your team has no Jira project in this environment")
+    project, (_, settings) = next(iter(allowed.items()))
+    feature, stories = args.get("feature") or {}, args.get("stories") or []
+    if not isinstance(feature, dict) or not isinstance(stories, list) or not 1 <= len(stories) <= 30:
+        raise ToolError("invalid_argument", "give a feature and 1 to 30 stories")
+    for item in [feature, *stories]:
+        if not isinstance(item, dict) or not isinstance(item.get("summary"), str) or not item["summary"].strip():
+            raise ToolError("invalid_argument", "every item needs a summary")
+    jira = _jira(platform, caller, settings)
+    created = await _call(
+        lambda: jira.create_issue(
+            project, settings["feature_type"], feature["summary"], str(feature.get("description") or "")
+        )
+    )
+    keys = []
+    for story in stories:
+        description = str(story.get("description") or "")
+        if settings["story_link"] == "parent":
+            made = await _call(
+                lambda s=story, d=description: jira.create_issue(
+                    project, settings["story_type"], s["summary"], d, parent=created.key
+                )
+            )
+        else:
+            made = await _call(
+                lambda s=story, d=description: jira.create_issue(project, settings["story_type"], s["summary"], d)
+            )
+            await _call(lambda m=made: jira.link_issues(created.key, m.key))
+        keys.append(made.key)
+    return {"feature": {"key": created.key, "url": created.url}, "stories": keys, "project": project}
+
+
+async def jira_link_pull_request(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    allowed = _jira_projects(caller, write=True)
+    key, url = args.get("key") or "", args.get("url") or ""
+    project = _project_of(key, allowed)
+    if not isinstance(url, str) or not url.startswith("https://") or len(url) > 500:
+        raise ToolError("invalid_argument", "url must be the pull request's https:// address")
+    _, settings = allowed[project]
+    jira = _jira(platform, caller, settings)
+    await _call(lambda: jira.add_web_link(key, url, str(args.get("title") or "Design specification")))
+    return {"key": key, "linked": url}
+
+
+# Repositories ---------------------------------------------------------------------------------------------
+
+
+def _repo(platform: "Platform", caller: "Caller", name: Any, write: bool):
+    teams = {(t := _run_team(caller)): (scope(caller).get(t) or {})} if write else scope(caller)
+    for systems in teams.values():
+        for repo in systems.get("repositories") or ():
+            if isinstance(name, str) and repo["repo"].lower() == name.lower():
+                system, edition = _edition(caller, repo["provider"])
+                base_url = repo.get("base_url") or (caller.bundle.config["providers"][repo["provider"]].get("base_url"))
+                client = repository(
+                    system, edition, base_url, repo["repo"], _credential(platform, caller, repo["provider"])
+                )
+                return client, repo
+    raise ToolError(CONSTRAINT, "that repository is not one of your team's")
+
+
+async def repo_list(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    client, repo = _repo(platform, caller, args.get("repo"), write=False)
+    path = str(args.get("path") or "").strip("/")
+    entries = await _call(lambda: client.list_dir(path, args.get("ref")))
+    return {"repo": repo["repo"], "path": path, "entries": entries[:200]}
+
+
+async def repo_read_file(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    client, repo = _repo(platform, caller, args.get("repo"), write=False)
+    path = str(args.get("path") or "")
+    content = await _call(lambda: client.read_file(path, args.get("ref")))
+    return {"repo": repo["repo"], "path": path, "content": content[:100_000], "truncated": len(content) > 100_000}
+
+
+async def repo_open_design_pull_request(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    """The approved design specification as a pull request on one of the run's team's repositories (FR-SDLC-005):
+    files under `<design_path>/<feature key>/`, on a new branch, committed with the user's own connection."""
+    client, repo = _repo(platform, caller, args.get("repo"), write=True)
+    feature = args.get("feature_key") or ""
+    _project_of(feature, _jira_projects(caller, write=True))
+    files = args.get("files") or []
+    if not isinstance(files, list) or not 1 <= len(files) <= 10:
+        raise ToolError("invalid_argument", "give 1 to 10 files")
+    changes = []
+    for f in files:
+        name, content = (f or {}).get("name"), (f or {}).get("content")
+        if (
+            not isinstance(name, str)
+            or not FILE_NAME.match(name)
+            or not isinstance(content, str)
+            or len(content) > 500_000
+        ):
+            raise ToolError("invalid_argument", "each file needs a plain name (such as design.md) and its text")
+        changes.append(FileChange(f"{repo['design_path']}/{feature}/{name}", content))
+    title, body = str(args.get("title") or f"{feature}: design specification")[:200], str(args.get("body") or "")
+    branch = f"design/{feature}-{secrets.token_hex(3)}"
+    pr = await _call(
+        lambda: client.open_pull_request(
+            branch, repo["default_branch"], title, body, changes, f"{feature}: design specification"
+        )
+    )
+    return {
+        "repo": repo["repo"],
+        "number": pr.number,
+        "url": pr.url,
+        "branch": pr.branch,
+        "files": [c.path for c in changes],
+    }
+
+
+# The connection test (FR-CONN-001) ------------------------------------------------------------------------
+
+
+async def connection_test(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    """Signs in to the provider with the user's connection and says as whom; the token is never returned."""
+    provider = args.get("provider")
+    system, edition = _edition(caller, provider) if isinstance(provider, str) else ("", "")
+    if not system:
+        raise ToolError("unknown_provider", "unknown provider")
+    credential = _credential(platform, caller, provider)
+    stored = platform.connections.metadata(caller.identity.user_id, provider)
+    base_url = stored.get("base_url")
+    if system == "jira" and not base_url:  # Jira Cloud: the site of one of the user's teams
+        sites = [
+            s["jira"]["base_url"] for s in scope(caller).values() if s.get("jira") and s["jira"]["provider"] == provider
+        ]
+        base_url = sites[0] if sites else None
+    if not base_url:
+        raise ToolError("unavailable", "no site to test against: none of your teams uses this provider here")
+    if system == "jira":
+        client: Any = Jira(base_url, edition, credential)
+    else:
+        client = repository(system, edition, base_url, "x/x", credential)
+    try:
+        who = await asyncio.to_thread(client.whoami)
+    except ConnectorError as exc:
+        return {"provider": provider, "status": "failed", "reason": exc.code}
+    return {"provider": provider, "status": "ok", "account": who.get("account")}

@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from user_agent_mcp import systems
 from user_agent_mcp.errors import ToolError
 
 if TYPE_CHECKING:
@@ -259,6 +260,135 @@ TOOLS: dict[str, Tool] = {
             connection_save,
             write=True,
             http_only=True,
+        ),
+        Tool(
+            "connection_test",
+            "Check that one of your connections signs in, and as whom. The token is never shown.",
+            _schema({"provider": PROVIDER}, ("provider",)),
+            systems.connection_test,
+        ),
+        Tool(
+            "team_systems",
+            "The Jira project and repositories (with their design paths) of your teams, or of this run's team.",
+            _schema(),
+            systems.team_systems,
+        ),
+        Tool(
+            "jira_get_issue",
+            "Read a Jira issue of your team's project with your own connection; a feature comes with its stories, "
+            "and whether its status allows a design or development run.",
+            _schema({"key": {"type": "string", "description": "A Jira issue key, such as PAY-12."}}, ("key",)),
+            systems.jira_get_issue,
+        ),
+        Tool(
+            "jira_search",
+            "Find issues in your team's Jira project by words, issue type or status.",
+            _schema(
+                {
+                    "text": {"type": "string"},
+                    "issue_type": {"type": "string", "description": "For example Feature or User Story."},
+                    "status": {"type": "string", "description": "For example In Design."},
+                }
+            ),
+            systems.jira_search,
+        ),
+        Tool(
+            "jira_create_feature",
+            "Create the approved feature and its user stories in the run's team's Jira project, as you. Only after "
+            "the user approved them in the chat.",
+            _schema(
+                {
+                    "feature": {
+                        "type": "object",
+                        "properties": {"summary": {"type": "string"}, "description": {"type": "string"}},
+                        "required": ["summary"],
+                    },
+                    "stories": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {"summary": {"type": "string"}, "description": {"type": "string"}},
+                            "required": ["summary"],
+                        },
+                    },
+                },
+                ("feature", "stories"),
+            ),
+            systems.jira_create_feature,
+            write=True,
+        ),
+        Tool(
+            "jira_link_pull_request",
+            "Link a pull request to a Jira issue of the run's team's project.",
+            _schema(
+                {
+                    "key": {"type": "string", "description": "A Jira issue key, such as PAY-12."},
+                    "url": {"type": "string"},
+                    "title": {"type": "string"},
+                },
+                ("key", "url"),
+            ),
+            systems.jira_link_pull_request,
+            write=True,
+        ),
+        Tool(
+            "repo_list",
+            "List a folder of one of your team's repositories.",
+            _schema(
+                {
+                    "repo": {
+                        "type": "string",
+                        "description": "owner/name of one of your team's repositories (team_systems).",
+                    },
+                    "path": {"type": "string"},
+                    "ref": {"type": "string"},
+                },
+                ("repo",),
+            ),
+            systems.repo_list,
+        ),
+        Tool(
+            "repo_read_file",
+            "Read a file of one of your team's repositories.",
+            _schema(
+                {
+                    "repo": {
+                        "type": "string",
+                        "description": "owner/name of one of your team's repositories (team_systems).",
+                    },
+                    "path": {"type": "string"},
+                    "ref": {"type": "string"},
+                },
+                ("repo", "path"),
+            ),
+            systems.repo_read_file,
+        ),
+        Tool(
+            "repo_open_design_pull_request",
+            "Open a pull request that adds the approved design specification under the repository's design path, "
+            "in a folder named for the feature, committed as you. Only after the user approved the design.",
+            _schema(
+                {
+                    "repo": {
+                        "type": "string",
+                        "description": "owner/name of one of your team's repositories (team_systems).",
+                    },
+                    "feature_key": {"type": "string", "description": "A Jira issue key, such as PAY-12."},
+                    "title": {"type": "string"},
+                    "body": {"type": "string"},
+                    "files": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {"name": {"type": "string"}, "content": {"type": "string"}},
+                            "required": ["name", "content"],
+                        },
+                    },
+                },
+                ("repo", "feature_key", "files"),
+            ),
+            systems.repo_open_design_pull_request,
+            write=True,
         ),
         Tool(
             "knowledge_search",

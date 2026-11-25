@@ -1,5 +1,10 @@
 ## 2026-11-25
 
+* **Update**: Phase 4 split into 4a (design flow in sdlc_ui) and 4b (A2A router and Gemini Enterprise), the
+  user's choice. 4a milestone 1: [Connectors](components/connectors.md) for Jira, GitHub and Bitbucket in both
+  editions, teams' systems per environment in the [Configuration Registry](components/configuration-registry.md),
+  and Jira and repository tools in [user_agent_mcp](components/user-agent-mcp.md) with argument constraints.
+  FR-AUTHZ-003 built.
 * **Update**: Phase 3 deployed to development: [user_agent](components/user-agent.md) on
   [Agent Runtime](components/agent-runtime.md) and [sdlc_ui](components/sdlc-ui.md) behind IAP. The user
   confirmed chat and artifacts in the browser.

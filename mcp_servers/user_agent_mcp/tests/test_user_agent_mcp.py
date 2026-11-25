@@ -464,3 +464,178 @@ def test_knowledge_without_a_search_service_is_unavailable(env):
     publish(env[2], {**KNOWLEDGE_CONFIG, "members": CONFIG["members"]})
     result, error = call(client, "ada-agent", "knowledge_search", query="x")
     assert error and result["error"] == "knowledge_unavailable"
+
+
+# Jira and repositories with the user's own connection, on their team's systems only (FR-AUTHZ-003) -------------
+
+SYSTEMS_CONFIG = {
+    **CONFIG,
+    "tool_groups": {
+        **CONFIG["tool_groups"],
+        "connections": {
+            "description": "-",
+            "tools": ["connection_list", "connection_start", "connection_revoke", "connection_test"],
+        },
+        "jira": {
+            "description": "-",
+            "tools": ["team_systems", "jira_get_issue", "jira_search", "jira_create_feature", "jira_link_pull_request"],
+        },
+        "repositories": {"description": "-", "tools": ["repo_list", "repo_read_file", "repo_open_design_pull_request"]},
+    },
+    "surfaces": {
+        s: {"description": "-", "tool_groups": [*CONFIG["surfaces"][s]["tool_groups"], "jira", "repositories"]}
+        for s in CONFIG["surfaces"]
+    },
+    "teams": {**CONFIG["teams"], "risk": {"name": "Risk", "description": "-", "roles": ["member"]}},
+    "grants": [{**CONFIG["grants"][0], "tool_groups": [*CONFIG["grants"][0]["tool_groups"], "jira", "repositories"]}],
+    "providers": {**CONFIG["providers"], "jira_cloud": {"name": "Jira Cloud", "system": "jira", "edition": "cloud"}},
+    "team_systems": {
+        "payments": {
+            "jira": {
+                "provider": "jira_cloud",
+                "base_url": "https://pay.atlassian.net",
+                "project": "PAY",
+                "feature_type": "Feature",
+                "story_type": "User Story",
+                "story_link": "parent",
+                "design_status": "In Design",
+                "development_status": "In Development",
+            },
+            "repositories": [
+                {"provider": "github", "repo": "org/payments", "design_path": "docs/specs", "default_branch": "main"}
+            ],
+        },
+        "risk": {
+            "repositories": [
+                {"provider": "github", "repo": "org/risk", "design_path": "docs", "default_branch": "main"}
+            ]
+        },
+    },
+}
+
+
+@pytest.fixture
+def senv(env, monkeypatch):
+    """The `env` service with team systems, Ada's Jira and GitHub connections, and Jira and GitHub faked."""
+    client, platform, config_root, _ = env
+    publish(config_root, SYSTEMS_CONFIG)
+    platform.connections.save(
+        "1001", "jira_cloud", SYSTEMS_CONFIG["providers"]["jira_cloud"], "jira-token", "ada@example.test", None
+    )
+    platform.connections.save("1001", "github", SYSTEMS_CONFIG["providers"]["github"], "gh-token", None, None)
+    seen: list[httpx.Request] = []
+    created = iter(range(101, 200))
+
+    def issue(key, kind="Feature", status="In Design", parent=None):
+        fields = {
+            "summary": f"{key} summary",
+            "status": {"name": status},
+            "issuetype": {"name": kind},
+            "description": None,
+        }
+        return {"key": key, "fields": fields | ({"parent": {"key": parent}} if parent else {})}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        path, method = request.url.path, request.method
+        if path == "/rest/api/3/issue/PAY-1":
+            return httpx.Response(200, json=issue("PAY-1"))
+        if path == "/rest/api/3/search/jql":
+            return httpx.Response(200, json={"issues": [issue("PAY-2", "User Story", parent="PAY-1")]})
+        if path == "/rest/api/3/issue" and method == "POST":
+            return httpx.Response(201, json={"key": f"PAY-{next(created)}"})
+        if path.startswith("/rest/api/3/issue/PAY-1"):
+            return httpx.Response(200, json=issue(path.rsplit("/", 1)[-1]))
+        if path == "/rest/api/3/myself":
+            return httpx.Response(200, json={"emailAddress": "ada@example.test"})
+        if path == "/repos/org/payments/git/ref/heads/main":
+            return httpx.Response(200, json={"object": {"sha": "abc"}})
+        if path in ("/repos/org/payments/git/refs",) or path.startswith("/repos/org/payments/contents/"):
+            return httpx.Response(201, json={})
+        if path == "/repos/org/payments/pulls":
+            return httpx.Response(201, json={"number": 5, "html_url": "https://github.com/org/payments/pull/5"})
+        return httpx.Response(404)
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        "sdlc_connectors.base.httpx.Client", lambda **kw: real_client(transport=httpx.MockTransport(handler))
+    )
+    return client, seen
+
+
+def tool(client, headers, name, **arguments):
+    result = json.loads(kcall(client, headers, name, **arguments).json()["result"]["content"][0]["text"])
+    return result
+
+
+def test_a_feature_is_read_with_its_stories_as_the_user(senv):
+    client, seen = senv
+    found = tool(client, WHO["ada-ui"], "jira_get_issue", key="PAY-1")
+    assert found["allows_design"] and [s["key"] for s in found["stories"]] == ["PAY-2"]
+    auth = seen[0].headers["authorization"].removeprefix("Basic ")
+    assert base64.b64decode(auth).decode() == "ada@example.test:jira-token"
+    assert 'project = "PAY" AND parent = PAY-1' in json.loads(seen[1].content)["jql"]
+
+
+def test_other_projects_and_repositories_are_refused_before_any_call(senv):
+    client, seen = senv
+    assert tool(client, WHO["ada-ui"], "jira_get_issue", key="RISK-1")["error"] == "constraint_denied"
+    assert (
+        tool(client, WHO["ada-ui"], "repo_read_file", repo="org/risk", path="README.md")["error"] == "constraint_denied"
+    )
+    assert seen == []
+
+
+def test_search_is_confined_to_the_team_project(senv):
+    client, seen = senv
+    tool(client, WHO["ada-ui"], "jira_search", text='refunds" OR project = RISK OR "', status="In Design")
+    jql = json.loads(seen[0].content)["jql"]
+    assert jql.startswith('project = "PAY" AND text ~ "refunds  OR project = RISK OR"') and '"In Design"' in jql
+
+
+def test_writes_need_a_run_for_the_team(senv):
+    client, _ = senv
+    args = {"feature": {"summary": "Refunds"}, "stories": [{"summary": "As a payer, I want a refund"}]}
+    assert tool(client, WHO["ada-ui"], "jira_create_feature", **args)["error"] == "team_run_required"
+    made = tool(client, {**WHO["ada-ui"], "X-SDLC-Team": "payments"}, "jira_create_feature", **args)
+    assert made["feature"]["key"] == "PAY-101" and made["stories"] == ["PAY-102"]
+
+
+def test_a_design_pull_request_adds_files_under_the_design_path_only(senv):
+    client, seen = senv
+    team = {**WHO["ada-ui"], "X-SDLC-Team": "payments"}
+    bad = tool(
+        client,
+        team,
+        "repo_open_design_pull_request",
+        repo="org/payments",
+        feature_key="PAY-1",
+        files=[{"name": "../../x.md", "content": "x"}],
+    )
+    assert bad["error"] == "invalid_argument"
+    pr = tool(
+        client,
+        team,
+        "repo_open_design_pull_request",
+        repo="org/payments",
+        feature_key="PAY-1",
+        files=[{"name": "design.md", "content": "# D"}],
+    )
+    assert pr["url"] == "https://github.com/org/payments/pull/5" and pr["files"] == ["docs/specs/PAY-1/design.md"]
+    assert pr["branch"].startswith("design/PAY-1-")
+    assert any(r.url.path == "/repos/org/payments/contents/docs/specs/PAY-1/design.md" for r in seen)
+    assert all(r.headers.get("authorization") == "Bearer gh-token" for r in seen)
+
+
+def test_without_a_connection_the_user_is_told_to_connect(senv, env):
+    client, _ = senv
+    env[1].connections.revoke("1001", "github")
+    assert (
+        tool(client, WHO["ada-ui"], "repo_read_file", repo="org/payments", path="README.md")["error"] == "not_connected"
+    )
+
+
+def test_connection_test_signs_in_and_never_returns_the_token(senv):
+    client, _ = senv
+    result = tool(client, WHO["ada-ui"], "connection_test", provider="jira_cloud")
+    assert result == {"provider": "jira_cloud", "status": "ok", "account": "ada@example.test"}

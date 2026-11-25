@@ -4,12 +4,12 @@
 surfaces:
   sdlc_ui:
     description: The platform's web UI and its backend; the only place connection secrets are entered.
-    tool_groups: [identity, artifacts, connections, connection_secrets, knowledge]
+    tool_groups: [identity, artifacts, connections, connection_secrets, knowledge, jira, repositories]
   user_agent:
     description: The interactive agent on the agent runtime, in sessions sdlc_ui starts for the user.
-    tool_groups: [identity, artifacts, connections, knowledge]
+    tool_groups: [identity, artifacts, connections, knowledge, jira, repositories]
   gemini_enterprise:
     description: >-
       The Gemini Enterprise app, through the A2A router and user_agent. Needs identity mode oauth, so it is not
       reachable for now (DEC-0010).
-    tool_groups: [identity, artifacts, connections, knowledge]
+    tool_groups: [identity, artifacts, connections, knowledge, jira, repositories]

@@ -6,7 +6,7 @@ tags: [requirement, authorization]
 status: draft
 x-area: AUTHZ
 x-priority: must
-x-implementation: planned
+x-implementation: built
 ---
 
 # Statement
