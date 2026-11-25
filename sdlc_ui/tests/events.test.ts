@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { EventType } from "@ag-ui/client";
 
-import { adkToAgui, chatSummaries, historyMessages, latestUserText, turnInput } from "../lib/events.ts";
+import { adkToAgui, chatSummaries, failureEvents, failureText, historyMessages, latestUserText, turnInput } from "../lib/events.ts";
 
 const types = (events: { type: string }[]) => events.map((e) => e.type);
 
@@ -122,4 +122,17 @@ test("a reopened chat shows the workflow's questions and the user's answers, not
 test("a team chat is listed with its team", () => {
   const [chat] = chatSummaries({ sessions: [{ id: "s1", state: { sdlc_title: "Refunds", sdlc_team: "payments" }, lastUpdateTime: 1 }] });
   assert.equal(chat.team, "payments");
+});
+
+test("a failed run closes its open tool cards and says why, without the error's details", () => {
+  const busy = { error: { code: 503, message: "The service is currently unavailable. secret-ish detail" } };
+  assert.match(failureText(busy), /busy/);
+  assert.doesNotMatch(failureText(busy), /secret-ish/);
+  const events = failureEvents(["c1", "c2"], busy);
+  assert.deepEqual(
+    events.map((e) => e.type),
+    [EventType.TOOL_CALL_RESULT, EventType.TOOL_CALL_RESULT, EventType.TEXT_MESSAGE_START, EventType.TEXT_MESSAGE_CONTENT, EventType.TEXT_MESSAGE_END],
+  );
+  assert.equal(JSON.parse((events[0] as unknown as { content: string }).content).error, "failed");
+  assert.match(failureText({ error: "boom" }), /stopped with an error/);
 });

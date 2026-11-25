@@ -49,6 +49,7 @@ REVIEWERS = (
 )
 SERIOUS = ("blocker", "major")
 CLEAN_ROUNDS = 2  # stop after two clean rounds in a row
+REVIEWERS_AT_ONCE = 3  # parallel reviewer calls, to soften bursts against the model's capacity
 ASK_AT_ROUND = 5  # from the fifth round, ask whether to go on
 FENCE = re.compile(r"^```[a-zA-Z]*\n(.*)\n```\s*$", re.S)
 
@@ -343,6 +344,7 @@ def review_workflow(kit: Kit, kind: str, drafting_skill: str) -> Workflow:
     return Workflow(
         name=p,
         input_schema=ReviewIn,
+        max_concurrency=REVIEWERS_AT_ONCE,
         edges=[
             (START, begin_n, round_n),
             (round_n, reviewers),

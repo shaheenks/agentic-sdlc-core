@@ -1,30 +1,30 @@
 :root {
-  --bg: #f7f7f8;
-  --surface: #ffffff;
-  --text: #1f2328;
-  --muted: #646a73;
-  --line: #e3e5e8;
-  --accent: #2f5fd0;
-  --accent-text: #ffffff;
-  --active: #eef2fc;
-  --danger: #b42318;
-  --code-bg: #f1f3f6;
+  --sdlc-bg: #f7f7f8;
+  --sdlc-surface: #ffffff;
+  --sdlc-text: #1f2328;
+  --sdlc-muted: #646a73;
+  --sdlc-line: #e3e5e8;
+  --sdlc-accent: #2f5fd0;
+  --sdlc-accent-text: #ffffff;
+  --sdlc-active: #eef2fc;
+  --sdlc-danger: #b42318;
+  --sdlc-code-bg: #f1f3f6;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #15171a;
-    --surface: #1d2024;
-    --text: #e6e8eb;
-    --muted: #9aa1aa;
-    --line: #2c3036;
-    --accent: #7a9cf0;
-    --accent-text: #0f1114;
-    --active: #24324f;
-    --danger: #f2877c;
-    --code-bg: #262a30;
+    --sdlc-bg: #15171a;
+    --sdlc-surface: #1d2024;
+    --sdlc-text: #e6e8eb;
+    --sdlc-muted: #9aa1aa;
+    --sdlc-line: #2c3036;
+    --sdlc-accent: #7a9cf0;
+    --sdlc-accent-text: #0f1114;
+    --sdlc-active: #24324f;
+    --sdlc-danger: #f2877c;
+    --sdlc-code-bg: #262a30;
     color-scheme: dark;
   }
 }
@@ -37,8 +37,8 @@ html,
 body {
   margin: 0;
   height: 100%;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--sdlc-bg);
+  color: var(--sdlc-text);
 }
 
 body {
@@ -47,7 +47,7 @@ body {
 }
 
 a {
-  color: var(--accent);
+  color: var(--sdlc-accent);
 }
 
 .topbar {
@@ -55,13 +55,13 @@ a {
   align-items: center;
   gap: 24px;
   padding: 10px 20px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
+  background: var(--sdlc-surface);
+  border-bottom: 1px solid var(--sdlc-line);
 }
 
 .brand {
   font-weight: 600;
-  color: var(--text);
+  color: var(--sdlc-text);
   text-decoration: none;
 }
 
@@ -71,22 +71,22 @@ a {
 }
 
 .topbar nav a {
-  color: var(--muted);
+  color: var(--sdlc-muted);
   text-decoration: none;
   padding: 4px 0;
   border-bottom: 2px solid transparent;
 }
 
 .topbar nav a.active {
-  color: var(--text);
-  border-bottom-color: var(--accent);
+  color: var(--sdlc-text);
+  border-bottom-color: var(--sdlc-accent);
 }
 
 .who {
   margin-left: auto;
   display: flex;
   gap: 16px;
-  color: var(--muted);
+  color: var(--sdlc-muted);
   font-size: 14px;
 }
 
@@ -96,8 +96,8 @@ button {
 }
 
 button.primary {
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--sdlc-accent);
+  color: var(--sdlc-accent-text);
   border: 0;
   border-radius: 6px;
   padding: 8px 14px;
@@ -112,30 +112,30 @@ button.link {
   background: none;
   border: 0;
   padding: 0;
-  color: var(--accent);
+  color: var(--sdlc-accent);
   text-align: left;
 }
 
 button.icon {
   background: none;
   border: 0;
-  color: var(--muted);
+  color: var(--sdlc-muted);
   font-size: 18px;
   padding: 0 6px;
 }
 
 .danger {
-  color: var(--danger) !important;
+  color: var(--sdlc-danger) !important;
 }
 
 .error {
-  color: var(--danger);
+  color: var(--sdlc-danger);
 }
 
 .empty,
 .hint,
 small {
-  color: var(--muted);
+  color: var(--sdlc-muted);
 }
 
 /* chat */
@@ -148,8 +148,8 @@ small {
 .chats {
   width: 260px;
   flex-shrink: 0;
-  border-right: 1px solid var(--line);
-  background: var(--surface);
+  border-right: 1px solid var(--sdlc-line);
+  background: var(--sdlc-surface);
   padding: 12px;
   overflow-y: auto;
 }
@@ -171,7 +171,7 @@ small {
 }
 
 .chats li.active {
-  background: var(--active);
+  background: var(--sdlc-active);
 }
 
 .chat-title {
@@ -183,7 +183,7 @@ small {
   border: 0;
   padding: 8px;
   text-align: left;
-  color: var(--text);
+  color: var(--sdlc-text);
 }
 
 .chat-title span {
@@ -230,22 +230,25 @@ small {
   margin-bottom: 0.4em;
 }
 
+/* Our colour tokens are --sdlc-*: CopilotKit's container defines its own --muted and --accent (pale background
+   colours), which would otherwise win inside the chat. */
+
 /* Citations are links, often around a `path`: CopilotKit's renderer colours links with its own --primary, which
    leaves them unreadable on our background. Use the page's colours, in light and dark. */
 .chat [data-streamdown="link"] {
-  color: var(--accent);
-  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--sdlc-accent);
+  text-decoration-color: color-mix(in srgb, var(--sdlc-accent) 45%, transparent);
   text-underline-offset: 2px;
 }
 
 .chat [data-streamdown="inline-code"] {
-  color: var(--text);
-  background: var(--code-bg);
-  border: 1px solid var(--line);
+  color: var(--sdlc-text);
+  background: var(--sdlc-code-bg);
+  border: 1px solid var(--sdlc-line);
 }
 
 .chat [data-streamdown="link"] [data-streamdown="inline-code"] {
-  color: var(--accent);
+  color: var(--sdlc-accent);
 }
 
 .chat .cpk\:prose > :first-child {
@@ -285,9 +288,9 @@ small {
 .list {
   list-style: none;
   padding: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--sdlc-line);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--sdlc-surface);
 }
 
 .list li {
@@ -295,7 +298,7 @@ small {
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--sdlc-line);
 }
 
 .list li:last-child {
@@ -303,7 +306,7 @@ small {
 }
 
 .list li.active {
-  background: var(--active);
+  background: var(--sdlc-active);
 }
 
 .list li > span:first-child {
@@ -320,8 +323,8 @@ small {
 }
 
 .preview {
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: var(--sdlc-surface);
+  border: 1px solid var(--sdlc-line);
   border-radius: 8px;
   padding: 16px 20px;
   min-height: 300px;
@@ -347,10 +350,10 @@ label {
 input {
   font: inherit;
   padding: 8px 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--sdlc-line);
   border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
+  background: var(--sdlc-surface);
+  color: var(--sdlc-text);
 }
 
 @media (max-width: 760px) {
@@ -442,54 +445,54 @@ input {
    background or dark on our dark one. Inside the chat, everything takes the page's own tokens, which follow the
    page's light and dark scheme. */
 .chat [data-copilotkit][data-copilotkit] {
-  --foreground: var(--text);
-  --card-foreground: var(--text);
-  --popover-foreground: var(--text);
-  --accent-foreground: var(--text);
-  --secondary-foreground: var(--text);
-  --muted-foreground: var(--muted);
+  --foreground: var(--sdlc-text);
+  --card-foreground: var(--sdlc-text);
+  --popover-foreground: var(--sdlc-text);
+  --accent-foreground: var(--sdlc-text);
+  --secondary-foreground: var(--sdlc-text);
+  --muted-foreground: var(--sdlc-muted);
 }
 
 .chat .cpk\:prose,
 .chat .cpk\:prose:is(.dark *) {
-  color: var(--text);
-  --tw-prose-body: var(--text);
-  --tw-prose-headings: var(--text);
-  --tw-prose-lead: var(--text);
-  --tw-prose-bold: var(--text);
-  --tw-prose-links: var(--accent);
-  --tw-prose-counters: var(--muted);
-  --tw-prose-bullets: var(--muted);
-  --tw-prose-hr: var(--line);
-  --tw-prose-quotes: var(--text);
-  --tw-prose-quote-borders: var(--line);
-  --tw-prose-captions: var(--muted);
-  --tw-prose-code: var(--text);
-  --tw-prose-pre-code: var(--text);
-  --tw-prose-pre-bg: var(--code-bg);
-  --tw-prose-th-borders: var(--line);
-  --tw-prose-td-borders: var(--line);
-  --tw-prose-invert-body: var(--text);
-  --tw-prose-invert-headings: var(--text);
-  --tw-prose-invert-lead: var(--text);
-  --tw-prose-invert-bold: var(--text);
-  --tw-prose-invert-links: var(--accent);
-  --tw-prose-invert-counters: var(--muted);
-  --tw-prose-invert-bullets: var(--muted);
-  --tw-prose-invert-hr: var(--line);
-  --tw-prose-invert-quotes: var(--text);
-  --tw-prose-invert-quote-borders: var(--line);
-  --tw-prose-invert-captions: var(--muted);
-  --tw-prose-invert-code: var(--text);
-  --tw-prose-invert-pre-code: var(--text);
-  --tw-prose-invert-pre-bg: var(--code-bg);
-  --tw-prose-invert-th-borders: var(--line);
-  --tw-prose-invert-td-borders: var(--line);
+  color: var(--sdlc-text);
+  --tw-prose-body: var(--sdlc-text);
+  --tw-prose-headings: var(--sdlc-text);
+  --tw-prose-lead: var(--sdlc-text);
+  --tw-prose-bold: var(--sdlc-text);
+  --tw-prose-links: var(--sdlc-accent);
+  --tw-prose-counters: var(--sdlc-muted);
+  --tw-prose-bullets: var(--sdlc-muted);
+  --tw-prose-hr: var(--sdlc-line);
+  --tw-prose-quotes: var(--sdlc-text);
+  --tw-prose-quote-borders: var(--sdlc-line);
+  --tw-prose-captions: var(--sdlc-muted);
+  --tw-prose-code: var(--sdlc-text);
+  --tw-prose-pre-code: var(--sdlc-text);
+  --tw-prose-pre-bg: var(--sdlc-code-bg);
+  --tw-prose-th-borders: var(--sdlc-line);
+  --tw-prose-td-borders: var(--sdlc-line);
+  --tw-prose-invert-body: var(--sdlc-text);
+  --tw-prose-invert-headings: var(--sdlc-text);
+  --tw-prose-invert-lead: var(--sdlc-text);
+  --tw-prose-invert-bold: var(--sdlc-text);
+  --tw-prose-invert-links: var(--sdlc-accent);
+  --tw-prose-invert-counters: var(--sdlc-muted);
+  --tw-prose-invert-bullets: var(--sdlc-muted);
+  --tw-prose-invert-hr: var(--sdlc-line);
+  --tw-prose-invert-quotes: var(--sdlc-text);
+  --tw-prose-invert-quote-borders: var(--sdlc-line);
+  --tw-prose-invert-captions: var(--sdlc-muted);
+  --tw-prose-invert-code: var(--sdlc-text);
+  --tw-prose-invert-pre-code: var(--sdlc-text);
+  --tw-prose-invert-pre-bg: var(--sdlc-code-bg);
+  --tw-prose-invert-th-borders: var(--sdlc-line);
+  --tw-prose-invert-td-borders: var(--sdlc-line);
 }
 
 .chat [data-streamdown="blockquote"] {
-  color: var(--text);
-  border-color: var(--line);
+  color: var(--sdlc-text);
+  border-color: var(--sdlc-line);
 }
 
 /* Connection checks */
@@ -501,10 +504,10 @@ input {
   color: #067647;
 }
 .check-refused {
-  color: var(--danger);
+  color: var(--sdlc-danger);
 }
 .check-untested {
-  color: var(--muted);
+  color: var(--sdlc-muted);
 }
 @media (prefers-color-scheme: dark) {
   .check-ok {
@@ -513,19 +516,19 @@ input {
 }
 form .hint {
   display: block;
-  color: var(--muted);
+  color: var(--sdlc-muted);
   font-size: 0.8rem;
 }
 
 /* Tool call cards and timings */
 .tool-card {
-  border: 1px solid var(--line);
+  border: 1px solid var(--sdlc-line);
   border-radius: 0.4rem;
   padding: 0.3rem 0.55rem;
   margin: 0.3rem 0;
   font-size: 0.85rem;
-  color: var(--text);
-  background: var(--surface);
+  color: var(--sdlc-text);
+  background: var(--sdlc-surface);
 }
 .tool-card > summary {
   cursor: pointer;
@@ -544,7 +547,7 @@ div.tool-card {
 .tool-detail,
 .tool-meta,
 .tool-empty {
-  color: var(--muted);
+  color: var(--sdlc-muted);
 }
 .tool-mark {
   width: 1em;
@@ -554,13 +557,13 @@ div.tool-card {
   color: #067647;
 }
 .tool-failed {
-  color: var(--danger);
+  color: var(--sdlc-danger);
 }
 .tool-stopped {
-  color: var(--muted);
+  color: var(--sdlc-muted);
 }
 .tool-running {
-  color: var(--accent);
+  color: var(--sdlc-accent);
 }
 @media (prefers-color-scheme: dark) {
   .tool-done {
@@ -583,7 +586,7 @@ div.tool-card {
   margin: 0.15rem 0 0;
 }
 .tool-hits a {
-  color: var(--accent);
+  color: var(--sdlc-accent);
 }
 .tool-heading {
   font-style: italic;
@@ -598,14 +601,32 @@ div.tool-card {
   display: contents;
 }
 .tool-facts dt {
-  color: var(--muted);
+  color: var(--sdlc-muted);
 }
 .tool-facts dd {
   margin: 0;
 }
 .timed .elapsed {
   display: block;
-  color: var(--muted);
+  color: var(--sdlc-muted);
   font-size: 0.75rem;
   margin: -0.1rem 0 0.4rem;
+}
+
+/* Readability: a wider column for answers, a comfortable size and line height, list markers as dark as the text. */
+.chat .cpk\:max-w-3xl {
+  max-width: min(100%, 64rem);
+}
+.chat .cpk\:prose {
+  font-size: 1rem;
+  line-height: 1.65;
+}
+.chat .cpk\:prose :where(li)::marker {
+  color: var(--sdlc-text);
+}
+.chat .cpk\:prose :where(code):not(pre code) {
+  font-size: 0.875em;
+}
+.chat [data-streamdown="link"] {
+  font-weight: 500;
 }

@@ -1,5 +1,9 @@
 ## 2026-11-25
 
+* **Update**: [user_agent](components/user-agent.md) retries model calls on 429 and 5xx with backoff and runs at
+  most three reviewers at once (Gemini answered 503 and failed design runs); [sdlc_ui](components/sdlc-ui.md)
+  closes a failed run's open tool cards and says why, uses its own colour tokens (CopilotKit's --muted and
+  --accent had made list markers, links and secondary text unreadable), and widens the answer column.
 * **Update**: [sdlc_ui](components/sdlc-ui.md): tool calls as concise cards, knowledge queries collapsed with their
   results; elapsed time per answer and per turn.
 * **Update**: [GCP Foundation](components/gcp-foundation.md): Cloud NAT on the platform subnet, so user_agent_mcp

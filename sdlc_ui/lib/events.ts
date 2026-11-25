@@ -218,3 +218,33 @@ export function turnInput(messages: TurnMessage[]): string | AdkContent {
   }
   return latestUserText(messages);
 }
+
+/** Why a run failed, in words for the user: never the error's details, which could carry data. */
+export function failureText(item: unknown): string {
+  const raw = JSON.stringify(item ?? "");
+  if (/\b(503|429|UNAVAILABLE|RESOURCE_EXHAUSTED)\b/.test(raw)) {
+    return "The model service was busy and the run stopped. Please try again in a moment.";
+  }
+  return "The run stopped with an error. Please try again.";
+}
+
+/** A failed run, shown instead of a silent error: its open tool calls close as failed, and a message says why. */
+export function failureEvents(openToolCalls: string[], item: unknown): BaseEvent[] {
+  const text = failureText(item);
+  const id = nextId("failed");
+  return [
+    ...openToolCalls.map(
+      (toolCallId, i) =>
+        ({
+          type: EventType.TOOL_CALL_RESULT,
+          messageId: `${id}-r${i}`,
+          toolCallId,
+          content: JSON.stringify({ error: "failed", message: text }),
+          role: "tool",
+        }) as BaseEvent,
+    ),
+    { type: EventType.TEXT_MESSAGE_START, messageId: id, role: "assistant" } as BaseEvent,
+    { type: EventType.TEXT_MESSAGE_CONTENT, messageId: id, delta: text } as BaseEvent,
+    { type: EventType.TEXT_MESSAGE_END, messageId: id } as BaseEvent,
+  ];
+}

@@ -51,13 +51,23 @@ teams (whoami lists them) it is for.
   question plainly and send back the user's answer."""
 
 
+# Vertex AI answers 429 or 503 when a model is briefly over capacity; a workflow makes many calls (seven reviewers
+# per round), so one such answer must not fail the run. Retried with exponential backoff, up to about a minute.
+RETRY_STATUS = [408, 429, 500, 502, 503, 504]
+
+
 def model() -> Gemini:
-    from google.genai import Client
+    from google.genai import Client, types
 
     client = Client(
         vertexai=True,
         project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
         location=os.environ.get("SDLC_MODEL_LOCATION", DEFAULT_MODEL_LOCATION),
+        http_options=types.HttpOptions(
+            retry_options=types.HttpRetryOptions(
+                attempts=6, initial_delay=2.0, max_delay=30.0, exp_base=2.0, jitter=1.0, http_status_codes=RETRY_STATUS
+            )
+        ),
     )
     return Gemini(model=os.environ.get("SDLC_AGENT_MODEL", DEFAULT_MODEL), client=client)
 

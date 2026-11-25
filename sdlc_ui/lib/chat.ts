@@ -20,7 +20,7 @@ import {
 import { EMPTY, Observable, ReplaySubject } from "rxjs";
 
 import type { AgentClient } from "./backends.ts";
-import { adkToAgui, CHAT_ID, historyMessages, turnInput } from "./events.ts";
+import { adkToAgui, CHAT_ID, failureEvents, historyMessages, turnInput } from "./events.ts";
 import type { User } from "./identity.ts";
 
 export const USER_HEADERS = { id: "x-sdlc-user-id", email: "x-sdlc-user-email" } as const;
@@ -63,10 +63,20 @@ export class RuntimeAgent extends AbstractAgent {
         if (!user) return fail("Sign-in required.", "unauthenticated");
         if (!CHAT_ID.test(input.threadId)) return fail("Unknown chat.", "not_found");
         const message = turnInput(input.messages as Parameters<typeof turnInput>[0]);
+        // tool calls without a result yet: a failed run closes them, so no card stays "running"
+        const open = new Set<string>();
         for await (const item of this.client.ask(user, input.threadId, message, controller.signal)) {
           for (const event of adkToAgui(item)) {
+            if (event.type === EventType.RUN_ERROR) {
+              console.error("agent run failed: the runtime reported an error");
+              for (const closing of failureEvents([...open], item)) subscriber.next(closing);
+              subscriber.next({ type: EventType.RUN_FINISHED, ...ids } as BaseEvent);
+              return subscriber.complete();
+            }
+            const e = event as { type: string; toolCallId?: string };
+            if (e.type === EventType.TOOL_CALL_START && e.toolCallId) open.add(e.toolCallId);
+            if (e.type === EventType.TOOL_CALL_RESULT && e.toolCallId) open.delete(e.toolCallId);
             subscriber.next(event);
-            if (event.type === EventType.RUN_ERROR) return subscriber.complete();
           }
         }
         subscriber.next({ type: EventType.RUN_FINISHED, ...ids } as BaseEvent);
