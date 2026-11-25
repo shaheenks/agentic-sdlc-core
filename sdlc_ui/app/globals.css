@@ -8,6 +8,7 @@
   --accent-text: #ffffff;
   --active: #eef2fc;
   --danger: #b42318;
+  --code-bg: #f1f3f6;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
 }
@@ -23,6 +24,7 @@
     --accent-text: #0f1114;
     --active: #24324f;
     --danger: #f2877c;
+    --code-bg: #262a30;
     color-scheme: dark;
   }
 }
@@ -200,6 +202,58 @@ small {
 .chat > * {
   flex: 1;
   min-height: 0;
+}
+
+/* Assistant answers are Markdown in CopilotKit's `prose` container. Its default margins put a paragraph's worth
+   of space after every line of a loose list (each item a paragraph); keep answers compact. */
+.chat .cpk\:prose {
+  line-height: 1.55;
+}
+
+.chat .cpk\:prose :where(p, ul, ol, pre, blockquote, table) {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.chat .cpk\:prose :where(li) {
+  margin-top: 0.15em;
+  margin-bottom: 0.15em;
+}
+
+.chat .cpk\:prose :where(li > p, li > ul, li > ol) {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.chat .cpk\:prose :where(h1, h2, h3, h4) {
+  margin-top: 0.9em;
+  margin-bottom: 0.4em;
+}
+
+/* Citations are links, often around a `path`: CopilotKit's renderer colours links with its own --primary, which
+   leaves them unreadable on our background. Use the page's colours, in light and dark. */
+.chat [data-streamdown="link"] {
+  color: var(--accent);
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-underline-offset: 2px;
+}
+
+.chat [data-streamdown="inline-code"] {
+  color: var(--text);
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+}
+
+.chat [data-streamdown="link"] [data-streamdown="inline-code"] {
+  color: var(--accent);
+}
+
+.chat .cpk\:prose > :first-child {
+  margin-top: 0;
+}
+
+.chat .cpk\:prose > :last-child {
+  margin-bottom: 0;
 }
 
 .welcome {

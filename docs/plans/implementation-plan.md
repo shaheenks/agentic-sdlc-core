@@ -138,7 +138,8 @@ changing it during a run needs the user's explicit confirmation in chat.
 - Resume after signing in again from session history (FR-WFL-009).
 - Exit gate: a user chats, gets cited answers within their scope, saves an artifact, signs out and in, and
   resumes the same session.
-- Status (2026-11-24, code built and tested locally, not deployed):
+- Status (2026-11-25, deployed to development; chat and artifacts confirmed by the user in the browser,
+  the sign-out and resume check still open):
   - user_agent: an ADK agent on `AdkApp`, offering only the session operations and `async_stream_query`.
     A query must name the same user's existing session, whose state holds the email sdlc_ui set. Calls to
     user_agent_mcp carry the session's user and the runtime's ID token. `gemini-3.8-flash` runs in `eu`.
@@ -149,9 +150,17 @@ changing it during a run needs the user's explicit confirmation in chat.
 
   Checked locally, end to end: sdlc_ui to user_agent to user_agent_mcp to Knowledge Search, with real Gemini.
   The answers were cited, a forged user header was replaced by the verified user, a reopened chat showed its
-  history, and chats are titled from their first message. Still to do: deploy (`infra/gcp/sdlc_ui.tf`, the
-  engine), IAP's OAuth client if the users are outside the project's organisation, and the exit-gate check on
-  dev.
+  history, and chats are titled from their first message.
+
+  Deployed to development (2026-11-25):
+  - engine `sdlc-user-agent-dev` (europe-west3), running as the interactive agents' service account;
+    user_agent_mcp's audit records show its calls as surface `user_agent` from that account;
+  - `sdlc-ui` with IAP on the service and IAP's service agent its only invoker. The users are in the
+    project's organisation, so IAP's Google-managed OAuth client works.
+
+  A `domain:` IAP grant did not admit the user: it matches only an account's primary domain. A `user:` grant
+  did; more users need a Cloud Identity group. Assistant answers got compact Markdown spacing (CopilotKit's
+  `prose` margins put a paragraph's space after every line).
 
 ### Phase 4: Design flow and Gemini Enterprise
 

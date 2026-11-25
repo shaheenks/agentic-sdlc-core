@@ -1,3 +1,9 @@
+## 2026-11-25
+
+* **Update**: Phase 3 deployed to development: [user_agent](components/user-agent.md) on
+  [Agent Runtime](components/agent-runtime.md) and [sdlc_ui](components/sdlc-ui.md) behind IAP. The user
+  confirmed chat and artifacts in the browser.
+
 ## 2026-11-24
 
 * **Update**: Phase 3 code: [user_agent](components/user-agent.md) on [Agent Runtime](components/agent-runtime.md)
