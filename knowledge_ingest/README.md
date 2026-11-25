@@ -1,6 +1,6 @@
 # knowledge_ingest
 
-Ingests the knowledge sources declared in `config/sources.yaml` into the JSONL knowledge store
+Ingests the knowledge sources declared in `config/env/<env>/sources.yaml` (read from the active bundle) into the JSONL knowledge store
 ([Ingest Pipeline](../spec/components/ingest-pipeline.md); FR-KNOW-001, FR-KNOW-003, DEC-0011). It runs as a
 step of the build pipeline, before the Knowledge Search image is built from its output.
 

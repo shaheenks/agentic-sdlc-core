@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Teams and their roles.",
+  "title": "Teams of one environment (env/<env>/teams.yaml): their roles, what they are given, and their systems.",
   "type": "object",
   "properties": {
     "teams": {
@@ -28,6 +28,235 @@
             },
             "uniqueItems": true,
             "minItems": 1
+          },
+          "systems": {
+            "type": "object",
+            "properties": {
+              "jira": {
+                "type": "array",
+                "description": "The team's Jira projects; tools reach only these.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_-]*$"
+                    },
+                    "base_url": {
+                      "type": "string",
+                      "pattern": "^https://[^\\s/]+(/[^\\s]*)?$"
+                    },
+                    "project": {
+                      "type": "string",
+                      "pattern": "^[A-Z][A-Z0-9_]{0,19}$"
+                    },
+                    "feature_type": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Default Feature."
+                    },
+                    "story_type": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Default User Story."
+                    },
+                    "story_link": {
+                      "enum": [
+                        "parent",
+                        "issue_link"
+                      ],
+                      "description": "How a story joins its feature. Default parent."
+                    },
+                    "design_status": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Default In Design."
+                    },
+                    "development_status": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Default In Development."
+                    },
+                    "default": {
+                      "type": "boolean",
+                      "description": "The team's default of this kind. Exactly one when the list has more than one entry."
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "base_url",
+                    "project"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1
+              },
+              "confluence": {
+                "type": "array",
+                "description": "The team's Confluence spaces, each optionally narrowed to a parent page that new pages go under.",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_-]*$"
+                    },
+                    "base_url": {
+                      "type": "string",
+                      "pattern": "^https://[^\\s/]+(/[^\\s]*)?$",
+                      "description": "The site: https://<site>.atlassian.net/wiki, or the Data Center server."
+                    },
+                    "space": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_~-]{1,255}$",
+                      "description": "The space key."
+                    },
+                    "parent_page": {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,20}$",
+                      "description": "The ID of the page new pages go under; the space's home page if left out."
+                    },
+                    "default": {
+                      "type": "boolean",
+                      "description": "The team's default of this kind. Exactly one when the list has more than one entry."
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "base_url",
+                    "space"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "repositories": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_-]*$"
+                    },
+                    "repo": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+                      "description": "owner/name (GitHub), workspace/slug (Bitbucket Cloud) or PROJECT/slug (Bitbucket Data Center)."
+                    },
+                    "base_url": {
+                      "type": "string",
+                      "pattern": "^https://[^\\s/]+(/[^\\s]*)?$",
+                      "description": "Data Center: the server. Cloud: the provider's."
+                    },
+                    "default_branch": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Default main."
+                    },
+                    "design_path": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$",
+                      "description": "Where design specifications go, e.g. docs/specs."
+                    },
+                    "default": {
+                      "type": "boolean",
+                      "description": "The team's default of this kind. Exactly one when the list has more than one entry."
+                    }
+                  },
+                  "required": [
+                    "provider",
+                    "repo",
+                    "design_path"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "The product repositories the team may target."
+              },
+              "control_repo": {
+                "type": "object",
+                "description": "The team's sdlc-control repository: approved artifacts and the record of agent writes (DEC-0012). Its org/repo name identifies the team, e.g. example-org/payments-sdlc-control.",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_-]*$"
+                  },
+                  "repo": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+                    "description": "owner/name (GitHub), workspace/slug (Bitbucket Cloud) or PROJECT/slug (Bitbucket Data Center)."
+                  },
+                  "base_url": {
+                    "type": "string",
+                    "pattern": "^https://[^\\s/]+(/[^\\s]*)?$",
+                    "description": "Data Center: the server."
+                  },
+                  "branch": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Default main."
+                  }
+                },
+                "required": [
+                  "provider",
+                  "repo"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false,
+            "description": "The team's systems: Jira projects, Confluence spaces and product repositories, each list with one default, and its control repository (DEC-0012). Usually set per environment in env/<env>/teams.yaml."
+          },
+          "tool_groups": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*$"
+            },
+            "uniqueItems": true,
+            "description": "Tool groups given to the members (FR-AUTHZ-007)."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*$"
+            },
+            "uniqueItems": true,
+            "description": "Knowledge sources the members may read (DEC-0011)."
+          },
+          "role_grants": {
+            "type": "object",
+            "description": "Further tool groups and sources for one role of the team, such as lead.",
+            "propertyNames": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*$"
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "tool_groups": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_-]*$"
+                  },
+                  "uniqueItems": true,
+                  "description": "Tool groups given to the members (FR-AUTHZ-007)."
+                },
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_-]*$"
+                  },
+                  "uniqueItems": true,
+                  "description": "Knowledge sources the members may read (DEC-0011)."
+                }
+              },
+              "additionalProperties": false,
+              "minProperties": 1
+            }
           }
         },
         "required": [

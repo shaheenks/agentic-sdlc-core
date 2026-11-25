@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "User groups that receive grants.",
+  "title": "User groups of one environment (env/<env>/user_groups.yaml) and what they are given.",
   "type": "object",
   "properties": {
     "user_groups": {
@@ -15,6 +15,33 @@
           "description": {
             "type": "string",
             "minLength": 1
+          },
+          "tool_groups": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*$"
+            },
+            "uniqueItems": true,
+            "description": "Tool groups given to the members (FR-AUTHZ-007)."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*$"
+            },
+            "uniqueItems": true,
+            "description": "Knowledge sources the members may read (DEC-0011)."
+          },
+          "teams": {
+            "type": "array",
+            "description": "Teams (`payments`) or one role of a team (`payments:lead`) whose members are in this group, besides the users who list it in users.yaml. Membership only: a team run still keeps only what its team or everyone is given.",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*(:[a-z][a-z0-9_-]*)?$"
+            },
+            "uniqueItems": true
           }
         },
         "required": [

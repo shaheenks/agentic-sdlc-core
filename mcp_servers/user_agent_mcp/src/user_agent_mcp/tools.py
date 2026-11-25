@@ -269,7 +269,8 @@ TOOLS: dict[str, Tool] = {
         ),
         Tool(
             "team_systems",
-            "The Jira project and repositories (with their design paths) of your teams, or of this run's team.",
+            "The Jira projects, Confluence spaces, repositories (each list with its default) and control repository "
+            "of your teams, or of this run's team.",
             _schema(),
             systems.team_systems,
         ),
@@ -298,6 +299,10 @@ TOOLS: dict[str, Tool] = {
             "the user approved them in the chat.",
             _schema(
                 {
+                    "project": {
+                        "type": "string",
+                        "description": "A Jira project key of the run's team; its default project if left out.",
+                    },
                     "feature": {
                         "type": "object",
                         "properties": {"summary": {"type": "string"}, "description": {"type": "string"}},

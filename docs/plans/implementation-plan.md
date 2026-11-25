@@ -203,13 +203,23 @@ changing it during a run needs the user's explicit confirmation in chat.
      review loop (FR-SDLC-004), approval in chat, and the team scope set at start. The design pull request
      (FR-SDLC-005).
   4. sdlc_ui: starting a workflow for one of the user's teams, approvals in the chat, the run's progress.
+- Waiting on [DEC-0012](../../spec/decisions/DEC-0012.md) (proposed 2026-11-25): with each team's sdlc-control
+  repository, drafts stay the user's own artifacts; when the user asks for a write to Jira or a repository, the
+  artifacts it rests on go to the team's control repository as a pull request, the merge approves them, and the
+  write and its links follow. The design is no longer a pull request on a product repository. Milestone 3 starts once the user accepts or changes it.
 - 4a status (2026-11-25): milestone 1 built and tested against faked APIs:
-  - `config/env/<env>/systems.yaml` holds each team's Jira project and repositories;
+  - each team's Jira projects, Confluence spaces and repositories (lists, each with one default) and its
+    control repository are its `systems` in `config/env/<env>/teams.yaml` (2026-11-25; teams, user groups and
+    sources, with what they are given, are all environment configuration);
   - `libs/sdlc_connectors` has the adapters;
   - user_agent_mcp has the Jira and repository tools and the connection test, all confined to the team's
     systems.
 
   Checking them on real systems needs a test Jira Cloud project and a GitHub repository.
+- Milestone 2 built (2026-11-25): ten skills in `skills/`. The stage skills are brainstorm, features and
+  stories, and design specification, the last with every section FR-SDLC-003 asks for. The seven reviewers are
+  adapted from EGM's Goldfish reviewers (Apache-2.0, `skills/NOTICE`), with one JSON findings contract. All load
+  with ADK's skill loader.
 
 ### Phase 5: Event path and ci_workflow_agent
 

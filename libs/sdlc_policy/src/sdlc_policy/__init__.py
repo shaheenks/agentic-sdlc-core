@@ -1,7 +1,8 @@
 """The Access Policy: who may use which tools, decided from configuration, deny by default.
 
 - A grant makes tool groups available to everyone, to teams (`payments`, or one role: `payments:lead`) or to
-  user groups (FR-AUTHZ-007). A tool group no grant names is available to no one.
+  user groups (FR-AUTHZ-007). A tool group no grant names is available to no one. The compiler builds the grants
+  from `everyone: true` on tool groups and sources and from what teams, team roles and user groups are given.
 - A surface uses only the tool groups declared for it (FR-AUTHZ-006); a tool is allowed when both the user
   and the surface may use it.
 - A team run gets what the starter may use and the team (or everyone) is granted (FR-TEAM-002).

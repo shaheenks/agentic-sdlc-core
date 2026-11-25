@@ -1,5 +1,5 @@
-# Connection providers (FR-CONN-001, FR-CONN-003): GitHub, Bitbucket and Jira in both editions first;
-# Confluence follows. A Data Center connection names its server's base URL when the user saves it.
+# Connection providers (FR-CONN-001, FR-CONN-003): GitHub, Bitbucket, Jira and Confluence in both editions.
+# Confluence connections can be saved now; its tools come after phase 4a. A Data Center connection names its server's base URL when the user saves it.
 providers:
   github:
     name: GitHub
@@ -26,4 +26,12 @@ providers:
   jira_dc:
     name: Jira Data Center
     system: jira
+    edition: data_center
+  confluence_cloud:
+    name: Confluence Cloud
+    system: confluence
+    edition: cloud
+  confluence_dc:
+    name: Confluence Data Center
+    system: confluence
     edition: data_center

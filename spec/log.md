@@ -1,5 +1,30 @@
 ## 2026-11-25
 
+* **Update**: [Configuration Registry](components/configuration-registry.md): a user group can list `teams`
+  (or one team role); their members join the group, for their own runs only (membership, not team grants).
+* **Update**: [Configuration Registry](components/configuration-registry.md): teams and sources can be one
+  YAML file each, `env/<env>/teams/<id>.yaml` and `env/<env>/sources/<id>.yaml`; the example environment uses
+  them.
+* **Update**: [Configuration Registry](components/configuration-registry.md): teams, user groups and knowledge
+  sources, with what they are given, are environment configuration in `config/env/<env>/`; shared files keep only
+  tool groups, surfaces, limits, providers and platform settings. The shared/environment merge is gone. Access is
+  unchanged in every environment.
+* **Update**: [Configuration Registry](components/configuration-registry.md): `grants.yaml` is gone. Teams (and
+  their roles) and user groups list the `tool_groups` and `sources` they are given; `everyone: true` on a tool group
+  or source gives it to everyone. The compiled bundle keeps its list of grants, so access is unchanged (the
+  permission diff between the old and new layout is empty in every environment). Environment files: teams, user
+  groups and sources.
+* **Update**: [Configuration Registry](components/configuration-registry.md): team systems move from
+  `env/<env>/systems.yaml` into `systems` in `teams.yaml`, with the team's control repository (`control_repo`, an `org/repo` name that
+  identifies the team) and lists of Jira projects, Confluence spaces and repositories, each with one default; `teams.yaml`,
+  `sources.yaml` and `grants.yaml` may have environment files merged by ID. [DEC-0012](decisions/DEC-0012.md)
+  revised with the user: drafts stay the user's own artifacts; sdlc-control gates and records only writes to
+  Jira, Confluence and repositories, and only steps that start from published items check it.
+* **Add**: [DEC-0012](decisions/DEC-0012.md), proposed: each team's `sdlc-control` repository holds every
+  feature, design specification and implementation plan, approved by a merged pull request, before agents write to
+  Jira, Confluence or product repositories, and records the results of those writes; with the user's choices.
+* **Update**: 4a milestone 2: the [Skill Library](components/skill-library.md)'s stage skills and seven
+  fresh-context reviewers in `skills/`, the reviewers adapted from EGM (Apache-2.0).
 * **Update**: Phase 4 split into 4a (design flow in sdlc_ui) and 4b (A2A router and Gemini Enterprise), the
   user's choice. 4a milestone 1: [Connectors](components/connectors.md) for Jira, GitHub and Bitbucket in both
   editions, teams' systems per environment in the [Configuration Registry](components/configuration-registry.md),

@@ -75,13 +75,29 @@ validates it, turns it into an immutable bundle and publishes it where every ser
   Access is computed with the [Access Policy](access-policy.md) library, so the diff shows what the servers would
   decide. CI prints it for the example environment in the job summary of every pull request and push. Only tools
   are compared: workflows, skills and data sources are not declared in configuration yet.
-- `sources.yaml` declares the knowledge sources ([DEC-0011](../decisions/DEC-0011.md)); grants
-  give them, like tool groups, and the permission diff shows them as `source:<id>`.
-- `env/<env>/systems.yaml` maps each team to its Jira project (site, project key, issue types, the statuses that
-  allow design and development runs) and its repositories (provider, design path, default branch).
-- What differs per environment (the identity mode, allowed domains, the callers' service accounts or OAuth
-  client IDs, the users with their teams and user groups, the block list) is in `config/env/<env>/`, which is
-  not committed; `config/env/example/` shows the shape and is what CI
+- `env/<env>/sources.yaml` declares the knowledge sources ([DEC-0011](../decisions/DEC-0011.md)); they are given like
+  tool groups, and the permission diff shows them as `source:<id>`.
+- Grants are declared where they belong, not in a file of their own (2026-11-25): `everyone: true` on a tool group
+  or source; `tool_groups` and `sources` on a team, on one of its roles (`role_grants`) or on a user group. The
+  compiler turns them into the bundle's list of grants (`everyone`, `team:<id>`, `team:<id>:<role>`,
+  `user_group:<id>`), so the [Access Policy](access-policy.md) and the permission diff read the same shape as
+  before.
+- `env/<env>/teams.yaml` gives each team its `systems`: lists of Jira projects (site, project key, issue types, the
+  statuses that allow design and development runs), Confluence spaces (site, space key, optional parent page) and
+  product repositories (provider, design path, default branch), each list with exactly one `default: true` (a
+  single entry is the default), and its control repository, `control_repo` (provider, `repo` as an `org/repo` name that identifies the team, branch; [DEC-0012](../decisions/DEC-0012.md), proposed).
+- Shared files in `config/` hold only what is the same in every environment: tool groups, surfaces, limits,
+  providers and platform settings. Teams, user groups and knowledge sources, with what they are given, are
+  environment configuration (2026-11-25, the user's choice); a shared `teams.yaml`, `user_groups.yaml` or
+  `sources.yaml` is refused. Teams and sources can also be one file each, `env/<env>/teams/<id>.yaml` and
+  `env/<env>/sources/<id>.yaml`, named by their ID, next to or instead of the list files; an ID defined twice is
+  refused.
+- A user group's members are the users who list it in `users.yaml` and the members of the teams or team roles
+  it lists under `teams`. That is membership only: the group's grants apply in its members' own runs, and a team
+  run still keeps only what its team or everyone is given.
+- Environment configuration (the identity mode, allowed domains, the callers' service accounts or OAuth client
+  IDs, the users with their teams and user groups, the block list, and the teams, user groups and sources) is in
+  `config/env/<env>/`, which is not committed; `config/env/example/` shows the shape and is what CI
   validates.
 - A bundle is one JSON document `bundles/<version>.json`, whose version is a hash of its environment and content;
   `active.json` names the active version, and each activation also writes a record under `activations/`.

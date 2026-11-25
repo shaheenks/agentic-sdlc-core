@@ -491,24 +491,61 @@ SYSTEMS_CONFIG = {
     "providers": {**CONFIG["providers"], "jira_cloud": {"name": "Jira Cloud", "system": "jira", "edition": "cloud"}},
     "team_systems": {
         "payments": {
-            "jira": {
-                "provider": "jira_cloud",
-                "base_url": "https://pay.atlassian.net",
-                "project": "PAY",
-                "feature_type": "Feature",
-                "story_type": "User Story",
-                "story_link": "parent",
-                "design_status": "In Design",
-                "development_status": "In Development",
-            },
-            "repositories": [
-                {"provider": "github", "repo": "org/payments", "design_path": "docs/specs", "default_branch": "main"}
+            "jira": [
+                {
+                    "provider": "jira_cloud",
+                    "base_url": "https://pay.atlassian.net",
+                    "project": "PAY",
+                    "feature_type": "Feature",
+                    "story_type": "User Story",
+                    "story_link": "parent",
+                    "design_status": "In Design",
+                    "development_status": "In Development",
+                    "default": True,
+                },
+                {
+                    "provider": "jira_cloud",
+                    "base_url": "https://pay.atlassian.net",
+                    "project": "CARD",
+                    "feature_type": "Feature",
+                    "story_type": "User Story",
+                    "story_link": "parent",
+                    "design_status": "In Design",
+                    "development_status": "In Development",
+                    "default": False,
+                },
             ],
+            "confluence": [],
+            "repositories": [
+                {
+                    "provider": "github",
+                    "repo": "org/payments",
+                    "design_path": "docs/specs",
+                    "default_branch": "main",
+                    "default": True,
+                },
+                {
+                    "provider": "github",
+                    "repo": "org/payments-gateway",
+                    "design_path": "docs/specs",
+                    "default_branch": "main",
+                    "default": False,
+                },
+            ],
+            "control_repo": {"provider": "github", "repo": "org/payments-sdlc-control", "branch": "main"},
         },
         "risk": {
+            "jira": [],
+            "confluence": [],
             "repositories": [
-                {"provider": "github", "repo": "org/risk", "design_path": "docs", "default_branch": "main"}
-            ]
+                {
+                    "provider": "github",
+                    "repo": "org/risk",
+                    "design_path": "docs",
+                    "default_branch": "main",
+                    "default": True,
+                }
+            ],
         },
     },
 }
@@ -590,7 +627,35 @@ def test_search_is_confined_to_the_team_project(senv):
     client, seen = senv
     tool(client, WHO["ada-ui"], "jira_search", text='refunds" OR project = RISK OR "', status="In Design")
     jql = json.loads(seen[0].content)["jql"]
-    assert jql.startswith('project = "PAY" AND text ~ "refunds  OR project = RISK OR"') and '"In Design"' in jql
+    assert jql.startswith('project in ("PAY", "CARD") AND text ~ "refunds  OR project = RISK OR"')
+    assert '"In Design"' in jql and len(seen) == 1  # one query for the site's projects
+
+
+def test_a_team_lists_its_systems_with_their_defaults(senv):
+    client, _ = senv
+    found = tool(client, {**WHO["ada-ui"], "X-SDLC-Team": "payments"}, "team_systems")["teams"]["payments"]
+    assert [(j["project"], j["default"]) for j in found["jira"]] == [("PAY", True), ("CARD", False)]
+    assert [(r["repo"], r["default"]) for r in found["repositories"]] == [
+        ("org/payments", True),
+        ("org/payments-gateway", False),
+    ]
+    assert found["control_repo"] == {"repo": "org/payments-sdlc-control", "provider": "github", "branch": "main"}
+
+
+def test_a_feature_goes_to_the_named_project_or_the_default(senv):
+    client, seen = senv
+    team = {**WHO["ada-ui"], "X-SDLC-Team": "payments"}
+    args = {"feature": {"summary": "Cards"}, "stories": [{"summary": "As a payer, I want a card"}]}
+    assert tool(client, team, "jira_create_feature", project="CARD", **args)["project"] == "CARD"
+    assert json.loads(seen[0].content)["fields"]["project"] == {"key": "CARD"}
+    assert tool(client, team, "jira_create_feature", project="RISK", **args)["error"] == "constraint_denied"
+    assert tool(client, team, "jira_create_feature", **args)["project"] == "PAY"
+
+
+def test_a_call_without_a_repository_uses_the_team_default(senv):
+    client, seen = senv
+    tool(client, {**WHO["ada-ui"], "X-SDLC-Team": "payments"}, "repo_read_file", path="README.md")
+    assert seen[0].url.path.startswith("/repos/org/payments/contents/README.md")
 
 
 def test_writes_need_a_run_for_the_team(senv):

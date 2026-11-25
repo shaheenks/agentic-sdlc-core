@@ -73,6 +73,10 @@
           "extract": {
             "type": "boolean",
             "description": "Extract concepts with Gemini (default true when the run enables extraction)."
+          },
+          "everyone": {
+            "const": true,
+            "description": "Given to everyone."
           }
         },
         "required": [

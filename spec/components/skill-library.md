@@ -52,3 +52,8 @@ separate from workflow structure and from access rules.
 # Realisation
 
 - Skills are packaged in the latest stable SKILL.md format, in folder `skills/`.
+- Built (phase 4a): stage skills `brainstorm`, `features-and-stories` and `design-specification`, and seven
+  reviewers (structure, writing style, clarity for a new reader, design decisions, readiness to build, technical
+  detail, unnecessary complexity) adapted from the Elephant-Goldfish Model's Goldfish reviewers (Apache-2.0,
+  attributed in `skills/NOTICE`). Every reviewer returns findings as JSON with a severity, a location, the problem
+  and a suggested change. user_agent's tests load each skill with ADK's skill loader.

@@ -1,0 +1,10 @@
+The reviewer skills in this folder (review-structure, review-style, review-clarity, review-design,
+review-readiness, review-technical-detail, review-simplicity) are adapted from the Goldfish reviewer agents of
+the Elephant-Goldfish Model (EGM), https://github.com/google/elephant-goldfish-model,
+Copyright Google LLC, licensed under the Apache License, Version 2.0
+(https://www.apache.org/licenses/LICENSE-2.0).
+
+Changes: each reviewer is rewritten as a SKILL.md for this platform's review loop (FR-SDLC-004). Reviewers
+receive one document and the evidence the workflow permits, never the drafting conversation; they return
+findings as JSON with a severity, a location, the problem and a suggested change; the brainstorming mode, the
+file-based workflow and the tool instructions of the originals are left out.

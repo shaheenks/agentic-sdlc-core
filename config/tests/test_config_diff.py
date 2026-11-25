@@ -30,8 +30,8 @@ def compiled(path):
     return result.config
 
 
-def add_grant(grant):
-    return lambda d: d["grants"].append(grant)
+def give(kind, name, **given):
+    return lambda d: d[kind][name].update(given)
 
 
 def tool_group(tools):
@@ -55,15 +55,13 @@ def test_a_user_group_grant_reaches_its_members_own_runs_only(config_dir):
     before = compiled(config_dir)
     edit(config_dir / "tool_groups.yaml", tool_group(["beta_tool"]))
     edit(config_dir / "surfaces.yaml", on_surface("sdlc_ui"))
-    edit(
-        config_dir / "grants.yaml",
-        add_grant(
-            {"id": "beta", "description": "-", "tool_groups": ["beta"], "to": {"user_groups": ["early-adopters"]}}
-        ),
-    )
+    edit(config_dir / "env/example/user_groups.yaml", give("user_groups", "early-adopters", tool_groups=["beta"]))
     changes = diff(before, compiled(config_dir))
-    # grace is an early adopter; her platform team is not granted the group, so its runs stay as they were.
-    assert changes == [Change("grace@example.test", "own runs", "sdlc_ui", ("beta_tool",), ())]
+    # grace is listed as an early adopter, ada joins through payments:lead; their team runs stay as they were.
+    assert changes == [
+        Change("ada@example.test", "own runs", "sdlc_ui", ("beta_tool",), ()),
+        Change("grace@example.test", "own runs", "sdlc_ui", ("beta_tool",), ()),
+    ]
 
 
 def test_a_team_grant_reaches_the_team_runs_and_removing_it_is_a_loss(config_dir):
@@ -71,8 +69,8 @@ def test_a_team_grant_reaches_the_team_runs_and_removing_it_is_a_loss(config_dir
     edit(config_dir / "surfaces.yaml", on_surface("sdlc_ui"))
     before = compiled(config_dir)
     edit(
-        config_dir / "grants.yaml",
-        add_grant({"id": "beta", "description": "-", "tool_groups": ["beta"], "to": {"teams": ["payments:lead"]}}),
+        config_dir / "env/example/teams/payments.yaml",
+        lambda d: d.update(role_grants={"lead": {"tool_groups": ["beta"]}}),
     )
     after = compiled(config_dir)
     gained = {(c.user, c.context, c.surface): c.gained for c in diff(before, after)}
@@ -102,19 +100,11 @@ def test_unlisted_users_and_blocking_are_shown(config_dir):
 
 
 def test_sources_granted_to_a_team_show_in_its_members_rows(config_dir):
-    edit(
-        config_dir / "sources.yaml",
-        lambda d: d["sources"].update(
-            {"payments-repo": {**d["sources"]["platform-spec"], "name": "Payments", "location": "payments"}}
-        ),
-    )
+    spec = yaml.safe_load((config_dir / "env/example/sources/platform-spec.yaml").read_text(encoding="utf-8"))
+    spec = {k: v for k, v in spec.items() if k != "everyone"} | {"name": "Payments", "location": "payments"}
+    (config_dir / "env/example/sources/payments-repo.yaml").write_text(yaml.safe_dump(spec), encoding="utf-8")
     before = compiled(config_dir)
-    edit(
-        config_dir / "grants.yaml",
-        add_grant(
-            {"id": "payments-code", "description": "-", "sources": ["payments-repo"], "to": {"teams": ["payments"]}}
-        ),
-    )
+    edit(config_dir / "env/example/teams/payments.yaml", lambda d: d.update(sources=["payments-repo"]))
     rows = {(c.user, c.context, c.surface): c.gained for c in diff(before, compiled(config_dir))}
     assert rows[("ada@example.test", "payments runs", "user_agent")] == ("source:payments-repo",)
     assert all(user == "ada@example.test" for user, _, _ in rows)
@@ -163,3 +153,20 @@ def test_cli_reads_a_git_revision(config_dir, capsys):
 def test_cli_reports_an_unreadable_version(tmp_path, capsys):
     assert main(["diff", "--env", "example", "--base", f"{tmp_path}@nope"]) == 1
     assert "error:" in capsys.readouterr().err
+
+
+def test_a_team_in_a_user_group_gets_the_group_grants_in_own_runs_only(config_dir):
+    edit(config_dir / "tool_groups.yaml", tool_group(["beta_tool"]))
+    edit(config_dir / "surfaces.yaml", on_surface("sdlc_ui"))
+    edit(config_dir / "env/example/user_groups.yaml", give("user_groups", "early-adopters", teams=[]))
+    before = compiled(config_dir)
+    edit(
+        config_dir / "env/example/user_groups.yaml",
+        give("user_groups", "early-adopters", teams=["payments"], tool_groups=["beta"]),
+    )
+    changes = diff(before, compiled(config_dir))
+    # grace (listed) and ada (via payments) gain it in their own runs; no team run changes.
+    assert {(c.user, c.context) for c in changes} == {
+        ("ada@example.test", "own runs"),
+        ("grace@example.test", "own runs"),
+    }

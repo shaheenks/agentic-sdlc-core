@@ -28,7 +28,11 @@ def test_repository_config_validates_for_the_example_environment(capsys):
 
 def test_compiled_config_lists_members_with_their_roles():
     config = compile_config(CONFIG_DIR, "example").config
-    assert config["members"]["ada@example.test"] == {"teams": {"payments": ["lead", "member"]}, "user_groups": []}
+    # ada leads payments, and early-adopters lists payments:lead
+    assert config["members"]["ada@example.test"] == {
+        "teams": {"payments": ["lead", "member"]},
+        "user_groups": ["early-adopters"],
+    }
     assert config["members"]["grace@example.test"]["user_groups"] == ["early-adopters"]
     assert config["identity"]["mode"] == "caller_token"
     assert config["identity"]["callers"]["sdlc_ui"] == ["sdlc-ui@example-project.iam.gserviceaccount.com"]
@@ -48,26 +52,83 @@ def test_missing_environment_warns_but_validates(config_dir, capsys):
 @pytest.mark.parametrize(
     ("file", "change", "message"),
     [
-        ("grants.yaml", lambda d: d["grants"][0]["to"].update({"teams": ["nope"]}), "unknown team 'nope'"),
         (
-            "env/example/systems.yaml",
-            lambda d: d["teams"].update({"nope": {"repositories": []}}),
-            "unknown team 'nope'",
+            "env/example/teams/payments.yaml",
+            lambda d: d.update({"sources": ["ghost"]}),
+            "unknown source 'ghost'",
         ),
         (
-            "env/example/systems.yaml",
-            lambda d: d["teams"]["payments"]["jira"].update({"provider": "github"}),
+            "env/example/teams/platform.yaml",
+            lambda d: d.pop("name"),
+            "env/example/teams/platform.yaml: teams/platform: 'name' is a required property",
+        ),
+        (
+            "env/example/teams/payments.yaml",
+            lambda d: d["systems"]["jira"][0].update({"provider": "github"}),
             "not a Jira provider",
         ),
         (
-            "env/example/systems.yaml",
-            lambda d: d["teams"]["payments"]["repositories"].append(
+            "env/example/teams/payments.yaml",
+            lambda d: d["systems"]["repositories"].append(
                 {"provider": "bitbucket_dc", "repo": "P/s", "design_path": "d"}
             ),
             "needs base_url",
         ),
-        ("grants.yaml", lambda d: d["grants"][0]["to"].update({"teams": ["payments:boss"]}), "has no role 'boss'"),
-        ("grants.yaml", lambda d: d["grants"][0]["tool_groups"].append("ghost"), "unknown tool group 'ghost'"),
+        (
+            "env/example/teams/payments.yaml",
+            lambda d: d["systems"]["jira"][1].update({"default": True}),
+            "jira: more than one default (PAY, CARD)",
+        ),
+        (
+            "env/example/teams/payments.yaml",
+            lambda d: d["systems"]["repositories"][0].pop("default"),
+            "repositories: mark one entry `default: true`",
+        ),
+        (
+            "env/example/teams/payments.yaml",
+            lambda d: d["systems"]["jira"][1].update({"project": "PAY"}),
+            "Jira project 'PAY' is listed twice",
+        ),
+        (
+            "env/example/teams/payments.yaml",
+            lambda d: d["systems"]["confluence"][0].update({"provider": "jira_cloud"}),
+            "'jira_cloud' is not a Confluence provider",
+        ),
+        (
+            "env/example/teams/payments.yaml",
+            lambda d: d["systems"]["control_repo"].update({"provider": "jira_cloud"}),
+            "control_repo: 'jira_cloud' is not a repository provider",
+        ),
+        (
+            "env/example/teams/payments.yaml",
+            lambda d: d["systems"]["control_repo"].update({"repo": "example-org/payments-service"}),
+            "is also a product repository",
+        ),
+        (
+            "env/example/teams/payments.yaml",
+            lambda d: d["systems"]["control_repo"].update({"repo": "example-org/sdlc-control"}),
+            "must name the team 'payments'",
+        ),
+        (
+            "env/example/teams/payments.yaml",
+            lambda d: d.update({"role_grants": {"boss": {"tool_groups": ["jira"]}}}),
+            "has no role 'boss'",
+        ),
+        (
+            "env/example/user_groups.yaml",
+            lambda d: d["user_groups"]["early-adopters"].update({"teams": ["payments:boss", "nope"]}),
+            "env/example/user_groups.yaml: early-adopters: teams: team 'payments' has no role 'boss'",
+        ),
+        (
+            "env/example/user_groups.yaml",
+            lambda d: d["user_groups"]["early-adopters"].update({"teams": ["nope"]}),
+            "early-adopters: teams: unknown team 'nope'",
+        ),
+        (
+            "env/example/user_groups.yaml",
+            lambda d: d["user_groups"]["early-adopters"].update({"tool_groups": ["ghost"]}),
+            "env/example/user_groups.yaml: early-adopters: unknown tool group 'ghost'",
+        ),
         ("surfaces.yaml", lambda d: d["surfaces"]["sdlc_ui"]["tool_groups"].append("ghost"), "unknown tool group"),
         ("surfaces.yaml", lambda d: d["surfaces"]["sdlc_ui"].pop("description"), "'description' is a required"),
         ("env/example/identity.yaml", lambda d: d["callers"].update({"desktop": ["x"]}), "unknown surface 'desktop'"),
@@ -101,7 +162,7 @@ def test_invalid_configuration_fails(config_dir, file, change, message, capsys):
 
 
 def test_broken_yaml_fails(config_dir):
-    (config_dir / "grants.yaml").write_text("grants: [1, 2", encoding="utf-8")
+    (config_dir / "env/example/teams/payments.yaml").write_text("roles: [1, 2", encoding="utf-8")
     assert main(["validate", "--env", "example", "--dir", str(config_dir)]) == 1
 
 
@@ -127,3 +188,113 @@ def test_activate_refuses_a_bundle_of_another_environment(tmp_path, config_dir):
     version = next((store / "bundles").iterdir()).stem
     assert main(["activate", "--env", "dev", "--to", str(store), "--version", version]) == 1
     assert not (store / "active.json").exists()
+
+
+def test_environment_teams_add_systems_to_shared_teams():
+    config = compile_config(CONFIG_DIR, "example").config
+    assert config["teams"]["payments"] == {
+        "name": "Payments",
+        "description": "Payment services.",
+        "roles": ["member", "lead"],
+    }
+    systems = config["team_systems"]["payments"]
+    assert [(j["project"], j["default"]) for j in systems["jira"]] == [("PAY", True), ("CARD", False)]
+    assert systems["jira"][0]["feature_type"] == "Feature"
+    assert systems["confluence"][0]["default"] is True  # the only entry
+    assert [r["default"] for r in systems["repositories"]] == [True, False]
+    assert systems["control_repo"] == {
+        "provider": "github",
+        "repo": "example-org/payments-sdlc-control",
+        "branch": "main",
+    }
+    assert "platform" not in config["team_systems"]
+
+
+def test_grants_compile_from_teams_user_groups_and_everyone(config_dir):
+    edit(
+        config_dir / "env/example/teams/payments.yaml",
+        lambda d: d.update({"sources": ["platform-spec"], "role_grants": {"lead": {"tool_groups": ["jira"]}}}),
+    )
+    edit(
+        config_dir / "env/example/user_groups.yaml",
+        lambda d: d["user_groups"]["early-adopters"].update({"tool_groups": ["jira"]}),
+    )
+    grants = {g["id"]: g for g in compile_config(config_dir, "example").config["grants"]}
+    assert grants["everyone"]["to"] == {"everyone": True}
+    assert "knowledge" in grants["everyone"]["tool_groups"] and grants["everyone"]["sources"] == ["platform-spec"]
+    assert grants["team:payments"] == {
+        "id": "team:payments",
+        "sources": ["platform-spec"],
+        "to": {"teams": ["payments"]},
+    }
+    assert grants["team:payments:lead"]["to"] == {"teams": ["payments:lead"]}
+    assert grants["user_group:early-adopters"]["to"] == {"user_groups": ["early-adopters"]}
+    assert "team:platform" not in grants  # given nothing
+
+
+def test_an_old_systems_file_is_refused(config_dir, capsys):
+    (config_dir / "env/example/systems.yaml").write_text("teams: {}\n", encoding="utf-8")
+    assert main(["validate", "--env", "example", "--dir", str(config_dir)]) == 1
+    assert "moved to `systems` in env/example/teams.yaml" in capsys.readouterr().err
+
+
+def test_teams_user_groups_and_sources_belong_to_the_environment(config_dir, capsys):
+    nowhere = compile_config(config_dir, "nowhere")
+    assert nowhere.ok and not (nowhere.config["teams"] or nowhere.config["user_groups"] or nowhere.config["sources"])
+    for kind in ("teams", "user_groups", "sources"):
+        (config_dir / f"{kind}.yaml").write_text(f"{kind}: {{}}\n", encoding="utf-8")
+    assert main(["validate", "--env", "example", "--dir", str(config_dir)]) == 1
+    err = capsys.readouterr().err
+    assert all(f"move it to env/example/{kind}.yaml" in err for kind in ("teams", "user_groups", "sources"))
+
+
+def test_teams_and_sources_can_be_one_file_each_next_to_a_list(config_dir, capsys):
+    env = config_dir / "env/example"
+    (env / "teams.yaml").write_text(
+        yaml.safe_dump({"teams": {"risk": {"name": "Risk", "description": "Risk.", "roles": ["member"]}}}),
+        encoding="utf-8",
+    )
+    (env / "sources/risk-docs.yml").write_text(
+        yaml.safe_dump(
+            {
+                "name": "Risk docs",
+                "description": "-",
+                "kind": "folder",
+                "location": "risk",
+                "classification": "internal",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (env / "teams/README.md").write_text("not configuration", encoding="utf-8")
+    config = compile_config(config_dir, "example").config
+    assert set(config["teams"]) == {"payments", "platform", "risk"}
+    assert config["team_systems"]["payments"]["control_repo"]["repo"] == "example-org/payments-sdlc-control"
+    assert set(config["sources"]) == {"platform-spec", "risk-docs"}
+
+    (env / "teams/risk.yaml").write_text(
+        yaml.safe_dump({"name": "Risk", "description": "Risk.", "roles": ["member"]}), encoding="utf-8"
+    )
+    (env / "teams/Bad Name.yaml").write_text(
+        yaml.safe_dump({"name": "Bad", "description": "-", "roles": ["member"]}), encoding="utf-8"
+    )
+    assert main(["validate", "--env", "example", "--dir", str(config_dir)]) == 1
+    err = capsys.readouterr().err
+    assert "env/example/teams/risk.yaml: 'risk' is also defined in env/example/teams.yaml" in err
+    assert "env/example/teams/Bad Name.yaml" in err
+
+
+def test_a_user_group_takes_in_the_members_of_the_teams_it_lists(config_dir):
+    edit(
+        config_dir / "env/example/user_groups.yaml",
+        lambda d: d["user_groups"]["early-adopters"].update(teams=["platform"]),
+    )
+    members = compile_config(config_dir, "example").config["members"]
+    assert members["grace@example.test"]["user_groups"] == ["early-adopters"]  # listed and via platform: once
+    assert members["ada@example.test"]["user_groups"] == []  # payments is not listed any more
+    edit(
+        config_dir / "env/example/user_groups.yaml",
+        lambda d: d["user_groups"]["early-adopters"].update(teams=["payments"]),
+    )
+    members = compile_config(config_dir, "example").config["members"]
+    assert members["ada@example.test"]["user_groups"] == ["early-adopters"]  # any role of the team

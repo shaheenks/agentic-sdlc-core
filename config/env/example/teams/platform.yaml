@@ -1,0 +1,4 @@
+# One team of this environment; the file name (platform) is its ID. See payments.yaml for what a team declares.
+name: Platform
+description: The team that runs this platform.
+roles: [member, lead]

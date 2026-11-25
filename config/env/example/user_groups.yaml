@@ -1,0 +1,9 @@
+# User groups of this environment (FR-AUTHZ-007): sets of users given tool groups and knowledge sources
+# (`tool_groups`, `sources`) whether or not they share a team. Members: the users who list the group in
+# users.yaml, and the members of the teams (`payments`) or team roles (`payments:lead`) the group lists under
+# `teams`. That is membership only: the group's grants apply in its members' own runs, and a team run still
+# keeps only what its team or everyone is given.
+user_groups:
+  early-adopters:
+    description: People who try new workflows and tools first.
+    teams: [payments:lead]

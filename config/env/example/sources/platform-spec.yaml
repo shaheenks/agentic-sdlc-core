@@ -1,0 +1,20 @@
+# One knowledge source of this environment (FR-KNOW-001, DEC-0011); the file name (platform-spec) is its ID.
+# Sources may also be listed together in sources.yaml next to this folder; an ID defined twice is refused.
+#
+# The ingest pipeline reads each source with its own service identity and tags every record with the source ID
+# and classification. Who may read it: everyone (`everyone: true`), or the teams, team roles and user groups that
+# list it under `sources`; knowledge search returns its records only to users and team runs it is given to.
+#
+# kind: git     location: https clone URL; ref: branch, tag or commit; credential: Secret Manager secret
+#               with a read token, for a private repository.
+# kind: folder  location: a path relative to the ingest root (the build checkout), or gs://bucket/prefix.
+# classification: public, internal, confidential or restricted; a label on every record, no ceiling yet.
+name: Platform specification
+description: This platform's requirements, components and decisions.
+everyone: true
+kind: folder
+location: spec
+include: ["**/*.md"]
+exclude: ["traceability.md", "**/index.md"]
+link: https://github.com/shaheenks/agentic-sdlc-core/blob/main-v2/spec/{path}
+classification: internal

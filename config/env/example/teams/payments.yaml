@@ -1,0 +1,41 @@
+# One team of this environment; the file name (payments) is its ID. Teams may also be listed together in
+# teams.yaml next to this folder; an ID defined twice is refused.
+#
+# Members and their roles are in users.yaml. A team may be given tool groups and knowledge sources
+# (FR-AUTHZ-007, DEC-0011), and more for one role:
+#   tool_groups: [jira]
+#   sources: [payments-code]
+#   role_grants: {lead: {tool_groups: [...], sources: [...]}}
+# Members get them in their own runs; a team run keeps only what the team or everyone is given.
+#
+# systems: the team's Jira projects, Confluence spaces and product repositories (lists; when one has more than
+# one entry, mark exactly one `default: true`), and control_repo, its sdlc-control repository (DEC-0012): approved
+# artifacts and the record of every agent write. Its org/repo name identifies the team. Tools act with the
+# user's own connection and only on the systems of the run's team (FR-AUTHZ-003).
+name: Payments
+description: Payment services.
+roles: [member, lead]
+systems:
+  jira:
+    - provider: jira_cloud
+      base_url: https://example.atlassian.net
+      project: PAY
+      default: true
+    - provider: jira_cloud
+      base_url: https://example.atlassian.net
+      project: CARD
+  confluence:
+    - provider: confluence_cloud
+      base_url: https://example.atlassian.net/wiki
+      space: PAY
+  repositories:
+    - provider: github
+      repo: example-org/payments-service
+      design_path: docs/specs
+      default: true
+    - provider: github
+      repo: example-org/payments-gateway
+      design_path: docs/specs
+  control_repo:
+    provider: github
+    repo: example-org/payments-sdlc-control

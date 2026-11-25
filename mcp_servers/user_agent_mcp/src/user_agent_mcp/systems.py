@@ -3,8 +3,9 @@ FR-AUTHZ-003, FR-SDLC-002, FR-SDLC-003, FR-SDLC-005).
 
 Argument constraints: which Jira projects and repositories a call may touch comes from the configuration
 (`team_systems`), never from the arguments. Reads may touch the systems of any of the user's teams (in a team
-run, that team's only); writes need a team run and touch that team's systems only. A design pull request adds
-files only under the repository's declared design path, in a folder named for the feature.
+run, that team's only); writes need a team run and touch that team's systems only. A team lists its Jira
+projects, Confluence spaces and repositories, each with one default, used when a call names none. A design pull
+request adds files only under the repository's declared design path, in a folder named for the feature.
 """
 
 import asyncio
@@ -65,10 +66,20 @@ def _edition(caller: "Caller", provider: str) -> tuple[str, str]:
 # Jira -----------------------------------------------------------------------------------------------------
 
 
+def _teams(caller: "Caller", write: bool) -> dict[str, dict[str, Any]]:
+    return {(t := _run_team(caller)): (scope(caller).get(t) or {})} if write else scope(caller)
+
+
+def _default_team(caller: "Caller", teams: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    """The team whose defaults apply: the run's team, or the user's only team with systems."""
+    if caller.policy.team:
+        return teams.get(caller.policy.team)
+    return next(iter(teams.values())) if len(teams) == 1 else None
+
+
 def _jira_projects(caller: "Caller", write: bool) -> dict[str, tuple[str, dict[str, Any]]]:
     """Project key -> (team, Jira settings) that this call may touch."""
-    teams = {(t := _run_team(caller)): (scope(caller).get(t) or {})} if write else scope(caller)
-    return {s["jira"]["project"]: (team, s["jira"]) for team, s in teams.items() if s.get("jira")}
+    return {j["project"]: (team, j) for team, s in _teams(caller, write).items() for j in s.get("jira") or ()}
 
 
 def _jira(platform: "Platform", caller: "Caller", settings: dict[str, Any]) -> Jira:
@@ -85,17 +96,27 @@ def _project_of(key: str, allowed: dict[str, Any]) -> str:
     return match.group(1)
 
 
+def _pick(item: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
+    return {k: item[k] for k in keys if k in item}
+
+
 async def team_systems(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    jira_keys = ("project", "base_url", "design_status", "development_status", "default")
     return {
         "team": caller.policy.team,
         "teams": {
             team: {
-                "jira": {k: s["jira"][k] for k in ("project", "base_url", "design_status", "development_status")}
-                if s.get("jira")
-                else None,
-                "repositories": [
-                    {k: r[k] for k in ("repo", "provider", "default_branch", "design_path")} for r in s["repositories"]
+                "jira": [_pick(j, jira_keys) for j in s.get("jira") or ()],
+                "confluence": [
+                    _pick(c, ("space", "base_url", "parent_page", "default")) for c in s.get("confluence") or ()
                 ],
+                "repositories": [
+                    _pick(r, ("repo", "provider", "default_branch", "design_path", "default"))
+                    for r in s.get("repositories") or ()
+                ],
+                "control_repo": _pick(s["control_repo"], ("repo", "provider", "branch"))
+                if s.get("control_repo")
+                else None,
             }
             for team, s in scope(caller).items()
         },
@@ -129,9 +150,14 @@ async def jira_search(platform: "Platform", caller: "Caller", args: dict[str, An
     allowed = _jira_projects(caller, write=False)
     if not allowed:
         return {"issues": []}
+    sites: dict[tuple[str, str], list[dict[str, Any]]] = {}  # one query per site, default projects first
+    for _, settings in sorted(allowed.values(), key=lambda v: (not v[1]["default"], v[1]["project"])):
+        sites.setdefault((settings["provider"], settings["base_url"]), []).append(settings)
     results = []
-    for project, (_, settings) in sorted(allowed.items()):
-        clauses = [f'project = "{project}"']
+    for projects in sites.values():
+        settings = projects[0]
+        keys = ", ".join(f'"{p["project"]}"' for p in projects)
+        clauses = [f'project = "{settings["project"]}"' if len(projects) == 1 else f"project in ({keys})"]
         if args.get("text"):
             clauses.append(_jql_text(str(args["text"])))
         for arg, field in (("issue_type", "issuetype"), ("status", "status")):
@@ -152,7 +178,10 @@ async def jira_create_feature(platform: "Platform", caller: "Caller", args: dict
     allowed = _jira_projects(caller, write=True)
     if not allowed:
         raise ToolError(CONSTRAINT, "your team has no Jira project in this environment")
-    project, (_, settings) = next(iter(allowed.items()))
+    project = args.get("project") or next(p for p, (_, s) in allowed.items() if s["default"])
+    if project not in allowed:
+        raise ToolError(CONSTRAINT, f"{project} is not a Jira project of your team")
+    _, settings = allowed[project]
     feature, stories = args.get("feature") or {}, args.get("stories") or []
     if not isinstance(feature, dict) or not isinstance(stories, list) or not 1 <= len(stories) <= 30:
         raise ToolError("invalid_argument", "give a feature and 1 to 30 stories")
@@ -199,7 +228,12 @@ async def jira_link_pull_request(platform: "Platform", caller: "Caller", args: d
 
 
 def _repo(platform: "Platform", caller: "Caller", name: Any, write: bool):
-    teams = {(t := _run_team(caller)): (scope(caller).get(t) or {})} if write else scope(caller)
+    teams = _teams(caller, write)
+    if not name:  # the team's default repository
+        default = _default_team(caller, teams) or {}
+        name = next((r["repo"] for r in default.get("repositories") or () if r["default"]), None)
+        if not name:
+            raise ToolError("invalid_argument", "name the repository (owner/name); see team_systems")
     for systems in teams.values():
         for repo in systems.get("repositories") or ():
             if isinstance(name, str) and repo["repo"].lower() == name.lower():
@@ -274,9 +308,13 @@ async def connection_test(platform: "Platform", caller: "Caller", args: dict[str
     credential = _credential(platform, caller, provider)
     stored = platform.connections.metadata(caller.identity.user_id, provider)
     base_url = stored.get("base_url")
+    if system == "confluence":
+        raise ToolError(
+            "unavailable", "Confluence connections are stored; testing them comes with the Confluence tools"
+        )
     if system == "jira" and not base_url:  # Jira Cloud: the site of one of the user's teams
         sites = [
-            s["jira"]["base_url"] for s in scope(caller).values() if s.get("jira") and s["jira"]["provider"] == provider
+            j["base_url"] for s in scope(caller).values() for j in s.get("jira") or () if j["provider"] == provider
         ]
         base_url = sites[0] if sites else None
     if not base_url:
