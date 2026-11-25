@@ -239,6 +239,11 @@ changing it during a run needs the user's explicit confirmation in chat.
   merge) and sends the answer back to resume the workflow; a workflow's own agents stay out of the chat. Next:
   deploy user_agent_mcp, user_agent and sdlc_ui to development with the team's systems, and run the exit gate.
 
+- Deployed to development (2026-11-25): configuration with the first real team (its Jira project, product and
+  control repositories, and its knowledge source), user_agent_mcp, user_agent (the engine reads its skills from the
+  package) and sdlc_ui; a knowledge refresh added the team's repository (50 files, 176 chunks, Gemini extraction
+  without errors). Next: the user's connections, then the exit gate from a team chat.
+
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).

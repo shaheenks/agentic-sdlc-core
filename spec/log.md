@@ -1,5 +1,8 @@
 ## 2026-11-25
 
+* **Update**: 4a milestones 3 and 4 deployed to development with the first real team; the knowledge refresh added
+  its repository. Fixes found on the way: user_agent_mcp declares PyYAML, the user_agent engine reads its packaged
+  skills, and the chat takes the page's colours.
 * **Update**: a team's `control_repo` may have any `org/repo` name (such as `<org>/sdlc-control`), the user's
   choice; no two teams share one.
 * **Update**: Jira status gates removed, the user's change: no workflow depends on a Feature's status (In Design,
