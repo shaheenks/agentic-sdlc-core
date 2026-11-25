@@ -43,6 +43,15 @@ class Change:
     url: str | None = None
 
 
+@dataclass(frozen=True)
+class OpenPullRequest:
+    number: int
+    title: str
+    url: str
+    branch: str
+    author: str | None = None
+
+
 class Repository(Protocol):
     def whoami(self) -> dict[str, Any]: ...
     def read_file(self, path: str, ref: str | None = None) -> str: ...
@@ -52,6 +61,7 @@ class Repository(Protocol):
     ) -> PullRequest: ...
     def last_change(self, path: str, branch: str) -> Change | None: ...
     def commit_file(self, path: str, content: str, branch: str, message: str) -> str: ...
+    def open_pull_requests(self) -> list[OpenPullRequest]: ...
 
 
 def _check(path: str = "", branch: str = "") -> None:
@@ -122,6 +132,19 @@ class GitHub:
 
     def commit_file(self, path: str, content: str, branch: str, message: str) -> str:
         return self._put(path, content, branch, message)
+
+    def open_pull_requests(self) -> list[OpenPullRequest]:
+        found = self.http.request("GET", f"/repos/{self.repo}/pulls", params={"state": "open", "per_page": 100}) or []
+        return [
+            OpenPullRequest(
+                p["number"],
+                p.get("title", ""),
+                p.get("html_url", ""),
+                (p.get("head") or {}).get("ref", ""),
+                (p.get("user") or {}).get("login"),
+            )
+            for p in found
+        ]
 
     def last_change(self, path: str, branch: str) -> Change | None:
         _check(path=path, branch=branch)
@@ -212,6 +235,21 @@ class BitbucketCloud:
         )
         change = self.last_change(path, branch)
         return change.commit if change else ""
+
+    def open_pull_requests(self) -> list[OpenPullRequest]:
+        found = self.http.request(
+            "GET", f"/2.0/repositories/{self.repo}/pullrequests", params={"state": "OPEN", "pagelen": 50}
+        )
+        return [
+            OpenPullRequest(
+                p["id"],
+                p.get("title", ""),
+                ((p.get("links") or {}).get("html") or {}).get("href", ""),
+                ((p.get("source") or {}).get("branch") or {}).get("name", ""),
+                (p.get("author") or {}).get("display_name"),
+            )
+            for p in (found or {}).get("values") or ()
+        ]
 
     def last_change(self, path: str, branch: str) -> Change | None:
         _check(path=path, branch=branch)
@@ -309,6 +347,19 @@ class BitbucketDataCenter:
 
     def commit_file(self, path: str, content: str, branch: str, message: str) -> str:
         return self._put(path, content, branch, message)
+
+    def open_pull_requests(self) -> list[OpenPullRequest]:
+        found = self.http.request("GET", f"{self.base}/pull-requests", params={"state": "OPEN", "limit": 100})
+        return [
+            OpenPullRequest(
+                p["id"],
+                p.get("title", ""),
+                (((p.get("links") or {}).get("self") or [{}])[0]).get("href", ""),
+                (p.get("fromRef") or {}).get("displayId", ""),
+                ((p.get("author") or {}).get("user") or {}).get("name"),
+            )
+            for p in (found or {}).get("values") or ()
+        ]
 
     def last_change(self, path: str, branch: str) -> Change | None:
         _check(path=path, branch=branch)

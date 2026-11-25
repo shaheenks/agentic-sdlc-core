@@ -101,6 +101,11 @@ class PublishFeatureIn(BaseModel):
     stories: list[Item]
     project: str = Field("", description="A Jira project of the team; its default if empty.")
     description: str = Field("", description="Pull request text: review findings and what the user decided.")
+    control_id: str = Field(
+        "",
+        description="The control ID of a feature already published (for example after Jira rejected the issues): "
+        "no new pull request is opened; once it is approved, the issues are created.",
+    )
 
 
 class HandOffIn(BaseModel):
@@ -560,10 +565,15 @@ def merge_gate(kit: Kit, p: str, kind: str):
     async def wait(ctx: Context, node_input: Any):
         published = ctx.state[key]
         reason = node_input.get("reason") if isinstance(node_input, dict) else None
+        url = (published.get("pull_request") or {}).get("url") or "its pull request"
+        opened = (
+            f"A pull request for this was already open, so I did not open another: {url}"
+            if published.get("already_open")
+            else f"I opened {url} on your team's control repository"
+        )
         message = (
-            f"I opened {published['pull_request']['url']} on your team's control repository "
-            f"({published['control_id']}). "
-            "Once a person has merged it, reply 'merged'; reply 'cancel' to stop here."
+            f"{opened} ({published['control_id']}). Once a person has merged it, reply 'merged'; reply 'cancel' to "
+            "stop here."
         )
         if reason:
             message = f"Not approved yet: {reason}. " + message
@@ -595,6 +605,22 @@ def publish_feature(kit: Kit) -> Workflow:
 
     async def publish(ctx: Context, node_input: Any):
         try:
+            if node_input.get("control_id"):  # already published: never a second pull request for it
+                status = await kit.caller.call(ctx, "control_status", {"control_id": node_input["control_id"]})
+                feature = status["artifacts"]["feature"]
+                if not feature["published"]:
+                    return _stop(
+                        ctx, f"{node_input['control_id']} is not published on the control repository", "not_found"
+                    )
+                ctx.state[key] = {
+                    "control_id": status["control_id"],
+                    "pull_request": {"url": feature.get("url") or ""},
+                    "already_open": True,
+                    "input": node_input,
+                }
+                ctx.state[f"{key}:writes"] = status.get("writes") or []
+                ctx.route = "approved" if feature["approved"] else "go"
+                return feature
             out = await kit.caller.call(
                 ctx,
                 "control_publish",
@@ -607,7 +633,12 @@ def publish_feature(kit: Kit) -> Workflow:
             )
         except StepError as exc:
             return _stop(ctx, exc.message or exc.code, exc.code)
-        ctx.state[key] = {"control_id": out["control_id"], "pull_request": out["pull_request"], "input": node_input}
+        ctx.state[key] = {
+            "control_id": out["control_id"],
+            "pull_request": out["pull_request"],
+            "already_open": bool(out.get("already_open")),
+            "input": node_input,
+        }
         ctx.route = "go"
         return out
 
@@ -622,7 +653,13 @@ def publish_feature(kit: Kit) -> Workflow:
         try:
             made = await kit.caller.call(ctx, "jira_create_feature", args)
         except StepError as exc:
-            return _stop(ctx, exc.message or exc.code, exc.code)
+            # approved, but Jira refused: retry with this control ID once the cause is fixed, never publish again
+            return {
+                **_stop(ctx, exc.message or exc.code, exc.code),
+                "control_id": published["control_id"],
+                "next": f"The feature is approved as {published['control_id']}. Fix the cause with the user, then "
+                f"call publish_feature again with control_id {published['control_id']}: it opens no new pull request.",
+            }
         ctx.route = "done"
         return {"status": "done", "approved_by": node_input.get("merged_by"), **made}
 
@@ -636,7 +673,7 @@ def publish_feature(kit: Kit) -> Workflow:
         input_schema=PublishFeatureIn,
         edges=[
             *with_scope(kit, p, PublishFeatureIn, publish_n, end),
-            (publish_n, {"go": wait, "stop": end}),
+            (publish_n, {"go": wait, "approved": create_n, "stop": end}),
             (wait, check),
             (check, {"approved": create_n, "wait": wait, "stop": end}),
             (create_n, {"done": end, "stop": end}),
@@ -667,7 +704,11 @@ def hand_off_design(kit: Kit) -> Workflow:
             out = await kit.caller.call(ctx, "control_publish", args)
         except StepError as exc:
             return _stop(ctx, exc.message or exc.code, exc.code)
-        ctx.state[key] = {"control_id": out["control_id"], "pull_request": out["pull_request"]}
+        ctx.state[key] = {
+            "control_id": out["control_id"],
+            "pull_request": out["pull_request"],
+            "already_open": bool(out.get("already_open")),
+        }
         ctx.route = "go"
         return out
 

@@ -311,7 +311,8 @@ TOOLS: dict[str, Tool] = {
             "jira_create_feature",
             "Create the feature and its user stories in one of the run's team's Jira projects, as you, from a "
             "feature.md approved on the team's control repository (control_publish, then a person merges). The keys "
-            "are recorded there. Refused while the feature is not approved, and once it is already in Jira.",
+            "are recorded there. Refused while the feature is not approved, once it is already in Jira, and when the "
+            "project already has an issue of the feature's type with the same summary.",
             _schema(
                 {
                     "control_id": {
@@ -381,6 +382,13 @@ TOOLS: dict[str, Tool] = {
             write=True,
         ),
         Tool(
+            "control_pull_requests",
+            "List the open pull requests on the run's team's control repository, with the feature (control ID) and "
+            "artifact each is for. Check it before publishing: a similar pull request may already be open.",
+            _schema(),
+            control.control_pull_requests,
+        ),
+        Tool(
             "control_status",
             "Whether a feature's artifacts (feature.md, design.md) are approved on the run's team's control "
             "repository, who merged them, what has been written from them, and on request their text. Give the "
@@ -393,6 +401,13 @@ TOOLS: dict[str, Tool] = {
                 }
             ),
             control.control_status,
+        ),
+        Tool(
+            "repo_pull_requests",
+            "List the open pull requests of one of your team's repositories (its default when none is named). Check "
+            "it before raising a pull request there: a similar one may already be open.",
+            _schema({"repo": {"type": "string", "description": "owner/name of one of your team's repositories."}}),
+            systems.repo_pull_requests,
         ),
         Tool(
             "repo_list",

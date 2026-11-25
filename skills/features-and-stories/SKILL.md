@@ -44,3 +44,5 @@ Rules:
 - Save the draft as an artifact (artifact_save, content type text/markdown) and show it in the chat. It stays the
   user's artifact until it is approved.
 - Never create Jira issues in this step: that happens only after the user approves the draft.
+- Before the draft is published, list the open pull requests on the team's control repository
+  (control_pull_requests): if one is open for the same feature, point the user to it instead of a new one.

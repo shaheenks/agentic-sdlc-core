@@ -209,6 +209,12 @@ async def jira_create_feature(platform: "Platform", caller: "Caller", args: dict
             "finish or remove them in Jira before trying again",
         )
     jira = _jira(platform, caller, settings)
+    # Never a second issue for the same feature: an existing one of the feature's type with the same summary.
+    summary = feature["summary"].strip()
+    jql = f'project = "{project}" AND issuetype = "{settings["feature_type"]}" AND {_jql_text(summary)}'
+    for found in await _call(lambda: jira.search(jql, limit=20)):
+        if found.summary.strip().lower() == summary.lower() and found.issue_type == settings["feature_type"]:
+            raise ToolError("already_exists", f"{project} already has this feature as {found.key} ({found.url})")
     results: dict[str, Any] = {"project": project, "site": settings["base_url"], "stories": []}
     entry = {
         "action": "create_feature",
@@ -312,6 +318,19 @@ async def repo_list(platform: "Platform", caller: "Caller", args: dict[str, Any]
     path = str(args.get("path") or "").strip("/")
     entries = await _call(lambda: client.list_dir(path, args.get("ref")))
     return {"repo": repo["repo"], "path": path, "entries": entries[:200]}
+
+
+async def repo_pull_requests(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    """The open pull requests of one of the team's repositories (its default when none is named): to check for a
+    similar one before raising another."""
+    client, repo = _repo(platform, caller, args.get("repo"), write=False)
+    found = await _call(client.open_pull_requests)
+    return {
+        "repo": repo["repo"],
+        "pull_requests": [
+            {"number": p.number, "title": p.title, "url": p.url, "branch": p.branch, "author": p.author} for p in found
+        ],
+    }
 
 
 async def repo_read_file(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:

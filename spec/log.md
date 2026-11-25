@@ -1,5 +1,13 @@
 ## 2026-11-25
 
+* **Update**: no publish loop: `publish_feature` retries with an approved feature's control ID (no new pull request),
+  a failure after approval returns that ID, and the agent is told never to publish the same feature again. Jira
+  issues are not created twice (a feature of the same type and summary is returned instead); the same rule is written
+  down for Confluence pages (FR-SDLC-002, FR-SDLC-013).
+* **Update**: no duplicate pull requests: before opening one on the control repository, user_agent_mcp lists the open
+  ones and returns an open one for the same artifact instead (the workflows wait on it); `control_pull_requests` and
+  `repo_pull_requests` list open pull requests, and the agent's instructions and skills check them before any pull
+  request is raised. FR-SDLC-013 and FR-SDLC-006 (for ci_workflow_agent's target repositories) changed.
 * **Update**: the review ends after one clean round ([FR-SDLC-004](requirements/functional/FR-SDLC-004.md) changed,
   the user's choice), and a drafter reads at most 10 files and lists at most 5 folders per draft
   ([user_agent](components/user-agent.md)): a design run took over 15 minutes.

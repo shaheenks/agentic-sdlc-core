@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from user_agent_mcp.platform import Caller, Platform
 
 CONTROL_ID = re.compile(r"^F-[0-9]{8}-[a-z0-9][a-z0-9-]{0,39}$")
+BRANCH = re.compile(r"^sdlc/(F-[0-9]{8}-[a-z0-9-]{1,40})/(feature|design)-")
 KINDS = ("feature", "design")
 MAX_ARTIFACT = 200_000
 FRONT_MATTER = re.compile(r"\A---\n.*?\n---\n?", re.S)
@@ -104,6 +105,37 @@ class Control:
         self.client.commit_file(links_path(control_id), text, self.branch, f"{control_id}: record {entry['action']}")
 
 
+def _open_pull_requests(control: "Control") -> list[dict[str, Any]]:
+    """The control repository's open pull requests, with the control ID and kind their branch names."""
+    found = []
+    for pr in control.client.open_pull_requests():
+        match = BRANCH.match(pr.branch)
+        found.append(
+            {
+                "number": pr.number,
+                "title": pr.title,
+                "url": pr.url,
+                "branch": pr.branch,
+                "author": pr.author,
+                **({"control_id": match.group(1), "kind": match.group(2)} if match else {}),
+            }
+        )
+    return found
+
+
+def _similar(open_prs: list[dict[str, Any]], kind: str, control_id: str | None, slug: str) -> dict[str, Any] | None:
+    """An open pull request for the same artifact: the same control ID and kind, or, for an artifact without a
+    control ID yet, a feature of the same name (any date)."""
+    for pr in open_prs:
+        if pr.get("kind") != kind:
+            continue
+        if control_id and pr.get("control_id") == control_id:
+            return pr
+        if not control_id and re.match(rf"^F-[0-9]{{8}}-{re.escape(slug)}(-[0-9]+)?$", pr.get("control_id", "")):
+            return pr
+    return None
+
+
 def _slug(text: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:40].strip("-")
     return slug or "feature"
@@ -136,6 +168,18 @@ async def control_publish(platform: "Platform", caller: "Caller", args: dict[str
     if control_id:
         if not isinstance(control_id, str) or not CONTROL_ID.match(control_id):
             raise ToolError("invalid_argument", "control_id looks like F-20261125-refunds")
+    # Never a second pull request for the same artifact: an open one is returned instead.
+    name_source = str(args.get("summary") or (args.get("feature") if kind == "design" else body) or body)
+    slug = _slug(name_source.strip().splitlines()[0] if name_source.strip() else "feature")
+    existing = _similar(await _call(lambda: _open_pull_requests(control)), kind, control_id, slug)
+    if existing:
+        return {
+            "control_id": existing["control_id"],
+            "kind": kind,
+            "already_open": True,
+            "pull_request": {"number": existing["number"], "url": existing["url"], "branch": existing["branch"]},
+            "next": "a pull request for this is already open: have it merged (or closed) instead of opening another",
+        }
     if kind == "feature":
         if not control_id:
             control_id = await _new_id(control, str(args.get("summary") or body.splitlines()[0]))
@@ -251,3 +295,11 @@ async def _control_id_of(platform: "Platform", caller: "Caller", key: str) -> st
         if match:
             return match.group(1)
     raise ToolError("not_found", f"{key} was not created from the control repository (no sdlc-control link)")
+
+
+async def control_pull_requests(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    """The open pull requests on the run's team's control repository, with the feature and artifact each is for."""
+    from user_agent_mcp.systems import _call
+
+    control = Control(platform, caller)
+    return {"repository": control.settings["repo"], "pull_requests": await _call(lambda: _open_pull_requests(control))}

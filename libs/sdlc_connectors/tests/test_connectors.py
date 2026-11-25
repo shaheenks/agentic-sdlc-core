@@ -286,3 +286,64 @@ def test_a_rejected_request_names_the_fields_but_never_their_values():
         and "secret-ish" not in err.value.message
         and TOKEN not in err.value.message
     )
+
+
+def test_open_pull_requests_in_every_edition():
+    gh = Fake(
+        {
+            ("GET", "/repos/o/c/pulls"): httpx.Response(
+                200,
+                json=[
+                    {
+                        "number": 4,
+                        "title": "t",
+                        "html_url": "u",
+                        "head": {"ref": "sdlc/F-1/feature-a"},
+                        "user": {"login": "ada"},
+                    }
+                ],
+            )
+        }
+    )
+    got = repository(
+        "github", "cloud", "https://api.github.com", "o/c", Credential(TOKEN), gh.client()
+    ).open_pull_requests()
+    assert [(p.number, p.branch, p.author) for p in got] == [(4, "sdlc/F-1/feature-a", "ada")]
+    assert dict(gh.seen[0].url.params)["state"] == "open"
+    bbc = Fake(
+        {
+            ("GET", "/2.0/repositories/ws/c/pullrequests"): httpx.Response(
+                200,
+                json={
+                    "values": [
+                        {"id": 2, "title": "t", "links": {"html": {"href": "u"}}, "source": {"branch": {"name": "b"}}}
+                    ]
+                },
+            )
+        }
+    )
+    assert (
+        repository("bitbucket", "cloud", "https://api.bitbucket.org", "ws/c", Credential(TOKEN), bbc.client())
+        .open_pull_requests()[0]
+        .branch
+        == "b"
+    )
+    base = "/rest/api/1.0/projects/P/repos/c"
+    dc = Fake(
+        {
+            ("GET", f"{base}/pull-requests"): httpx.Response(
+                200,
+                json={
+                    "values": [
+                        {"id": 3, "title": "t", "links": {"self": [{"href": "u"}]}, "fromRef": {"displayId": "b2"}}
+                    ]
+                },
+            )
+        }
+    )
+    assert (
+        repository("bitbucket", "data_center", "https://bb.example.test", "P/c", Credential(TOKEN), dc.client())
+        .open_pull_requests()[0]
+        .number
+        == 3
+    )

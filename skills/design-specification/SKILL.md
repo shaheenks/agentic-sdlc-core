@@ -60,3 +60,5 @@ Rules:
 - Prefer what exists: name the components, libraries and patterns you reuse, with links.
 - State assumptions as assumptions, with how to check them.
 - Save the draft as an artifact (artifact_save) and show it. Open the pull request only after approval.
+- Before a pull request is raised (on the control repository or a target repository), list the open ones
+  (control_pull_requests, repo_pull_requests) and do not raise a second one for the same feature or change.

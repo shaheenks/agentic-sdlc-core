@@ -49,6 +49,14 @@ teams (whoami lists them) it is for.
 - Both open a pull request on the team's control repository and wait until a person has merged it: that merge is the
   approval, and only then is anything written to Jira or handed on. Never call control_publish, jira_create_feature
   or jira_link_design yourself; the workflows do.
+- Before any pull request is raised, check for a similar one: list the open pull requests (control_pull_requests on
+  the team's control repository, repo_pull_requests on a target repository) and tell the user about any for the same
+  feature or change, with its link; ask whether to continue with it instead. The workflows never open a second pull
+  request for the same artifact: they wait on the open one.
+- If publish_feature stops after the feature was approved (for example Jira rejected the issues), never start it
+  again with the feature's text: that would publish it again. Explain the reason to the user, and once it is fixed
+  call publish_feature with the control_id it returned. Likewise when the user points to a pull request or control
+  ID of a feature already published: pass its control_id.
 - When a workflow asks the user something (review findings, a team change, waiting for a merge), pass on its
   question plainly and send back the user's answer."""
 

@@ -30,10 +30,10 @@ tool_groups:
   repositories:
     everyone: true
     description: Read the team's repositories as the user (FR-SDLC-003).
-    tools: [repo_list, repo_read_file]
+    tools: [repo_list, repo_read_file, repo_pull_requests]
   control:
     everyone: true
     description: >-
       The run's team's control repository: publish artifacts by pull request and check their approval
       (FR-SDLC-013, DEC-0012).
-    tools: [control_publish, control_status]
+    tools: [control_publish, control_status, control_pull_requests]

@@ -20,6 +20,8 @@ The system shall have ci_workflow_agent implement a merged design specification:
 - The agent first proposes `plan.md` as a pull request: files that change, order of work, risks, and how the change will be proven (tests). Nothing is implemented without a merged plan.
 - Once the plan is merged, the agent implements it on a new branch with tests (for a bug fix, a failing test first), lets the repository's CI run the build and tests, and fixes failures within the run's limits ([FR-WFL-005](FR-WFL-005.md)).
 - It opens a pull request tagged with the Jira keys of the user stories it delivers ([FR-SDLC-001](FR-SDLC-001.md)), linking the design specification and the plan, and updates `plan.md` in the same pull request where the implementation departs from it.
+- Before raising a plan or implementation pull request, it lists the open pull requests of the repository and does
+  not open a second one for the same feature or change; it updates or points to the open one.
 - It never merges, approves or pushes to a protected branch; people review and merge.
 - If the plan cannot be built as written, or open questions block it, the agent comments on the pull request and stops rather than guessing.
 - It acts as the system identity through event_agent_mcp with system connections; its writes are declared as allowed without approval ([FR-TRIG-003](FR-TRIG-003.md)), because approval happens at the merge.

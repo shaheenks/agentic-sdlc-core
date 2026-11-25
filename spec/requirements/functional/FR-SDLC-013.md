@@ -25,6 +25,10 @@ before each such write.
 - Each artifact has front matter with its control ID, team, kind, the run that drafted it, the previous artifact's
   path and commit, and the Jira keys once they exist.
 - Artifacts reach the main branch only through pull requests, opened on a branch `sdlc/<control-id>/<kind>`.
+- Before opening one, the open pull requests are listed: if one is open for the same artifact (the same control ID
+  and kind, or a feature of the same name), it is returned instead and no second one is opened. Likewise, before an
+  agent creates a Jira issue or a Confluence page from an artifact, it searches for an existing one with the same
+  title (summary) of the same type in the same project or space and uses it instead of creating a second.
 - Approved means: on the main branch, and the last commit that changed the artifact there came from a pull request
   merged by a person, not by a system identity. The check returns the merge commit and who merged.
 - After each write the results (keys, links, the artifact commit, the run, the acting identity, the time) are

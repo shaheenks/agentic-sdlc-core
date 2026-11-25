@@ -29,7 +29,9 @@ connection.
   repository, with the user's own connection, and waits; once a person has merged it, it creates the Feature issue
   and its User Story issues in one of the team's Jira projects (the default unless the user names another), as the
   user, and records their keys in `links.yaml` ([FR-SDLC-013](FR-SDLC-013.md)).
-- The Jira tool refuses to create issues for a `feature.md` that is not approved ([FR-SDLC-001](FR-SDLC-001.md)).
+- The Jira tool refuses to create issues for a `feature.md` that is not approved ([FR-SDLC-001](FR-SDLC-001.md)),
+  and when the project already has an issue of the feature's type with the same summary (it names that issue).
+- A retry after Jira refused the issues uses the approved feature's control ID: no new pull request is opened.
 - The next runs do not depend on the feature's Jira status: a design starts from the approved feature
   ([FR-SDLC-003](FR-SDLC-003.md)), the implementation from the merged design ([FR-SDLC-006](FR-SDLC-006.md)).
 

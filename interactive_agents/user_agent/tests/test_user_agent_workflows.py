@@ -88,6 +88,7 @@ class FakeMcp:
         self.calls: list[tuple[str, dict, str | None]] = []
         self.approved = False
         self.jira_recorded = True
+        self.open = False
 
     async def call(self, ctx: Any, name: str, arguments: dict | None = None) -> dict:
         arguments = arguments or {}
@@ -99,7 +100,8 @@ class FakeMcp:
             return {"team": team, "teams": {team: {"repositories": [{"repo": "org/payments", "default": True}]}}}
         if name == "control_publish":
             control_id = arguments.get("control_id") or "F-20261125-refunds"
-            return {"control_id": control_id, "pull_request": {"number": 1, "url": "https://gh/pr/1", "branch": "b"}}
+            pr = {"number": 1, "url": "https://gh/pr/1", "branch": "b"}
+            return {"control_id": control_id, "pull_request": pr, **({"already_open": True} if self.open else {})}
         if name == "control_status":
             approval = {"path": "p", "published": True, "approved": self.approved}
             if self.approved:
@@ -367,3 +369,27 @@ def test_the_drafter_has_a_reading_budget():
     assert refused["error"] == "read_limit" and "write the draft" in refused["message"]
     assert check(Tool("knowledge_search"), {}, Ctx) is None  # searches are not counted
     assert check(Tool("repo_list"), {}, Ctx) is None
+
+
+async def test_an_already_open_pull_request_is_waited_on_not_duplicated(world):
+    script, mcp, runner = world
+    script.calls["add it to Jira"] = PUBLISH
+    mcp.open = True
+    session = await start(runner)
+    ((_, request),) = (await turn(runner, session, text="add it to Jira"))["requests"]
+    assert (
+        request["message"].startswith("A pull request for this was already open")
+        and "https://gh/pr/1" in request["message"]
+    )
+    assert mcp.names().count("control_publish") == 1
+
+
+async def test_a_retry_with_the_control_id_creates_the_issues_without_a_new_pull_request(world):
+    script, mcp, runner = world
+    name, args = PUBLISH
+    script.calls["retry"] = (name, {**args, "control_id": "F-20261125-refunds"})
+    mcp.approved = True
+    session = await start(runner)
+    done = (await turn(runner, session, text="retry"))["results"]["publish_feature"]
+    assert done["status"] == "done" and done["feature"]["key"] == "PAY-1"
+    assert "control_publish" not in mcp.names() and mcp.names()[-1] == "jira_create_feature"

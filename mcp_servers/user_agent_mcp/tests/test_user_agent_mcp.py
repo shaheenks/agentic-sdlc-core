@@ -548,8 +548,8 @@ SYSTEMS_CONFIG = {
             "description": "-",
             "tools": ["team_systems", "jira_get_issue", "jira_search", "jira_create_feature", "jira_link_design"],
         },
-        "repositories": {"description": "-", "tools": ["repo_list", "repo_read_file"]},
-        "control": {"description": "-", "tools": ["control_publish", "control_status"]},
+        "repositories": {"description": "-", "tools": ["repo_list", "repo_read_file", "repo_pull_requests"]},
+        "control": {"description": "-", "tools": ["control_publish", "control_status", "control_pull_requests"]},
     },
     "surfaces": {
         s: {
@@ -638,9 +638,11 @@ class FakeControl:
         self.prs: dict[int, dict] = {}
         self.how: dict[str, tuple[int | None, str | None]] = {}  # path on main -> (pull request, merged by)
         self.pushes: list[str] = []
+        self.merged: set[int] = set()
 
     def merge(self, number: int, by: str = "grace") -> None:
         pr = self.prs[number]
+        self.merged.add(number)
         for path, content in self.branches[pr["head"]].items():
             self.main[path] = content
             self.how[path] = (number, by)
@@ -657,6 +659,13 @@ class FakeControl:
                 return httpx.Response(200, json=[])
             pr = {"number": number, "merged_at": "t", "base": {"ref": "main"}, "html_url": f"https://gh/pr/{number}"}
             return httpx.Response(200, json=[pr])
+        if method == "GET" and path == "/pulls":
+            open_prs = [
+                {"number": n, "title": b["title"], "html_url": f"https://gh/pr/{n}", "head": {"ref": b["head"]}}
+                for n, b in self.prs.items()
+                if n not in self.merged
+            ]
+            return httpx.Response(200, json=open_prs)
         if method == "GET" and path.startswith("/pulls/"):
             number = int(path.rsplit("/", 1)[-1])
             return httpx.Response(200, json={"merged_by": {"login": self.how_by(number)}})
@@ -746,6 +755,9 @@ def senv(env, monkeypatch, ctrl):
             return httpx.Response(200, json={"object": {"sha": "abc"}})
         if path in ("/repos/org/payments/git/refs",) or path.startswith("/repos/org/payments/contents/"):
             return httpx.Response(201, json={})
+        if path == "/repos/org/payments/pulls" and method == "GET":
+            pr = {"number": 9, "title": "Refunds", "html_url": "https://gh/payments/9", "head": {"ref": "feature/x"}}
+            return httpx.Response(200, json=[pr])
         if path == "/repos/org/payments/pulls":
             return httpx.Response(201, json={"number": 5, "html_url": "https://github.com/org/payments/pull/5"})
         return httpx.Response(404)
@@ -943,3 +955,39 @@ def test_a_failed_creation_can_be_retried_but_a_partial_one_is_not_repeated(senv
     ctrl.main[f"features/{other}/links.yaml"] = yaml.safe_dump({"writes": [partial]})
     refused = tool(client, TEAM, "jira_create_feature", control_id=other, **FEATURE)
     assert refused["error"] == "partly_done" and "PAY-7" in refused["message"]
+
+
+def test_an_open_pull_request_for_the_same_artifact_is_returned_not_duplicated(senv, ctrl):
+    client, _ = senv
+    first = tool(client, TEAM, "control_publish", kind="feature", content="# Refunds", summary="Refunds!")
+    again = tool(client, TEAM, "control_publish", kind="feature", content="# Refunds v2", summary="Refunds!")
+    assert again["already_open"] is True and again["control_id"] == first["control_id"]
+    assert again["pull_request"]["number"] == first["pull_request"]["number"] and len(ctrl.prs) == 1
+
+    listed = tool(client, TEAM, "control_pull_requests")
+    assert [(p["control_id"], p["kind"]) for p in listed["pull_requests"]] == [(first["control_id"], "feature")]
+
+    ctrl.merge(first["pull_request"]["number"])
+    design = tool(client, TEAM, "control_publish", kind="design", content="# D", control_id=first["control_id"])
+    twice = tool(client, TEAM, "control_publish", kind="design", content="# D2", control_id=first["control_id"])
+    assert twice["already_open"] and twice["pull_request"]["number"] == design["pull_request"]["number"]
+    other = tool(client, TEAM, "control_publish", kind="feature", content="# Cards", summary="Cards")
+    assert "already_open" not in other and len(ctrl.prs) == 3
+
+
+def test_open_pull_requests_of_a_team_repository_can_be_listed(senv):
+    client, _ = senv
+    found = tool(client, TEAM, "repo_pull_requests")
+    assert found["repo"] == "org/payments" and found["pull_requests"][0]["number"] == 9
+    assert tool(client, TEAM, "repo_pull_requests", repo="org/risk")["error"] == "constraint_denied"
+
+
+def test_a_feature_already_in_the_jira_project_is_not_created_again(senv, ctrl, monkeypatch):
+    from sdlc_connectors import Issue
+
+    client, _ = senv
+    control_id = published(client, ctrl)
+    existing = Issue("PAY-7", "Refunds", "To Do", "Feature", "", None, "https://pay.atlassian.net/browse/PAY-7")
+    monkeypatch.setattr("sdlc_connectors.jira.Jira.search", lambda self, jql, limit=20: [existing])
+    refused = tool(client, TEAM, "jira_create_feature", control_id=control_id, **FEATURE)
+    assert refused["error"] == "already_exists" and "PAY-7" in refused["message"]
