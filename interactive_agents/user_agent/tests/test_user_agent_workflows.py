@@ -331,3 +331,20 @@ async def test_the_mcp_caller_sends_the_sessions_user_and_team_and_maps_refusals
     with pytest.raises(StepError) as refused:
         await caller.call(Ctx, "control_status", {"control_id": "F-1"})
     assert refused.value.code == "not_approved"
+
+
+def test_reviewers_use_their_own_model_and_the_drafters_the_main_one():
+    from google.adk.agents import LlmAgent as Agent
+
+    main, fast = Script(calls={}, design_findings=[], seen=[]), Script(calls={}, design_findings=[], seen=[])
+    kit = Kit(
+        model=lambda: main,
+        caller=FakeMcp(),
+        toolset=lambda only=None: NoTools(),
+        skill=skill,
+        review_model=lambda: fast,
+    )
+    review = next(n for n in build_workflows(kit)[0].graph.nodes if n.name == "features_review")
+    agents = {n.name: n.model for n in review.graph.nodes if isinstance(n, Agent)}
+    assert agents["features_review_reviser"] is main
+    assert all(model is fast for name, model in agents.items() if name.startswith("review_"))

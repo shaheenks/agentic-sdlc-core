@@ -575,17 +575,16 @@ div.tool-card {
   max-height: 22rem;
   overflow: auto;
 }
-.tool-hits,
-.tool-nodes {
+.tool-items {
   margin: 0;
   padding-left: 1.3rem;
   display: grid;
   gap: 0.4rem;
 }
-.tool-hits p {
+.tool-items p {
   margin: 0.15rem 0 0;
 }
-.tool-hits a {
+.tool-items a {
   color: var(--sdlc-accent);
 }
 .tool-heading {
@@ -628,5 +627,32 @@ div.tool-card {
   font-size: 0.875em;
 }
 .chat [data-streamdown="link"] {
+  font-weight: 500;
+}
+
+.tool-stage {
+  color: var(--sdlc-accent);
+  font-size: 0.8rem;
+}
+.tool-stage::before {
+  content: "· ";
+}
+.tool-preview {
+  margin: 0.4rem 0 0;
+  padding: 0.4rem 0.55rem;
+  background: var(--sdlc-code-bg);
+  border: 1px solid var(--sdlc-line);
+  border-radius: 0.3rem;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  max-height: 14rem;
+  overflow: auto;
+}
+.tool-link {
+  display: inline-block;
+  margin-top: 0.4rem;
+  color: var(--sdlc-accent);
+}
+.tool-item-title {
   font-weight: 500;
 }

@@ -1,57 +1,40 @@
 "use client";
 
-// Every tool call as a concise card (FR-AGT-005): one line with what was done and how it went; knowledge queries
-// keep their results in a collapsed section the user can open. Workflow questions have their own cards
+// Every tool call as a concise card (FR-AGT-005): what was done and what came of it in one line; what there is to
+// inspect (search hits, issues, files, a workflow's outcome) in a collapsed body. A running workflow shows its
+// current stage, which the BFF sends as the agent's state. Workflow questions have their own cards
 // (WorkflowQuestions), which take precedence over this catch-all.
 
-import { useRenderTool } from "@copilotkit/react-core/v2";
+import { useAgent, UseAgentUpdate, useRenderTool } from "@copilotkit/react-core/v2";
 
 import { type Card, toolCard } from "@/lib/toolcards";
 
 const MARK: Record<Card["status"], string> = { running: "…", done: "✓", failed: "✕", stopped: "■" };
 
-function Hits({ card }: { card: Card }) {
-  if (!card.hits?.length) return <p className="tool-empty">No results in the knowledge you may read.</p>;
+function Stage() {
+  const { agent } = useAgent({ updates: [UseAgentUpdate.OnStateChanged] });
+  const stage = (agent?.state as { progress?: unknown } | undefined)?.progress;
+  return typeof stage === "string" && stage ? <span className="tool-stage">{stage}</span> : null;
+}
+
+function Items({ card }: { card: Card }) {
+  if (!card.items?.length) return null;
   return (
-    <ol className="tool-hits">
-      {card.hits.map((h, i) => (
-        <li key={`${h.path}-${i}`}>
-          <div>
-            {h.link ? (
-              <a href={h.link} target="_blank" rel="noreferrer noopener">
-                {h.path}
-              </a>
-            ) : (
-              <code>{h.path}</code>
-            )}
-            {h.lines && <small> lines {h.lines}</small>}
-            <small className="tool-meta">
-              {" "}
-              · {h.source}
-              {h.score !== undefined ? ` · score ${h.score.toFixed(3)}` : ""}
-            </small>
-          </div>
-          {h.heading && <div className="tool-heading">{h.heading}</div>}
-          <p>{h.snippet}</p>
+    <ol className="tool-items">
+      {card.items.map((item, i) => (
+        <li key={`${item.title}-${i}`}>
+          {item.link ? (
+            <a href={item.link} target="_blank" rel="noreferrer noopener">
+              {item.title}
+            </a>
+          ) : (
+            <span className="tool-item-title">{item.title}</span>
+          )}
+          {item.meta && <small className="tool-meta"> · {item.meta}</small>}
+          {item.text && <p>{item.text}</p>}
         </li>
       ))}
     </ol>
-  );
-}
-
-function Graph({ card }: { card: Card }) {
-  const g = card.graph;
-  if (!g?.nodes.length) return <p className="tool-empty">Nothing found in the knowledge you may read.</p>;
-  return (
-    <ul className="tool-nodes">
-      {g.nodes.slice(0, 40).map((n, i) => (
-        <li key={`${n.name}-${i}`}>
-          <strong>{n.name}</strong> <small className="tool-meta">{n.kind}</small>
-          {n.path && <small className="tool-meta"> · {n.path}</small>}
-        </li>
-      ))}
-      {g.nodes.length > 40 && <li className="tool-meta">and {g.nodes.length - 40} more</li>}
-    </ul>
   );
 }
 
@@ -59,8 +42,8 @@ function Facts({ card }: { card: Card }) {
   if (!card.facts?.length) return null;
   return (
     <dl className="tool-facts">
-      {card.facts.map(([k, v]) => (
-        <div key={k}>
+      {card.facts.map(([k, v], i) => (
+        <div key={`${k}-${i}`}>
           <dt>{k}</dt>
           <dd>{v}</dd>
         </div>
@@ -77,18 +60,23 @@ function ToolCard({ card }: { card: Card }) {
       </span>
       <span className="tool-label">{card.label}</span>
       {card.detail && <span className="tool-detail">{card.detail}</span>}
+      {card.kind === "workflow" && card.status === "running" && <Stage />}
     </>
   );
-  const expandable = card.kind === "knowledge" ? card.status !== "running" : !!card.facts?.length || !!card.error;
-  if (!expandable) return <div className={`tool-card tool-${card.kind}`}>{head}</div>;
+  const hasBody = !!(card.items?.length || card.facts?.length || card.preview || card.link);
+  if (!hasBody) return <div className={`tool-card tool-${card.kind}`}>{head}</div>;
   return (
     <details className={`tool-card tool-${card.kind}`} open={card.kind === "workflow" && card.status !== "running"}>
       <summary>{head}</summary>
       <div className="tool-body">
-        {card.error && <p className="error">{card.error}</p>}
-        {card.hits && <Hits card={card} />}
-        {card.graph && <Graph card={card} />}
         <Facts card={card} />
+        <Items card={card} />
+        {card.preview && <pre className="tool-preview">{card.preview}</pre>}
+        {card.link && (
+          <a className="tool-link" href={card.link.href} target={card.link.href.startsWith("/") ? undefined : "_blank"} rel="noreferrer noopener">
+            {card.link.label}
+          </a>
+        )}
       </div>
     </details>
   );

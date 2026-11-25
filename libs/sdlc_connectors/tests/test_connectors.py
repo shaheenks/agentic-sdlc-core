@@ -272,3 +272,17 @@ def test_bitbucket_data_center_last_change_reads_the_merge_activity():
     assert (change.commit, change.pull_request, change.merged_by) == ("d1", 2, "grace")
     assert repo.commit_file("features/F-1/links.yaml", "a: 1\n", "main", "Record links") == "d2"
     assert b'name="sourceCommitId"' in fake.seen[-1].content  # replacing a file names its last commit
+
+
+def test_a_rejected_request_names_the_fields_but_never_their_values():
+    body = {"errorMessages": [], "errors": {"issuetype": "Specify a valid issue type secret-ish", "parent": "x"}}
+    fake = Fake({("POST", "/rest/api/3/issue"): httpx.Response(400, json=body)})
+    jira = Jira("https://x.atlassian.net", "cloud", Credential(TOKEN, "ada@example.test"), fake.client())
+    with pytest.raises(ConnectorError) as err:
+        jira.create_issue("PAY", "Feature", "S", "")
+    assert err.value.code == "invalid"
+    assert (
+        "issuetype, parent" in err.value.message
+        and "secret-ish" not in err.value.message
+        and TOKEN not in err.value.message
+    )

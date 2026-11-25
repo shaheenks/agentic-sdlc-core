@@ -20,7 +20,7 @@ import {
 import { EMPTY, Observable, ReplaySubject } from "rxjs";
 
 import type { AgentClient } from "./backends.ts";
-import { adkToAgui, CHAT_ID, failureEvents, historyMessages, turnInput } from "./events.ts";
+import { adkToAgui, CHAT_ID, failureEvents, historyMessages, turnInput, WorkflowProgress } from "./events.ts";
 import type { User } from "./identity.ts";
 
 export const USER_HEADERS = { id: "x-sdlc-user-id", email: "x-sdlc-user-email" } as const;
@@ -65,11 +65,17 @@ export class RuntimeAgent extends AbstractAgent {
         const message = turnInput(input.messages as Parameters<typeof turnInput>[0]);
         // tool calls without a result yet: a failed run closes them, so no card stays "running"
         const open = new Set<string>();
+        const progress = new WorkflowProgress();
+        const stage = (value: string | null) =>
+          subscriber.next({ type: EventType.STATE_SNAPSHOT, snapshot: { progress: value } } as BaseEvent);
         for await (const item of this.client.ask(user, input.threadId, message, controller.signal)) {
+          const now = progress.update(item);
+          if (now) stage(now);
           for (const event of adkToAgui(item)) {
             if (event.type === EventType.RUN_ERROR) {
               console.error("agent run failed: the runtime reported an error");
               for (const closing of failureEvents([...open], item)) subscriber.next(closing);
+              stage(null);
               subscriber.next({ type: EventType.RUN_FINISHED, ...ids } as BaseEvent);
               return subscriber.complete();
             }
@@ -79,6 +85,7 @@ export class RuntimeAgent extends AbstractAgent {
             subscriber.next(event);
           }
         }
+        stage(null);
         subscriber.next({ type: EventType.RUN_FINISHED, ...ids } as BaseEvent);
         subscriber.complete();
       })().catch((error: unknown) => {

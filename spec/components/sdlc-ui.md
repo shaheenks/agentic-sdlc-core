@@ -116,3 +116,7 @@ BFF:
   queries keep their results (path, source, lines, score; nodes and links) in a collapsed section to inspect;
   workflows show their outcome. Each assistant message shows its time after the user's message, and a turn's last
   one the total; timing is measured in the browser while the chat is open (a reopened chat shows none).
+- Tool cards summarise each call from its result: knowledge (question, hits, sources), Jira (keys, summaries,
+  statuses, links), repositories (path, lines, entries), artifacts (name, version, size, a preview), the control
+  repository (approval, who merged), errors in plain words. A running workflow's card shows its stage, which the BFF
+  derives from the workflow's own agents (hidden from the chat) and sends as the agent's state.

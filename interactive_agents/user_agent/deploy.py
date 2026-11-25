@@ -95,6 +95,7 @@ def main(argv: list[str] | None = None) -> int:
         "--mcp-url", default="", help="user_agent_mcp's URL; default: terraform output user_agent_mcp_url"
     )
     parser.add_argument("--model", default="gemini-3.8-flash")
+    parser.add_argument("--review-model", default="gemini-3.5-flash", help="The reviewers' model")
     parser.add_argument("--model-location", default="eu", help="Vertex AI location of the model (NFR-HOST-005)")
     parser.add_argument("--allow-dirty", action="store_true", help="deploy uncommitted code (tests only)")
     parser.add_argument("--dry-run", action="store_true", help="stage and print; deploy nothing")
@@ -115,6 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         "SDLC_CALLER_AUTH": "id_token",
         "SDLC_MCP_TIMEOUT": "30",  # a scaled-to-zero user_agent_mcp needs a few seconds
         "SDLC_AGENT_MODEL": args.model,
+        "SDLC_REVIEW_MODEL": args.review_model,
         "SDLC_MODEL_LOCATION": args.model_location,
     }
     name = f"sdlc-user-agent-{args.env}"

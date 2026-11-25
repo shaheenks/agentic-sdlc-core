@@ -1,5 +1,14 @@
 ## 2026-11-25
 
+* **Update**: [sdlc_ui](components/sdlc-ui.md): tool cards summarise each call from its result (what it touched and
+  what came of it, errors in plain words, items, previews and links to inspect); a running workflow shows its stage
+  (drafting, reviewers done, revising, waiting), sent by the BFF as the agent's state.
+* **Update**: [user_agent](components/user-agent.md): the seven reviewers use `gemini-3.5-flash` (`SDLC_REVIEW_MODEL`),
+  the chat, drafting and revising keep `gemini-3.8-flash`, both in `eu` (the user's choice: `gemini-3.8-flash` is the
+  latest model there, the 3.5 family the faster one).
+* **Update**: [Connectors](components/connectors.md): a rejected request names the fields it got wrong (never their
+  values). [user_agent_mcp](components/user-agent-mcp.md): a failed Jira creation no longer blocks a retry; a partial
+  one is refused with the keys it created.
 * **Update**: [user_agent](components/user-agent.md) retries model calls on 429 and 5xx with backoff and runs at
   most three reviewers at once (Gemini answered 503 and failed design runs); [sdlc_ui](components/sdlc-ui.md)
   closes a failed run's open tool cards and says why, uses its own colour tokens (CopilotKit's --muted and

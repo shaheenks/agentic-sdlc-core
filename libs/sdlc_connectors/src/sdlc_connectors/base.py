@@ -1,6 +1,7 @@
 """What every adapter shares: one HTTP client per call, errors mapped to a small set of codes, and nothing of the
 credential, the request or the response body in an error message."""
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -35,6 +36,27 @@ class Credential:
 _STATUS = {401: "unauthorized", 403: "forbidden", 404: "not_found", 409: "conflict", 422: "invalid", 400: "invalid"}
 
 
+FIELD = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,40}$")
+
+
+def _rejected_fields(response: httpx.Response) -> str:
+    """The names of the fields a rejected request got wrong (Jira's `errors`, GitHub's `errors[].field`), never
+    their values or any other part of the answer: enough to tell which setting to fix."""
+    try:
+        body = response.json()
+    except ValueError:
+        return ""
+    names: list[str] = []
+    if isinstance(body, dict):
+        errors = body.get("errors")
+        if isinstance(errors, dict):
+            names = [k for k in errors if isinstance(k, str)]
+        elif isinstance(errors, list):
+            names = [e.get("field") for e in errors if isinstance(e, dict) and isinstance(e.get("field"), str)]
+    names = sorted({n for n in names if FIELD.match(n)})[:5]
+    return f": {', '.join(names)}" if names else ""
+
+
 class Http:
     def __init__(self, base_url: str, headers: Mapping[str, str], system: str, client: httpx.Client | None = None):
         self.base_url = base_url.rstrip("/")
@@ -64,7 +86,8 @@ class Http:
             raise ConnectorError("unavailable", f"{self.system} did not answer") from exc
         if response.status_code >= 400:
             code = _STATUS.get(response.status_code, "unavailable")
-            raise ConnectorError(code, f"{self.system} answered {response.status_code} ({code})")
+            fields = _rejected_fields(response) if code == "invalid" else ""
+            raise ConnectorError(code, f"{self.system} answered {response.status_code} ({code}{fields})")
         if response.status_code == 204 or not response.content:
             return None
         try:

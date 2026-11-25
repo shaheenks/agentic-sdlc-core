@@ -248,3 +248,47 @@ export function failureEvents(openToolCalls: string[], item: unknown): BaseEvent
     { type: EventType.TEXT_MESSAGE_END, messageId: id } as BaseEvent,
   ];
 }
+
+const REVIEWER = /^review_(structure|style|clarity|design|readiness|technical_detail|simplicity)$/;
+const REVIEWERS = 7;
+const TOOL_WORDS: Record<string, string> = {
+  knowledge_search: "searching knowledge",
+  knowledge_graph: "exploring related knowledge",
+  repo_read_file: "reading code",
+  repo_list: "browsing the repository",
+  jira_get_issue: "reading Jira",
+  jira_search: "searching Jira",
+  team_systems: "reading the team's systems",
+};
+
+/** A running workflow's stage, from its own agents' events (which the chat does not show): drafting, how many of
+ *  the seven reviewers are done, revising, waiting for the user. Sent to the browser as the agent's state. */
+export class WorkflowProgress {
+  private readonly reviewed = new Set<string>();
+  private last = "";
+
+  update(item: unknown): string | null {
+    const event = (item ?? {}) as AdkEvent;
+    const author = event.author ?? "";
+    const parts = event.content?.parts ?? [];
+    if (event.partial || !parts.length || !author || author === ROOT_AGENT || author === "user") return null;
+    const toolName = parts.map((p) => call(p)?.name).find((n) => n && n !== REQUEST_INPUT);
+    const doing = toolName ? TOOL_WORDS[toolName] ?? toolName.replace(/_/g, " ") : "";
+    let label = "";
+    if (parts.some(isQuestion)) label = "Waiting for your answer";
+    else if (author.endsWith("_reviser")) {
+      this.reviewed.clear();
+      label = doing ? `Revising (${doing})` : "Revising with the chosen findings";
+    } else if (author.endsWith("_drafter")) label = doing ? `Drafting (${doing})` : "Drafting";
+    else if (REVIEWER.test(author)) {
+      if (visibleText(parts)) {
+        if (this.reviewed.size === REVIEWERS) this.reviewed.clear(); // the next round
+        this.reviewed.add(author);
+      }
+      label = `Reviewing: ${this.reviewed.size} of ${REVIEWERS} reviewers done`;
+    } else return null;
+    if (label === this.last) return null;
+    this.last = label;
+    return label;
+  }
+}

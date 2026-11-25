@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { EventType } from "@ag-ui/client";
 
-import { adkToAgui, chatSummaries, failureEvents, failureText, historyMessages, latestUserText, turnInput } from "../lib/events.ts";
+import { adkToAgui, chatSummaries, failureEvents, failureText, historyMessages, latestUserText, turnInput, WorkflowProgress } from "../lib/events.ts";
 
 const types = (events: { type: string }[]) => events.map((e) => e.type);
 
@@ -135,4 +135,17 @@ test("a failed run closes its open tool cards and says why, without the error's 
   );
   assert.equal(JSON.parse((events[0] as unknown as { content: string }).content).error, "failed");
   assert.match(failureText({ error: "boom" }), /stopped with an error/);
+});
+
+test("a workflow's stage follows its own agents: drafting, reviewers done, revising, waiting", () => {
+  const p = new WorkflowProgress();
+  const ev = (author: string, part: object) => ({ author, content: { parts: [part] } });
+  assert.equal(p.update(ev("design_drafter", { function_call: { name: "knowledge_search" } })), "Drafting (searching knowledge)");
+  assert.equal(p.update(ev("design_drafter", { text: "# Draft" })), "Drafting");
+  assert.equal(p.update(ev("review_style", { text: "{}" })), "Reviewing: 1 of 7 reviewers done");
+  assert.equal(p.update(ev("review_style", { text: "{}" })), null); // unchanged
+  assert.equal(p.update(ev("review_design", { text: "{}" })), "Reviewing: 2 of 7 reviewers done");
+  assert.equal(p.update(ev("design", { function_call: { name: "adk_request_input" } })), "Waiting for your answer");
+  assert.equal(p.update(ev("design_review_reviser", { text: "# D" })), "Revising with the chosen findings");
+  assert.equal(p.update(ev("user_agent", { text: "hi" })), null); // the root agent is shown as chat
 });

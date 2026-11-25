@@ -27,7 +27,8 @@ Build and test from this folder: `uv run pytest`.
 | `SDLC_MCP_AUDIENCE` | `SDLC_MCP_URL` | Audience of the runtime's ID token (user_agent_mcp's `PUBLIC_URL`) |
 | `SDLC_CALLER_AUTH` | `id_token` | `none`: no ID token, for a local user_agent_mcp in identity mode `trusted_header` |
 | `SDLC_MCP_TIMEOUT` | `30` | Seconds per MCP call (a scaled-to-zero server needs a few) |
-| `SDLC_AGENT_MODEL` | `gemini-3.8-flash` | The model |
+| `SDLC_AGENT_MODEL` | `gemini-3.8-flash` | The model of the chat, drafting and revising |
+| `SDLC_REVIEW_MODEL` | `gemini-3.5-flash` | The model of the seven reviewers |
 | `SDLC_MODEL_LOCATION` | `eu` | Vertex AI location of the model |
 | `GOOGLE_CLOUD_PROJECT` | - | Project for Vertex AI (set by Agent Runtime) |
 | `PORT` | `8085` | Local server only |

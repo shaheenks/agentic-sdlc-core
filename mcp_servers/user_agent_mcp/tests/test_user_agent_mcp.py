@@ -923,3 +923,23 @@ def test_connection_test_signs_in_and_never_returns_the_token(senv):
     client, _ = senv
     result = tool(client, WHO["ada-ui"], "connection_test", provider="jira_cloud")
     assert result == {"provider": "jira_cloud", "status": "ok", "account": "ada@example.test"}
+
+
+def test_a_failed_creation_can_be_retried_but_a_partial_one_is_not_repeated(senv, ctrl):
+    client, _ = senv
+    control_id = published(client, ctrl)
+    links = f"features/{control_id}/links.yaml"
+    failed = {"action": "create_feature", "error": "downstream_invalid", "results": {"stories": []}}
+    ctrl.main[links] = yaml.safe_dump({"writes": [failed]})
+    made = tool(client, TEAM, "jira_create_feature", control_id=control_id, **FEATURE)
+    assert made["feature"]["key"] == "PAY-101"  # the failed attempt created nothing, so it was tried again
+
+    other = published(client, ctrl)
+    partial = {
+        "action": "create_feature",
+        "error": "downstream_invalid",
+        "results": {"feature": "PAY-7", "stories": []},
+    }
+    ctrl.main[f"features/{other}/links.yaml"] = yaml.safe_dump({"writes": [partial]})
+    refused = tool(client, TEAM, "jira_create_feature", control_id=other, **FEATURE)
+    assert refused["error"] == "partly_done" and "PAY-7" in refused["message"]

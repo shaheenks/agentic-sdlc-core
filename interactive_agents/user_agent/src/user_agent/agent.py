@@ -16,6 +16,8 @@ from user_agent.skills import skill
 from user_agent.workflows import Kit, build_workflows
 
 DEFAULT_MODEL = "gemini-3.8-flash"
+# The seven reviewers per round use a faster model: their output is a short JSON list (2026-11-25, the user's choice).
+DEFAULT_REVIEW_MODEL = "gemini-3.5-flash"
 # The runtime runs in europe-west3; this model is served in `eu` (NFR-HOST-005).
 DEFAULT_MODEL_LOCATION = "eu"
 INSTRUCTION = """You are user_agent, the assistant of an internal software delivery platform. You help the
@@ -56,7 +58,7 @@ teams (whoami lists them) it is for.
 RETRY_STATUS = [408, 429, 500, 502, 503, 504]
 
 
-def model() -> Gemini:
+def model(name: str | None = None) -> Gemini:
     from google.genai import Client, types
 
     client = Client(
@@ -69,7 +71,11 @@ def model() -> Gemini:
             )
         ),
     )
-    return Gemini(model=os.environ.get("SDLC_AGENT_MODEL", DEFAULT_MODEL), client=client)
+    return Gemini(model=name or os.environ.get("SDLC_AGENT_MODEL", DEFAULT_MODEL), client=client)
+
+
+def review_model() -> Gemini:
+    return model(os.environ.get("SDLC_REVIEW_MODEL", DEFAULT_REVIEW_MODEL))
 
 
 TITLE_CHARS = 80
@@ -100,7 +106,13 @@ def build_agent() -> Agent:
         )
 
     # Drafting and reviewing agents get read-only tools; the workflows' own steps call user_agent_mcp directly.
-    kit = Kit(model=model, caller=McpCaller(mcp_url, tokens, timeout), toolset=tools, skill=skill)
+    kit = Kit(
+        model=model,
+        caller=McpCaller(mcp_url, tokens, timeout),
+        toolset=tools,
+        skill=skill,
+        review_model=review_model,
+    )
     toolset = tools()
     return Agent(
         name="user_agent",

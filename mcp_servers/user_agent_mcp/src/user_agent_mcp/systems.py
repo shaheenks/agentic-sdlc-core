@@ -192,13 +192,22 @@ async def jira_create_feature(platform: "Platform", caller: "Caller", args: dict
             raise ToolError("invalid_argument", "every item needs a summary")
     control = Control(platform, caller)
     approved = await _call(lambda: control.require_approved(control_id, "feature"))
-    done = [
+    earlier = [
         w
         for w in (await _call(lambda: control.links(control_id))).get("writes") or ()
         if w.get("action") == "create_feature"
     ]
+    done = [w for w in earlier if not w.get("error")]
     if done:
         raise ToolError("already_done", f"{control_id} is already in Jira as {done[-1]['results'].get('feature')}")
+    partial = [w for w in earlier if (w.get("results") or {}).get("feature")]
+    if partial:
+        made = partial[-1]["results"]
+        raise ToolError(
+            "partly_done",
+            f"an earlier attempt created {made['feature']} and stories {made.get('stories') or []} before failing; "
+            "finish or remove them in Jira before trying again",
+        )
     jira = _jira(platform, caller, settings)
     results: dict[str, Any] = {"project": project, "site": settings["base_url"], "stories": []}
     entry = {

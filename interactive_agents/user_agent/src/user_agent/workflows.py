@@ -63,6 +63,10 @@ class Kit:
     caller: Any
     toolset: Callable[[list[str]], Any]
     skill: Callable[[str], str]
+    review_model: Callable[[], Any] | None = None  # the reviewers' model; the drafting model if not given
+
+    def reviewer_model(self) -> Any:
+        return (self.review_model or self.model)()
 
 
 # Inputs -------------------------------------------------------------------------------------------------------
@@ -259,7 +263,7 @@ def review_workflow(kit: Kit, kind: str, drafting_skill: str) -> Workflow:
     reviewers = tuple(
         LlmAgent(
             name=name.replace("-", "_"),
-            model=kit.model(),
+            model=kit.reviewer_model(),
             mode="single_turn",
             instruction=kit.skill(name) + REVIEWER_RULES,
             tools=[kit.toolset(READ_TOOLS)],
