@@ -5,8 +5,11 @@ import os
 from functools import cache
 from pathlib import Path
 
-PACKAGED = Path(__file__).resolve().parent / "skills"
-REPOSITORY = Path(__file__).resolve().parents[4] / "skills"
+HERE = Path(__file__).resolve()
+PACKAGED = HERE.parent / "skills"
+# In the repository: interactive_agents/user_agent/src/user_agent/skills.py -> <root>/skills. Deployed, the package
+# sits near the filesystem root, so there is no such parent.
+REPOSITORY = HERE.parents[4] / "skills" if len(HERE.parents) > 4 else None
 
 
 def skills_dir() -> Path:
