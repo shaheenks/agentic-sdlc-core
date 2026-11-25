@@ -48,10 +48,12 @@ REVIEWERS = (
     "review-simplicity",
 )
 SERIOUS = ("blocker", "major")
-CLEAN_ROUNDS = 2  # stop after two clean rounds in a row
+CLEAN_ROUNDS = 1  # stop after one clean round (the user's choice, 2026-11-25)
 REVIEWERS_AT_ONCE = 3  # parallel reviewer calls, to soften bursts against the model's capacity
 ASK_AT_ROUND = 5  # from the fifth round, ask whether to go on
 FENCE = re.compile(r"^```[a-zA-Z]*\n(.*)\n```\s*$", re.S)
+# A drafter's reading budget per draft (the user's choice, 2026-11-25): exploring the code took minutes.
+READ_LIMITS = {"repo_read_file": 10, "repo_list": 5}
 
 
 @dataclass
@@ -243,7 +245,7 @@ def _findings(name: str, text: Any) -> list[dict[str, Any]]:
 
 
 def review_workflow(kit: Kit, kind: str, drafting_skill: str) -> Workflow:
-    """Reviewers in parallel, findings merged; clean rounds repeat until two in a row; otherwise the user chooses
+    """Reviewers in parallel, findings merged; a clean round ends the review; otherwise the user chooses
     which findings to apply, a reviser applies them, and the next round starts. From round five the user is asked
     whether to go on."""
     p = f"{kind}_review"
@@ -364,16 +366,44 @@ def review_workflow(kit: Kit, kind: str, drafting_skill: str) -> Workflow:
 
 # Drafting workflows -------------------------------------------------------------------------------------------
 
-DRAFT_RULES = """
+DRAFT_RULES = f"""
 
 You work inside a workflow step: you cannot ask the user anything. Draft from the message and from what you find with
-your tools; put what you could not settle under Open questions. Return only the Markdown document; do not save it."""
+your tools; put what you could not settle under Open questions. Return only the Markdown document; do not save it.
+You may read at most {READ_LIMITS["repo_read_file"]} files and list at most {READ_LIMITS["repo_list"]} folders: pick
+the most relevant ones (search the knowledge first; it points to the right files), then write."""
+
+
+def reading_budget(state_key: str):
+    """A before-tool callback that refuses reads beyond READ_LIMITS; the count lives in the run's state under
+    `state_key`, which the step before the drafter resets."""
+
+    def check(tool, args, tool_context):
+        limit = READ_LIMITS.get(getattr(tool, "name", ""))
+        if limit is None:
+            return None
+        used = dict(tool_context.state.get(state_key) or {})
+        count = used.get(tool.name, 0)
+        if count >= limit:
+            return {
+                "error": "read_limit",
+                "message": f"the reading budget ({limit} {tool.name} calls) is used up: "
+                "write the draft from what you have",
+            }
+        used[tool.name] = count + 1
+        tool_context.state[state_key] = used
+        return None
+
+    return check
 
 
 def features_and_stories(kit: Kit) -> Workflow:
     p = "features"
 
+    reads = f"sdlc_wf:{p}:reads"
+
     async def prompt(ctx: Context, node_input: Any):
+        ctx.state[reads] = {}
         return f"Team: {node_input['team']}\n\n# Brief\n\n{node_input['brief']}"
 
     drafter = LlmAgent(
@@ -382,6 +412,7 @@ def features_and_stories(kit: Kit) -> Workflow:
         mode="single_turn",
         instruction=kit.skill("features-and-stories") + DRAFT_RULES,
         tools=[kit.toolset(READ_TOOLS)],
+        before_tool_callback=reading_budget(reads),
     )
 
     async def to_review(ctx: Context, node_input: Any):
@@ -418,6 +449,7 @@ def features_and_stories(kit: Kit) -> Workflow:
 def design_specification(kit: Kit) -> Workflow:
     p = "design"
     key = f"sdlc_wf:{p}:source"
+    reads = f"sdlc_wf:{p}:reads"
 
     async def source(ctx: Context, node_input: Any):
         """The feature to design from: the user's own (no check), or a published one (approved on the team's
@@ -464,7 +496,7 @@ def design_specification(kit: Kit) -> Workflow:
             r["repo"] for r in (node_input.get("systems") or {}).get("repositories") or [] if r.get("default")
         ]
         found |= {"feature": feature, "repositories": repos}
-        ctx.state[key] = found
+        ctx.state[key], ctx.state[reads] = found, {}
         ctx.route = "go"
         return (
             f"Team: {node_input['team']}\nTarget repositories: {', '.join(repos) or '(none declared)'}\n"
@@ -478,6 +510,7 @@ def design_specification(kit: Kit) -> Workflow:
         mode="single_turn",
         instruction=kit.skill("design-specification") + DRAFT_RULES,
         tools=[kit.toolset(READ_TOOLS)],
+        before_tool_callback=reading_budget(reads),
     )
 
     async def to_review(ctx: Context, node_input: Any):

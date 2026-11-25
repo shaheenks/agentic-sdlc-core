@@ -174,7 +174,7 @@ changing it during a run needs the user's explicit confirmation in chat.
   user, as Feature and User Story issues) and the design specification (FR-SDLC-003: from a Feature whose
   status allows design, and its User Stories), with the
   team scope set at start (FR-KNOW-004) and the fresh-context review loop (FR-SDLC-004: reviewers as
-  sub-agents without the conversation; stop after two clean rounds or ask at five).
+  sub-agents without the conversation; stop after one clean round (2026-11-25) or ask at five).
 - Design specification pull request on the respective repository with the user's own connection
   (FR-SDLC-005, DEC-0008).
 - A2A router as a small Cloud Run service in `a2a_router/`, registered in Gemini Enterprise as one A2A agent

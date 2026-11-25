@@ -1,6 +1,9 @@
 ## 2026-11-25
 
-* **Update**: [sdlc_ui](components/sdlc-ui.md)'s Cloud Run request timeout is 60 minutes: a chat run streams through
+* **Update**: the review ends after one clean round ([FR-SDLC-004](requirements/functional/FR-SDLC-004.md) changed,
+  the user's choice), and a drafter reads at most 10 files and lists at most 5 folders per draft
+  ([user_agent](components/user-agent.md)): a design run took over 15 minutes.
+* **Update**: [sdlc_ui](components/sdlc-ui.md)'s Cloud Run request timeout is 15 minutes for now (the user's choice; 60 minutes briefly): a chat run streams through
   one request, and a design workflow ran past the default five minutes and was cut while drafting.
 * **Update**: [sdlc_ui](components/sdlc-ui.md): tool cards summarise each call from its result (what it touched and
   what came of it, errors in plain words, items, previews and links to inspect); a running workflow shows its stage

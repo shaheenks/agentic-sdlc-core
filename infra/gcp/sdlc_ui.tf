@@ -34,8 +34,8 @@ resource "google_cloud_run_v2_service" "sdlc_ui" {
   template {
     service_account = google_service_account.component["sdlc_ui"].email
     # A chat run streams through this service for as long as the agent works: a workflow (drafting, then seven
-    # reviewers per round over several rounds) can take well over the default five minutes. Cloud Run's maximum.
-    timeout = "3600s"
+    # reviewers per round) can take well over the default five minutes. 15 minutes for now (the user's choice).
+    timeout = "900s"
 
     scaling {
       min_instance_count = 0

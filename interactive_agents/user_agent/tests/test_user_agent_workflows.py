@@ -182,22 +182,22 @@ async def test_review_findings_are_chosen_by_the_user_and_reviewers_never_see_th
     done = await turn(runner, session, answer=(interrupt, "all, and keep it short"))
     result = done["results"]["features_and_stories"]
     assert result["status"] == "drafted" and result["document"] == "# Feature: Refunds (revised)"
-    assert result["rounds"] == 3 and result["open_findings"] == []  # revised, then two clean rounds
+    assert result["rounds"] == 2 and result["open_findings"] == []  # revised, then one clean round
     assert (await state_of(runner, session))[TEAM_KEY] == "payments"
     assert mcp.calls[0] == ("team_systems", {}, "payments")
     reviewer_requests = [texts for role, texts in script.seen if role.startswith("review")]
-    assert len(reviewer_requests) == 21 and all(SECRET not in " ".join(t) for t in reviewer_requests)
+    assert len(reviewer_requests) == 14 and all(SECRET not in " ".join(t) for t in reviewer_requests)
     assert all(SECRET not in " ".join(texts) for role, texts in script.seen if role in ("drafter", "reviser"))
     reviser = next(texts for role, texts in script.seen if role == "reviser")
     assert "F1" in reviser[-1] and "keep it short" in reviser[-1]
 
 
-async def test_two_clean_rounds_finish_without_asking(world):
+async def test_a_clean_round_finishes_without_asking(world):
     script, _, runner = world
     script.calls["go"] = FEATURES
     session = await start(runner)
     done = await turn(runner, session, text="go")
-    assert done["requests"] == [] and done["results"]["features_and_stories"]["rounds"] == 2
+    assert done["requests"] == [] and done["results"]["features_and_stories"]["rounds"] == 1
 
 
 async def test_changing_the_chats_team_needs_confirmation(world):
@@ -348,3 +348,22 @@ def test_reviewers_use_their_own_model_and_the_drafters_the_main_one():
     agents = {n.name: n.model for n in review.graph.nodes if isinstance(n, Agent)}
     assert agents["features_review_reviser"] is main
     assert all(model is fast for name, model in agents.items() if name.startswith("review_"))
+
+
+def test_the_drafter_has_a_reading_budget():
+    from user_agent.workflows import READ_LIMITS, reading_budget
+
+    class Tool:
+        def __init__(self, name):
+            self.name = name
+
+    class Ctx:
+        state: dict = {}
+
+    check = reading_budget("reads")
+    for _ in range(READ_LIMITS["repo_read_file"]):
+        assert check(Tool("repo_read_file"), {}, Ctx) is None
+    refused = check(Tool("repo_read_file"), {}, Ctx)
+    assert refused["error"] == "read_limit" and "write the draft" in refused["message"]
+    assert check(Tool("knowledge_search"), {}, Ctx) is None  # searches are not counted
+    assert check(Tool("repo_list"), {}, Ctx) is None

@@ -19,7 +19,7 @@ The system shall review features, stories and design specifications with reviewe
 - The reviewer set is declared in configuration. The default covers structure, writing style, clarity for a new reader, design decisions, readiness to build, technical detail and unnecessary complexity; a team can add a reviewer with its own standard as a skill.
 - Findings are merged and de-duplicated, each with a severity, its location and a suggested change.
 - The user decides which findings to apply; user_agent applies only those.
-- The review repeats until two rounds in a row find no serious problem, or until five rounds, when user_agent asks the user how to continue.
+- The review ends after a round that finds no serious problem (blocker or major), the user's choice of 2026-11-25; from the fifth round, user_agent asks the user how to continue.
 - The user picks the review depth (reviewers and rounds) per document. A review is feedback, not proof that a document is correct.
 
 # Notes
