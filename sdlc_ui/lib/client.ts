@@ -1,6 +1,6 @@
 // Browser-side calls to this origin's BFF. No secrets here: the server verifies the user on every request.
 
-export type Chat = { id: string; title: string; updatedAt: string };
+export type Chat = { id: string; title: string; updatedAt: string; team?: string };
 
 export class ApiError extends Error {
   readonly status: number;

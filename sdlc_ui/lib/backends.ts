@@ -12,6 +12,7 @@ import type { BackendSettings } from "./settings.ts";
 
 export const EMAIL_KEY = "sdlc_user_email";
 export const TITLE_KEY = "sdlc_title";
+export const TEAM_KEY = "sdlc_team"; // a team chat: the team scope set at start (FR-KNOW-004)
 
 export class BackendError extends Error {
   readonly status: number;
@@ -78,8 +79,9 @@ export class AgentClient {
 
   // Sessions, always for one user: another user's session is never found.
 
-  createSession(user: User): Promise<unknown> {
-    return this.query("async_create_session", { user_id: user.id, state: { [EMAIL_KEY]: user.email } });
+  createSession(user: User, team?: string): Promise<unknown> {
+    const state: Record<string, string> = { [EMAIL_KEY]: user.email, ...(team ? { [TEAM_KEY]: team } : {}) };
+    return this.query("async_create_session", { user_id: user.id, state });
   }
 
   listSessions(user: User): Promise<unknown> {
@@ -94,7 +96,8 @@ export class AgentClient {
     return this.query("async_delete_session", { user_id: user.id, session_id: sessionId });
   }
 
-  ask(user: User, sessionId: string, message: string, signal?: AbortSignal): AsyncGenerator<unknown> {
+  /** A turn: the user's text, or the answer to a workflow question as ADK content (a function response). */
+  ask(user: User, sessionId: string, message: string | object, signal?: AbortSignal): AsyncGenerator<unknown> {
     return this.stream("async_stream_query", { user_id: user.id, session_id: sessionId, message }, signal);
   }
 }

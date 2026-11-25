@@ -20,7 +20,7 @@ import {
 import { EMPTY, Observable, ReplaySubject } from "rxjs";
 
 import type { AgentClient } from "./backends.ts";
-import { adkToAgui, CHAT_ID, historyMessages, latestUserText } from "./events.ts";
+import { adkToAgui, CHAT_ID, historyMessages, turnInput } from "./events.ts";
 import type { User } from "./identity.ts";
 
 export const USER_HEADERS = { id: "x-sdlc-user-id", email: "x-sdlc-user-email" } as const;
@@ -62,7 +62,7 @@ export class RuntimeAgent extends AbstractAgent {
       (async () => {
         if (!user) return fail("Sign-in required.", "unauthenticated");
         if (!CHAT_ID.test(input.threadId)) return fail("Unknown chat.", "not_found");
-        const message = latestUserText(input.messages as { role?: string; content?: unknown }[]);
+        const message = turnInput(input.messages as Parameters<typeof turnInput>[0]);
         for await (const item of this.client.ask(user, input.threadId, message, controller.signal)) {
           for (const event of adkToAgui(item)) {
             subscriber.next(event);

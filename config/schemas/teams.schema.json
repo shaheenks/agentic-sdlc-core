@@ -67,16 +67,6 @@
                       ],
                       "description": "How a story joins its feature. Default parent."
                     },
-                    "design_status": {
-                      "type": "string",
-                      "minLength": 1,
-                      "description": "Default In Design."
-                    },
-                    "development_status": {
-                      "type": "string",
-                      "minLength": 1,
-                      "description": "Default In Development."
-                    },
                     "default": {
                       "type": "boolean",
                       "description": "The team's default of this kind. Exactly one when the list has more than one entry."
@@ -157,7 +147,7 @@
                     "design_path": {
                       "type": "string",
                       "pattern": "^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$",
-                      "description": "Where design specifications go, e.g. docs/specs."
+                      "description": "Optional: where design documents live in this repository, for reading."
                     },
                     "default": {
                       "type": "boolean",
@@ -166,8 +156,7 @@
                   },
                   "required": [
                     "provider",
-                    "repo",
-                    "design_path"
+                    "repo"
                   ],
                   "additionalProperties": false
                 },
@@ -175,7 +164,7 @@
               },
               "control_repo": {
                 "type": "object",
-                "description": "The team's sdlc-control repository: approved artifacts and the record of agent writes (DEC-0012). Its org/repo name identifies the team, e.g. example-org/payments-sdlc-control.",
+                "description": "The team's sdlc-control repository: approved artifacts and the record of agent writes (DEC-0012). Any org/repo, such as example-org/sdlc-control; no two teams share one.",
                 "properties": {
                   "provider": {
                     "type": "string",

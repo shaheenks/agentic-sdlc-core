@@ -2,10 +2,11 @@
 
 import "@copilotkit/react-core/v2/styles.css";
 
-import { CopilotChat, CopilotKit } from "@copilotkit/react-core/v2";
+import { CopilotChat, CopilotKit, useConfigureSuggestions } from "@copilotkit/react-core/v2";
 import { useCallback, useEffect, useState } from "react";
 
 import { ChatList } from "@/components/ChatList";
+import { WorkflowQuestions } from "@/components/WorkflowQuestions";
 import { api, type Chat, latestTurn } from "@/lib/client";
 
 // A chat is a runtime session of the signed-in user (FR-AGT-005, FR-WFL-009). The open chat is in the URL
@@ -13,8 +14,27 @@ import { api, type Chat, latestTurn } from "@/lib/client";
 // runtime by the server, for this user only.
 const CHAT_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
+// In a team chat, the workflows start from these (FR-SDLC-002, FR-SDLC-003); the agent asks for what it needs.
+function TeamSuggestions({ team }: { team?: string }) {
+  useConfigureSuggestions(
+    team
+      ? {
+          available: "before-first-message",
+          suggestions: [
+            { title: "Draft features and stories", message: `Let's draft a feature and its user stories for ${team}.` },
+            { title: "Draft a design", message: `Let's draft a design specification for ${team}.` },
+            { title: "Design from a Jira feature", message: `Draft a design from a Jira feature of ${team}.` },
+          ],
+        }
+      : null,
+    [team],
+  );
+  return null;
+}
+
 export default function ChatPage() {
   const [chats, setChats] = useState<Chat[]>([]);
+  const [teams, setTeams] = useState<string[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -30,9 +50,10 @@ export default function ChatPage() {
     window.history.replaceState(null, "", `/?chat=${encodeURIComponent(id)}`);
   }, []);
 
-  const startNew = useCallback(async () => {
+  const startNew = useCallback(async (team?: string) => {
     try {
-      const { id } = await api<{ id: string }>("/api/chats", { method: "POST" });
+      const body = team ? JSON.stringify({ team }) : undefined;
+      const { id } = await api<{ id: string }>("/api/chats", { method: "POST", ...(body ? { body } : {}) });
       open(id);
       refresh();
     } catch (e) {
@@ -50,6 +71,13 @@ export default function ChatPage() {
   );
 
   useEffect(() => {
+    api<{ teams?: Record<string, unknown> }>("/api/me").then(
+      (me) => setTeams(Object.keys(me.teams ?? {})),
+      () => setTeams([]),
+    );
+  }, []);
+
+  useEffect(() => {
     refresh();
     const id = new URLSearchParams(window.location.search).get("chat");
     if (id && CHAT_ID.test(id)) setChatId(id);
@@ -60,8 +88,10 @@ export default function ChatPage() {
 
   return (
     <CopilotKit runtimeUrl="/api/copilotkit" useSingleEndpoint={false} showDevConsole={false} enableInspector={false} messageFilter={latestTurn}>
+      <WorkflowQuestions />
+      <TeamSuggestions team={chats.find((c) => c.id === chatId)?.team} />
       <div className="workspace">
-        <ChatList chats={chats} activeId={chatId} onSelect={open} onNew={startNew} onDelete={remove} />
+        <ChatList chats={chats} teams={teams} activeId={chatId} onSelect={open} onNew={startNew} onDelete={remove} />
         <section className="chat">
           {error && <p className="error">{error}</p>}
           {chatId ? (
@@ -75,7 +105,7 @@ export default function ChatPage() {
             <div className="welcome">
               <h1>Ask the knowledge you may read</h1>
               <p>Answers cite their sources. Start a new chat, or reopen one of yours.</p>
-              <button type="button" className="primary" onClick={startNew}>
+              <button type="button" className="primary" onClick={() => startNew()}>
                 New chat
               </button>
             </div>

@@ -276,8 +276,7 @@ TOOLS: dict[str, Tool] = {
         ),
         Tool(
             "jira_get_issue",
-            "Read a Jira issue of your team's project with your own connection; a feature comes with its stories, "
-            "and whether its status allows a design or development run.",
+            "Read a Jira issue of your team's project with your own connection; a feature comes with its stories.",
             _schema({"key": {"type": "string", "description": "A Jira issue key, such as PAY-12."}}, ("key",)),
             systems.jira_get_issue,
         ),
@@ -288,7 +287,7 @@ TOOLS: dict[str, Tool] = {
                 {
                     "text": {"type": "string"},
                     "issue_type": {"type": "string", "description": "For example Feature or User Story."},
-                    "status": {"type": "string", "description": "For example In Design."},
+                    "status": {"type": "string", "description": "A status name, such as To Do."},
                 }
             ),
             systems.jira_search,

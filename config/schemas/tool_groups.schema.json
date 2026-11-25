@@ -26,8 +26,8 @@
             "minItems": 1
           },
           "everyone": {
-            "const": true,
-            "description": "Given to everyone."
+            "type": "boolean",
+            "description": "true: given to everyone. false or left out: only to the teams, team roles and user groups that list it."
           }
         },
         "required": [

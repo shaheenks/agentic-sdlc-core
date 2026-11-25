@@ -18,7 +18,7 @@ before each such write.
 # Acceptance criteria
 
 - Each team declares one control repository per environment (`control_repo`), on GitHub or Bitbucket, cloud or Data
-  Center; its `org/repo` name identifies the team, and no two teams share one.
+  Center; any `org/repo` name, and no two teams share one.
 - Layout: `features/<control-id>/` with `feature.md`, `design.md`, `plan-<repo>.md` and `links.yaml`;
   `records/<yyyy>/<mm>/<run-id>.md` for unattended writes. A control ID is `F-<yyyymmdd>-<slug>`, assigned when an
   artifact is first published.

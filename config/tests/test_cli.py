@@ -106,11 +106,6 @@ def test_missing_environment_warns_but_validates(config_dir, capsys):
         ),
         (
             "env/example/teams/payments.yaml",
-            lambda d: d["systems"]["control_repo"].update({"repo": "example-org/sdlc-control"}),
-            "must name the team 'payments'",
-        ),
-        (
-            "env/example/teams/payments.yaml",
             lambda d: d.update({"role_grants": {"boss": {"tool_groups": ["jira"]}}}),
             "has no role 'boss'",
         ),
@@ -298,3 +293,17 @@ def test_a_user_group_takes_in_the_members_of_the_teams_it_lists(config_dir):
     )
     members = compile_config(config_dir, "example").config["members"]
     assert members["ada@example.test"]["user_groups"] == ["early-adopters"]  # any role of the team
+
+
+def test_any_control_repository_name_is_accepted_but_not_shared(config_dir, capsys):
+    edit(
+        config_dir / "env/example/teams/payments.yaml",
+        lambda d: d["systems"]["control_repo"].update(repo="example-org/sdlc-control"),
+    )
+    assert compile_config(config_dir, "example").ok
+    edit(
+        config_dir / "env/example/teams/platform.yaml",
+        lambda d: d.update(systems={"control_repo": {"provider": "github", "repo": "Example-Org/sdlc-control"}}),
+    )
+    assert main(["validate", "--env", "example", "--dir", str(config_dir)]) == 1
+    assert "is also team 'payments''s" in capsys.readouterr().err

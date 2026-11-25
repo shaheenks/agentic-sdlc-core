@@ -99,7 +99,7 @@ def _pick(item: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
 
 
 async def team_systems(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
-    jira_keys = ("project", "base_url", "design_status", "development_status", "default")
+    jira_keys = ("project", "base_url", "default")
     return {
         "team": caller.policy.team,
         "teams": {
@@ -132,8 +132,6 @@ async def jira_get_issue(platform: "Platform", caller: "Caller", args: dict[str,
     if issue.issue_type == settings["feature_type"]:
         stories = await _call(lambda: jira.children(key, project))
         found["stories"] = [s.describe() for s in stories]
-    found["allows_design"] = issue.status == settings["design_status"]
-    found["allows_development"] = issue.status == settings["development_status"]
     return found
 
 

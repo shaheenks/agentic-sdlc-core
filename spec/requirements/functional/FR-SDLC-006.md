@@ -15,7 +15,7 @@ The system shall have ci_workflow_agent implement a merged design specification:
 
 # Acceptance criteria
 
-- A merge that adds or changes a design specification under the declared path of a declared repository starts the run, if the feature's Jira status (from the specification's Jira key) is **In Development**; otherwise the agent comments on the pull request and stops.
+- A merge of `design.md` on the team's control repository starts the run; the feature's Jira status does not matter.
 - The agent works in every target repository the specification names, each with its own plan and implementation pull requests.
 - The agent first proposes `plan.md` as a pull request: files that change, order of work, risks, and how the change will be proven (tests). Nothing is implemented without a merged plan.
 - Once the plan is merged, the agent implements it on a new branch with tests (for a bug fix, a failing test first), lets the repository's CI run the build and tests, and fixes failures within the run's limits ([FR-WFL-005](FR-WFL-005.md)).

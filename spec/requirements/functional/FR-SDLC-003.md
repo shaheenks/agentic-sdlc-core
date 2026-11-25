@@ -20,7 +20,7 @@ artifact until the user publishes it ([FR-SDLC-005](FR-SDLC-005.md)).
 - From the user's own feature artifact, user_agent starts without any check on the control repository.
 - From a Jira feature, it reads the feature and its User Stories with the user's own connection and starts only if
   the feature's `feature.md` is approved on the team's control repository with the feature's key recorded in its
-  `links.yaml`, and the feature's Jira status is **In Design**.
+  `links.yaml`; the feature's Jira status does not matter.
 - It reads existing designs and code through knowledge search within the run's team scope
   ([FR-KNOW-004](FR-KNOW-004.md)) and the team's repositories.
 - It names the target repositories for the code: one or more of the team's repositories (the default unless the user

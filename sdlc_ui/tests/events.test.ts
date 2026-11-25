@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { EventType } from "@ag-ui/client";
 
-import { adkToAgui, chatSummaries, historyMessages, latestUserText } from "../lib/events.ts";
+import { adkToAgui, chatSummaries, historyMessages, latestUserText, turnInput } from "../lib/events.ts";
 
 const types = (events: { type: string }[]) => events.map((e) => e.type);
 
@@ -76,4 +76,50 @@ test("only the latest user turn is sent", () => {
     { role: "user", content: [{ type: "text", text: "second" }] },
   ]);
   assert.equal(text, "second");
+});
+
+// Workflows (phase 4a milestone 4) ---------------------------------------------------------------------------
+
+const question = { id: "q1", name: "adk_request_input", args: { message: "Apply?", payload: { kind: "review_findings" } } };
+
+test("a workflow's agents stay out of the chat; only its questions reach it", () => {
+  assert.deepEqual(adkToAgui({ id: "r", author: "review_design", content: { parts: [{ text: '{"findings": []}' }] } }), []);
+  assert.deepEqual(adkToAgui({ id: "d", author: "features_drafter", content: { parts: [{ text: "# Draft" }] } }), []);
+  const asked = adkToAgui({ id: "w", author: "features_and_stories", content: { parts: [{ function_call: question }] } });
+  assert.deepEqual(types(asked), [EventType.TOOL_CALL_START, EventType.TOOL_CALL_ARGS, EventType.TOOL_CALL_END]);
+  assert.equal((asked[0] as unknown as { toolCallName: string }).toolCallName, "adk_request_input");
+});
+
+test("an answer to a question this chat asked resumes the workflow; anything else is plain text", () => {
+  const asked = { role: "assistant", toolCalls: [{ id: "q1", type: "function", function: { name: "adk_request_input", arguments: "{}" } }] };
+  assert.deepEqual(turnInput([{ role: "user", content: "go" }, asked, { role: "tool", toolCallId: "q1", content: '"F1, F2"' }]), {
+    role: "user",
+    parts: [{ function_response: { id: "q1", name: "adk_request_input", response: { result: "F1, F2" } } }],
+  });
+  // a tool message for a call this chat never made, or for another tool, is not an answer
+  assert.equal(turnInput([{ role: "user", content: "go" }, { role: "tool", toolCallId: "q9", content: "x" }]), "go");
+  const other = { role: "assistant", toolCalls: [{ id: "c1", type: "function", function: { name: "artifact_save", arguments: "{}" } }] };
+  assert.equal(turnInput([{ role: "user", content: "go" }, other, { role: "tool", toolCallId: "c1", content: "x" }]), "go");
+  assert.equal(turnInput([{ role: "user", content: "hello" }]), "hello");
+});
+
+test("a reopened chat shows the workflow's questions and the user's answers, not its agents", () => {
+  const messages = historyMessages({
+    events: [
+      { id: "u1", author: "user", content: { parts: [{ text: "draft it" }] } },
+      { id: "r1", author: "review_style", content: { parts: [{ text: '{"findings": []}' }] } },
+      { id: "q", author: "features_and_stories", content: { parts: [{ function_call: question }] } },
+      { id: "a", author: "user", content: { parts: [{ function_response: { id: "q1", name: "adk_request_input", response: { result: "stop" } } }] } },
+    ],
+  });
+  assert.deepEqual(
+    messages.map((m) => m.role),
+    ["user", "assistant", "tool"],
+  );
+  assert.equal(messages[2].toolCallId, "q1");
+});
+
+test("a team chat is listed with its team", () => {
+  const [chat] = chatSummaries({ sessions: [{ id: "s1", state: { sdlc_title: "Refunds", sdlc_team: "payments" }, lastUpdateTime: 1 }] });
+  assert.equal(chat.team, "payments");
 });

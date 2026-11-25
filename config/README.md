@@ -14,7 +14,7 @@ bundle and published to the configuration bucket. Services use a bundle only onc
 | `env/<env>/identity.yaml` | The identity mode, allowed Cloud Identity domains, each surface's callers (service accounts) or OAuth client IDs |
 | `env/<env>/users.yaml` | Users by email with their teams (`team` or `team:role`) and user groups |
 | `env/<env>/blocked.yaml` | Users refused on every surface |
-| `env/<env>/teams.yaml` or `env/<env>/teams/<id>.yaml` | Teams with their roles, the `tool_groups` and `sources` their members are given (`role_grants` for one role, such as `lead`), and their `systems`: lists of Jira projects, Confluence spaces and product repositories, each with one `default: true`, and `control_repo`, the team's sdlc-control repository (an `org/repo` name that identifies the team) |
+| `env/<env>/teams.yaml` or `env/<env>/teams/<id>.yaml` | Teams with their roles, the `tool_groups` and `sources` their members are given (`role_grants` for one role, such as `lead`), and their `systems`: lists of Jira projects, Confluence spaces and product repositories, each with one `default: true`, and `control_repo`, the team's sdlc-control repository (any `org/repo`; no two teams share one) |
 | `env/<env>/user_groups.yaml` | User groups with the `tool_groups` and `sources` their members are given; `teams` (`payments`, or one role: `payments:lead`) adds those teams' members to the group, for their own runs only |
 | `env/<env>/sources.yaml` or `env/<env>/sources/<id>.yaml` | Knowledge sources the ingest pipeline reads (git repositories and folders), with their classification; `everyone: true` makes one readable by everyone |
 

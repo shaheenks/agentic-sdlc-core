@@ -86,7 +86,7 @@ validates it, turns it into an immutable bundle and publishes it where every ser
 - `env/<env>/teams.yaml` gives each team its `systems`: lists of Jira projects (site, project key, issue types, the
   statuses that allow design and development runs), Confluence spaces (site, space key, optional parent page) and
   product repositories (provider, design path, default branch), each list with exactly one `default: true` (a
-  single entry is the default), and its control repository, `control_repo` (provider, `repo` as an `org/repo` name that identifies the team, branch; [DEC-0012](../decisions/DEC-0012.md), proposed).
+  single entry is the default), and its control repository, `control_repo` (provider, `repo` as any `org/repo` no other team uses, branch; [DEC-0012](../decisions/DEC-0012.md), proposed).
 - Shared files in `config/` hold only what is the same in every environment: tool groups, surfaces, limits,
   providers and platform settings. Teams, user groups and knowledge sources, with what they are given, are
   environment configuration (2026-11-25, the user's choice); a shared `teams.yaml`, `user_groups.yaml` or

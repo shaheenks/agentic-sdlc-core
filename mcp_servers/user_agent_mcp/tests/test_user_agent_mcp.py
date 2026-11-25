@@ -507,8 +507,6 @@ SYSTEMS_CONFIG = {
                     "feature_type": "Feature",
                     "story_type": "User Story",
                     "story_link": "parent",
-                    "design_status": "In Design",
-                    "development_status": "In Development",
                     "default": True,
                 },
                 {
@@ -518,8 +516,6 @@ SYSTEMS_CONFIG = {
                     "feature_type": "Feature",
                     "story_type": "User Story",
                     "story_link": "parent",
-                    "design_status": "In Design",
-                    "development_status": "In Development",
                     "default": False,
                 },
             ],
@@ -703,7 +699,7 @@ def tool(client, headers, name, **arguments):
 def test_a_feature_is_read_with_its_stories_as_the_user(senv):
     client, seen = senv
     found = tool(client, WHO["ada-ui"], "jira_get_issue", key="PAY-1")
-    assert found["allows_design"] and [s["key"] for s in found["stories"]] == ["PAY-2"]
+    assert "allows_design" not in found and [s["key"] for s in found["stories"]] == ["PAY-2"]
     auth = seen[0].headers["authorization"].removeprefix("Basic ")
     assert base64.b64decode(auth).decode() == "ada@example.test:jira-token"
     assert 'project = "PAY" AND parent = PAY-1' in json.loads(seen[1].content)["jql"]

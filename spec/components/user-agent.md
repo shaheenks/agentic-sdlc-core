@@ -84,7 +84,7 @@ Elephant-Goldfish Model: it holds the whole conversation, and its documents are 
   - `features_and_stories` and `design_specification` draft with the stage skill and run the review loop; the
     draft is returned for the user to save as their own artifact, and nothing is written elsewhere. A design from
     the user's own feature checks nothing; from a Jira key or control ID it needs the feature approved on the
-    team's control repository, recorded in Jira and In Design.
+    team's control repository and recorded in Jira.
   - The review loop: the seven reviewers run in parallel as single-turn agents that receive only the document (and
     the stories it must satisfy), never the conversation, with read-only tools; their JSON findings are merged and
     numbered. A round without blockers or majors repeats until two in a row; otherwise the user chooses which

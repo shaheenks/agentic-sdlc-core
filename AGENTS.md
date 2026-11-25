@@ -52,11 +52,12 @@ Conventions: [spec/conventions.md](spec/conventions.md). Start at [spec/index.md
 **SDLC flow** (FR-SDLC-*, after the AI-native SDLC playbook and the Elephant-Goldfish Model; plan:
 [docs/plans/implementation-plan.md](docs/plans/implementation-plan.md))
 - user_agent: knowledge search and brainstorming in chat (broad scope; a predefined workflow sets the team
-  scope, and changing it needs the user's confirmation in chat); features and user stories (Jira Feature and
-  User Story issues, created as the user once approved in chat); a design specification from a Feature in
-  status In Design, reviewed by fresh-context reviewers, naming the target repositories and, once approved,
-  opened as a pull request on the first of them (DEC-0008).
-- ci_workflow_agent: after the design is merged and the Feature is In Development, a `plan.md` pull request,
+  scope, and changing it needs the user's confirmation in chat); features and user stories and a design
+  specification, reviewed by fresh-context reviewers and kept as the user's own artifacts. Only when the user
+  asks for a write to Jira, Confluence or a repository do the artifacts go to the team's sdlc-control
+  repository as a pull request; a person merging it approves them, then the write follows and is recorded
+  there (DEC-0012). No step depends on a Jira status.
+- ci_workflow_agent: after the design is merged on the control repository, a `plan.md` pull request there,
   then an implementation pull request in each target repository; two review workflows on every pull request,
   security vulnerability analysis and quality assurance analysis. Every agent pull request carries the Jira
   keys of its user stories or feature.

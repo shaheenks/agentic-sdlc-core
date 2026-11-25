@@ -169,8 +169,7 @@ changing it during a run needs the user's explicit confirmation in chat.
   to build, technical detail, unnecessary complexity), starting from EGM's open-source skills.
 - Connector adapters for Jira, GitHub and Bitbucket in cloud and Data Center editions; Jira and repository
   tools in user_agent_mcp that act with the user's own connections; team configuration
-  with the Jira project, Confluence spaces and repositories with design paths; design runs need the
-  feature in In Design, development runs In Development.
+  with the Jira project, Confluence spaces and repositories (no Jira status gates, 2026-11-25).
 - ADK graph workflows for features and stories (FR-SDLC-002: approved in chat, then created in Jira as the
   user, as Feature and User Story issues) and the design specification (FR-SDLC-003: from a Feature whose
   status allows design, and its User Stories), with the
@@ -235,6 +234,11 @@ changing it during a run needs the user's explicit confirmation in chat.
     `config/env/dev/teams/<team>.yaml`, the user's connections, and milestone 4 to answer the workflows' questions
     in sdlc_ui.
 
+- Milestone 4 built (2026-11-25): sdlc_ui starts team chats (the team scope set when the chat is created) with the
+  workflows as suggestions, shows each workflow question in the chat (review findings, team switch, waiting for the
+  merge) and sends the answer back to resume the workflow; a workflow's own agents stay out of the chat. Next:
+  deploy user_agent_mcp, user_agent and sdlc_ui to development with the team's systems, and run the exit gate.
+
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).
@@ -295,7 +299,7 @@ Decided:
 - **Audit:** structured JSON with a unique tag in the standard Cloud Logging bucket, 30 days, no lock (NFR-AUD-002).
 - **Identity (DEC-0009):** Google account tokens identify the user on every surface, sdlc_ui and Gemini Enterprise alike; IAP only enforces the perimeter.
 - **Usage:** approximate rate limits on tool calls at the MCP servers (FR-MDL-002); runs visible only to their user.
-- **Jira statuses:** In Design allows a design run; In Development allows a development run.
+- **Jira statuses:** none required (2026-11-25); approval is the merge on the team's control repository.
 - **Workflows:** teams override only declared parameters; no forks.
 - **Repositories:** a team can have several; the design specification names the target repositories.
 - **Pull requests:** every agent pull request carries the Jira keys of its user stories or feature.

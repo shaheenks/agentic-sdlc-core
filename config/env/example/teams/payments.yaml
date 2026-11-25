@@ -10,7 +10,7 @@
 #
 # systems: the team's Jira projects, Confluence spaces and product repositories (lists; when one has more than
 # one entry, mark exactly one `default: true`), and control_repo, its sdlc-control repository (DEC-0012): approved
-# artifacts and the record of every agent write. Its org/repo name identifies the team. Tools act with the
+# artifacts and the record of every agent write; no two teams share one. Tools act with the
 # user's own connection and only on the systems of the run's team (FR-AUTHZ-003).
 name: Payments
 description: Payment services.

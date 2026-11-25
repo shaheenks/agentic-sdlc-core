@@ -30,8 +30,8 @@ connection.
   and its User Story issues in one of the team's Jira projects (the default unless the user names another), as the
   user, and records their keys in `links.yaml` ([FR-SDLC-013](FR-SDLC-013.md)).
 - The Jira tool refuses to create issues for a `feature.md` that is not approved ([FR-SDLC-001](FR-SDLC-001.md)).
-- From then on the feature's Jira status allows the next runs: **In Design** for the design run and
-  **In Development** for the development run ([FR-SDLC-003](FR-SDLC-003.md), [FR-SDLC-006](FR-SDLC-006.md)).
+- The next runs do not depend on the feature's Jira status: a design starts from the approved feature
+  ([FR-SDLC-003](FR-SDLC-003.md)), the implementation from the merged design ([FR-SDLC-006](FR-SDLC-006.md)).
 
 # Notes
 

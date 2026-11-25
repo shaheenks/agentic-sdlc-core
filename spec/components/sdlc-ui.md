@@ -97,3 +97,16 @@ BFF:
   replays a chat's history from the runtime for the same user; it stores nothing. Artifacts and connections
   pages use user_agent_mcp's HTTP API. Deployed as `sdlc-ui` with IAP on the service (`infra/gcp/sdlc_ui.tf`),
   IAP's service agent the only invoker.
+- Built (phase 4a milestone 4): team chats and workflow questions.
+  - "New chat" for one of the user's teams (checked against user_agent_mcp's `/api/me`) creates the runtime
+    session with `sdlc_team` set, so the run starts in that team's scope; such chats are listed with their team
+    and offer the workflows as suggestions ([FR-KNOW-004](../requirements/functional/FR-KNOW-004.md)).
+  - Each workflow question (`adk_request_input`) is rendered in the chat with CopilotKit's human-in-the-loop
+    hook: review findings with checkboxes (blockers and majors chosen) and a note, a team switch as yes or no,
+    and the wait for a merge with a link to the pull request ([FR-HUM-001](../requirements/functional/FR-HUM-001.md),
+    [FR-SDLC-004](../requirements/functional/FR-SDLC-004.md)). The BFF sends the answer to the runtime as the
+    function response that resumes the workflow, and only for a question the same chat asked; a reopened chat
+    shows its questions and answers, and an unanswered one can still be answered.
+  - Only the root agent's messages are shown as chat: the drafts and reviewers' JSON of a workflow's own agents
+    stay out of it.
+

@@ -75,8 +75,8 @@
             "description": "Extract concepts with Gemini (default true when the run enables extraction)."
           },
           "everyone": {
-            "const": true,
-            "description": "Given to everyone."
+            "type": "boolean",
+            "description": "true: given to everyone. false or left out: only to the teams, team roles and user groups that list it."
           }
         },
         "required": [

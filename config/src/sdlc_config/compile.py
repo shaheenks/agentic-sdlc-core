@@ -146,8 +146,6 @@ JIRA_DEFAULTS = {
     "feature_type": "Feature",
     "story_type": "User Story",
     "story_link": "parent",
-    "design_status": "In Design",
-    "development_status": "In Development",
 }
 
 
@@ -177,7 +175,7 @@ def _where(grant_id: str, env: str) -> str:
     kind, _, name = grant_id.partition(":")
     return {
         "everyone": "everyone: true",
-        "team": f"env/{env}/teams.yaml: {name}",
+        "team": f"env/{env}/teams (teams.yaml or teams/{name.partition(':')[0]}.yaml): {name}",
         "user_group": f"env/{env}/user_groups.yaml: {name}",
     }[kind]
 
@@ -349,8 +347,6 @@ def _cross_check(config: dict, users: dict, problems: list[str], warnings: list[
                 problems.append(f"{where}: control_repo: a Data Center repository needs base_url")
             if name.lower() in seen_repos:
                 problems.append(f"{where}: control_repo: {name!r} is also a product repository")
-            if team.replace("_", "-") not in name.lower().replace("_", "-"):
-                problems.append(f"{where}: control_repo: {name!r} must name the team {team!r} in its org or repo")
             if name.lower() in control_owners:
                 problems.append(f"{where}: control_repo: {name!r} is also team {control_owners[name.lower()]!r}'s")
             control_owners[name.lower()] = team

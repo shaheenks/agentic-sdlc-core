@@ -87,7 +87,6 @@ class FakeMcp:
     def __init__(self):
         self.calls: list[tuple[str, dict, str | None]] = []
         self.approved = False
-        self.allows_design = True
         self.jira_recorded = True
 
     async def call(self, ctx: Any, name: str, arguments: dict | None = None) -> dict:
@@ -115,7 +114,7 @@ class FakeMcp:
                 "jira_feature_recorded": self.jira_recorded,
             }
         if name == "jira_get_issue":
-            return {"key": "PAY-1", "status": "In Design", "allows_design": self.allows_design, "stories": []}
+            return {"key": "PAY-1", "status": "In Design", "stories": []}
         if name == "jira_create_feature":
             return {"control_id": arguments["control_id"], "feature": {"key": "PAY-1"}, "stories": ["PAY-2"]}
         if name == "jira_link_design":
@@ -262,18 +261,14 @@ async def test_cancelling_the_wait_writes_nothing(world):
     assert stopped["code"] == "cancelled" and "jira_create_feature" not in mcp.names()
 
 
-async def test_a_design_from_jira_starts_only_from_an_approved_feature_in_design(world):
+async def test_a_design_from_jira_starts_only_from_an_approved_feature(world):
     script, mcp, runner = world
     script.calls["design PAY-1"] = ("design_specification", {"team": "payments", "jira_key": "PAY-1"})
     session = await start(runner)
     refused = (await turn(runner, session, text="design PAY-1"))["results"]["design_specification"]
     assert refused["code"] == "not_approved" and not any(role == "drafter" for role, _ in script.seen)
 
-    mcp.approved, mcp.allows_design = True, False
-    refused = (await turn(runner, session, text="design PAY-1"))["results"]["design_specification"]
-    assert refused["code"] == "not_in_design"
-
-    mcp.allows_design = True
+    mcp.approved = True  # no Jira status is required (2026-11-25)
     done = (await turn(runner, session, text="design PAY-1"))["results"]["design_specification"]
     assert done["status"] == "drafted" and done["control_id"] == "F-20261125-refunds"
     assert done["repositories"] == ["org/payments"]  # the team's default

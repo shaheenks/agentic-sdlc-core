@@ -1,5 +1,13 @@
 ## 2026-11-25
 
+* **Update**: a team's `control_repo` may have any `org/repo` name (such as `<org>/sdlc-control`), the user's
+  choice; no two teams share one.
+* **Update**: Jira status gates removed, the user's change: no workflow depends on a Feature's status (In Design,
+  In Development); approval on the team's control repository is the only gate. FR-SDLC-002, FR-SDLC-003,
+  FR-SDLC-006 and [DEC-0012](decisions/DEC-0012.md) changed; `design_status` and `development_status` leave the
+  team configuration.
+* **Update**: 4a milestone 4: [sdlc_ui](components/sdlc-ui.md) team chats and workflow questions answered in the
+  chat. Built: FR-HUM-001, FR-KNOW-004. `design_path` on product repositories is optional.
 * **Update**: [DEC-0012](decisions/DEC-0012.md) accepted by the user; [DEC-0008](decisions/DEC-0008.md) superseded.
   FR-SDLC-001, FR-SDLC-002, FR-SDLC-003, FR-SDLC-005, FR-SDLC-006, FR-SDLC-010, FR-SDLC-012, FR-TRIG-003 and
   FR-HUM-005 changed to the control repository; new [FR-SDLC-013](requirements/functional/FR-SDLC-013.md).

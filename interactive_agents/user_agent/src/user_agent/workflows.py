@@ -415,7 +415,7 @@ def design_specification(kit: Kit) -> Workflow:
 
     async def source(ctx: Context, node_input: Any):
         """The feature to design from: the user's own (no check), or a published one (approved on the team's
-        control repository, recorded in Jira and In Design)."""
+        control repository and recorded in Jira)."""
         found: dict[str, Any] = {
             "control_id": node_input.get("control_id") or "",
             "jira_key": node_input.get("jira_key") or "",
@@ -432,12 +432,6 @@ def design_specification(kit: Kit) -> Workflow:
                         "not_approved",
                     )
                 issue = await kit.caller.call(ctx, "jira_get_issue", {"key": found["jira_key"]})
-                if not issue.get("allows_design"):
-                    return _stop(
-                        ctx,
-                        f"{found['jira_key']} is in status {issue.get('status')}, not the design status",
-                        "not_in_design",
-                    )
                 stories = "\n".join(f"- {s['key']}: {s.get('summary', '')}" for s in issue.get("stories") or [])
                 feature = (
                     status["artifacts"]["feature"].get("content", "") + f"\n\n# Jira\n\n{found['jira_key']}\n{stories}"
