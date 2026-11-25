@@ -14,3 +14,5 @@ sdlc_ui
 compose
 # The ingest pipeline's per-file extraction cache stays out of the Knowledge Search image.
 knowledge_search/knowledge/extractions.jsonl
+# Environment configuration (identities, users, teams) never enters a build context.
+config/env
