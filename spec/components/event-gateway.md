@@ -76,3 +76,9 @@ notes on a tag, triage a new defect. This component turns schedules and events i
 - Webhook signing secrets and any other secrets as environment variables from Secret Manager (Cloud Run secret
   references); it mounts no bucket of secrets.
 - Folder `event_gateway/`, self-contained; deduplicates deliveries by creating one object per delivery ID only if absent ([DEC-0003](../decisions/DEC-0003.md)).
+- Built ([DEC-0015](../decisions/DEC-0015.md), phase 5a milestone 3): `POST /webhooks/github` verifies
+  `X-Hub-Signature-256` first, triages by metadata against `subscriptions.yaml` for the system identity's teams,
+  claims each matched delivery with a create-if-absent object under `events/deliveries/` and queues one Cloud Task
+  per subscription; `POST /run` accepts only the queue's OIDC token, creates the run's Agent Runtime session once
+  (`events/runs/`, so a retry continues it) and follows the run. Bitbucket and Jira webhooks and schedules come
+  later.

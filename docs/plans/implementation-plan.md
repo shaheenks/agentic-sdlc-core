@@ -287,6 +287,10 @@ changing it during a run needs the user's explicit confirmation in chat.
   plan and implementation pull requests into the feature branches for approved designs and plans, starts the Code
   Workspace job and comments on the feature's pull requests, recording every write in `links.yaml`. Knowledge search
   for unattended runs is left for later (the `knowledge` group is off the `event_agents` surface).
+- Milestone 3 built (2026-11-26), tested against faked Cloud Tasks, Cloud Storage and Agent Runtime: event_gateway
+  verifies GitHub webhooks before reading them, matches them to `ci_plan` and `ci_implement` by repository role,
+  merge and branch names, claims each delivery once, queues one task per run and starts the run from `/run` with the
+  team, subscription and event in the session's state.
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).

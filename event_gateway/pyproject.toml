@@ -1,9 +1,16 @@
 [project]
 name = "sdlc-event-gateway"
-version = "0.0.0"
+version = "0.1.0"
 description = "Receives, verifies, deduplicates and triages events, and starts unattended runs."
 requires-python = ">=3.12"
-dependencies = ["sdlc-service"]
+dependencies = [
+    "sdlc-service",
+    "sdlc-logging",
+    "sdlc-config-store",
+    "sdlc-identity",
+    "httpx>=0.28",
+    "google-auth>=2.40",
+]
 
 [project.scripts]
 sdlc-event-gateway = "event_gateway.__main__:main"

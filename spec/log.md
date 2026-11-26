@@ -1,5 +1,8 @@
 ## 2026-11-26
 
+* **Update**: phase 5a milestone 3 built ([DEC-0015](decisions/DEC-0015.md)): event_gateway verifies GitHub webhooks,
+  triages them against the subscriptions, deduplicates deliveries and hands each matched run to Cloud Tasks; `/run`
+  starts and follows it on the event agents' Agent Runtime.
 * **Update**: phase 5a milestone 2 built ([DEC-0015](decisions/DEC-0015.md)): event_agent_mcp with the system
   identity (`identify_system`), runs named by team and subscription, the write gate per subscription and the plan,
   Code Workspace, implementation and comment tools; connectors gain pull requests from an existing branch, comments

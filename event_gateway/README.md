@@ -1,12 +1,35 @@
-    # event_gateway
+# event_gateway
 
-    Receives, verifies, deduplicates and triages events, and starts unattended runs.
+Receives, verifies, deduplicates and triages events, and starts unattended runs
+([component](../spec/components/event-gateway.md), [DEC-0015](../spec/decisions/DEC-0015.md)). Cloud Run service.
 
-    **Phase 0 skeleton.** Cloud Run service; locally `docker compose --env-file compose/local.env up` (port 8084).
+- `POST /webhooks/github` (public): the `X-Hub-Signature-256` HMAC is checked with `WEBHOOK_SECRET_GITHUB` before
+  anything else. A verified delivery is matched against `subscriptions.yaml` of the active configuration, for the
+  teams in `system.yaml` only. A match claims the delivery under `events/deliveries/` (create-if-absent: a
+  redelivery starts nothing) and queues one Cloud Task per subscription, named after the delivery; the answer is
+  `202` at once.
+- `POST /run` (the queue only): accepts a Google ID token for `<PUBLIC_URL>/run` of `TASKS_INVOKER`, creates the
+  run's session on the event agents' Agent Runtime once (kept under `events/runs/`, so a retried task continues it)
+  with the team, subscription, run ID, event and inputs in its state, and follows the run to its end within the
+  subscription's minutes.
 
-    Build and test from this folder: `uv run pytest`.
+Every delivery received, matched, ignored, duplicated or rejected, and every run started and finished, is audited
+with its metadata; payloads and secrets never are.
 
-    | Variable | Default | Meaning |
-    |---|---|---|
-    | `PORT` | `8084` | Port to listen on (Cloud Run sets it) |
+Build and test from this folder: `uv run pytest`.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PORT` | `8084` | Port to listen on (Cloud Run sets it) |
+| `SDLC_ENV` | `local` | Environment name |
+| `CONFIG_SOURCE` | - | Configuration bucket (`gs://...`) or folder; required |
+| `PUBLIC_URL` | - | This service's URL; `/run` is the tasks' target and their tokens' audience; required |
+| `WEBHOOK_SECRET_<PROVIDER>` | - | A provider's webhook secret, for example `WEBHOOK_SECRET_GITHUB` (Secret Manager) |
+| `EVENTS_BUCKET` | - | Bucket for `events/` (deliveries and runs); `EVENTS_DIR`, a folder, in the local environment only |
+| `TASKS_MODE` | `queue` | `queue` (Cloud Tasks) or `inline` (in process, local environment only) |
+| `TASKS_QUEUE` | - | `projects/<p>/locations/<r>/queues/<q>` |
+| `TASKS_INVOKER` | - | The service account the tasks' OIDC tokens are for (the gateway's own) |
+| `AGENT_URL` | - | The event agents' engine: `https://<region>-aiplatform.googleapis.com/v1/projects/<p>/locations/<r>/reasoningEngines/<id>` |
+| `AGENT_AUTH` | `google` | `google`, or `none` in the local environment only |
+| `CONFIG_REFRESH_SECONDS` | `30` | How often the active bundle is re-checked |
 | `LOG_LEVEL` | `INFO` | Minimum log level |

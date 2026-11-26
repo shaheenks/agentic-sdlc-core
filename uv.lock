@@ -2004,14 +2004,26 @@ requires-dist = [
 
 [[package]]
 name = "sdlc-event-gateway"
-version = "0.0.0"
+version = "0.1.0"
 source = { editable = "event_gateway" }
 dependencies = [
+    { name = "google-auth" },
+    { name = "httpx" },
+    { name = "sdlc-config-store" },
+    { name = "sdlc-identity" },
+    { name = "sdlc-logging" },
     { name = "sdlc-service" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "sdlc-service", editable = "libs/sdlc_service" }]
+requires-dist = [
+    { name = "google-auth", specifier = ">=2.40" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "sdlc-config-store", editable = "libs/sdlc_config_store" },
+    { name = "sdlc-identity", editable = "libs/sdlc_identity" },
+    { name = "sdlc-logging", editable = "libs/sdlc_logging" },
+    { name = "sdlc-service", editable = "libs/sdlc_service" },
+]
 
 [[package]]
 name = "sdlc-identity"
