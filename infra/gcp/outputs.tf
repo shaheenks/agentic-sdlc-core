@@ -46,3 +46,30 @@ output "interactive_agents_service_account" {
 output "sdlc_ui_url" {
   value = local.sdlc_ui_url
 }
+
+output "event_agents_service_account" {
+  value = google_service_account.component["event_agents"].email
+}
+
+output "event_agent_mcp_url" {
+  value = local.event_agent_mcp_url
+}
+
+output "event_gateway_webhook_url" {
+  description = "The URL of GitHub's webhook on a control repository (content type application/json)."
+  value       = "${local.event_gateway_url}/webhooks/github"
+}
+
+output "code_workspace_job" {
+  value = local.code_workspace_job
+}
+
+output "webhook_secret_github" {
+  description = "The Secret Manager secret holding the GitHub webhook's secret."
+  value       = google_secret_manager_secret.platform["webhook-github"].secret_id
+}
+
+output "system_pat_github" {
+  description = "The Secret Manager secret holding the GitHub machine user's token."
+  value       = google_secret_manager_secret.platform["system-pat-github"].secret_id
+}

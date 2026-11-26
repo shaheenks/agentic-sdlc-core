@@ -91,3 +91,33 @@ variable "iap_oauth_client_secret" {
   default     = ""
   sensitive   = true
 }
+
+variable "event_agent_mcp_image" {
+  description = "event_agent_mcp's image (DEC-0015). Empty: the service is not created yet."
+  type        = string
+  default     = ""
+}
+
+variable "event_agent_mcp_ingress" {
+  description = "Cloud Run ingress of event_agent_mcp. The event agents' engine reaches it over its public URL, so ALL with the engine's account as its only invoker; internal once the engine has a private network path."
+  type        = string
+  default     = "INGRESS_TRAFFIC_ALL"
+}
+
+variable "code_workspace_image" {
+  description = "The Code Workspace job's image (DEC-0015). Empty: the job is not created yet."
+  type        = string
+  default     = ""
+}
+
+variable "event_gateway_image" {
+  description = "event_gateway's image (DEC-0015). Empty: the service is not created yet."
+  type        = string
+  default     = ""
+}
+
+variable "event_agent_engine" {
+  description = "The event agents' Agent Runtime resource: projects/<number>/locations/<region>/reasoningEngines/<id> (printed by event_based_agents/ci_workflow_agent/deploy.py). Empty: the gateway is not created yet."
+  type        = string
+  default     = ""
+}

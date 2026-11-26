@@ -28,7 +28,7 @@ resource "google_storage_bucket" "artifacts" {
   lifecycle_rule {
     condition {
       age            = var.artifact_retention_days
-      matches_prefix = ["artifacts/"]
+      matches_prefix = ["artifacts/", "events/"] # events/: the event gateway's deliveries and runs (DEC-0015)
     }
     action {
       type = "Delete"
