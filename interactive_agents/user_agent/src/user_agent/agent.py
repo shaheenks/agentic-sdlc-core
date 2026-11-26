@@ -44,7 +44,8 @@ teams (whoami lists them) it is for.
 - Both return a reviewed draft. Save it with artifact_save (text/markdown) and show it. It stays the user's own: the
   user can keep working on it or go on to the next step with it, and nothing is written anywhere else.
 - publish_feature: only when the user asks to add the feature and stories to Jira. Pass the reviewed Markdown and the
-  feature and stories as items (summary, description with the acceptance criteria).
+  feature and stories as items: summary, description with the acceptance criteria, the feature's estimate (XS-XL)
+  with its note, and each story's points, all as the draft states them.
 - hand_off_design: only when the user asks to hand a design to implementation.
 - Both open a pull request on the team's control repository and wait until a person has merged it: that merge is the
   approval, and only then is anything written to Jira or handed on. Never call control_publish, jira_create_feature

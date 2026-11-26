@@ -991,3 +991,29 @@ def test_a_feature_already_in_the_jira_project_is_not_created_again(senv, ctrl, 
     monkeypatch.setattr("sdlc_connectors.jira.Jira.search", lambda self, jql, limit=20: [existing])
     refused = tool(client, TEAM, "jira_create_feature", control_id=control_id, **FEATURE)
     assert refused["error"] == "already_exists" and "PAY-7" in refused["message"]
+
+
+def test_estimates_reach_jira_as_a_size_label_and_story_points(senv, ctrl, monkeypatch):
+    from sdlc_connectors import Jira
+
+    client, seen = senv
+    control_id = published(client, ctrl)
+    monkeypatch.setattr(Jira, "field_id", lambda self, names: "customfield_10016")
+    args = {
+        "feature": {
+            "summary": "Refunds",
+            "description": "Faster.",
+            "estimate": "M",
+            "estimate_note": "about 2-3 weeks",
+        },
+        "stories": [{"summary": "As a payer, I want a refund", "story_points": 5}],
+    }
+    made = tool(client, TEAM, "jira_create_feature", control_id=control_id, **args)
+    assert made["feature"]["key"] == "PAY-101" and made["stories"] == ["PAY-102"]
+    posted = [json.loads(r.content)["fields"] for r in seen if r.method == "POST" and r.url.path == "/rest/api/3/issue"]
+    assert posted[0]["labels"] == ["size-M"] and "High-level estimate: M (about 2-3 weeks)" in json.dumps(
+        posted[0]["description"]
+    )
+    assert posted[1]["customfield_10016"] == 5 and "Story points: 5" in json.dumps(posted[1]["description"])
+    wrong = {**args, "stories": [{"summary": "x", "story_points": 4}]}
+    assert tool(client, TEAM, "jira_create_feature", control_id=control_id, **wrong)["error"] == "invalid_argument"

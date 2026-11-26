@@ -325,14 +325,26 @@ TOOLS: dict[str, Tool] = {
                     },
                     "feature": {
                         "type": "object",
-                        "properties": {"summary": {"type": "string"}, "description": {"type": "string"}},
+                        "properties": {
+                            "summary": {"type": "string"},
+                            "description": {"type": "string"},
+                            "estimate": {"type": "string", "enum": ["XS", "S", "M", "L", "XL"]},
+                            "estimate_note": {
+                                "type": "string",
+                                "description": "Such as: about 2-3 weeks for one team.",
+                            },
+                        },
                         "required": ["summary"],
                     },
                     "stories": {
                         "type": "array",
                         "items": {
                             "type": "object",
-                            "properties": {"summary": {"type": "string"}, "description": {"type": "string"}},
+                            "properties": {
+                                "summary": {"type": "string"},
+                                "description": {"type": "string"},
+                                "story_points": {"type": "integer", "enum": [1, 2, 3, 5, 8, 13]},
+                            },
                             "required": ["summary"],
                         },
                     },

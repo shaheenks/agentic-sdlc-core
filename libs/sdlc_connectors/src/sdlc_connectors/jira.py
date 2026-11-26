@@ -17,6 +17,9 @@ from sdlc_connectors.base import ConnectorError, Credential, Http
 KEY = re.compile(r"^[A-Z][A-Z0-9_]{0,19}-[1-9][0-9]{0,9}$")
 CLOUD, DATA_CENTER = "cloud", "data_center"
 
+LABEL = re.compile(r"^[A-Za-z0-9_.-]{1,50}$")
+FIELD_ID = re.compile(r"^customfield_[0-9]{1,8}$")
+
 
 @dataclass(frozen=True)
 class Issue:
@@ -126,7 +129,14 @@ class Jira:
         return self.search(f'project = "{project}" AND parent = {key} ORDER BY key', limit=100)
 
     def create_issue(
-        self, project: str, issue_type: str, summary: str, description: str, parent: str | None = None
+        self,
+        project: str,
+        issue_type: str,
+        summary: str,
+        description: str,
+        parent: str | None = None,
+        labels: list[str] | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> Issue:
         fields: dict[str, Any] = {
             "project": {"key": project},
@@ -136,8 +146,22 @@ class Jira:
         }
         if parent:
             fields["parent"] = {"key": parent}
+        if labels:
+            fields["labels"] = [label for label in labels if LABEL.match(label)]
+        fields |= {k: v for k, v in (extra or {}).items() if FIELD_ID.match(k)}
         created = self.http.request("POST", f"{self.api}/issue", json={"fields": fields})
         return self.get_issue(created["key"])
+
+    def field_id(self, names: tuple[str, ...]) -> str | None:
+        """The ID of the first field whose name is one of `names` (custom fields such as story points differ per
+        site and project), or None."""
+        wanted = [n.lower() for n in names]
+        found = {
+            str(f.get("name", "")).lower(): str(f.get("id", ""))
+            for f in self.http.request("GET", f"{self.api}/field") or ()
+            if isinstance(f, dict)
+        }
+        return next((found[n] for n in wanted if n in found and FIELD_ID.match(found[n])), None)
 
     def link_issues(self, outward: str, inward: str, link_type: str = "Relates") -> None:
         body = {"type": {"name": link_type}, "outwardIssue": {"key": outward}, "inwardIssue": {"key": inward}}

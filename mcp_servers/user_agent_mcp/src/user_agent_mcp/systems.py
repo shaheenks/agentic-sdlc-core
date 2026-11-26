@@ -169,6 +169,25 @@ async def jira_search(platform: "Platform", caller: "Caller", args: dict[str, An
     return {"issues": results[:20]}
 
 
+SIZES = ("XS", "S", "M", "L", "XL")
+POINTS = (1, 2, 3, 5, 8, 13)
+POINTS_FIELDS = ("Story point estimate", "Story Points", "Story points")
+
+
+def _estimates(feature: dict[str, Any], stories: list[dict[str, Any]]) -> None:
+    size = feature.get("estimate")
+    if size is not None and size not in SIZES:
+        raise ToolError("invalid_argument", f"a feature's estimate is one of {', '.join(SIZES)}")
+    for story in stories:
+        points = story.get("story_points")
+        if points is not None and points not in POINTS:
+            raise ToolError("invalid_argument", f"story points are one of {', '.join(map(str, POINTS))}")
+
+
+def _with_estimate(description: str, line: str) -> str:
+    return f"{line}\n\n{description}".strip() if line else description
+
+
 async def jira_create_feature(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
     """The feature and its user stories, created as the user in one of the run's team's projects, only from a
     feature.md approved on the team's control repository; the keys are recorded there (DEC-0012)."""
@@ -190,6 +209,7 @@ async def jira_create_feature(platform: "Platform", caller: "Caller", args: dict
     for item in [feature, *stories]:
         if not isinstance(item, dict) or not isinstance(item.get("summary"), str) or not item["summary"].strip():
             raise ToolError("invalid_argument", "every item needs a summary")
+    _estimates(feature, stories)
     control = Control(platform, caller)
     approved = await _call(lambda: control.require_approved(control_id, "feature"))
     earlier = [
@@ -224,27 +244,52 @@ async def jira_create_feature(platform: "Platform", caller: "Caller", args: dict
         "approved_by": approved.get("merged_by"),
         "results": results,
     }
+    size = feature.get("estimate")
+    size_line = f"High-level estimate: {size}" + (
+        f" ({feature['estimate_note']})"
+        if isinstance(feature.get("estimate_note"), str) and feature["estimate_note"]
+        else ""
+    )
+    points_field = settings.get("story_points_field")
+    if not points_field and any(s.get("story_points") for s in stories):
+        points_field = await _call(lambda: jira.field_id(POINTS_FIELDS))
     try:
         created = await _call(
             lambda: jira.create_issue(
-                project, settings["feature_type"], feature["summary"], str(feature.get("description") or "")
+                project,
+                settings["feature_type"],
+                feature["summary"],
+                _with_estimate(str(feature.get("description") or ""), size_line if size else ""),
+                labels=[f"size-{size}"] if size else None,
             )
         )
         results["feature"] = created.key
+        if size:
+            results["estimate"] = size
         for story in stories:
-            description = str(story.get("description") or "")
-            if settings["story_link"] == "parent":
-                made = await _call(
-                    lambda s=story, d=description: jira.create_issue(
-                        project, settings["story_type"], s["summary"], d, parent=created.key
+            points = story.get("story_points")
+            description = _with_estimate(
+                str(story.get("description") or ""), f"Story points: {points}" if points else ""
+            )
+            parent = created.key if settings["story_link"] == "parent" else None
+
+            def make(s=story, d=description, p=points, parent=parent, field=points_field):
+                extra = {field: p} if field and p else None
+                try:
+                    return jira.create_issue(
+                        project, settings["story_type"], s["summary"], d, parent=parent, extra=extra
                     )
-                )
-            else:
-                made = await _call(
-                    lambda s=story, d=description: jira.create_issue(project, settings["story_type"], s["summary"], d)
-                )
+                except ConnectorError as exc:
+                    if extra and exc.code == "invalid" and field in exc.message:  # the field is not on this screen
+                        return jira.create_issue(project, settings["story_type"], s["summary"], d, parent=parent)
+                    raise
+
+            made = await _call(make)
+            if settings["story_link"] != "parent":
                 await _call(lambda m=made: jira.link_issues(created.key, m.key))
             results["stories"].append(made.key)
+            if points:
+                results.setdefault("story_points", {})[made.key] = points
         link = approved.get("url") or f"{control.settings['repo']}/{path_of(control_id, 'feature')}"
         await _call(lambda: jira.add_web_link(created.key, link, f"sdlc-control {control_id}"))
     except ToolError as exc:

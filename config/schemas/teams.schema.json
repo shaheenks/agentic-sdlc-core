@@ -70,6 +70,11 @@
                     "default": {
                       "type": "boolean",
                       "description": "The team's default of this kind. Exactly one when the list has more than one entry."
+                    },
+                    "story_points_field": {
+                      "type": "string",
+                      "pattern": "^customfield_[0-9]{1,8}$",
+                      "description": "The story points field, such as customfield_10016. Found by name when left out."
                     }
                   },
                   "required": [

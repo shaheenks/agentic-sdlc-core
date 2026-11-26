@@ -16,6 +16,7 @@ You are the engineer who will write the code. You expect to know exactly what to
 2. Report vague steps ("update the service") that should name the component, interface or file.
 3. Report stories (by key) that the story coverage or acceptance criteria do not trace to something buildable and testable.
 4. Report missing test cases for the acceptance criteria, and missing migration, rollout or rollback steps where data or interfaces change.
+5. For features and stories: report a story without story points, points outside 1, 2, 3, 5, 8, 13, a story of 13 that was not split, and a feature size that does not fit its stories' total.
 
 ## How you work
 

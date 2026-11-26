@@ -93,12 +93,21 @@ class Item(BaseModel):
     description: str = ""
 
 
+class FeatureItem(Item):
+    estimate: str = Field("", description="High-level size: XS, S, M, L or XL.")
+    estimate_note: str = Field("", description="What the size means here, such as: about 2-3 weeks for one team.")
+
+
+class StoryItem(Item):
+    story_points: int | None = Field(None, description="1, 2, 3, 5, 8 or 13 (13: split the story).")
+
+
 class PublishFeatureIn(BaseModel):
     team: str
     content: str = Field(description="The feature and stories as reviewed (Markdown).")
     summary: str = Field(description="A few words naming the feature.")
-    feature: Item
-    stories: list[Item]
+    feature: FeatureItem
+    stories: list[StoryItem]
     project: str = Field("", description="A Jira project of the team; its default if empty.")
     description: str = Field("", description="Pull request text: review findings and what the user decided.")
     control_id: str = Field(
@@ -647,7 +656,9 @@ def publish_feature(kit: Kit) -> Workflow:
     async def create(ctx: Context, node_input: Any):
         published = ctx.state[key]
         data = published["input"]
-        args = {"control_id": published["control_id"], "feature": data["feature"], "stories": data["stories"]}
+        feature = {k: v for k, v in data["feature"].items() if v not in ("", None)}
+        stories = [{k: v for k, v in s.items() if v not in ("", None)} for s in data["stories"]]
+        args = {"control_id": published["control_id"], "feature": feature, "stories": stories}
         if data.get("project"):
             args["project"] = data["project"]
         try:

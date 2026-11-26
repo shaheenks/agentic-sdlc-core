@@ -1,3 +1,12 @@
+## 2026-11-26
+
+* **Add**: [DEC-0013](decisions/DEC-0013.md), accepted by the user, with their choices: features approved in chat open a
+  feature branch on the control and target repositories; Epic → Feature → User Stories (sub-tasks) in Jira, reusing
+  open issues and suggesting a missing epic; later pull requests merge into the feature branch and are approved there.
+* **Update**: estimates: a feature has a high-level T-shirt size and each story has story points
+  ([FR-SDLC-002](requirements/functional/FR-SDLC-002.md) changed); the features skill drafts them, the readiness
+  reviewer checks them, and Jira gets a size label and the story points field (found by name or configured).
+
 ## 2026-11-25
 
 * **Update**: no publish loop: `publish_feature` retries with an approved feature's control ID (no new pull request),

@@ -347,3 +347,22 @@ def test_open_pull_requests_in_every_edition():
         .number
         == 3
     )
+
+
+def test_jira_finds_a_custom_field_by_name_and_sets_it():
+    fields = [{"id": "summary", "name": "Summary"}, {"id": "customfield_10016", "name": "Story point estimate"}]
+    fake = Fake(
+        {
+            ("GET", "/rest/api/3/field"): httpx.Response(200, json=fields),
+            ("POST", "/rest/api/3/issue"): httpx.Response(201, json={"key": "PAY-3"}),
+            ("GET", "/rest/api/3/issue/PAY-3"): httpx.Response(200, json=issue("PAY-3", kind="Story")),
+        }
+    )
+    jira = Jira("https://x.atlassian.net", "cloud", Credential(TOKEN, "ada@example.test"), fake.client())
+    field = jira.field_id(("Story Points", "Story point estimate"))
+    assert field == "customfield_10016"
+    jira.create_issue(
+        "PAY", "Story", "S", "", parent="PAY-1", labels=["size-M", "bad label"], extra={field: 3, "summary": "x"}
+    )
+    sent = json.loads(fake.seen[1].content)["fields"]
+    assert sent["customfield_10016"] == 3 and sent["labels"] == ["size-M"] and sent["summary"] == "S"
