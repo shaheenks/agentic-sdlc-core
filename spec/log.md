@@ -1,5 +1,7 @@
 ## 2026-11-26
 
+* **Create**: [DEC-0014](decisions/DEC-0014.md), proposed: private Bitbucket knowledge sources; a git source may
+  declare its token's sign-in scheme and username, with defaults by host.
 * **Update**: [DEC-0013](decisions/DEC-0013.md) built: feature branches on the control and target repositories opened
   on the user's approval in chat; Epic, Feature and User Stories (sub-tasks) in Jira, reusing open issues and
   creating a proposed epic only on confirmation; design pull requests into the feature branch and approvals checked
