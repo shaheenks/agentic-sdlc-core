@@ -191,6 +191,8 @@ def test_environment_teams_add_systems_to_shared_teams():
         "name": "Payments",
         "description": "Payment services.",
         "roles": ["member", "lead"],
+        "sources": ["payments-code"],
+        "role_grants": {"lead": {"sources": ["ledger-docs"]}},
     }
     systems = config["team_systems"]["payments"]
     assert [(j["project"], j["default"]) for j in systems["jira"]] == [("PAY", True), ("CARD", False)]
@@ -220,7 +222,10 @@ def test_grants_compile_from_teams_user_groups_and_everyone(config_dir):
     )
     grants = {g["id"]: g for g in compile_config(config_dir, "example").config["grants"]}
     assert grants["everyone"]["to"] == {"everyone": True}
-    assert "knowledge" in grants["everyone"]["tool_groups"] and grants["everyone"]["sources"] == ["platform-spec"]
+    assert "knowledge" in grants["everyone"]["tool_groups"] and grants["everyone"]["sources"] == [
+        "platform-spec",
+        "platform-wiki",
+    ]
     assert grants["team:payments"] == {
         "id": "team:payments",
         "sources": ["platform-spec"],
@@ -269,7 +274,7 @@ def test_teams_and_sources_can_be_one_file_each_next_to_a_list(config_dir, capsy
     config = compile_config(config_dir, "example").config
     assert set(config["teams"]) == {"payments", "platform", "risk"}
     assert config["team_systems"]["payments"]["control_repo"]["repo"] == "example-org/payments-sdlc-control"
-    assert set(config["sources"]) == {"platform-spec", "risk-docs"}
+    assert set(config["sources"]) == {"platform-spec", "platform-wiki", "payments-code", "ledger-docs", "risk-docs"}
 
     (env / "teams/risk.yaml").write_text(
         yaml.safe_dump({"name": "Risk", "description": "Risk.", "roles": ["member"]}), encoding="utf-8"

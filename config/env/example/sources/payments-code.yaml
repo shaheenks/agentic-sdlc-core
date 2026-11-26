@@ -1,0 +1,16 @@
+# A private GitHub repository as a knowledge source (FR-KNOW-001, DEC-0011); the file name (payments-code) is its ID.
+# credential: a Secret Manager secret holding a fine-grained token with Contents: read on this repository, read by
+# the ingest service account (locally: the INGEST_SECRET_PAYMENTS_CODE_READ environment variable). Everyone given the
+# source sees what that token can read. `link` may be left out for GitHub: pages default to
+# https://github.com/<org>/<repo>/blob/<commit>/<path>.
+name: Payments code
+description: The payments service's code, README and API definitions.
+kind: git
+location: https://github.com/example-org/payments-service.git
+ref: main
+include: ["**/*.md", "src/**/*.py", "openapi/**/*.yaml"]
+exclude: ["**/node_modules/**", "tests/fixtures/**", "dist/**"]
+credential: payments-code-read
+classification: confidential
+extract: true
+# No `everyone`: only the teams, team roles and user groups that list payments-code under `sources` can search it.

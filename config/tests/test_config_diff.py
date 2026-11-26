@@ -70,7 +70,7 @@ def test_a_team_grant_reaches_the_team_runs_and_removing_it_is_a_loss(config_dir
     before = compiled(config_dir)
     edit(
         config_dir / "env/example/teams/payments.yaml",
-        lambda d: d.update(role_grants={"lead": {"tool_groups": ["beta"]}}),
+        lambda d: d["role_grants"]["lead"].update(tool_groups=["beta"]),
     )
     after = compiled(config_dir)
     gained = {(c.user, c.context, c.surface): c.gained for c in diff(before, after)}

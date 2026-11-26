@@ -1,0 +1,14 @@
+# A public Bitbucket Cloud repository as a knowledge source (FR-KNOW-001); the file name (platform-wiki) is its ID.
+# Private Bitbucket repositories cannot be read yet: the ingest pipeline signs in as GitHub expects, which Bitbucket
+# refuses, so leave `credential` out. Give `link` for Bitbucket; without it records carry only the file path.
+# {ref} is replaced by the commit that was read, {path} by the file's path.
+name: Platform wiki
+description: Platform team runbooks and how-to notes.
+kind: git
+location: https://bitbucket.org/your-workspace/platform-wiki.git
+ref: main
+include: ["**/*.md"]
+exclude: ["drafts/**"]
+link: https://bitbucket.org/your-workspace/platform-wiki/src/{ref}/{path}
+classification: internal
+everyone: true
