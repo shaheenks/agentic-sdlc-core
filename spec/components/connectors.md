@@ -74,3 +74,7 @@ do this as the user, so the downstream system's own permissions still apply.
   against faked APIs; the cloud editions of Jira and GitHub are checked on real systems at phase 4a's exit gate.
 - Branches: list by prefix and create from another branch (GitHub, Bitbucket Cloud and Data Center); Jira: open
   issues and the story points field by name.
+- For unattended runs ([DEC-0015](../decisions/DEC-0015.md)): a pull request from an existing branch and a comment on
+  a pull request in every edition, and the clone URL of a repository. Bitbucket Cloud now starts a pull request's
+  new branch from its base (a feature branch), not the main branch. `sdlc_connectors.testing` holds an in-memory
+  GitHub for the tests of the components that use the connectors.

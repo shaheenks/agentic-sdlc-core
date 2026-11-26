@@ -203,3 +203,44 @@ def test_trusted_header_only_in_local():
 def test_unconfigured_identity_refuses_everyone():
     with pytest.raises(Rejected, match="identity_not_configured"):
         forwarded({"authorization": f"Bearer {caller_token()}", **ADA}, mode="")
+
+
+EVENT_ACCOUNT = "event-agents@proj.iam.gserviceaccount.com"
+WITH_SYSTEM = {
+    "identity": {**CONFIG["identity"], "callers": {**CONFIG["identity"]["callers"], "event_agents": [EVENT_ACCOUNT]}},
+    "surfaces": {"event_agents": {"system": True, "tool_groups": []}, "sdlc_ui": {"tool_groups": []}},
+}
+
+
+def system(headers, mode="caller_token", env="dev"):
+    config = {**CONFIG, **WITH_SYSTEM}
+    settings = IdentitySettings.from_config({**config, "identity": {**config["identity"], "mode": mode}})
+    return asyncio.run(sdlc_identity.identify_system(headers, settings, tokens(), env=env, audiences={MCP_URL}))
+
+
+def test_the_system_identity_is_a_declared_system_caller_proved_by_its_id_token():
+    who = system({"authorization": f"Bearer {caller_token(email=EVENT_ACCOUNT)}"})
+    assert (who.account, who.surface) == (EVENT_ACCOUNT, "event_agents")
+    assert system({"authorization": f"Bearer {caller_token(email=EVENT_ACCOUNT)}"}, mode="oauth").surface == (
+        "event_agents"
+    )  # whatever the users' identity mode
+    for headers, reason in [
+        ({}, "no_token"),
+        ({"authorization": f"Bearer {caller_token()}"}, "not_a_system_caller"),  # sdlc_ui is a user surface
+        ({"authorization": f"Bearer {caller_token(email=EVENT_ACCOUNT)}", **ADA}, "user_on_system_surface"),
+        ({"x-sdlc-surface": "event_agents"}, "no_token"),  # naming the surface is for local only
+    ]:
+        with pytest.raises(Rejected) as exc:
+            system(headers)
+        assert exc.value.reason == reason
+    assert system({"x-sdlc-surface": "event_agents"}, mode="trusted_header", env="local").surface == "event_agents"
+    with pytest.raises(Rejected, match="undeclared_caller"):
+        system({"x-sdlc-surface": "sdlc_ui"}, mode="trusted_header", env="local")
+
+
+def test_a_system_caller_never_speaks_for_a_user():
+    config = {**CONFIG, **WITH_SYSTEM}
+    settings = IdentitySettings.from_config({**config, "identity": {**config["identity"], "mode": "caller_token"}})
+    headers = {"authorization": f"Bearer {caller_token(email=EVENT_ACCOUNT)}", **ADA}
+    with pytest.raises(Rejected, match="system_caller"):
+        asyncio.run(sdlc_identity.identify(headers, settings, tokens(), env="dev", audiences={MCP_URL}))

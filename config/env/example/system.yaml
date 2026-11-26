@@ -2,7 +2,7 @@
 # Agent Runtime service account, acting through event_agent_mcp. It is given only what is listed here (never
 # `everyone` grants), only on the teams listed, and it writes with the machine users' system connections, whose
 # tokens are Secret Manager secrets given to event_agent_mcp. A merge made by a machine user never approves.
-tool_groups: [knowledge, repositories, ci_read, ci_write, code_workspace]
+tool_groups: [repositories, ci_read, ci_write, code_workspace]
 sources: [platform-spec, payments-code]
 teams: [payments]
 machine_users:

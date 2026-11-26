@@ -281,6 +281,12 @@ changing it during a run needs the user's explicit confirmation in chat.
   marked `system: true` with the tool groups `ci_read`, `ci_write` and `code_workspace`, `workspace` on repository
   entries, `sdlc_policy.system_policy`, the system identity in the permission diff, and `libs/sdlc_control` with the
   control repository's rules, now used by user_agent_mcp.
+- Milestone 2 built (2026-11-26), tested against faked GitHub repositories: event_agent_mcp accepts only the system
+  identity (a declared caller of the `event_agents` surface, proved by its ID token; user_agent_mcp refuses that
+  caller) in a run naming its team and subscription; it allows a write only when the subscription declares it, opens
+  plan and implementation pull requests into the feature branches for approved designs and plans, starts the Code
+  Workspace job and comments on the feature's pull requests, recording every write in `links.yaml`. Knowledge search
+  for unattended runs is left for later (the `knowledge` group is off the `event_agents` surface).
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).

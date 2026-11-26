@@ -14,6 +14,7 @@ import pytest
 import yaml
 from cryptography.hazmat.primitives.asymmetric import rsa
 from sdlc_config_store import ConfigStore, DirSource, make_bundle, make_pointer
+from sdlc_connectors.testing import FakeGitHub
 from sdlc_identity import GoogleTokens
 from sdlc_logging import AUDIT_LOGGER
 from starlette.testclient import TestClient
@@ -637,88 +638,7 @@ SYSTEMS_CONFIG = {
 }
 
 
-class FakeRepo:
-    """A GitHub repository in memory, with branches: a pull request copies its head branch into its base on
-    `merge`; a PUT on a branch is a direct commit."""
-
-    def __init__(self, base: str):
-        self.BASE = base
-        self.trees: dict[str, dict[str, str]] = {"main": {}}
-        self.how: dict[tuple[str, str], tuple[int | None, str | None]] = {}
-        self.prs: dict[int, dict] = {}
-        self.merged: set[int] = set()
-
-    def merge(self, number: int, by: str = "grace") -> None:
-        pr = self.prs[number]
-        self.merged.add(number)
-        for path, content in self.trees[pr["head"]].items():
-            if self.trees[pr["base"]].get(path) != content:
-                self.trees[pr["base"]][path] = content
-                self.how[(pr["base"], path)] = (number, by)
-
-    def push(self, branch: str, path: str, content: str) -> None:
-        self.trees.setdefault(branch, {})[path] = content
-        self.how[(branch, path)] = (None, None)
-
-    def file(self, branch: str, path: str) -> str:
-        return self.trees[branch][path]
-
-    def handle(self, request: httpx.Request) -> httpx.Response:
-        path, method, params = request.url.path[len(self.BASE) :], request.method, dict(request.url.params)
-        if method == "GET" and path.startswith("/git/matching-refs/heads/"):
-            prefix = path[len("/git/matching-refs/heads/") :]
-            return httpx.Response(200, json=[{"ref": f"refs/heads/{b}"} for b in self.trees if b.startswith(prefix)])
-        if method == "GET" and path.startswith("/git/ref/heads/"):
-            name = path[len("/git/ref/heads/") :]
-            return (
-                httpx.Response(200, json={"object": {"sha": f"head:{name}"}})
-                if name in self.trees
-                else httpx.Response(404)
-            )
-        if method == "POST" and path == "/git/refs":
-            body = json.loads(request.content)
-            self.trees[body["ref"].removeprefix("refs/heads/")] = dict(self.trees[body["sha"].removeprefix("head:")])
-            return httpx.Response(201, json={})
-        if method == "GET" and path == "/commits":
-            branch, file = params.get("sha", "main"), params["path"]
-            found = file in self.trees.get(branch, {})
-            return httpx.Response(200, json=[{"sha": f"c|{branch}|{file}"}] if found else [])
-        if method == "GET" and path.startswith("/commits/c|"):
-            _, branch, file = path[len("/commits/") :].removesuffix("/pulls").split("|")
-            number, _ = self.how.get((branch, file), (None, None))
-            if number is None:
-                return httpx.Response(200, json=[])
-            pr = {"number": number, "merged_at": "t", "base": {"ref": branch}, "html_url": f"https://gh/pr/{number}"}
-            return httpx.Response(200, json=[pr])
-        if method == "GET" and path == "/pulls":
-            return httpx.Response(
-                200,
-                json=[
-                    {"number": n, "title": b["title"], "html_url": f"https://gh/pr/{n}", "head": {"ref": b["head"]}}
-                    for n, b in self.prs.items()
-                    if n not in self.merged
-                ],
-            )
-        if method == "GET" and path.startswith("/pulls/"):
-            number = int(path.rsplit("/", 1)[-1])
-            by = next((b for n, b in self.how.values() if n == number), None)
-            return httpx.Response(200, json={"merged_by": {"login": by}})
-        if method == "POST" and path == "/pulls":
-            body = json.loads(request.content)
-            number = len(self.prs) + 1
-            self.prs[number] = body
-            return httpx.Response(201, json={"number": number, "html_url": f"https://gh/pr/{number}"})
-        if path.startswith("/contents/"):
-            file, ref = path[len("/contents/") :], params.get("ref", "main")
-            if method == "GET":
-                if file not in self.trees.get(ref, {}):
-                    return httpx.Response(404)
-                content = base64.b64encode(self.trees[ref][file].encode()).decode()
-                return httpx.Response(200, json={"type": "file", "content": content, "sha": "s"})
-            body = json.loads(request.content)
-            self.push(body["branch"], file, base64.b64decode(body["content"]).decode())
-            return httpx.Response(200, json={"commit": {"sha": "d"}})
-        return httpx.Response(404)
+FakeRepo = FakeGitHub  # sdlc_connectors.testing
 
 
 class FakeJira:

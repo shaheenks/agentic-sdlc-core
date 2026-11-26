@@ -4,7 +4,15 @@ credential, a request or a response body in an error."""
 
 from sdlc_connectors.base import ConnectorError, Credential
 from sdlc_connectors.jira import Issue, Jira, adf_to_text, text_to_adf
-from sdlc_connectors.repos import Change, FileChange, OpenPullRequest, PullRequest, Repository, repository
+from sdlc_connectors.repos import (
+    Change,
+    FileChange,
+    OpenPullRequest,
+    PullRequest,
+    Repository,
+    clone_url,
+    repository,
+)
 
 __all__ = [
     "Change",
@@ -17,6 +25,7 @@ __all__ = [
     "PullRequest",
     "Repository",
     "adf_to_text",
+    "clone_url",
     "repository",
     "text_to_adf",
 ]

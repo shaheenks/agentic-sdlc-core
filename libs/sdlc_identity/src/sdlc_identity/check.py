@@ -40,6 +40,9 @@ class IdentitySettings:
     surfaces_by_client: Mapping[str, str]  # OAuth client ID -> surface (mode oauth)
     blocked_user_ids: frozenset[str]
     blocked_emails: frozenset[str]
+    # Surfaces marked `system: true`: their callers are the system identity of unattended runs, never a user's
+    # forwarder (DEC-0015).
+    system_surfaces: frozenset[str] = frozenset()
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any]) -> "IdentitySettings":
@@ -60,6 +63,7 @@ class IdentitySettings:
             surfaces_by_client=by_id("clients", lower=False),
             blocked_user_ids=frozenset(str(b["user_id"]) for b in blocked if b.get("user_id")),
             blocked_emails=frozenset(str(b["email"]).lower() for b in blocked if b.get("email")),
+            system_surfaces=frozenset(s for s, e in (config.get("surfaces") or {}).items() if (e or {}).get("system")),
         )
 
 

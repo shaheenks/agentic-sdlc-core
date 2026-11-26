@@ -12,9 +12,13 @@ names the surface. Anything else is refused, so only declared callers can speak 
 
 `trusted_header`: no caller proof; the surface comes from `X-SDLC-Surface` and must be a declared caller.
 Allowed only in the `local` environment.
+
+A caller declared for a system surface (`system: true`) is the system identity of unattended runs: it never speaks
+for a user, and `identify_system` is the only way it is accepted (DEC-0015).
 """
 
 from collections.abc import Collection, Mapping
+from dataclasses import dataclass
 
 from sdlc_identity.check import (
     CALLER_TOKEN,
@@ -54,6 +58,8 @@ def check_caller(claims: Claims, settings: IdentitySettings, audiences: Collecti
 
 
 def forwarded_user(headers: Mapping[str, str], settings: IdentitySettings, surface: str, caller: str) -> Identity:
+    if surface in settings.system_surfaces:
+        raise Rejected("system_caller")  # the system identity never speaks for a user
     user_id = (headers.get(USER_ID_HEADER) or "").strip().removeprefix(IAP_PREFIX)
     email = (headers.get(USER_EMAIL_HEADER) or "").strip().lower().removeprefix(IAP_PREFIX)
     return check_user(user_id, email, settings, surface, caller)
@@ -87,3 +93,38 @@ async def identify(
             raise Rejected("no_token")
         return check(await tokens.claims(token), settings)
     raise Rejected("identity_not_configured")
+
+
+@dataclass(frozen=True)
+class SystemCaller:
+    """The system identity of an unattended run: the declared service account of a system surface."""
+
+    account: str
+    surface: str
+
+
+async def identify_system(
+    headers: Mapping[str, str],
+    settings: IdentitySettings,
+    tokens: GoogleTokens,
+    *,
+    env: str,
+    audiences: Collection[str],
+) -> SystemCaller:
+    """The system identity of one request to event_agent_mcp, or `Rejected` (FR-IDN-004, DEC-0015). Its caller must
+    prove itself with its service account's Google ID token whatever the identity mode; only in the local environment,
+    in mode trusted_header, may it name its surface instead. A request that forwards a user is refused."""
+    if headers.get(USER_ID_HEADER) or headers.get(USER_EMAIL_HEADER):
+        raise Rejected("user_on_system_surface")
+    if settings.mode == TRUSTED_HEADER and env == LOCAL_ENV and not bearer(headers):
+        surface = (headers.get(SURFACE_HEADER) or "").strip()
+        if surface not in settings.system_surfaces or surface not in set(settings.surfaces_by_caller.values()):
+            raise Rejected("undeclared_caller")
+        return SystemCaller(TRUSTED_HEADER, surface)
+    token = bearer(headers)
+    if not token:
+        raise Rejected("no_token")
+    surface, account = check_caller(await tokens.claims(token), settings, audiences)
+    if surface not in settings.system_surfaces:
+        raise Rejected("not_a_system_caller")
+    return SystemCaller(account, surface)

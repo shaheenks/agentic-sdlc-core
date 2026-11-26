@@ -1973,14 +1973,34 @@ source = { editable = "libs/sdlc_directory" }
 
 [[package]]
 name = "sdlc-event-agent-mcp"
-version = "0.0.0"
+version = "0.1.0"
 source = { editable = "mcp_servers/event_agent_mcp" }
 dependencies = [
+    { name = "google-auth" },
+    { name = "httpx" },
+    { name = "mcp" },
+    { name = "sdlc-config-store" },
+    { name = "sdlc-connectors" },
+    { name = "sdlc-control" },
+    { name = "sdlc-identity" },
+    { name = "sdlc-logging" },
+    { name = "sdlc-policy" },
     { name = "sdlc-service" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "sdlc-service", editable = "libs/sdlc_service" }]
+requires-dist = [
+    { name = "google-auth", specifier = ">=2.40" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "mcp", specifier = ">=2.2,<3" },
+    { name = "sdlc-config-store", editable = "libs/sdlc_config_store" },
+    { name = "sdlc-connectors", editable = "libs/sdlc_connectors" },
+    { name = "sdlc-control", editable = "libs/sdlc_control" },
+    { name = "sdlc-identity", editable = "libs/sdlc_identity" },
+    { name = "sdlc-logging", editable = "libs/sdlc_logging" },
+    { name = "sdlc-policy", editable = "libs/sdlc_policy" },
+    { name = "sdlc-service", editable = "libs/sdlc_service" },
+]
 
 [[package]]
 name = "sdlc-event-gateway"

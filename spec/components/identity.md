@@ -79,3 +79,6 @@ Answers one question for every request: who is calling? Everything downstream ac
   so a block takes effect at the next refresh. Verified tokens are cached per instance for 300 seconds, or
   until they expire.
 - System identity: a dedicated Google Cloud service account.
+- `identify_system` ([DEC-0015](../decisions/DEC-0015.md)): the system identity of unattended runs, a declared
+  caller of a `system: true` surface proved by its Google ID token whatever the identity mode; `identify` refuses
+  such a caller, so it never speaks for a user.

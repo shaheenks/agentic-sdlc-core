@@ -1,5 +1,9 @@
 ## 2026-11-26
 
+* **Update**: phase 5a milestone 2 built ([DEC-0015](decisions/DEC-0015.md)): event_agent_mcp with the system
+  identity (`identify_system`), runs named by team and subscription, the write gate per subscription and the plan,
+  Code Workspace, implementation and comment tools; connectors gain pull requests from an existing branch, comments
+  and clone URLs, and Bitbucket Cloud branches start from their base.
 * **Create**: [Control Repository](components/control-repository.md) (`libs/sdlc_control`), the control repository's
   rules shared by both MCP servers. Phase 5a milestone 1 built ([DEC-0015](decisions/DEC-0015.md)):
   `subscriptions.yaml`, `env/<env>/system.yaml`, system surfaces, `workspace` on repositories, `system_policy` and

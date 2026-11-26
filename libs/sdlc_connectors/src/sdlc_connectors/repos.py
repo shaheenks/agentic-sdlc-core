@@ -64,6 +64,8 @@ class Repository(Protocol):
     def open_pull_requests(self) -> list[OpenPullRequest]: ...
     def branches(self, prefix: str) -> list[str]: ...
     def create_branch(self, name: str, start: str) -> bool: ...
+    def create_pull_request(self, branch: str, base: str, title: str, body: str) -> PullRequest: ...
+    def comment(self, number: int, body: str) -> str: ...
 
 
 def _check(path: str = "", branch: str = "") -> None:
@@ -113,10 +115,21 @@ class GitHub:
         )
         for change in files:
             self._put(change.path, change.content, branch, message)
+        return self.create_pull_request(branch, base, title, body)
+
+    def create_pull_request(self, branch: str, base: str, title: str, body: str) -> PullRequest:
+        """A pull request from an existing branch."""
+        _check(branch=branch)
+        _check(branch=base)
         pr = self.http.request(
             "POST", f"/repos/{self.repo}/pulls", json={"title": title, "body": body, "head": branch, "base": base}
         )
         return PullRequest(pr["number"], pr["html_url"], branch)
+
+    def comment(self, number: int, body: str) -> str:
+        """A comment on a pull request; returns its link."""
+        done = self.http.request("POST", f"/repos/{self.repo}/issues/{int(number)}/comments", json={"body": body})
+        return (done or {}).get("html_url", "")
 
     def _put(self, path: str, content: str, branch: str, message: str) -> str:
         """Creates or replaces one file on a branch; returns the commit."""
@@ -232,10 +245,21 @@ class BitbucketCloud:
         _check(branch=branch)
         for change in files:
             _check(path=change.path)
+        _check(branch=base)
         # The src endpoint takes a form: each file's path names its content; one commit, on a new branch that
-        # starts from the main branch's head.
-        form = {change.path: change.content for change in files} | {"message": message, "branch": branch}
+        # starts from the base branch's head (`parents`).
+        form = {change.path: change.content for change in files} | {
+            "message": message,
+            "branch": branch,
+            "parents": base,
+        }
         self.http.request("POST", f"/2.0/repositories/{self.repo}/src", data=form)
+        return self.create_pull_request(branch, base, title, body)
+
+    def create_pull_request(self, branch: str, base: str, title: str, body: str) -> PullRequest:
+        """A pull request from an existing branch."""
+        _check(branch=branch)
+        _check(branch=base)
         pr = self.http.request(
             "POST",
             f"/2.0/repositories/{self.repo}/pullrequests",
@@ -247,6 +271,15 @@ class BitbucketCloud:
             },
         )
         return PullRequest(pr["id"], pr["links"]["html"]["href"], branch)
+
+    def comment(self, number: int, body: str) -> str:
+        """A comment on a pull request; returns its link."""
+        done = self.http.request(
+            "POST",
+            f"/2.0/repositories/{self.repo}/pullrequests/{int(number)}/comments",
+            json={"content": {"raw": body}},
+        )
+        return (((done or {}).get("links") or {}).get("html") or {}).get("href", "")
 
     def commit_file(self, path: str, content: str, branch: str, message: str) -> str:
         _check(path=path, branch=branch)
@@ -320,6 +353,7 @@ class BitbucketDataCenter:
         project, _, slug = repo.partition("/")
         self.base = f"/rest/api/1.0/projects/{project}/repos/{slug}"
         self.project, self.slug = project, slug
+        self.web = f"{base_url.rstrip('/')}/projects/{project}/repos/{slug}"
         self.http = Http(base_url, {"Authorization": f"Bearer {credential.token}"}, "Bitbucket", client)
 
     def whoami(self) -> dict[str, Any]:
@@ -352,6 +386,12 @@ class BitbucketDataCenter:
         self.http.request("POST", f"{self.base}/branches", json={"name": branch, "startPoint": f"refs/heads/{base}"})
         for change in files:
             self._put(change.path, change.content, branch, message)
+        return self.create_pull_request(branch, base, title, body)
+
+    def create_pull_request(self, branch: str, base: str, title: str, body: str) -> PullRequest:
+        """A pull request from an existing branch."""
+        _check(branch=branch)
+        _check(branch=base)
         repository = {"slug": self.slug, "project": {"key": self.project}}
         pr = self.http.request(
             "POST",
@@ -364,6 +404,11 @@ class BitbucketDataCenter:
             },
         )
         return PullRequest(pr["id"], pr["links"]["self"][0]["href"], branch)
+
+    def comment(self, number: int, body: str) -> str:
+        """A comment on a pull request; returns its link."""
+        done = self.http.request("POST", f"{self.base}/pull-requests/{int(number)}/comments", json={"text": body})
+        return f"{self.web}/pull-requests/{int(number)}/overview?commentId={(done or {}).get('id', '')}"
 
     def _last_commit(self, path: str, branch: str) -> str | None:
         try:
@@ -438,4 +483,21 @@ def repository(system: str, edition: str, base_url: str, repo: str, credential: 
     if system == "bitbucket":
         cls = BitbucketCloud if edition == "cloud" else BitbucketDataCenter
         return cls(base_url, repo, credential, client)
+    raise ValueError(f"not a repository system: {system!r}")
+
+
+def clone_url(system: str, edition: str, base_url: str, repo: str) -> str:
+    """The HTTPS URL git clones a repository from (the Code Workspace, DEC-0015): GitHub.com and Bitbucket Cloud by
+    their web host, GitHub Enterprise Server without its `/api/v3`, Bitbucket Data Center under `/scm`."""
+    if not re.match(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", repo):
+        raise ValueError(f"not a repository: {repo!r}")
+    base = base_url.rstrip("/")
+    if system == "github":
+        host = "https://github.com" if edition == "cloud" else base.removesuffix("/api/v3")
+        return f"{host}/{repo}.git"
+    if system == "bitbucket":
+        if edition == "cloud":
+            return f"https://bitbucket.org/{repo}.git"
+        project, _, slug = repo.partition("/")
+        return f"{base}/scm/{project.lower()}/{slug}.git"
     raise ValueError(f"not a repository system: {system!r}")

@@ -112,3 +112,11 @@ system identity here, with only the tools and system connections declared for it
 # Open questions
 
 - The network path from Agent Runtime to an internal-ingress Cloud Run service (Private Service Connect interface or network attachment) is set up with the infrastructure.
+- Built ([DEC-0015](../decisions/DEC-0015.md), phase 5a milestone 2): the system identity is a declared caller of a
+  surface marked `system: true`, proved by its Google ID token and forwarding no user; each request names its run
+  (team, subscription, run ID) and event (source, type, delivery, subject). Tools: `feature_status`,
+  `control_read_file`, `repo_list`, `repo_read_file`, `repo_pull_requests`, and the writes `plan_open_pull_request`,
+  `workspace_run`, `implementation_open_pull_request` and `pull_request_comment`, each allowed only when the run's
+  subscription lists it. Approvals come from the [Control Repository](control-repository.md) library; the machine
+  user's token per provider is `SYSTEM_TOKEN_<PROVIDER>`; the Code Workspace is started as a Cloud Run job with the
+  request under `artifacts/system/runs/<run-id>/`. Knowledge search for unattended runs comes later.

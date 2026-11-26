@@ -12,11 +12,22 @@ Whatever the mode, the user must have a well-formed account ID and email in an a
 service account and not be on the block list. Google tokens are verified by `GoogleTokens`: ID tokens
 against Google's signing keys, access tokens by introspection, cached per instance for 300 seconds.
 
+`identify_system(...)` accepts only the system identity of unattended runs: a declared caller of a surface marked
+`system: true`, proved by its Google ID token, forwarding no user (DEC-0015). Such a caller is refused by
+`identify`, so it never speaks for a user.
+
 Every refusal is a `Rejected` with a reason for the audit record; tokens are never logged.
 """
 
 from sdlc_identity.check import MODES, Identity, IdentitySettings, check
-from sdlc_identity.forwarded import SURFACE_HEADER, USER_EMAIL_HEADER, USER_ID_HEADER, identify
+from sdlc_identity.forwarded import (
+    SURFACE_HEADER,
+    USER_EMAIL_HEADER,
+    USER_ID_HEADER,
+    SystemCaller,
+    identify,
+    identify_system,
+)
 from sdlc_identity.tokens import GoogleTokens, Rejected
 
 __all__ = [
@@ -28,6 +39,8 @@ __all__ = [
     "Identity",
     "IdentitySettings",
     "Rejected",
+    "SystemCaller",
     "check",
     "identify",
+    "identify_system",
 ]

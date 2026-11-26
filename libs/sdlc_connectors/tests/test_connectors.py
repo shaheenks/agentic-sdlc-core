@@ -6,7 +6,16 @@ import json
 
 import httpx
 import pytest
-from sdlc_connectors import ConnectorError, Credential, FileChange, Jira, adf_to_text, repository, text_to_adf
+from sdlc_connectors import (
+    ConnectorError,
+    Credential,
+    FileChange,
+    Jira,
+    adf_to_text,
+    clone_url,
+    repository,
+    text_to_adf,
+)
 
 TOKEN = "secret-token-never-in-errors"
 
@@ -164,6 +173,7 @@ def test_bitbucket_cloud_commits_with_a_form_and_opens_a_pull_request():
     assert pr.number == 3
     form = fake.seen[0].content.decode()
     assert "branch=design%2FPAY-1" in form and "docs%2Fd.md=x" in form
+    assert "parents=main" in form  # the new branch starts from the base (a feature branch, DEC-0013)
     assert fake.seen[0].headers["authorization"] == f"Bearer {TOKEN}"
 
 
@@ -392,3 +402,64 @@ def test_branches_are_listed_by_prefix_and_created_once():
     repo = repository("bitbucket", "data_center", "https://bb.example.test", "P/c", Credential(TOKEN), dc.client())
     assert repo.create_branch("feature/F-3", "main") is True
     assert json.loads(dc.seen[-1].content) == {"name": "feature/F-3", "startPoint": "refs/heads/main"}
+
+
+def test_pull_requests_from_an_existing_branch_and_comments_in_every_edition():
+    gh = Fake(
+        {
+            ("POST", "/repos/o/r/pulls"): httpx.Response(
+                201, json={"number": 9, "html_url": "https://github.com/o/r/pull/9"}
+            ),
+            ("POST", "/repos/o/r/issues/9/comments"): httpx.Response(201, json={"html_url": "https://github.com/c/1"}),
+        }
+    )
+    repo = repository("github", "cloud", "https://api.github.com", "o/r", Credential(TOKEN), gh.client())
+    pr = repo.create_pull_request("sdlc/F-20261126-x/app", "feature/F-20261126-x", "t", "b")
+    assert (pr.number, pr.branch) == (9, "sdlc/F-20261126-x/app")
+    assert json.loads(gh.seen[0].content)["base"] == "feature/F-20261126-x"
+    assert repo.comment(9, "blocked: the plan names a missing file") == "https://github.com/c/1"
+    with pytest.raises(ConnectorError):
+        repo.create_pull_request("bad branch", "main", "t", "b")
+
+    bb = Fake(
+        {
+            ("POST", "/2.0/repositories/w/r/pullrequests"): httpx.Response(
+                201, json={"id": 4, "links": {"html": {"href": "https://bitbucket.org/w/r/pull-requests/4"}}}
+            ),
+            ("POST", "/2.0/repositories/w/r/pullrequests/4/comments"): httpx.Response(
+                201, json={"links": {"html": {"href": "https://bitbucket.org/c/2"}}}
+            ),
+        }
+    )
+    cloud = repository("bitbucket", "cloud", "https://api.bitbucket.org", "w/r", Credential(TOKEN), bb.client())
+    assert cloud.create_pull_request("sdlc/x", "feature/x", "t", "b").number == 4
+    assert cloud.comment(4, "hi") == "https://bitbucket.org/c/2"
+    assert json.loads(bb.seen[1].content) == {"content": {"raw": "hi"}}
+
+    base = "/rest/api/1.0/projects/PAY/repos/svc"
+    dc = Fake(
+        {
+            ("POST", f"{base}/pull-requests"): httpx.Response(
+                201, json={"id": 5, "links": {"self": [{"href": "https://bb.example.com/pr/5"}]}}
+            ),
+            ("POST", f"{base}/pull-requests/5/comments"): httpx.Response(201, json={"id": 77}),
+        }
+    )
+    server = repository("bitbucket", "data_center", "https://bb.example.com", "PAY/svc", Credential(TOKEN), dc.client())
+    assert server.create_pull_request("sdlc/x", "feature/x", "t", "b").number == 5
+    assert (
+        server.comment(5, "hi") == "https://bb.example.com/projects/PAY/repos/svc/pull-requests/5/overview?commentId=77"
+    )
+
+
+def test_clone_urls():
+    assert clone_url("github", "cloud", "https://api.github.com", "o/r") == "https://github.com/o/r.git"
+    assert (
+        clone_url("github", "data_center", "https://ghe.example.com/api/v3", "o/r") == "https://ghe.example.com/o/r.git"
+    )
+    assert clone_url("bitbucket", "cloud", "https://api.bitbucket.org", "w/r") == "https://bitbucket.org/w/r.git"
+    assert clone_url("bitbucket", "data_center", "https://bb.example.com/", "PAY/svc") == (
+        "https://bb.example.com/scm/pay/svc.git"
+    )
+    with pytest.raises(ValueError):
+        clone_url("github", "cloud", "https://api.github.com", "o/r/../x")

@@ -1,9 +1,20 @@
 [project]
 name = "sdlc-event-agent-mcp"
-version = "0.0.0"
-description = "The MCP server for scheduled and event-triggered runs, as the system identity (DEC-0007)."
+version = "0.1.0"
+description = "The MCP server for scheduled and event-triggered runs, as the system identity (DEC-0007, DEC-0015)."
 requires-python = ">=3.12"
-dependencies = ["sdlc-service"]
+dependencies = [
+    "sdlc-service",
+    "sdlc-logging",
+    "sdlc-config-store",
+    "sdlc-identity",
+    "sdlc-policy",
+    "sdlc-connectors",
+    "sdlc-control",
+    "mcp>=2.2,<3",
+    "httpx>=0.28",
+    "google-auth>=2.40",
+]
 
 [project.scripts]
 sdlc-event-agent-mcp = "event_agent_mcp.__main__:main"
