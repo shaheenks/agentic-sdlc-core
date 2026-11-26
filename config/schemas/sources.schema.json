@@ -70,6 +70,18 @@
             "pattern": "^[A-Za-z0-9_-]{1,255}$",
             "description": "git: the Secret Manager secret holding a read token for a private repository."
           },
+          "credential_scheme": {
+            "enum": [
+              "basic",
+              "bearer"
+            ],
+            "description": "git: how the read token signs in (DEC-0014): basic (default) or bearer (Bitbucket Data Center HTTP access tokens)."
+          },
+          "credential_username": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._@+-]{1,100}$",
+            "description": "git: the Basic username (default: x-token-auth for bitbucket.org, x-access-token elsewhere)."
+          },
           "extract": {
             "type": "boolean",
             "description": "Extract concepts with Gemini (default true when the run enables extraction)."

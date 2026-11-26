@@ -1,5 +1,7 @@
 ## 2026-11-26
 
+* **Update**: [DEC-0014](decisions/DEC-0014.md) accepted and built: private Bitbucket Cloud and Data Center git
+  sources, with `credential_scheme` and `credential_username`; FR-KNOW-001 gains a criterion.
 * **Create**: [DEC-0014](decisions/DEC-0014.md), proposed: private Bitbucket knowledge sources; a git source may
   declare its token's sign-in scheme and username, with defaults by host.
 * **Update**: [DEC-0013](decisions/DEC-0013.md) built: feature branches on the control and target repositories opened

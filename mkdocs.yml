@@ -245,6 +245,7 @@ nav:
       - "DEC-0011 First knowledge pipeline: git and folder sources, access by source ID, structural and Gemini graph, gemini-embedding-001": decisions/DEC-0011.md
       - "DEC-0012 Each team's sdlc-control repository gates and records every agent action on Jira, Confluence and product repositories": decisions/DEC-0012.md
       - "DEC-0013 Features approved in chat open a feature branch; epics, features and stories in one Jira hierarchy; pull requests approved on the feature branch": decisions/DEC-0013.md
+      - "DEC-0014 Private Bitbucket knowledge sources: the git source declares how its read token signs in": decisions/DEC-0014.md
   - Traceability: traceability.md
   - Change log: log.md
   - Docs:

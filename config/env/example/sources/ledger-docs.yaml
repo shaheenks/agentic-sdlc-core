@@ -1,12 +1,17 @@
-# A Bitbucket Data Center repository as a knowledge source (FR-KNOW-001); the file name (ledger-docs) is its ID.
-# Data Center clone URLs have the form https://<host>/scm/<project>/<repo>.git. As for Bitbucket Cloud, only
-# repositories readable without a credential can be ingested yet. `ref` may be a branch, tag or full commit SHA.
+# A private Bitbucket Data Center repository as a knowledge source (FR-KNOW-001, DEC-0014); the file name
+# (ledger-docs) is its ID. Clone URLs have the form https://<host>/scm/<project>/<repo>.git.
+# credential: a Secret Manager secret holding a read-only project or repository HTTP access token, which signs in as
+# a Bearer token (`credential_scheme: bearer`, no username). A personal HTTP access token may sign in with Basic and
+# its owner's username instead (`credential_username`, in the git-ignored environment config only).
+# `ref` may be a branch, tag or full commit SHA.
 name: Ledger docs
 description: Ledger architecture decisions and runbooks.
 kind: git
 location: https://bitbucket.example.com/scm/led/ledger-docs.git
 ref: release/2026.11
 include: ["docs/**/*.md", "adr/**/*.md"]
+credential: ledger-docs-read
+credential_scheme: bearer
 link: https://bitbucket.example.com/projects/LED/repos/ledger-docs/browse/{path}?at={ref}
 classification: internal
 extract: false

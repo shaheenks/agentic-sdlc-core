@@ -316,3 +316,16 @@ def test_any_control_repository_name_is_accepted_but_not_shared(config_dir, caps
     )
     assert main(["validate", "--env", "example", "--dir", str(config_dir)]) == 1
     assert "is also team 'payments''s" in capsys.readouterr().err
+
+
+def test_a_git_sources_sign_in_needs_a_credential_and_bearer_has_no_username(config_dir, capsys):
+    path = config_dir / "env/example/sources/ledger-docs.yaml"
+    source = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert source["credential_scheme"] == "bearer" and compile_config(config_dir, "example").ok
+    path.write_text(yaml.safe_dump(source | {"credential_username": "svc"}), encoding="utf-8")
+    assert main(["validate", "--env", "example", "--dir", str(config_dir)]) == 1
+    assert "ledger-docs: a bearer credential has no username" in capsys.readouterr().err
+    bare = {k: v for k, v in source.items() if k != "credential"}
+    path.write_text(yaml.safe_dump(bare), encoding="utf-8")
+    assert main(["validate", "--env", "example", "--dir", str(config_dir)]) == 1
+    assert "ledger-docs: credential_scheme without a credential" in capsys.readouterr().err

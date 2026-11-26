@@ -12,6 +12,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
+from urllib.parse import urlsplit
 
 MAX_FILE_BYTES = 512 * 1024
 SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv", "dist", "build", ".terraform"}
@@ -129,17 +130,31 @@ def _git(args: list[str], cwd: Path, env: Mapping[str, str]) -> str:
     return result.stdout.strip()
 
 
+def default_username(location: str) -> str:
+    """The Basic username a host's read token signs in with (DEC-0014): Bitbucket Cloud access tokens use
+    `x-token-auth`; GitHub, and any other host unless the source names one, `x-access-token`."""
+    host = urlsplit(location).hostname or ""
+    return "x-token-auth" if host == "bitbucket.org" else "x-access-token"
+
+
+def authorization(source: Mapping[str, Any], token: str) -> str:
+    """The HTTP Authorization header for a git source's read token: Basic with the declared or the host's default
+    username, or Bearer (Bitbucket Data Center HTTP access tokens) (DEC-0014)."""
+    if source.get("credential_scheme") == "bearer":
+        return f"Authorization: Bearer {token}"
+    username = source.get("credential_username") or default_username(source["location"])
+    return "Authorization: Basic " + base64.b64encode(f"{username}:{token}".encode()).decode()
+
+
 def fetch_git(source: Mapping[str, Any], read_secret: Callable[[str], str], workdir: Path | None = None) -> Fetched:
     """A shallow clone of the source's ref. A read token goes in an HTTP header passed through git's
     environment, so it never appears in a command line, a URL or the clone's configuration."""
     env = {"GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1"}
     if source.get("credential"):
-        token = read_secret(source["credential"])
-        basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
         env |= {
             "GIT_CONFIG_COUNT": "1",
             "GIT_CONFIG_KEY_0": "http.extraHeader",
-            "GIT_CONFIG_VALUE_0": f"Authorization: Basic {basic}",
+            "GIT_CONFIG_VALUE_0": authorization(source, read_secret(source["credential"])),
         }
     ref = source.get("ref") or ""
     with tempfile.TemporaryDirectory(dir=workdir) as tmp:

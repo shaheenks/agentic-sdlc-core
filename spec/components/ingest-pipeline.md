@@ -59,7 +59,9 @@ Gives workflows a grounded view of a team's systems: code, designs, tickets, doc
   directory into that image's build input; a refresh is a new ingest run followed by a new image.
 - Built ([DEC-0011](../decisions/DEC-0011.md)): `sdlc-knowledge-ingest` reads the sources of the
   active configuration bundle. A `git` source is shallow-cloned at its ref, with a read token from Secret
-  Manager passed in an HTTP header through git's environment for a private repository; a `folder` source is a
+  Manager passed in an HTTP header through git's environment for a private repository (Basic with the host's
+  username, `x-token-auth` for bitbucket.org and `x-access-token` elsewhere, or the declared `credential_username`;
+  or Bearer with `credential_scheme: bearer`, [DEC-0014](../decisions/DEC-0014.md)); a `folder` source is a
   path under the build checkout or a `gs://` prefix. Text files only, filtered by include and exclude patterns.
 - Chunks: Markdown by heading, other files by 60-line windows; embedded with `gemini-embedding-001` (768
   dimensions, europe-west3). Graph: the source, files (described by their title), Markdown sections, Python

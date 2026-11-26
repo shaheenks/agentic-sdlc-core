@@ -8,7 +8,7 @@ import subprocess
 import pytest
 from knowledge_ingest.__main__ import main
 from knowledge_ingest.chunking import chunk
-from knowledge_ingest.fetch import FetchError, fetch_git, link_for, selector
+from knowledge_ingest.fetch import FetchError, authorization, fetch_git, link_for, selector
 from knowledge_ingest.graph import file_graph, modules_of
 from knowledge_ingest.pipeline import Previous, ingest
 from sdlc_config_store import DirSource, make_bundle, make_pointer
@@ -251,3 +251,21 @@ def test_markdown_titles_describe_files():
     assert title("a.md", '---\ntype: X\ntitle: "user_agent_mcp"\n---\n\n# Purpose\n') == "user_agent_mcp"
     assert title("b.md", "intro\n\n# First heading\n") == "First heading"
     assert title("c.py", "# comment") == ""
+
+
+def test_a_read_token_signs_in_as_its_host_expects():
+    import base64
+
+    def basic(header):
+        scheme, value = header.removeprefix("Authorization: ").split(" ")
+        assert scheme == "Basic"
+        return base64.b64decode(value).decode()
+
+    github = {"kind": "git", "location": "https://github.com/o/r.git", "credential": "s"}
+    cloud = {"kind": "git", "location": "https://bitbucket.org/w/r.git", "credential": "s"}
+    assert basic(authorization(github, "tok")) == "x-access-token:tok"  # unchanged for existing sources
+    assert basic(authorization(cloud, "tok")) == "x-token-auth:tok"  # Bitbucket Cloud access tokens
+    assert basic(authorization(cloud | {"credential_username": "ingest-bot"}, "tok")) == "ingest-bot:tok"  # API token
+    dc = {"kind": "git", "location": "https://bitbucket.example.com/scm/p/r.git", "credential": "s"}
+    assert authorization(dc | {"credential_scheme": "bearer"}, "tok") == "Authorization: Bearer tok"
+    assert basic(authorization(dc, "tok")) == "x-access-token:tok"

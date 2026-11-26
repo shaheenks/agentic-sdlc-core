@@ -248,6 +248,8 @@ changing it during a run needs the user's explicit confirmation in chat.
   on the control and target repositories; Epic, Feature and User Stories (sub-tasks) in Jira with open issues reused;
   later pull requests into the feature branch, approved there.
 
+- [DEC-0014](../../spec/decisions/DEC-0014.md), accepted 2026-11-26, built: private Bitbucket knowledge sources; a git
+  source's token signs in as its host expects, or as declared (`credential_scheme`, `credential_username`).
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).

@@ -273,6 +273,11 @@ def _cross_check(config: dict, users: dict, problems: list[str], warnings: list[
             problems.append(f"env/{env}/sources.yaml: {source_id}: a git location must be an https URL")
         if source["kind"] != "git" and ("ref" in source or "credential" in source):
             problems.append(f"env/{env}/sources.yaml: {source_id}: ref and credential are for git sources only")
+        signin = [k for k in ("credential_scheme", "credential_username") if k in source]
+        if signin and "credential" not in source:
+            problems.append(f"env/{env}/sources.yaml: {source_id}: {' and '.join(signin)} without a credential")
+        if source.get("credential_scheme") == "bearer" and "credential_username" in source:
+            problems.append(f"env/{env}/sources.yaml: {source_id}: a bearer credential has no username")
         location = source["location"]
         if (
             source["kind"] == "folder"

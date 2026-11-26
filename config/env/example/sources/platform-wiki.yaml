@@ -1,7 +1,10 @@
-# A public Bitbucket Cloud repository as a knowledge source (FR-KNOW-001); the file name (platform-wiki) is its ID.
-# Private Bitbucket repositories cannot be read yet: the ingest pipeline signs in as GitHub expects, which Bitbucket
-# refuses, so leave `credential` out. Give `link` for Bitbucket; without it records carry only the file path.
-# {ref} is replaced by the commit that was read, {path} by the file's path.
+# A private Bitbucket Cloud repository as a knowledge source (FR-KNOW-001, DEC-0014); the file name (platform-wiki)
+# is its ID.
+# credential: a Secret Manager secret holding a read-only repository (or project/workspace) access token, read by the
+# ingest service account (locally: INGEST_SECRET_PLATFORM_WIKI_READ). Access tokens sign in as x-token-auth, the
+# default for bitbucket.org, so nothing else is needed. An API token signs in as its owner instead:
+# `credential_username: <bitbucket username>`, kept in the git-ignored environment config, never committed.
+# Give `link` for Bitbucket; without it records carry only the file path. {ref} is the commit read, {path} the file.
 name: Platform wiki
 description: Platform team runbooks and how-to notes.
 kind: git
@@ -9,6 +12,7 @@ location: https://bitbucket.org/your-workspace/platform-wiki.git
 ref: main
 include: ["**/*.md"]
 exclude: ["drafts/**"]
+credential: platform-wiki-read
 link: https://bitbucket.org/your-workspace/platform-wiki/src/{ref}/{path}
 classification: internal
 everyone: true
