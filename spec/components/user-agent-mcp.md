@@ -6,7 +6,7 @@ tags: [component, capability, security]
 status: draft
 x-layer: capability
 x-folder: mcp_servers/user_agent_mcp/
-x-depends-on: [/components/identity, /components/access-policy, /components/configuration-registry, /components/artifact-store, /components/connectors, /components/secrets, /components/knowledge-search, /components/workflow-catalog, /components/workflow-engine, /components/human-tasks, /components/audit-log, /components/observability]
+x-depends-on: [/components/identity, /components/access-policy, /components/configuration-registry, /components/artifact-store, /components/connectors, /components/control-repository, /components/secrets, /components/knowledge-search, /components/workflow-catalog, /components/workflow-engine, /components/human-tasks, /components/audit-log, /components/observability]
 x-satisfies: [/requirements/functional/FR-SURF-004, /requirements/functional/FR-SURF-006, /requirements/functional/FR-IDN-001, /requirements/functional/FR-IDN-002, /requirements/functional/FR-AUTHZ-002, /requirements/functional/FR-AUTHZ-003, /requirements/functional/FR-AUTHZ-005, /requirements/functional/FR-AUTHZ-006, /requirements/functional/FR-CFG-005, /requirements/functional/FR-WFL-003, /requirements/functional/FR-HUM-005, /requirements/functional/FR-AGT-001, /requirements/functional/FR-AGT-003, /requirements/functional/FR-CONN-001, /requirements/functional/FR-CONN-005, /requirements/functional/FR-KNOW-002, /requirements/functional/FR-ART-001, /requirements/functional/FR-ART-002, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-ARCH-002, /requirements/non-functional/NFR-ARCH-003, /requirements/non-functional/NFR-ARCH-004, /requirements/non-functional/NFR-SEC-001, /requirements/non-functional/NFR-SEC-004, /requirements/non-functional/NFR-PRIV-001, /requirements/non-functional/NFR-AUD-001, /requirements/non-functional/NFR-OBS-001, /requirements/non-functional/NFR-REL-001, /requirements/non-functional/NFR-PERF-001, /requirements/non-functional/NFR-OPS-001, /requirements/non-functional/NFR-OPS-002, /requirements/functional/FR-AUTHZ-008, /requirements/functional/FR-WFL-009, /requirements/non-functional/NFR-ARCH-006, /requirements/functional/FR-AGT-005, /requirements/functional/FR-SDLC-005, /requirements/functional/FR-KNOW-004, /requirements/functional/FR-MDL-002, /requirements/functional/FR-SDLC-013]
 ---
 
@@ -60,6 +60,7 @@ The MCP server for user calls ([DEC-0002](../decisions/DEC-0002.md), accepted; [
 - [Configuration Registry](configuration-registry.md)
 - [Artifact Store](artifact-store.md)
 - [Connectors](connectors.md)
+- [Control Repository](control-repository.md)
 - [Secrets](secrets.md)
 - [Knowledge Search](knowledge-search.md)
 - [Workflow Catalog](workflow-catalog.md)
@@ -169,3 +170,6 @@ The MCP server for user calls ([DEC-0002](../decisions/DEC-0002.md), accepted; [
   design pull request use the feature branch (main for features published before DEC-0013).
   `jira_create_feature` creates the Epic (when confirmed), the Feature under it and the stories as its sub-tasks,
   reusing open issues of the same summary; `jira_search` can restrict to open issues.
+- The control repository's rules (layout, approvals, `links.yaml`) moved to the shared
+  [Control Repository](control-repository.md) library, which event_agent_mcp uses too
+  ([DEC-0015](../decisions/DEC-0015.md)).

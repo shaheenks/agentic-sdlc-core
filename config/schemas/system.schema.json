@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "The system identity of unattended runs in this environment (FR-IDN-004, FR-CONN-004, DEC-0015).",
+  "type": "object",
+  "properties": {
+    "tool_groups": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]*$"
+      }
+    },
+    "sources": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]*$"
+      }
+    },
+    "teams": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]*$"
+      },
+      "description": "The teams whose systems unattended runs may act on."
+    },
+    "machine_users": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9._@-]{1,100}$"
+      },
+      "description": "Provider -> the login of the machine user whose system connection acts for unattended runs; a merge by it never approves."
+    }
+  },
+  "additionalProperties": false
+}

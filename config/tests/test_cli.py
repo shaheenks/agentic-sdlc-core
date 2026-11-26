@@ -148,6 +148,43 @@ def test_missing_environment_warns_but_validates(config_dir, capsys):
             "unknown user group 'ghosts'",
         ),
         ("tool_groups.yaml", lambda d: d["tool_groups"]["identity"]["tools"].append("artifact_list"), "in both"),
+        # DEC-0015: the system identity and the subscriptions
+        (
+            "env/example/system.yaml",
+            lambda d: d["teams"].append("nope"),
+            "env/example/system.yaml: unknown team 'nope'",
+        ),
+        (
+            "env/example/system.yaml",
+            lambda d: d["tool_groups"].append("control"),
+            "tool group 'control' is on no system surface",
+        ),
+        (
+            "env/example/system.yaml",
+            lambda d: d["tool_groups"].remove("code_workspace"),
+            "ci_implement: writes ['workspace_run'] are not tools the system identity is given",
+        ),
+        (
+            "env/example/system.yaml",
+            lambda d: d["machine_users"].update({"gitlab": "bot"}),
+            "machine_users: unknown provider 'gitlab'",
+        ),
+        (
+            "subscriptions.yaml",
+            lambda d: d["subscriptions"]["ci_plan"]["filters"].update({"head_branch": "^sdlc/(?P<who>.+)$"}),
+            "ci_plan: filters.head_branch: unknown run inputs ['who']",
+        ),
+        (
+            "subscriptions.yaml",
+            lambda d: d["subscriptions"]["ci_plan"]["filters"].update({"base_branch": "^feature/("}),
+            "ci_plan: filters.base_branch: not a regular expression",
+        ),
+        ("subscriptions.yaml", lambda d: d["subscriptions"]["ci_plan"].update({"writes": []}), "should be non-empty"),
+        (
+            "env/example/teams/payments.yaml",
+            lambda d: d["systems"]["repositories"][0]["workspace"].pop("test"),
+            "'test' is a required property",
+        ),
     ],
 )
 def test_invalid_configuration_fails(config_dir, file, change, message, capsys):
@@ -207,6 +244,7 @@ def test_environment_teams_add_systems_to_shared_teams():
         "provider": "github",
         "repo": "example-org/payments-sdlc-control",
         "branch": "main",
+        "system_accounts": ["example-sdlc-bot"],  # the machine user never approves (DEC-0015)
     }
     assert "platform" not in config["team_systems"]
 
@@ -329,3 +367,18 @@ def test_a_git_sources_sign_in_needs_a_credential_and_bearer_has_no_username(con
     path.write_text(yaml.safe_dump(bare), encoding="utf-8")
     assert main(["validate", "--env", "example", "--dir", str(config_dir)]) == 1
     assert "ledger-docs: credential_scheme without a credential" in capsys.readouterr().err
+
+
+def test_the_system_identity_and_subscriptions_compile(config_dir, capsys):
+    config = compile_config(config_dir, "example").config
+    assert config["system"]["teams"] == ["payments"] and config["system"]["machine_users"] == {
+        "github": "example-sdlc-bot"
+    }
+    plan = config["subscriptions"]["ci_plan"]
+    assert plan["enabled"] is True and plan["agent"] == "ci_workflow_agent" and plan["filters"]["merged"] is True
+    assert config["team_systems"]["payments"]["repositories"][0]["workspace"]["test"] == ["pytest -q"]
+    assert config["surfaces"]["event_agents"]["system"] is True
+    (config_dir / "env/example/system.yaml").unlink()  # no system identity: no unattended runs, one warning
+    assert main(["validate", "--env", "example", "--dir", str(config_dir)]) == 0
+    err = capsys.readouterr().err
+    assert "no event starts an unattended run" in err and "ci_write" not in err

@@ -1,5 +1,9 @@
 ## 2026-11-26
 
+* **Create**: [Control Repository](components/control-repository.md) (`libs/sdlc_control`), the control repository's
+  rules shared by both MCP servers. Phase 5a milestone 1 built ([DEC-0015](decisions/DEC-0015.md)):
+  `subscriptions.yaml`, `env/<env>/system.yaml`, system surfaces, `workspace` on repositories, `system_policy` and
+  the system identity's row in the permission diff.
 * **Update**: [DEC-0015](decisions/DEC-0015.md) accepted: FR-TRIG-001, FR-TRIG-003, FR-SDLC-006, FR-CONN-004,
   FR-IDN-004 and FR-AGT-004 changed; phase 5 split into 5a and 5b.
 * **Create**: [DEC-0015](decisions/DEC-0015.md), proposed: phase 5a, from a merged design to plan and implementation

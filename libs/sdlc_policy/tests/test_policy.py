@@ -1,6 +1,6 @@
 import pytest
 from sdlc_directory import Memberships
-from sdlc_policy import DEFAULT_DENY, NotATeamMember, RateLimiter, effective_policy
+from sdlc_policy import DEFAULT_DENY, NotATeamMember, RateLimiter, effective_policy, system_policy
 
 CONFIG = {
     "tool_groups": {
@@ -128,3 +128,24 @@ def test_rate_limit_per_team():
     limiter = RateLimiter(clock=lambda: 0.0)
     results = [limiter.check(CONFIG, f"user{i}", MEMBER, "payments").allowed for i in range(4)]
     assert results == [True, True, True, False]
+
+
+def test_the_system_identity_gets_only_what_system_gives_it_on_system_surfaces_for_its_teams():
+    config = {
+        **CONFIG,
+        "tool_groups": {**CONFIG["tool_groups"], "ci_write": {"tools": ["plan_open_pull_request"]}},
+        "surfaces": {
+            **CONFIG["surfaces"],
+            "event_agents": {"system": True, "tool_groups": ["identity", "ci_write"]},
+        },
+        "sources": {"spec": {}, "code": {}},
+        "system": {"tool_groups": ["ci_write", "release"], "sources": ["code", "ghost"], "teams": ["payments"]},
+    }
+    p = system_policy(config, "v1", "event_agents", "payments")
+    # identity is given to everyone, but everyone means users; release is not on the system surface
+    assert set(p.tools) == {"plan_open_pull_request"} and set(p.sources) == {"code"}
+    assert p.authorize("plan_open_pull_request").rule == "grant:system/tool_group:ci_write/surface:event_agents"
+    assert system_policy(config, "v1", "sdlc_ui", "payments").tools == {}  # not a system surface
+    with pytest.raises(NotATeamMember):
+        system_policy(config, "v1", "event_agents", "platform")  # not one of its teams
+    assert effective_policy(config, "v1", "event_agents", LEAD).tools == {}  # users never act there

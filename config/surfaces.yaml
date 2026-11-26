@@ -13,3 +13,9 @@ surfaces:
       The Gemini Enterprise app, through the A2A router and user_agent. Needs identity mode oauth, so it is not
       reachable for now (DEC-0010).
     tool_groups: [identity, artifacts, connections, knowledge, jira, repositories, control]
+  event_agents:
+    description: >-
+      The event agents' deployment (ci_workflow_agent, operations_agent) acting as the system identity through
+      event_agent_mcp (DEC-0007, DEC-0015); its grants come from env/<env>/system.yaml only.
+    system: true
+    tool_groups: [knowledge, repositories, ci_read, ci_write, code_workspace]

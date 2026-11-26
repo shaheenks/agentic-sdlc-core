@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Events that start unattended runs (FR-TRIG-001, FR-TRIG-003, DEC-0015).",
+  "type": "object",
+  "properties": {
+    "subscriptions": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "agent": {
+            "enum": [
+              "ci_workflow_agent",
+              "operations_agent"
+            ]
+          },
+          "workflow": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "event": {
+            "type": "object",
+            "properties": {
+              "provider": {
+                "enum": [
+                  "github",
+                  "bitbucket_cloud",
+                  "bitbucket_dc",
+                  "jira_cloud",
+                  "jira_dc"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "pattern": "^[a-z_:]+$",
+                "description": "The provider's event name, for example pull_request."
+              },
+              "action": {
+                "type": "string",
+                "pattern": "^[a-z_]+$",
+                "description": "Optional: the event's action, for example closed."
+              }
+            },
+            "required": [
+              "provider",
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          "filters": {
+            "type": "object",
+            "properties": {
+              "repository": {
+                "enum": [
+                  "control_repo",
+                  "repository"
+                ],
+                "description": "Which of a team's repositories the event must come from."
+              },
+              "merged": {
+                "type": "boolean"
+              },
+              "base_branch": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "A regular expression the target branch must match."
+              },
+              "head_branch": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "A regular expression the source branch must match; named groups become run inputs."
+              }
+            },
+            "required": [
+              "repository"
+            ],
+            "additionalProperties": false
+          },
+          "writes": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            },
+            "description": "The tools this workflow may call without approval; it may call no other write tool, and a workflow with none cannot be triggered."
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "minutes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 25
+              },
+              "workspace_runs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10
+              },
+              "file_reads": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200
+              }
+            },
+            "additionalProperties": false
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Default true; false keeps the subscription declared but matches nothing."
+          }
+        },
+        "required": [
+          "description",
+          "agent",
+          "workflow",
+          "event",
+          "filters",
+          "writes"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "subscriptions"
+  ],
+  "additionalProperties": false
+}

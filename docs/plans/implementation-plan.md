@@ -276,6 +276,11 @@ changing it during a run needs the user's explicit confirmation in chat.
   4. Code Workspace job.
   5. ci_workflow_agent: the `plan` and `implement` workflows and their skills.
   6. Infrastructure, deployment to development and the exit gate.
+- Milestone 1 built (2026-11-26): `config/subscriptions.yaml` (`ci_plan`, `ci_implement`), `env/<env>/system.yaml`
+  (the example environment's; development has none yet, so no event starts a run there), the `event_agents` surface
+  marked `system: true` with the tool groups `ci_read`, `ci_write` and `code_workspace`, `workspace` on repository
+  entries, `sdlc_policy.system_policy`, the system identity in the permission diff, and `libs/sdlc_control` with the
+  control repository's rules, now used by user_agent_mcp.
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).

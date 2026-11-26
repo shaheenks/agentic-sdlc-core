@@ -6,13 +6,30 @@
 - A surface uses only the tool groups declared for it (FR-AUTHZ-006); a tool is allowed when both the user
   and the surface may use it.
 - A team run gets what the starter may use and the team (or everyone) is granted (FR-TEAM-002).
+- The system identity of unattended runs gets only what `system.yaml` gives it, on surfaces marked `system`, for
+  its declared teams; users never act on those surfaces (FR-IDN-004, DEC-0015).
 - Each decision names the rule that matched (FR-AUTHZ-003).
 - Tool calls are rate limited per user and team, counted per service instance (FR-AUTHZ-005, FR-MDL-002).
 
 No code here names a role, team, group or tool: all of them come from the configuration (FR-AUTHZ-001).
 """
 
-from sdlc_policy.policy import DEFAULT_DENY, Decision, EffectivePolicy, NotATeamMember, effective_policy
+from sdlc_policy.policy import (
+    DEFAULT_DENY,
+    Decision,
+    EffectivePolicy,
+    NotATeamMember,
+    effective_policy,
+    system_policy,
+)
 from sdlc_policy.ratelimit import RateLimiter
 
-__all__ = ["DEFAULT_DENY", "Decision", "EffectivePolicy", "NotATeamMember", "RateLimiter", "effective_policy"]
+__all__ = [
+    "DEFAULT_DENY",
+    "Decision",
+    "EffectivePolicy",
+    "NotATeamMember",
+    "RateLimiter",
+    "effective_policy",
+    "system_policy",
+]

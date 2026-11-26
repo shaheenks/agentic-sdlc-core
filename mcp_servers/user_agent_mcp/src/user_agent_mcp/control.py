@@ -16,35 +16,25 @@ import secrets
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-import yaml
-from sdlc_connectors import Change, ConnectorError, FileChange, repository
+from sdlc_connectors import FileChange, repository
+from sdlc_control import (
+    CONTROL_ID,
+    FRONT_MATTER,
+    KINDS,
+    MAX_ARTIFACT,
+    ControlRepository,
+    feature_branch,
+    path_of,
+)
+from sdlc_control import now as _now
+from sdlc_control import with_front_matter as _with_front_matter
 
 from user_agent_mcp.errors import ToolError
 
 if TYPE_CHECKING:
     from user_agent_mcp.platform import Caller, Platform
 
-CONTROL_ID = re.compile(r"^F-[0-9]{8}-[a-z0-9][a-z0-9-]{0,39}$")
-BRANCH = re.compile(r"^sdlc/(F-[0-9]{8}-[a-z0-9-]{1,40})/(feature|design)-")
-KINDS = ("feature", "design")
-MAX_ARTIFACT = 200_000
-FRONT_MATTER = re.compile(r"\A---\n(.*?)\n---\n?", re.S)
-
-
-def _now() -> str:
-    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def path_of(control_id: str, kind: str) -> str:
-    return f"features/{control_id}/{kind}.md"
-
-
-def links_path(control_id: str) -> str:
-    return f"features/{control_id}/links.yaml"
-
-
-def feature_branch(control_id: str) -> str:
-    return f"feature/{control_id}"
+__all__ = ["CONTROL_ID", "Control", "feature_branch", "path_of"]
 
 
 def _check_id(control_id: Any) -> str:
@@ -53,7 +43,7 @@ def _check_id(control_id: Any) -> str:
     return control_id
 
 
-class Control:
+class Control(ControlRepository):
     """The run's team's control repository, reached with the user's own connection."""
 
     def __init__(self, platform: "Platform", caller: "Caller", write: bool = True):
@@ -65,53 +55,16 @@ class Control:
             raise ToolError("constraint_denied", "your team has no control repository in this environment")
         system, edition = _edition(caller, settings["provider"])
         base_url = settings.get("base_url") or caller.bundle.config["providers"][settings["provider"]].get("base_url")
-        self.settings, self.branch = settings, settings.get("branch", "main")
-        self.system_accounts = {a.lower() for a in settings.get("system_accounts") or ()}
-        self.client = repository(
+        self.settings = settings
+        client = repository(
             system, edition, base_url, settings["repo"], _credential(platform, caller, settings["provider"])
         )
-        self.by = caller.identity.email
-        self._homes: dict[str, str] = {}
-
-    def home(self, control_id: str) -> str:
-        """The branch a feature's artifacts live on: its feature branch, or main for a feature published before
-        DEC-0013."""
-        if control_id not in self._homes:
-            branch = feature_branch(control_id)
-            self._homes[control_id] = branch if branch in self.client.branches(branch) else self.branch
-        return self._homes[control_id]
-
-    def on_feature_branch(self, control_id: str) -> bool:
-        return self.home(control_id) != self.branch
-
-    def approval(self, control_id: str, kind: str) -> dict[str, Any]:
-        """Whether an artifact is approved on the feature's branch, and by whom: a feature by the user in chat (its
-        front matter), anything else by a pull request into that branch merged by a person."""
-        branch, path = self.home(control_id), path_of(control_id, kind)
-        change: Change | None = self.client.last_change(path, branch)
-        if change is None:
-            return {"path": path, "branch": branch, "published": False, "approved": False}
-        found: dict[str, Any] = {"path": path, "branch": branch, "published": True, "commit": change.commit}
-        if kind == "feature" and branch != self.branch:
-            meta = _front_matter(self.read(path, branch) or "")
-            approved = bool(meta.get("approved_by"))
-            found |= {
-                "approved": approved,
-                "approved_by": meta.get("approved_by"),
-                "approved_at": meta.get("approved_at"),
-            }
-            if not approved:
-                found["reason"] = "the feature has no recorded approval"
-            return found
-        approved = bool(
-            change.pull_request and change.merged_by and change.merged_by.lower() not in self.system_accounts
+        super().__init__(
+            client,
+            settings.get("branch", "main"),
+            settings.get("system_accounts") or (),
+            caller.identity.email,
         )
-        found["approved"] = approved
-        if change.pull_request:
-            found |= {"pull_request": change.pull_request, "merged_by": change.merged_by, "url": change.url}
-        else:
-            found["reason"] = f"the last change on {branch} did not come from a merged pull request"
-        return found
 
     def require_approved(self, control_id: str, kind: str) -> dict[str, Any]:
         found = self.approval(control_id, kind)
@@ -124,54 +77,9 @@ class Control:
             raise ToolError("not_approved", f"{kind}.md of {control_id} is not approved: {how}")
         return found
 
-    def read(self, path: str, branch: str | None = None) -> str | None:
-        try:
-            return self.client.read_file(path, branch or self.branch)
-        except ConnectorError as exc:
-            if exc.code == "not_found":
-                return None
-            raise
 
-    def links(self, control_id: str) -> dict[str, Any]:
-        text = self.read(links_path(control_id), self.home(control_id))
-        doc = yaml.safe_load(text) if text else None
-        return doc if isinstance(doc, dict) else {"writes": []}
-
-    def record(self, control_id: str, entry: dict[str, Any]) -> None:
-        """Adds one write and its results to the feature's links.yaml, committed directly on the feature's branch."""
-        doc = self.links(control_id)
-        doc.setdefault("writes", []).append({"at": _now(), "by": self.by, **entry})
-        text = yaml.safe_dump(doc, sort_keys=False, allow_unicode=True)
-        self.client.commit_file(
-            links_path(control_id), text, self.home(control_id), f"{control_id}: record {entry['action']}"
-        )
-
-
-def _front_matter(text: str) -> dict[str, Any]:
-    match = FRONT_MATTER.match(text.lstrip())
-    try:
-        meta = yaml.safe_load(match.group(1)) if match else None
-    except yaml.YAMLError:
-        meta = None
-    return meta if isinstance(meta, dict) else {}
-
-
-def _open_pull_requests(control: "Control") -> list[dict[str, Any]]:
-    """The control repository's open pull requests, with the control ID and kind their branch names."""
-    found = []
-    for pr in control.client.open_pull_requests():
-        match = BRANCH.match(pr.branch)
-        found.append(
-            {
-                "number": pr.number,
-                "title": pr.title,
-                "url": pr.url,
-                "branch": pr.branch,
-                "author": pr.author,
-                **({"control_id": match.group(1), "kind": match.group(2)} if match else {}),
-            }
-        )
-    return found
+def _open_pull_requests(control: Control) -> list[dict[str, Any]]:
+    return control.open_pull_requests()
 
 
 def _similar(open_prs: list[dict[str, Any]], kind: str, control_id: str | None, slug: str) -> dict[str, Any] | None:
@@ -196,10 +104,6 @@ def _body(content: Any) -> str:
     if not isinstance(content, str) or not content.strip() or len(content) > MAX_ARTIFACT:
         raise ToolError("invalid_argument", "each artifact needs its Markdown text (at most 200,000 characters)")
     return FRONT_MATTER.sub("", content.lstrip(), count=1)
-
-
-def _with_front_matter(body: str, meta: dict[str, Any]) -> str:
-    return "---\n" + yaml.safe_dump(meta, sort_keys=False, allow_unicode=True) + "---\n\n" + body.strip() + "\n"
 
 
 async def feature_open(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:

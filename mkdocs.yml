@@ -76,6 +76,7 @@ nav:
           - "Workflow Engine": components/workflow-engine.md
       - Capability:
           - "Connectors": components/connectors.md
+          - "Control Repository": components/control-repository.md
           - "event_agent_mcp": components/event-agent-mcp.md
           - "Skill Library": components/skill-library.md
           - "user_agent_mcp": components/user-agent-mcp.md

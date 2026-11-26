@@ -26,6 +26,7 @@
 # Capability
 
 * [Connectors](connectors.md) - Adapters to downstream SDLC systems - source control, issue trackers, wikis, CI - that read and write as the user with the user's own connection.
+* [Control Repository](control-repository.md) - The shared rules of a team's sdlc-control repository - feature branches, where each artifact lives, who approved it, and the record of every write made from it - used by both MCP servers.
 * [event_agent_mcp](event-agent-mcp.md) - The standalone MCP server for scheduled and event-triggered runs: agents call it as the system identity, and it reaches only system connections and system artifacts.
 * [Skill Library](skill-library.md) - Versioned instruction packages that teach an agent step how to do one SDLC task, global or team-specific.
 * [user_agent_mcp](user-agent-mcp.md) - The MCP server for agents acting for a user: sdlc_ui and agents on Agent Runtime call it for a verified user, and every action is scoped to that user's ID.

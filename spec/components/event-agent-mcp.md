@@ -6,7 +6,7 @@ tags: [component, capability, security]
 status: draft
 x-layer: capability
 x-folder: mcp_servers/event_agent_mcp/
-x-depends-on: [/components/identity, /components/access-policy, /components/configuration-registry, /components/artifact-store, /components/connectors, /components/secrets, /components/knowledge-search, /components/audit-log, /components/observability, /components/code-workspace]
+x-depends-on: [/components/identity, /components/access-policy, /components/configuration-registry, /components/artifact-store, /components/connectors, /components/control-repository, /components/secrets, /components/knowledge-search, /components/audit-log, /components/observability, /components/code-workspace]
 x-satisfies: [/requirements/functional/FR-AGT-004, /requirements/functional/FR-IDN-004, /requirements/functional/FR-CONN-004, /requirements/functional/FR-AUTHZ-003, /requirements/functional/FR-AUTHZ-005, /requirements/functional/FR-CFG-005, /requirements/functional/FR-HUM-005, /requirements/functional/FR-KNOW-002, /requirements/functional/FR-ART-001, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-ARCH-002, /requirements/non-functional/NFR-ARCH-003, /requirements/non-functional/NFR-ARCH-004, /requirements/non-functional/NFR-SEC-001, /requirements/non-functional/NFR-SEC-004, /requirements/non-functional/NFR-SEC-006, /requirements/non-functional/NFR-PRIV-001, /requirements/non-functional/NFR-AUD-001, /requirements/non-functional/NFR-OBS-001, /requirements/non-functional/NFR-REL-001, /requirements/non-functional/NFR-OPS-001, /requirements/non-functional/NFR-OPS-002, /requirements/functional/FR-TRIG-003, /requirements/non-functional/NFR-OBS-003, /requirements/non-functional/NFR-OPS-003, /requirements/non-functional/NFR-ARCH-006, /requirements/functional/FR-SDLC-006, /requirements/functional/FR-SDLC-007, /requirements/functional/FR-SDLC-008, /requirements/functional/FR-SDLC-009, /requirements/functional/FR-SDLC-010, /requirements/functional/FR-SDLC-011, /requirements/functional/FR-SDLC-012, /requirements/functional/FR-MDL-002]
 ---
 
@@ -53,6 +53,7 @@ system identity here, with only the tools and system connections declared for it
 - [Configuration Registry](configuration-registry.md)
 - [Artifact Store](artifact-store.md)
 - [Connectors](connectors.md)
+- [Control Repository](control-repository.md)
 - [Secrets](secrets.md)
 - [Knowledge Search](knowledge-search.md)
 - [Audit Log](audit-log.md)

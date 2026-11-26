@@ -11,16 +11,20 @@ from pathlib import Path
 import pytest
 from user_agent_mcp.tools import TOOLS
 
-TOOL_GROUPS = Path(__file__).resolve().parents[3] / "config" / "tool_groups.yaml"
+CONFIG = Path(__file__).resolve().parents[3] / "config"
+TOOL_GROUPS = CONFIG / "tool_groups.yaml"
 
 
 def configured_tools() -> dict[str, str]:
-    """Tool name -> the tool group that lists it."""
+    """Tool name -> the tool group that lists it, for the groups on users' surfaces; the groups only on system
+    surfaces (`system: true`) are event_agent_mcp's (DEC-0015)."""
     yaml = pytest.importorskip("yaml")
     if not TOOL_GROUPS.is_file():
         pytest.skip(f"{TOOL_GROUPS} not found: not running in the workspace")
     groups = yaml.safe_load(TOOL_GROUPS.read_text(encoding="utf-8"))["tool_groups"]
-    return {tool: group for group, declared in groups.items() for tool in declared["tools"]}
+    surfaces = yaml.safe_load((CONFIG / "surfaces.yaml").read_text(encoding="utf-8"))["surfaces"]
+    served = {g for s in surfaces.values() if not s.get("system") for g in s["tool_groups"]}
+    return {tool: group for group, declared in groups.items() if group in served for tool in declared["tools"]}
 
 
 def test_every_configured_tool_exists():

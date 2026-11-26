@@ -2,6 +2,7 @@
 
 import json
 import pathlib
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -16,14 +17,18 @@ SHARED_KINDS = (
     "limits",
     "providers",
 )
+OPTIONAL_SHARED = ("subscriptions",)  # missing: none (DEC-0015), so older configuration still compiles
 # Environment configuration, env/<env>/<kind>.yaml: identity, users and the block list; the teams and user groups
-# with what they are given and, for teams, their systems; and the knowledge sources.
-ENV_KINDS = ("identity", "users", "blocked", "teams", "user_groups", "sources")
+# with what they are given and, for teams, their systems; the knowledge sources; and the system identity of
+# unattended runs (DEC-0015).
+ENV_KINDS = ("identity", "users", "blocked", "teams", "user_groups", "sources", "system")
 ENV_ONLY = ("teams", "user_groups", "sources")  # once shared files; refused there now
 # Kinds whose items may also be one file each, env/<env>/<kind>/<id>.yaml, next to or instead of <kind>.yaml.
 ITEM_FOLDERS = ("teams", "sources")
 LOCAL_ONLY_MODES = ("trusted_header",)
 UNCONFIGURED = {"mode": "", "allowed_domains": [], "callers": {}, "clients": {}}
+NO_SYSTEM = {"tool_groups": [], "sources": [], "teams": [], "machine_users": {}}
+RUN_INPUTS = {"control_id", "repo"}  # named groups a subscription's branch filters may capture
 
 
 @dataclass
@@ -100,6 +105,11 @@ def compile_config(config_dir: Path, env: str) -> Compiled:
         doc = _load(path, kind, schemas, problems)
         if doc is not None:
             docs[kind] = doc
+    for kind in OPTIONAL_SHARED:
+        path = config_dir / f"{kind}.yaml"
+        doc = _load(path, kind, schemas, problems) if path.is_file() else {kind: {}}
+        if doc is not None:
+            docs[kind] = doc
     if (env_dir / "systems.yaml").is_file():
         problems.append(f"env/{env}/systems.yaml: team systems moved to `systems` in env/{env}/teams.yaml")
     for kind in ENV_KINDS:
@@ -120,6 +130,7 @@ def compile_config(config_dir: Path, env: str) -> Compiled:
         return Compiled({}, problems, warnings)
 
     identity = {**UNCONFIGURED, **(docs.get("env.identity") or {})}
+    system = {**NO_SYSTEM, **(docs.get("env.system") or {})}
     users = (docs.get("env.users") or {}).get("users") or {}
     config: dict[str, Any] = {
         "platform": {k: v for k, v in docs["platform"].items() if k != "version"},
@@ -136,7 +147,13 @@ def compile_config(config_dir: Path, env: str) -> Compiled:
             {email.lower(): _member(entry) for email, entry in users.items()}, docs["user_groups"]["user_groups"]
         ),
         "blocked": (docs.get("env.blocked") or {}).get("blocked", []),
-        "team_systems": _team_systems({t: e["systems"] for t, e in docs["teams"]["teams"].items() if e.get("systems")}),
+        "team_systems": _team_systems(
+            {t: e["systems"] for t, e in docs["teams"]["teams"].items() if e.get("systems")}, system["machine_users"]
+        ),
+        "system": system,
+        "subscriptions": {
+            k: {"enabled": True, "limits": {}, **v} for k, v in docs["subscriptions"]["subscriptions"].items()
+        },
     }
     _cross_check(config, users, problems, warnings, env)
     return Compiled(config, problems, warnings)
@@ -186,8 +203,10 @@ def _with_default(items: list[dict]) -> list[dict]:
     return [{**item, "default": bool(item.get("default")) or len(items) == 1} for item in items]
 
 
-def _team_systems(teams: dict) -> dict:
-    """Each team's Jira projects, Confluence spaces and repositories, with defaults filled in."""
+def _team_systems(teams: dict, machine_users: dict | None = None) -> dict:
+    """Each team's Jira projects, Confluence spaces and repositories, with defaults filled in. The machine user of
+    the control repository's provider joins its system accounts: a merge by it never approves (DEC-0015)."""
+    machine_users = machine_users or {}
     out = {}
     for team, systems in teams.items():
         entry: dict = {
@@ -200,7 +219,14 @@ def _team_systems(teams: dict) -> dict:
             "repositories": _with_default([{"default_branch": "main", **r} for r in systems.get("repositories") or ()]),
         }
         if systems.get("control_repo"):
-            entry["control_repo"] = {"branch": "main", **systems["control_repo"]}
+            control = {"branch": "main", **systems["control_repo"]}
+            machine = machine_users.get(control["provider"])
+            accounts = list(control.get("system_accounts") or ())
+            if machine and machine.lower() not in {a.lower() for a in accounts}:
+                accounts.append(machine)
+            if accounts:
+                control["system_accounts"] = accounts
+            entry["control_repo"] = control
         out[team] = entry
     return out
 
@@ -264,8 +290,13 @@ def _cross_check(config: dict, users: dict, problems: list[str], warnings: list[
                 problems.append(f"{where}: unknown source {source!r}")
             readable.add(source)
         check_selector(where, grant["to"])
+    _check_system(config, problems, warnings, env)
+    granted |= set(config["system"]["tool_groups"])
+    user_surfaces = {g for sf in surfaces.values() if not sf.get("system") for g in sf["tool_groups"]}
+    granted |= set(tool_groups) - user_surfaces  # system-only groups: system.yaml's own warning covers them
     for group in sorted(set(tool_groups) - granted):
         warnings.append(f"tool group {group!r} is given to no team, user group or everyone: available to no one")
+    readable |= set(config["system"]["sources"])
     for source in sorted(set(config["sources"]) - readable):
         warnings.append(f"source {source!r} is given to no team, user group or everyone: readable by no one")
     for source_id, source in config["sources"].items():
@@ -363,3 +394,52 @@ def _cross_check(config: dict, users: dict, problems: list[str], warnings: list[
         check_selector(f"env/{env}/users.yaml: {email}", {"teams": roles, "user_groups": entry["user_groups"]})
     if not users:
         warnings.append(f"env/{env}: no users.yaml: nobody is in any team")
+
+
+def _check_system(config: dict, problems: list[str], warnings: list[str], env: str) -> None:
+    """The system identity's grants and the subscriptions that start unattended runs (FR-IDN-004, FR-TRIG-001,
+    FR-TRIG-003, DEC-0015)."""
+    system, where = config["system"], f"env/{env}/system.yaml"
+    tool_groups = config["tool_groups"]
+    on_system_surfaces = {g for sf in config["surfaces"].values() if sf.get("system") for g in sf["tool_groups"]}
+    for group in system["tool_groups"]:
+        if group not in tool_groups:
+            problems.append(f"{where}: unknown tool group {group!r}")
+        elif group not in on_system_surfaces:
+            problems.append(f"{where}: tool group {group!r} is on no system surface (`system: true` in surfaces.yaml)")
+    for source in system["sources"]:
+        if source not in config["sources"]:
+            problems.append(f"{where}: unknown source {source!r}")
+    for team in system["teams"]:
+        if team not in config["teams"]:
+            problems.append(f"{where}: unknown team {team!r}")
+    for provider in system["machine_users"]:
+        if provider not in config["providers"]:
+            problems.append(f"{where}: machine_users: unknown provider {provider!r}")
+    tools = {t for g in system["tool_groups"] if g in tool_groups for t in tool_groups[g]["tools"]}
+    enabled = [k for k, v in config["subscriptions"].items() if v["enabled"]]
+    for sub_id, sub in config["subscriptions"].items():
+        at = f"subscriptions.yaml: {sub_id}"
+        for key in ("base_branch", "head_branch"):
+            pattern = sub["filters"].get(key)
+            if pattern is None:
+                continue
+            try:
+                compiled = re.compile(pattern)
+            except re.error as exc:
+                problems.append(f"{at}: filters.{key}: not a regular expression: {exc}")
+                continue
+            unknown = set(compiled.groupindex) - RUN_INPUTS
+            if unknown:
+                problems.append(
+                    f"{at}: filters.{key}: unknown run inputs {sorted(unknown)} (known: {sorted(RUN_INPUTS)})"
+                )
+        if not sub["enabled"] or not system["teams"]:
+            continue
+        missing = [t for t in sub["writes"] if t not in tools]
+        if missing:
+            problems.append(f"{at}: writes {missing} are not tools the system identity is given in {where}")
+    if enabled and not system["teams"]:
+        warnings.append(f"{where}: no system identity teams: no event starts an unattended run in this environment")
+    if enabled and system["teams"] and not system["machine_users"]:
+        warnings.append(f"{where}: no machine_users: unattended runs have no system connection in this environment")

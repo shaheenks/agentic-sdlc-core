@@ -88,6 +88,8 @@ def effective_policy(
 ) -> EffectivePolicy:
     if team is not None and team not in memberships.teams:
         raise NotATeamMember(team)
+    if ((config.get("surfaces") or {}).get(surface) or {}).get("system"):
+        return EffectivePolicy(surface, team, config_version, {}, {}, {})  # users never act on a system surface
     granted = _granted(config, memberships, team, "tool_groups")
     declared_sources = config.get("sources") or {}
     sources = {s: r for s, r in _granted(config, memberships, team, "sources").items() if s in declared_sources}
@@ -99,3 +101,28 @@ def effective_policy(
         for tool in (declared.get(group) or {}).get("tools") or ():
             tools.setdefault(tool, f"{rule}/tool_group:{group}/surface:{surface}")
     return EffectivePolicy(surface, team, config_version, tools, tool_groups, sources)
+
+
+SYSTEM_GRANT = "grant:system"
+
+
+def system_policy(config: Mapping[str, Any], config_version: str, surface: str, team: str) -> EffectivePolicy:
+    """The system identity's policy for an unattended run on one team's systems (FR-IDN-004, DEC-0015): only what
+    `system` in the compiled configuration gives it, only on a surface marked `system`, and only for its teams.
+    Grants to everyone are for users and never reach it."""
+    system = config.get("system") or {}
+    if team not in (system.get("teams") or ()):
+        raise NotATeamMember(team)
+    declared_surface = (config.get("surfaces") or {}).get(surface) or {}
+    if not declared_surface.get("system"):
+        return EffectivePolicy(surface, team, config_version, {}, {}, {})
+    on_surface = set(declared_surface.get("tool_groups") or ())
+    groups = {g: SYSTEM_GRANT for g in system.get("tool_groups") or () if g in on_surface}
+    declared = config.get("tool_groups") or {}
+    tools: dict[str, str] = {}
+    for group in sorted(groups):
+        for tool in (declared.get(group) or {}).get("tools") or ():
+            tools.setdefault(tool, f"{SYSTEM_GRANT}/tool_group:{group}/surface:{surface}")
+    known = config.get("sources") or {}
+    sources = {s: SYSTEM_GRANT for s in system.get("sources") or () if s in known}
+    return EffectivePolicy(surface, team, config_version, tools, groups, sources)

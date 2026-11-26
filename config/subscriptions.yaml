@@ -1,0 +1,34 @@
+# Events that start unattended runs (FR-TRIG-001, FR-TRIG-003, DEC-0015). The event gateway matches each verified
+# delivery against these: the provider and event type, then the filters on its metadata. `repository` says which of
+# a team's repositories it must come from (only teams listed in env/<env>/system.yaml); `base_branch` and
+# `head_branch` are regular expressions, and their named groups (control_id, repo) become the run's inputs.
+# `writes` are the only write tools the run may call, all without approval: people approve by merging.
+subscriptions:
+  ci_plan:
+    description: >-
+      A design merged into its feature branch on a control repository: propose plan-<repo>.md for each target
+      repository the design names (FR-SDLC-006).
+    agent: ci_workflow_agent
+    workflow: plan
+    event: {provider: github, type: pull_request, action: closed}
+    filters:
+      repository: control_repo
+      merged: true
+      base_branch: ^feature/F-[0-9]{8}-[a-z0-9-]+$
+      head_branch: ^sdlc/(?P<control_id>F-[0-9]{8}-[a-z0-9-]+)/design-
+    writes: [plan_open_pull_request, pull_request_comment]
+    limits: {minutes: 20, file_reads: 40}
+  ci_implement:
+    description: >-
+      A plan merged into its feature branch on a control repository: implement it with tests in that target
+      repository and open the pull request into its feature branch (FR-SDLC-006).
+    agent: ci_workflow_agent
+    workflow: implement
+    event: {provider: github, type: pull_request, action: closed}
+    filters:
+      repository: control_repo
+      merged: true
+      base_branch: ^feature/F-[0-9]{8}-[a-z0-9-]+$
+      head_branch: ^sdlc/(?P<control_id>F-[0-9]{8}-[a-z0-9-]+)/plan-(?P<repo>[A-Za-z0-9_.-]+)$
+    writes: [implementation_open_pull_request, pull_request_comment, workspace_run]
+    limits: {minutes: 25, workspace_runs: 5, file_reads: 60}

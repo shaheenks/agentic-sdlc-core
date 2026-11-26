@@ -4,7 +4,8 @@ Access is computed with the Access Policy itself (`sdlc_policy.effective_policy`
 MCP servers would decide, for every listed user, in their own runs and in each of their teams' runs, on every
 surface; a readable knowledge source shows as `source:<id>`. Users not listed in `users.yaml` are one more
 row: they are in no team and no user group, so they get only what is granted to everyone. A user blocked by
-email gets nothing.
+email gets nothing. The system identity of unattended runs is one more row, per team it acts for, on the system
+surfaces (DEC-0015).
 
 A version is one of:
 
@@ -28,11 +29,12 @@ from typing import Any
 from sdlc_config_store import ConfigUnavailable, parse_bundle, parse_pointer, source_from_url
 from sdlc_config_store.sources import bundle_name
 from sdlc_directory import Memberships, memberships
-from sdlc_policy import effective_policy
+from sdlc_policy import effective_policy, system_policy
 
 from sdlc_config.compile import compile_config
 
 UNLISTED = "(users not listed)"
+SYSTEM = "(system identity)"
 OWN = "own runs"
 GIT = "git:"
 ACTIVE = "active"
@@ -73,13 +75,20 @@ def access(config: Mapping[str, Any]) -> dict[tuple[str, str, str], frozenset[st
                 allowed = frozenset(policy.tools) | {f"{SOURCE}{s}" for s in policy.sources}
                 if allowed:
                     result[(user, label, surface)] = allowed
+    surfaces = config.get("surfaces") or {}
+    for team in (config.get("system") or {}).get("teams") or ():
+        for surface in (s for s, entry in surfaces.items() if entry.get("system")):
+            policy = system_policy(config, "", surface, team)
+            allowed = frozenset(policy.tools) | {f"{SOURCE}{s}" for s in policy.sources}
+            if allowed:
+                result[(SYSTEM, f"{team} runs", surface)] = allowed
     return result
 
 
 def diff(old: Mapping[str, Any], new: Mapping[str, Any]) -> list[Change]:
     before, after = access(old), access(new)
     changes = []
-    for key in sorted(before.keys() | after.keys(), key=lambda k: (k[0] == UNLISTED, k)):
+    for key in sorted(before.keys() | after.keys(), key=lambda k: ((k[0] == UNLISTED) + 2 * (k[0] == SYSTEM), k)):
         was, now = before.get(key, frozenset()), after.get(key, frozenset())
         if was != now:
             changes.append(Change(*key, gained=tuple(sorted(now - was)), lost=tuple(sorted(was - now))))

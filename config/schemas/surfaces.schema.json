@@ -23,6 +23,10 @@
               "pattern": "^[a-z][a-z0-9_-]*$"
             },
             "uniqueItems": true
+          },
+          "system": {
+            "type": "boolean",
+            "description": "true: a surface of unattended runs, used only by the system identity (env/<env>/system.yaml), never by users (DEC-0015)."
           }
         },
         "required": [

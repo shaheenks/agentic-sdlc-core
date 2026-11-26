@@ -85,3 +85,6 @@ prompts. The services that own each resource enforce the decision.
   granted to the team or to everyone. There is no classification ceiling yet.
 - Argument constraints are not implemented yet; the first tools that need them (repository and tracker tools)
   come with the connectors.
+- `system_policy(config, version, surface, team)` ([DEC-0015](../decisions/DEC-0015.md)): the system identity
+  gets only what `system.yaml` gives it, only on surfaces marked `system` and only for its teams; grants to everyone
+  never reach it, and users get nothing on a system surface.

@@ -8,7 +8,7 @@ import pytest
 import yaml
 from sdlc_config import CONFIG_DIR, compile_config
 from sdlc_config.cli import main
-from sdlc_config.diff import UNLISTED, Change, diff
+from sdlc_config.diff import UNLISTED, Change, access, diff
 
 
 @pytest.fixture
@@ -170,3 +170,15 @@ def test_a_team_in_a_user_group_gets_the_group_grants_in_own_runs_only(config_di
         ("ada@example.test", "own runs"),
         ("grace@example.test", "own runs"),
     }
+
+
+def test_the_system_identitys_grants_show_as_their_own_row(config_dir):
+    before = compiled(config_dir)
+    edit(config_dir / "env/example/system.yaml", lambda d: d["tool_groups"].remove("code_workspace"))
+    edit(config_dir / "subscriptions.yaml", lambda d: d["subscriptions"]["ci_implement"].update(enabled=False))
+    changes = diff(before, compiled(config_dir))
+    assert [(c.user, c.context, c.surface, c.lost) for c in changes] == [
+        ("(system identity)", "payments runs", "event_agents", ("workspace_run",))
+    ]
+    assert not any(c.surface == "event_agents" for c in diff(before, before))
+    assert all(k[0] == "(system identity)" for k in access(before) if k[2] == "event_agents")

@@ -14,6 +14,7 @@ dependencies = [
     "cryptography>=45",
     "httpx>=0.28",
     "sdlc-connectors",
+    "sdlc-control",
     "pyyaml>=6",
 ]
 

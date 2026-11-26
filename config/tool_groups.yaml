@@ -37,3 +37,16 @@ tool_groups:
       The run's team's control repository: publish artifacts by pull request and check their approval
       (FR-SDLC-013, DEC-0012).
     tools: [control_publish, control_status, control_pull_requests, feature_open, feature_target_branches]
+  # Tool groups of unattended runs, served by event_agent_mcp to the system identity only (DEC-0007, DEC-0015).
+  # They are given in env/<env>/system.yaml, never to users; a subscription lists which of their writes it may make.
+  ci_read:
+    description: A feature's artifacts, approvals and links on its team's control repository (FR-SDLC-006).
+    tools: [feature_status, control_read_file]
+  ci_write:
+    description: >-
+      Plan and implementation pull requests from sdlc/ branches into feature branches, and comments on them;
+      never a merge or an approval (FR-SDLC-006, FR-TRIG-003).
+    tools: [plan_open_pull_request, implementation_open_pull_request, pull_request_comment]
+  code_workspace:
+    description: Build and test a change in the Code Workspace job and push its sdlc/ branch (FR-SDLC-006).
+    tools: [workspace_run]

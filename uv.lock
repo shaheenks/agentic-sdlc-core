@@ -15,6 +15,7 @@ members = [
     "sdlc-config",
     "sdlc-config-store",
     "sdlc-connectors",
+    "sdlc-control",
     "sdlc-directory",
     "sdlc-event-agent-mcp",
     "sdlc-event-gateway",
@@ -1951,6 +1952,21 @@ dependencies = [
 requires-dist = [{ name = "httpx", specifier = ">=0.28" }]
 
 [[package]]
+name = "sdlc-control"
+version = "0.0.0"
+source = { editable = "libs/sdlc_control" }
+dependencies = [
+    { name = "pyyaml" },
+    { name = "sdlc-connectors" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pyyaml", specifier = ">=6" },
+    { name = "sdlc-connectors", editable = "libs/sdlc_connectors" },
+]
+
+[[package]]
 name = "sdlc-directory"
 version = "0.0.0"
 source = { editable = "libs/sdlc_directory" }
@@ -2119,6 +2135,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "sdlc-config-store" },
     { name = "sdlc-connectors" },
+    { name = "sdlc-control" },
     { name = "sdlc-directory" },
     { name = "sdlc-identity" },
     { name = "sdlc-logging" },
@@ -2134,6 +2151,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6" },
     { name = "sdlc-config-store", editable = "libs/sdlc_config_store" },
     { name = "sdlc-connectors", editable = "libs/sdlc_connectors" },
+    { name = "sdlc-control", editable = "libs/sdlc_control" },
     { name = "sdlc-directory", editable = "libs/sdlc_directory" },
     { name = "sdlc-identity", editable = "libs/sdlc_identity" },
     { name = "sdlc-logging", editable = "libs/sdlc_logging" },
