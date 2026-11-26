@@ -100,3 +100,8 @@ Elephant-Goldfish Model: it holds the whole conversation, and its documents are 
     by the server. The skills ship inside the package (`user_agent/skills`, copied by `deploy.py`).
   - Tested in ADK with a scripted model and a faked user_agent_mcp; the answers come back through sdlc_ui in
     milestone 4.
+- `publish_feature` ([DEC-0013](../decisions/DEC-0013.md)): lists the project's open epics and asks the user, in one
+  card, to approve the feature and its stories and choose its epic (or confirm the proposed one); then opens the
+  feature branch, creates the Jira hierarchy and opens the target branches. A retry with the control ID asks nothing
+  and reuses what exists. `hand_off_design` needs the opened feature; its pull request goes into the feature branch.
+  The features skill searches open Jira issues and names the epic, an open feature it extends and duplicate stories.

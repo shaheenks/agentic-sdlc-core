@@ -61,6 +61,8 @@ def _edition(caller: "Caller", provider: str) -> tuple[str, str]:
     return config.get("system", ""), config.get("edition", "")
 
 
+OPEN = "statusCategory != Done"  # open issues: not in a done status
+
 # Jira -----------------------------------------------------------------------------------------------------
 
 
@@ -99,7 +101,7 @@ def _pick(item: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
 
 
 async def team_systems(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
-    jira_keys = ("project", "base_url", "default")
+    jira_keys = ("project", "base_url", "default", "epic_type", "feature_type", "story_type")
     return {
         "team": caller.policy.team,
         "teams": {
@@ -156,6 +158,8 @@ async def jira_search(platform: "Platform", caller: "Caller", args: dict[str, An
         clauses = [f'project = "{settings["project"]}"' if len(projects) == 1 else f"project in ({keys})"]
         if args.get("text"):
             clauses.append(_jql_text(str(args["text"])))
+        if args.get("open_only"):
+            clauses.append(OPEN)
         for arg, field in (("issue_type", "issuetype"), ("status", "status")):
             value = args.get(arg)
             if value:
@@ -189,9 +193,11 @@ def _with_estimate(description: str, line: str) -> str:
 
 
 async def jira_create_feature(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
-    """The feature and its user stories, created as the user in one of the run's team's projects, only from a
-    feature.md approved on the team's control repository; the keys are recorded there (DEC-0012)."""
-    from user_agent_mcp.control import CONTROL_ID, Control, path_of
+    """The approved feature in Jira as the user (DEC-0013): under its epic (an existing one, or one created now when
+    the user confirmed it), the feature as an issue of the team's feature type, and each user story as a sub-task of
+    it. Open issues with the same summary are reused, never created twice; the keys are recorded on the feature's
+    branch of the team's control repository."""
+    from user_agent_mcp.control import Control, _check_id, path_of
 
     allowed = _jira_projects(caller, write=True)
     if not allowed:
@@ -200,48 +206,44 @@ async def jira_create_feature(platform: "Platform", caller: "Caller", args: dict
     if project not in allowed:
         raise ToolError(CONSTRAINT, f"{project} is not a Jira project of your team")
     _, settings = allowed[project]
-    control_id = args.get("control_id")
-    if not isinstance(control_id, str) or not CONTROL_ID.match(control_id):
-        raise ToolError("invalid_argument", "control_id of the published feature (such as F-20261125-refunds)")
-    feature, stories = args.get("feature") or {}, args.get("stories") or []
+    control_id = _check_id(args.get("control_id"))
+    feature, stories, epic = args.get("feature") or {}, args.get("stories") or [], args.get("epic") or {}
     if not isinstance(feature, dict) or not isinstance(stories, list) or not 1 <= len(stories) <= 30:
         raise ToolError("invalid_argument", "give a feature and 1 to 30 stories")
     for item in [feature, *stories]:
         if not isinstance(item, dict) or not isinstance(item.get("summary"), str) or not item["summary"].strip():
             raise ToolError("invalid_argument", "every item needs a summary")
+    if not isinstance(epic, dict) or not (epic.get("key") or (epic.get("create") and epic.get("summary"))):
+        raise ToolError("invalid_argument", "every feature sits under an epic: give its key, or a summary with create")
     _estimates(feature, stories)
     control = Control(platform, caller)
     approved = await _call(lambda: control.require_approved(control_id, "feature"))
-    earlier = [
+    done = [
         w
         for w in (await _call(lambda: control.links(control_id))).get("writes") or ()
-        if w.get("action") == "create_feature"
+        if w.get("action") == "create_feature" and not w.get("error")
     ]
-    done = [w for w in earlier if not w.get("error")]
     if done:
         raise ToolError("already_done", f"{control_id} is already in Jira as {done[-1]['results'].get('feature')}")
-    partial = [w for w in earlier if (w.get("results") or {}).get("feature")]
-    if partial:
-        made = partial[-1]["results"]
-        raise ToolError(
-            "partly_done",
-            f"an earlier attempt created {made['feature']} and stories {made.get('stories') or []} before failing; "
-            "finish or remove them in Jira before trying again",
-        )
     jira = _jira(platform, caller, settings)
-    # Never a second issue for the same feature: an existing one of the feature's type with the same summary.
-    summary = feature["summary"].strip()
-    jql = f'project = "{project}" AND issuetype = "{settings["feature_type"]}" AND {_jql_text(summary)}'
-    for found in await _call(lambda: jira.search(jql, limit=20)):
-        if found.summary.strip().lower() == summary.lower() and found.issue_type == settings["feature_type"]:
-            raise ToolError("already_exists", f"{project} already has this feature as {found.key} ({found.url})")
-    results: dict[str, Any] = {"project": project, "site": settings["base_url"], "stories": []}
+
+    def open_issue(issue_type: str, summary: str, parent: str | None = None):
+        """An open issue of this type and summary (under `parent`, when given): reused instead of a new one."""
+        if parent:
+            candidates = jira.children(parent, project)
+        else:
+            jql = f'project = "{project}" AND issuetype = "{issue_type}" AND {OPEN} AND {_jql_text(summary)}'
+            candidates = jira.search(jql, limit=20)
+        wanted = summary.strip().lower()
+        return next((i for i in candidates if i.summary.strip().lower() == wanted and i.issue_type == issue_type), None)
+
+    results: dict[str, Any] = {"project": project, "site": settings["base_url"], "stories": [], "reused": []}
     entry = {
         "action": "create_feature",
         "system": "jira",
         "artifact": path_of(control_id, "feature"),
-        "artifact_commit": approved["commit"],
-        "approved_by": approved.get("merged_by"),
+        "artifact_commit": approved.get("commit"),
+        "approved_by": approved.get("approved_by") or approved.get("merged_by"),
         "results": results,
     }
     size = feature.get("estimate")
@@ -254,44 +256,78 @@ async def jira_create_feature(platform: "Platform", caller: "Caller", args: dict
     if not points_field and any(s.get("story_points") for s in stories):
         points_field = await _call(lambda: jira.field_id(POINTS_FIELDS))
     try:
-        created = await _call(
-            lambda: jira.create_issue(
-                project,
-                settings["feature_type"],
-                feature["summary"],
-                _with_estimate(str(feature.get("description") or ""), size_line if size else ""),
-                labels=[f"size-{size}"] if size else None,
+        # the epic
+        if epic.get("key"):
+            epic_key = str(epic["key"])
+            _project_of(epic_key, {project: True})
+            found_epic = await _call(lambda: jira.get_issue(epic_key))
+            if found_epic.issue_type != settings["epic_type"]:
+                raise ToolError("invalid_argument", f"{epic_key} is a {found_epic.issue_type}, not an epic")
+        else:
+            existing = await _call(lambda: open_issue(settings["epic_type"], str(epic["summary"])))
+            if existing:
+                epic_key = existing.key
+                results["reused"].append(epic_key)
+            else:
+                made_epic = await _call(
+                    lambda: jira.create_issue(
+                        project, settings["epic_type"], str(epic["summary"]), str(epic.get("description") or "")
+                    )
+                )
+                epic_key, results["epic_created"] = made_epic.key, True
+        results["epic"] = epic_key
+        # the feature, under the epic
+        created = await _call(lambda: open_issue(settings["feature_type"], feature["summary"]))
+        if created:
+            results["reused"].append(created.key)
+        else:
+            created = await _call(
+                lambda: jira.create_issue(
+                    project,
+                    settings["feature_type"],
+                    feature["summary"],
+                    _with_estimate(str(feature.get("description") or ""), size_line if size else ""),
+                    parent=epic_key,
+                    labels=[f"size-{size}"] if size else None,
+                )
             )
-        )
+            link = f"{control.settings['repo']}/{path_of(control_id, 'feature')} on {control.home(control_id)}"
+            await _call(
+                lambda: jira.add_web_link(
+                    created.key,
+                    approved.get("url") or _repo_url(control, control_id) or link,
+                    f"sdlc-control {control_id}",
+                )
+            )
         results["feature"] = created.key
         if size:
             results["estimate"] = size
+        # the user stories, as sub-tasks of the feature
         for story in stories:
             points = story.get("story_points")
+            existing_story = await _call(lambda s=story: open_issue(settings["story_type"], s["summary"], created.key))
+            if existing_story:
+                results["stories"].append(existing_story.key)
+                results["reused"].append(existing_story.key)
+                continue
             description = _with_estimate(
                 str(story.get("description") or ""), f"Story points: {points}" if points else ""
             )
-            parent = created.key if settings["story_link"] == "parent" else None
 
-            def make(s=story, d=description, p=points, parent=parent, field=points_field):
+            def make(s=story, d=description, p=points, field=points_field):
                 extra = {field: p} if field and p else None
+                kind, parent = settings["story_type"], created.key
                 try:
-                    return jira.create_issue(
-                        project, settings["story_type"], s["summary"], d, parent=parent, extra=extra
-                    )
+                    return jira.create_issue(project, kind, s["summary"], d, parent=parent, extra=extra)
                 except ConnectorError as exc:
                     if extra and exc.code == "invalid" and field in exc.message:  # the field is not on this screen
-                        return jira.create_issue(project, settings["story_type"], s["summary"], d, parent=parent)
+                        return jira.create_issue(project, kind, s["summary"], d, parent=parent)
                     raise
 
             made = await _call(make)
-            if settings["story_link"] != "parent":
-                await _call(lambda m=made: jira.link_issues(created.key, m.key))
             results["stories"].append(made.key)
             if points:
                 results.setdefault("story_points", {})[made.key] = points
-        link = approved.get("url") or f"{control.settings['repo']}/{path_of(control_id, 'feature')}"
-        await _call(lambda: jira.add_web_link(created.key, link, f"sdlc-control {control_id}"))
     except ToolError as exc:
         entry["error"] = exc.code
         await _call(lambda: control.record(control_id, entry))
@@ -299,11 +335,21 @@ async def jira_create_feature(platform: "Platform", caller: "Caller", args: dict
     await _call(lambda: control.record(control_id, entry))
     return {
         "control_id": control_id,
+        "epic": {"key": results["epic"], "created": bool(results.get("epic_created"))},
         "feature": {"key": created.key, "url": created.url},
         "stories": results["stories"],
+        "reused": results["reused"],
         "project": project,
-        "recorded": f"features/{control_id}/links.yaml",
+        "recorded": f"features/{control_id}/links.yaml on {control.home(control_id)}",
     }
+
+
+def _repo_url(control: Any, control_id: str) -> str | None:
+    """A browser link to the feature's folder on its branch, for GitHub; None elsewhere."""
+    api = str(control.client.http.base_url) if hasattr(control.client, "http") else ""
+    if "api.github.com" not in api:
+        return None
+    return f"https://github.com/{control.settings['repo']}/tree/{control.home(control_id)}/features/{control_id}"
 
 
 async def jira_link_design(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:

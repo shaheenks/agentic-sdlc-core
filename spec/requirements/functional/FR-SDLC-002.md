@@ -29,21 +29,10 @@ connection.
   criteria, plus open questions; it is saved as the user's artifact ([FR-ART-001](FR-ART-001.md)), and the user can
   keep it there and go on to the design with it.
 - The user can have it reviewed by fresh-context reviewers ([FR-SDLC-004](FR-SDLC-004.md)).
-- When the user asks to add it to Jira, user_agent opens a pull request with it as `feature.md` on the team's control
-  repository, with the user's own connection, and waits; once a person has merged it, it creates the Feature issue
-  and its User Story issues in one of the team's Jira projects (the default unless the user names another), as the
-  user, and records their keys in `links.yaml` ([FR-SDLC-013](FR-SDLC-013.md)).
-- The Jira tool refuses to create issues for a `feature.md` that is not approved ([FR-SDLC-001](FR-SDLC-001.md)),
-  and when the project already has an issue of the feature's type with the same summary (it names that issue).
-- A retry after Jira refused the issues uses the approved feature's control ID: no new pull request is opened.
-- The next runs do not depend on the feature's Jira status: a design starts from the approved feature
-  ([FR-SDLC-003](FR-SDLC-003.md)), the implementation from the merged design ([FR-SDLC-006](FR-SDLC-006.md)).
-
-# Notes
-
-Corresponds to the playbook's Plan stage and EGM's brainstorm and draft steps. Decided in [DEC-0012](../../decisions/DEC-0012.md) (accepted).
-
-# Citations
-
-[1] [The AI-native SDLC playbook](https://claude.com/resources/articles/the-ai-native-sdlc-playbook)
-[2] [Elephant-Goldfish Model: guide](https://egm.dev/guide)
+- While drafting, user_agent searches the team's Jira project for open epics, features and stories and names them
+  in the draft: the epic the feature belongs to, an open feature it extends, open stories it would duplicate. If no
+  open epic fits, it proposes one, created only on the user's confirmation ([DEC-0013](../../decisions/DEC-0013.md)).
+- On the user's approval in chat (choosing the epic), the feature's branch opens on the control repository with the
+  approval recorded, then the Jira issues are created as the user: the Epic (if confirmed), the Feature under it, and
+  each user story as a sub-task of the Feature with its story points; open issues with the same summary are reused.
+  The keys are recorded on the feature branch, and the feature branch opens on the target repositories.

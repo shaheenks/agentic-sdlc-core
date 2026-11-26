@@ -656,3 +656,34 @@ div.tool-card {
 .tool-item-title {
   font-weight: 500;
 }
+
+/* Feature approval card */
+.feature-summary {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.feature-summary .badge {
+  font-size: 0.7rem;
+  padding: 0 0.3rem;
+  border-radius: 0.25rem;
+  border: 1px solid currentColor;
+}
+.feature-stories {
+  margin: 0.4rem 0;
+  padding-left: 1.3rem;
+}
+.epic-choice {
+  border: 1px solid var(--sdlc-line);
+  border-radius: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  margin: 0.4rem 0;
+  display: grid;
+  gap: 0.3rem;
+}
+.epic-choice label {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+}

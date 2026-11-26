@@ -102,18 +102,25 @@ class StoryItem(Item):
     story_points: int | None = Field(None, description="1, 2, 3, 5, 8 or 13 (13: split the story).")
 
 
+class EpicChoice(BaseModel):
+    key: str = Field("", description="An open epic the feature belongs to, as the draft names it.")
+    summary: str = Field("", description="Or a proposed new epic: its summary.")
+    description: str = ""
+
+
 class PublishFeatureIn(BaseModel):
     team: str
     content: str = Field(description="The feature and stories as reviewed (Markdown).")
     summary: str = Field(description="A few words naming the feature.")
     feature: FeatureItem
     stories: list[StoryItem]
+    epic: EpicChoice = Field(default_factory=EpicChoice, description="The epic from the draft: a key or a proposal.")
     project: str = Field("", description="A Jira project of the team; its default if empty.")
-    description: str = Field("", description="Pull request text: review findings and what the user decided.")
+    repositories: list[str] = Field(default_factory=list, description="Target repositories; the team default if empty.")
     control_id: str = Field(
         "",
-        description="The control ID of a feature already published (for example after Jira rejected the issues): "
-        "no new pull request is opened; once it is approved, the issues are created.",
+        description="The control ID of a feature already approved and opened (for example after Jira refused the "
+        "issues): nothing is opened again; the Jira issues and branches are completed.",
     )
 
 
@@ -608,86 +615,187 @@ def merge_gate(kit: Kit, p: str, kind: str):
     return _node(wait, f"{p}_wait_for_merge"), _node(check, f"{p}_check_approval")
 
 
-def publish_feature(kit: Kit) -> Workflow:
-    p = "publish_feature"
-    key = f"sdlc_wf:{p}:published"
-
-    async def publish(ctx: Context, node_input: Any):
+def _choice(value: Any) -> dict[str, Any]:
+    """The user's answer to the feature approval: {"approve": bool, "epic": key, "create_epic": bool}, from the card
+    (an object) or from text ("yes", "no", "PAY-5", "create")."""
+    if isinstance(value, dict) and "result" in value:
+        value = value["result"]
+    if isinstance(value, str):
         try:
-            if node_input.get("control_id"):  # already published: never a second pull request for it
-                status = await kit.caller.call(ctx, "control_status", {"control_id": node_input["control_id"]})
-                feature = status["artifacts"]["feature"]
-                if not feature["published"]:
-                    return _stop(
-                        ctx, f"{node_input['control_id']} is not published on the control repository", "not_found"
-                    )
-                ctx.state[key] = {
-                    "control_id": status["control_id"],
-                    "pull_request": {"url": feature.get("url") or ""},
-                    "already_open": True,
-                    "input": node_input,
-                }
-                ctx.state[f"{key}:writes"] = status.get("writes") or []
-                ctx.route = "approved" if feature["approved"] else "go"
-                return feature
-            out = await kit.caller.call(
-                ctx,
-                "control_publish",
-                {
-                    "kind": "feature",
-                    "content": node_input["content"],
-                    "summary": node_input["summary"],
-                    "description": node_input.get("description") or "",
+            value = json.loads(value)
+        except ValueError:
+            text = value.strip()
+            key = re.search(r"\b[A-Z][A-Z0-9_]+-[0-9]+\b", text)
+            no = text.lower().startswith(("no", "reject", "cancel", "stop"))
+            return {"approve": not no, "epic": key.group(0) if key else "", "create_epic": "create" in text.lower()}
+    if not isinstance(value, dict):
+        return {"approve": False}
+    return {
+        "approve": bool(value.get("approve")),
+        "epic": str(value.get("epic") or ""),
+        "create_epic": bool(value.get("create_epic")),
+    }
+
+
+def publish_feature(kit: Kit) -> Workflow:
+    """DEC-0013: the user approves the feature and its stories in chat and chooses the epic (an open one, or the
+    proposed one, created on their yes); then the feature branch opens on the control repository with the approval
+    recorded, the Jira issues are created under the epic (Epic, Feature, User Stories as sub-tasks, reusing open
+    ones), and the feature branch opens on the target repositories."""
+    p = "publish_feature"
+    key = f"sdlc_wf:{p}:state"
+
+    async def epics(ctx: Context, node_input: Any):
+        """The open epics of the project, for the approval card; a retry with a control ID skips the question."""
+        jira = next((j for j in (node_input.get("systems") or {}).get("jira") or [] if j.get("default")), {})
+        ctx.state[key] = {"input": node_input, "epic_type": jira.get("epic_type", "Epic")}
+        if node_input.get("control_id"):
+            ctx.state[key] |= {
+                "control_id": node_input["control_id"],
+                "choice": {
+                    "approve": True,
+                    "epic": node_input["epic"].get("key") or "",
+                    "create_epic": not node_input["epic"].get("key") and bool(node_input["epic"].get("summary")),
                 },
-            )
+            }
+            ctx.route = "approved"
+            return {"control_id": node_input["control_id"]}
+        try:
+            args = {"issue_type": ctx.state[key]["epic_type"], "open_only": True}
+            found = await kit.caller.call(ctx, "jira_search", args)
         except StepError as exc:
             return _stop(ctx, exc.message or exc.code, exc.code)
-        ctx.state[key] = {
-            "control_id": out["control_id"],
-            "pull_request": out["pull_request"],
-            "already_open": bool(out.get("already_open")),
-            "input": node_input,
-        }
+        ctx.route = "ask"
+        return [
+            {"key": i["key"], "summary": i.get("summary", ""), "url": i.get("url", "")}
+            for i in found.get("issues") or []
+        ]
+
+    async def ask(ctx: Context, node_input: Any):
+        data = ctx.state[key]["input"]
+        chosen = data["epic"].get("key") or ""
+        proposed = {"summary": data["epic"].get("summary") or "", "description": data["epic"].get("description") or ""}
+        stories = [{"summary": s["summary"], "story_points": s.get("story_points")} for s in data["stories"]]
+        yield RequestInput(
+            message=(
+                f"Approve the feature “{data['feature']['summary']}” with {len(stories)} user stories for Jira? "
+                "Choose its epic. On approval I open the feature branch and create the issues as you."
+            ),
+            payload={
+                "kind": "feature_approval",
+                "feature": {"summary": data["feature"]["summary"], "estimate": data["feature"].get("estimate") or ""},
+                "stories": stories,
+                "epics": node_input,
+                "chosen_epic": chosen,
+                "proposed_epic": proposed if proposed["summary"] else None,
+            },
+        )
+
+    async def decide(ctx: Context, node_input: Any):
+        choice = _choice(node_input)
+        if not choice["approve"]:
+            return _stop(ctx, "the user did not approve the feature; nothing was written", "not_approved")
+        data = ctx.state[key]["input"]
+        if not choice["epic"] and not (choice["create_epic"] and data["epic"].get("summary")):
+            return _stop(ctx, "every feature needs an epic: choose an open one or confirm the proposed one", "no_epic")
+        ctx.state[key] = {**ctx.state[key], "choice": choice}
+        ctx.route = "approved"
+        return choice
+
+    async def open_feature(ctx: Context, node_input: Any):
+        state = ctx.state[key]
+        data = state["input"]
+        try:
+            args = {"content": data["content"], "summary": data["summary"]}
+            if state.get("control_id"):
+                args = {"control_id": state["control_id"]}
+            elif state["choice"].get("epic"):
+                args["epic"] = state["choice"]["epic"]
+            out = await kit.caller.call(ctx, "feature_open", args)
+        except StepError as exc:
+            return _stop(ctx, exc.message or exc.code, exc.code)
+        ctx.state[key] = {**state, "control_id": out["control_id"], "branch": out["branch"]}
         ctx.route = "go"
         return out
 
-    wait, check = merge_gate(kit, p, "feature")
-
     async def create(ctx: Context, node_input: Any):
-        published = ctx.state[key]
-        data = published["input"]
+        state = ctx.state[key]
+        data, choice = state["input"], state["choice"]
         feature = {k: v for k, v in data["feature"].items() if v not in ("", None)}
         stories = [{k: v for k, v in s.items() if v not in ("", None)} for s in data["stories"]]
-        args = {"control_id": published["control_id"], "feature": feature, "stories": stories}
+        epic = (
+            {"key": choice["epic"]}
+            if choice.get("epic")
+            else {
+                "summary": data["epic"]["summary"],
+                "description": data["epic"].get("description") or "",
+                "create": True,
+            }
+        )
+        args = {"control_id": state["control_id"], "epic": epic, "feature": feature, "stories": stories}
         if data.get("project"):
             args["project"] = data["project"]
         try:
             made = await kit.caller.call(ctx, "jira_create_feature", args)
         except StepError as exc:
-            # approved, but Jira refused: retry with this control ID once the cause is fixed, never publish again
+            if exc.code != "already_done":
+                # approved and opened, but Jira refused: retry with this control ID, never open it again
+                return {
+                    **_stop(ctx, exc.message or exc.code, exc.code),
+                    "control_id": state["control_id"],
+                    "next": f"The feature is approved and opened as {state['control_id']}. Fix the cause with the "
+                    f"user, then call publish_feature again with control_id {state['control_id']}.",
+                }
+            made = {"already_done": True}
+        ctx.state[key] = {**state, "jira": made}
+        ctx.route = "go"
+        return made
+
+    async def branches(ctx: Context, node_input: Any):
+        state = ctx.state[key]
+        args = {"control_id": state["control_id"]}
+        if state["input"].get("repositories"):
+            args["repositories"] = state["input"]["repositories"]
+        try:
+            out = await kit.caller.call(ctx, "feature_target_branches", args)
+        except StepError as exc:
             return {
-                **_stop(ctx, exc.message or exc.code, exc.code),
-                "control_id": published["control_id"],
-                "next": f"The feature is approved as {published['control_id']}. Fix the cause with the user, then "
-                f"call publish_feature again with control_id {published['control_id']}: it opens no new pull request.",
+                **_stop(ctx, f"Jira is done; the target branches failed: {exc.message or exc.code}", exc.code),
+                "control_id": state["control_id"],
             }
         ctx.route = "done"
-        return {"status": "done", "approved_by": node_input.get("merged_by"), **made}
+        made = state.get("jira") or {}
+        return {
+            "status": "done",
+            "control_id": state["control_id"],
+            "branch": state.get("branch") or f"feature/{state['control_id']}",
+            "target_branches": out.get("repositories") or {},
+            **{k: made[k] for k in ("epic", "feature", "stories", "reused") if k in made},
+        }
 
-    publish_n, end = _node(publish, f"{p}_publish"), _end(f"{p}_end")
-    create_n = _node(create, f"{p}_create_in_jira")
+    epics_n, end = _node(epics, f"{p}_open_epics"), _end(f"{p}_end")
+    ask_n, decide_n = _node(ask, f"{p}_ask_approval"), _node(decide, f"{p}_decide")
+    open_n, create_n, branches_n = (
+        _node(open_feature, f"{p}_open_feature_branch"),
+        _node(create, f"{p}_create_in_jira"),
+        _node(branches, f"{p}_open_target_branches"),
+    )
     return Workflow(
         name="publish_feature",
-        description="Only when the user asks to add a reviewed feature and its stories to Jira: opens a pull request "
-        "with it on the team's control repository, waits until a person has merged it, then creates the Feature and "
-        "User Story issues as the user and records the keys on the control repository.",
+        description="Only when the user wants the reviewed feature and its stories in Jira: shows the open epics and "
+        "asks the user to approve the feature and choose (or confirm creating) its epic; then opens the feature "
+        "branch on the team's control repository with the approval recorded, creates the Epic, Feature and User "
+        "Stories (sub-tasks) as the user, reusing open issues, and opens the feature branch on the target "
+        "repositories.",
         input_schema=PublishFeatureIn,
         edges=[
-            *with_scope(kit, p, PublishFeatureIn, publish_n, end),
-            (publish_n, {"go": wait, "approved": create_n, "stop": end}),
-            (wait, check),
-            (check, {"approved": create_n, "wait": wait, "stop": end}),
-            (create_n, {"done": end, "stop": end}),
+            *with_scope(kit, p, PublishFeatureIn, epics_n, end),
+            (epics_n, {"ask": ask_n, "approved": open_n, "stop": end}),
+            (ask_n, decide_n),
+            (decide_n, {"approved": open_n, "stop": end}),
+            (open_n, {"go": create_n, "stop": end}),
+            (create_n, {"go": branches_n, "stop": end}),
+            (branches_n, {"done": end, "stop": end}),
         ],
     )
 
@@ -705,11 +813,11 @@ def hand_off_design(kit: Kit) -> Workflow:
         }
         if node_input.get("control_id"):
             args["control_id"] = node_input["control_id"]
-        elif (node_input.get("feature") or "").strip():
-            args |= {"feature": node_input["feature"], "summary": node_input.get("summary") or ""}
         else:
             return _stop(
-                ctx, "a design needs its feature: a published control ID or the feature's Markdown", "no_feature"
+                ctx,
+                "a design is handed off on its feature's branch: approve and open the feature first (publish_feature)",
+                "no_feature",
             )
         try:
             out = await kit.caller.call(ctx, "control_publish", args)

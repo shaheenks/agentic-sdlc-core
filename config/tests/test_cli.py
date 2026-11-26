@@ -194,7 +194,11 @@ def test_environment_teams_add_systems_to_shared_teams():
     }
     systems = config["team_systems"]["payments"]
     assert [(j["project"], j["default"]) for j in systems["jira"]] == [("PAY", True), ("CARD", False)]
-    assert systems["jira"][0]["feature_type"] == "Feature"
+    assert (systems["jira"][0]["epic_type"], systems["jira"][0]["feature_type"], systems["jira"][0]["story_type"]) == (
+        "Epic",
+        "Story",
+        "Sub-task",
+    )
     assert systems["confluence"][0]["default"] is True  # the only entry
     assert [r["default"] for r in systems["repositories"]] == [True, False]
     assert systems["control_repo"] == {

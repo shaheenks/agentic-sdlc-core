@@ -47,5 +47,20 @@ test("a workflow card shows its subject while running and its outcome when done"
   assert.equal(stopped.status, "stopped");
   assert.equal(stopped.detail, "stopped: the user kept the chat's team");
   const jira = done("publish_feature", {}, { status: "done", feature: { key: "TAS-1" }, stories: ["TAS-2", "TAS-3"] });
-  assert.equal(jira.detail, "created TAS-1 with 2 stories");
+  assert.equal(jira.detail, "TAS-1 with 2 stories");
+});
+
+test("the publish card names the epic, the feature branch and what was reused", () => {
+  const card = done("publish_feature", { team: "payments" }, {
+    status: "done",
+    epic: { key: "PAY-5", created: false },
+    feature: { key: "PAY-1" },
+    stories: ["PAY-2", "PAY-3"],
+    branch: "feature/F-20261126-refunds",
+    target_branches: { "org/payments": "created" },
+    reused: ["PAY-3"],
+  });
+  assert.equal(card.detail, "PAY-1 with 2 stories under PAY-5 · feature/F-20261126-refunds");
+  assert.ok(card.facts?.some(([k, v]) => k === "Reused open issues" && v === "PAY-3"));
+  assert.equal(done("feature_open", { summary: "Refunds" }, { branch: "feature/F-1", already_open: true }).detail, "feature/F-1 (already open)");
 });

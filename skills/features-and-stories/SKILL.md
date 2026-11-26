@@ -14,6 +14,10 @@ Story issues in the team's Jira project.
   or use the brainstorm skill first.
 - Search the team's knowledge (knowledge_search, knowledge_graph) for related requirements, designs and code.
   Cite what you use as `[path](link)`. You see only the run's team scope; never claim knowledge you did not find.
+- Search the team's Jira project for open issues (jira_search with open_only): the epics the feature could belong
+  to, open features it would extend or duplicate, and open stories it would duplicate. Every feature sits under an
+  epic: name the open epic that fits, or, if none does, propose one (summary and a short description); it is created
+  only after the user confirms. Reuse what is open rather than drafting a duplicate.
 
 ## The draft
 
@@ -35,6 +39,11 @@ Story points: <1 | 2 | 3 | 5 | 8 | 13> (<one line: the work and the risk behind 
 Acceptance criteria:
 - Given <context>, when <action>, then <observable result>.
 
+## Jira
+- Epic: <KEY: summary of the open epic> | Proposed epic: <summary>: <one-line description>
+- Extends open feature: <KEY: summary>, or none
+- Possible duplicate stories: <KEY: summary>, or none
+
 ## Out of scope
 ## Open questions
 ## Sources
@@ -53,6 +62,8 @@ Rules:
 - Use the users' words for roles; name systems as the team's knowledge names them.
 - Save the draft as an artifact (artifact_save, content type text/markdown) and show it in the chat. It stays the
   user's artifact until it is approved.
-- Never create Jira issues in this step: that happens only after the user approves the draft.
+- Never create Jira issues in this step: that happens only after the user approves the feature and its epic in
+  chat (publish_feature), which opens the feature's branch and creates the Epic, the Feature and the User Stories as
+  its sub-tasks.
 - Before the draft is published, list the open pull requests on the team's control repository
   (control_pull_requests): if one is open for the same feature, point the user to it instead of a new one.

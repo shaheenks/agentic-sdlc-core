@@ -120,3 +120,5 @@ BFF:
   statuses, links), repositories (path, lines, entries), artifacts (name, version, size, a preview), the control
   repository (approval, who merged), errors in plain words. A running workflow's card shows its stage, which the BFF
   derives from the workflow's own agents (hidden from the chat) and sends as the agent's state.
+- The feature approval card ([DEC-0013](../decisions/DEC-0013.md)): the feature with its size, its stories with their
+  points, and the epic to choose (an open one or the proposed one); Approve or Not yet.

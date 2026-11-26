@@ -142,9 +142,10 @@ def compile_config(config_dir: Path, env: str) -> Compiled:
     return Compiled(config, problems, warnings)
 
 
-JIRA_DEFAULTS = {
-    "feature_type": "Feature",
-    "story_type": "User Story",
+JIRA_DEFAULTS = {  # Epic -> Feature (a story-level issue) -> User Stories as its sub-tasks (DEC-0013)
+    "epic_type": "Epic",
+    "feature_type": "Story",
+    "story_type": "Sub-task",
     "story_link": "parent",
 }
 

@@ -53,12 +53,12 @@
                     "feature_type": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "Default Feature."
+                      "description": "Default Story: the feature, under its epic."
                     },
                     "story_type": {
                       "type": "string",
                       "minLength": 1,
-                      "description": "Default User Story."
+                      "description": "Default Sub-task (Subtask in team-managed projects): the user stories, under the feature."
                     },
                     "story_link": {
                       "enum": [
@@ -75,6 +75,11 @@
                       "type": "string",
                       "pattern": "^customfield_[0-9]{1,8}$",
                       "description": "The story points field, such as customfield_10016. Found by name when left out."
+                    },
+                    "epic_type": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Default Epic."
                     }
                   },
                   "required": [

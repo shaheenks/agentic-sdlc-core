@@ -8,8 +8,14 @@ import { useHumanInTheLoop } from "@copilotkit/react-core/v2";
 import { useState } from "react";
 
 type Finding = { id: string; reviewer: string; severity: string; location: string; problem: string; suggestion: string };
+type Epic = { key: string; summary: string; url?: string };
 type Payload = {
   kind?: string;
+  feature?: { summary?: string; estimate?: string };
+  stories?: { summary: string; story_points?: number | null }[];
+  epics?: Epic[];
+  chosen_epic?: string;
+  proposed_epic?: { summary: string; description?: string } | null;
   round?: number;
   findings?: Finding[];
   from?: string;
@@ -27,6 +33,10 @@ function Answered({ result }: { result?: string }) {
   try {
     const parsed = JSON.parse(text);
     if (typeof parsed === "string") text = parsed;
+    else if (parsed && typeof parsed === "object" && "approve" in parsed) {
+      const a = parsed as { approve?: boolean; epic?: string; create_epic?: boolean };
+      text = a.approve ? `approved${a.epic ? `, epic ${a.epic}` : a.create_epic ? ", new epic" : ""}` : "not yet";
+    }
   } catch {
     /* plain text */
   }
@@ -84,6 +94,69 @@ function Findings({ payload, respond }: { payload: Payload; respond: Respond }) 
   );
 }
 
+const NEW_EPIC = "__new__";
+
+// DEC-0013: the user approves the feature and its stories and chooses its epic: an open one, or the proposed one,
+// created only on this approval.
+function FeatureApproval({ payload, respond }: { payload: Payload; respond: Respond }) {
+  const epics = payload.epics ?? [];
+  const proposed = payload.proposed_epic;
+  const initial = payload.chosen_epic || (epics.length ? "" : proposed ? NEW_EPIC : "");
+  const [epic, setEpic] = useState(initial);
+  const points = (payload.stories ?? []).reduce((sum, s) => sum + (s.story_points ?? 0), 0);
+  const approve = () =>
+    respond?.(epic === NEW_EPIC ? { approve: true, create_epic: true } : { approve: true, epic });
+  return (
+    <>
+      <div className="feature-summary">
+        <strong>{payload.feature?.summary}</strong>
+        {payload.feature?.estimate && <span className="badge">size {payload.feature.estimate}</span>}
+        <small className="tool-meta">
+          {" "}
+          {payload.stories?.length ?? 0} stories{points ? ` · ${points} points` : ""}
+        </small>
+      </div>
+      <ol className="feature-stories">
+        {(payload.stories ?? []).map((s, i) => (
+          <li key={`${s.summary}-${i}`}>
+            {s.summary}
+            {s.story_points ? <small className="tool-meta"> · {s.story_points} pts</small> : null}
+          </li>
+        ))}
+      </ol>
+      <fieldset className="epic-choice" disabled={!respond}>
+        <legend>Epic</legend>
+        {epics.map((e) => (
+          <label key={e.key}>
+            <input type="radio" name="epic" checked={epic === e.key} onChange={() => setEpic(e.key)} />
+            <span>
+              <strong>{e.key}</strong> {e.summary}
+            </span>
+          </label>
+        ))}
+        {proposed && (
+          <label>
+            <input type="radio" name="epic" checked={epic === NEW_EPIC} onChange={() => setEpic(NEW_EPIC)} />
+            <span>
+              Create a new epic: <strong>{proposed.summary}</strong>
+              {proposed.description && <small className="tool-meta"> · {proposed.description}</small>}
+            </span>
+          </label>
+        )}
+        {!epics.length && !proposed && <p className="tool-empty">No open epic found and none proposed.</p>}
+      </fieldset>
+      <div className="actions">
+        <button type="button" className="primary" onClick={approve} disabled={!respond || !epic}>
+          Approve and create in Jira
+        </button>
+        <button type="button" onClick={() => respond?.({ approve: false })} disabled={!respond}>
+          Not yet
+        </button>
+      </div>
+    </>
+  );
+}
+
 function FreeText({ respond }: { respond: Respond }) {
   const [text, setText] = useState("");
   return (
@@ -104,6 +177,8 @@ function Question({ args, respond, result }: { args: Args; respond: Respond; res
       <p className="message">{args.message}</p>
       {result !== undefined ? (
         <Answered result={result} />
+      ) : payload.kind === "feature_approval" ? (
+        <FeatureApproval payload={payload} respond={respond} />
       ) : payload.kind === "review_findings" ? (
         <Findings payload={payload} respond={respond} />
       ) : payload.kind === "team_scope" ? (

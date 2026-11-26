@@ -303,6 +303,7 @@ TOOLS: dict[str, Tool] = {
                     "text": {"type": "string"},
                     "issue_type": {"type": "string", "description": "For example Feature or User Story."},
                     "status": {"type": "string", "description": "A status name, such as To Do."},
+                    "open_only": {"type": "boolean", "description": "Only issues not in a done status."},
                 }
             ),
             systems.jira_search,
@@ -322,6 +323,17 @@ TOOLS: dict[str, Tool] = {
                     "project": {
                         "type": "string",
                         "description": "A Jira project key of the run's team; its default project if left out.",
+                    },
+                    "epic": {
+                        "type": "object",
+                        "description": "The feature's epic: an existing one by key, or one to create (create: true) "
+                        "with its summary and description, only when the user confirmed it.",
+                        "properties": {
+                            "key": {"type": "string"},
+                            "summary": {"type": "string"},
+                            "description": {"type": "string"},
+                            "create": {"type": "boolean"},
+                        },
                     },
                     "feature": {
                         "type": "object",
@@ -349,7 +361,7 @@ TOOLS: dict[str, Tool] = {
                         },
                     },
                 },
-                ("control_id", "feature", "stories"),
+                ("control_id", "epic", "feature", "stories"),
             ),
             systems.jira_create_feature,
             write=True,
@@ -363,14 +375,40 @@ TOOLS: dict[str, Tool] = {
             write=True,
         ),
         Tool(
-            "control_publish",
-            "Open a pull request on the run's team's control repository with a feature and its stories (kind "
-            "feature) or a design specification (kind design), as you. A person merging it approves it; only then "
-            "can it be written to Jira or handed to implementation. Use only when the user asks to add the work "
-            "to Jira or hand it on; drafts otherwise stay the user's artifacts.",
+            "feature_open",
+            "Open the feature the user approved in chat: its branch feature/<control-id> on the team's control "
+            "repository, with feature.md and the approval recorded. Returns an already open feature of the same "
+            "control ID or name instead of a second one. Only after the user's approval in chat.",
             _schema(
                 {
-                    "kind": {"type": "string", "enum": ["feature", "design"]},
+                    "content": {"type": "string", "description": "The feature and stories as approved (Markdown)."},
+                    "summary": {"type": "string", "description": "A few words naming the feature, for its ID."},
+                    "epic": {"type": "string", "description": "The epic's key, when known."},
+                    "control_id": {"type": "string", "description": "An already opened feature, to reuse it."},
+                }
+            ),
+            control.feature_open,
+            write=True,
+        ),
+        Tool(
+            "feature_target_branches",
+            "Open the approved feature's branch feature/<control-id> on the team's target repositories (its "
+            "default when none is named), from each one's default branch; recorded on the feature branch.",
+            _schema(
+                {"control_id": {"type": "string"}, "repositories": {"type": "array", "items": {"type": "string"}}},
+                ("control_id",),
+            ),
+            control.feature_target_branches,
+            write=True,
+        ),
+        Tool(
+            "control_publish",
+            "Open a pull request with a design specification (kind design) into the feature's branch on the "
+            "run's team's control repository, as you. A person merging it approves it and hands the design to "
+            "implementation. Use only when the user asks to hand the design on.",
+            _schema(
+                {
+                    "kind": {"type": "string", "enum": ["design"]},
                     "content": {"type": "string", "description": "The artifact's Markdown, without front matter."},
                     "control_id": {
                         "type": "string",

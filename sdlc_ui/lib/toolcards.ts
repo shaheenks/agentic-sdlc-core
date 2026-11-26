@@ -145,6 +145,10 @@ function workflow(name: string, args: Json, out: Json | null, running: boolean):
   add("Jira feature", (out?.feature as Json | undefined)?.key ?? out?.jira_key);
   add("Stories", out?.stories);
   add("Approved by", out?.approved_by);
+  add("Epic", (out?.epic as Json | undefined)?.key ? `${str((out?.epic as Json).key)}${(out?.epic as Json).created ? " (created)" : ""}` : undefined);
+  add("Feature branch", out?.branch);
+  if (out?.target_branches && typeof out.target_branches === "object") add("Target branches", Object.keys(out.target_branches as Json));
+  if (Array.isArray(out?.reused) && (out?.reused as unknown[]).length) add("Reused open issues", out?.reused);
   add("Linked to", out?.jira_feature_linked);
   add("Target repositories", out?.repositories);
   add("Next", out?.next);
@@ -153,7 +157,12 @@ function workflow(name: string, args: Json, out: Json | null, running: boolean):
   const pr = (out?.pull_request as Json | undefined)?.url;
   let detail = subject;
   if (outcome === "drafted") detail = `drafted${title ? ` “${clip(title, 70)}”` : ""}`;
-  if (outcome === "done") detail = `created ${str((out?.feature as Json | undefined)?.key)} with ${plural(list(out?.stories).length, "story", "stories")}`;
+  if (outcome === "done") {
+    const epic = str((out?.epic as Json | undefined)?.key);
+    const branch = str(out?.branch);
+    const made = `${str((out?.feature as Json | undefined)?.key)} with ${plural(list(out?.stories).length, "story", "stories")}`;
+    detail = `${made}${epic ? ` under ${epic}` : ""}${branch ? ` · ${branch}` : ""}`;
+  }
   if (outcome === "handed_off") detail = `handed off ${str(out?.control_id)}`;
   if (outcome === "stopped") detail = `stopped: ${clip(str(out?.reason), 120)}`;
   return {
@@ -220,6 +229,18 @@ function tool(name: string, args: Json, out: Json | null, running: boolean): Par
         [`${team}: control repository`, str((s.control_repo as Json | undefined)?.repo) || "none"],
       ] as [string, string][]);
       return { label: "Read the team's systems", detail: Object.keys(teams).join(", "), facts };
+    }
+    case "feature_open":
+      return {
+        label: "Opened the feature branch",
+        detail: running ? str(args.summary) : `${str(o.branch)}${o.already_open ? " (already open)" : ""}`,
+      };
+    case "feature_target_branches": {
+      const repos = (o.repositories ?? {}) as Record<string, unknown>;
+      return {
+        label: "Opened the feature branch on target repositories",
+        detail: running ? "" : Object.entries(repos).map(([r, how]) => `${r} (${str(how)})`).join(", "),
+      };
     }
     case "control_publish": {
       const pr = o.pull_request as Json | undefined;

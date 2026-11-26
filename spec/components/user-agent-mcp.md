@@ -163,3 +163,9 @@ The MCP server for user calls ([DEC-0002](../decisions/DEC-0002.md), accepted; [
   the server unreachable, Confluence) is stored as untested. A Jira Cloud token needs the account email.
   `POST /api/connections/{provider}/test` runs `connection_test`, which signs in with the stored token and says
   as whom ([FR-CONN-001](../requirements/functional/FR-CONN-001.md)).
+- Feature branches ([DEC-0013](../decisions/DEC-0013.md)): `feature_open` opens `feature/<control-id>` on the control
+  repository with `feature.md` and the chat approval (who, when) written by the server, reusing an open feature of
+  the same ID or name; `feature_target_branches` opens it on the target repositories; approvals, `links.yaml` and the
+  design pull request use the feature branch (main for features published before DEC-0013).
+  `jira_create_feature` creates the Epic (when confirmed), the Feature under it and the stories as its sub-tasks,
+  reusing open issues of the same summary; `jira_search` can restrict to open issues.

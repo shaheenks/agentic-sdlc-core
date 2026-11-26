@@ -32,6 +32,10 @@ published artifact checks that it is approved there.
 - The results of each write (Jira keys, Confluence pages, pull requests) are recorded next to the artifact.
 - Every pull request the agents open carries the Jira keys of the stories it delivers, or of the feature, in its
   title, description and branch name; the Jira issues link back to it.
+- A feature and its stories are approved by the user in chat: the approval is recorded by committing `feature.md`
+  (with who approved and when) to the feature's branch `feature/<control-id>` on the control repository, before any
+  Jira write. Every later artifact (design, plans) reaches that branch by a pull request; approved means merged into
+  the feature branch by a person, and the check is made against the feature branch, not main ([DEC-0013](../../decisions/DEC-0013.md)).
 
 # Notes
 

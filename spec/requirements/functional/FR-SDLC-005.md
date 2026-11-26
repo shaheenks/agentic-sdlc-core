@@ -27,6 +27,8 @@ hand-off.
 - The design is not opened as a pull request on a product repository.
 - The event-based agents never read the user's artifact store; the control repository and Jira are their only
   channels ([FR-AUTHZ-008](FR-AUTHZ-008.md)).
+- The pull request goes into the feature's branch `feature/<control-id>`, not main; a person merging it into the
+  feature branch approves it and hands it on. A design needs its feature approved and opened first ([DEC-0013](../../decisions/DEC-0013.md)).
 
 # Notes
 

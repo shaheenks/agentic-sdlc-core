@@ -36,6 +36,9 @@ before each such write.
   as an artifact without links.
 - A user reaches the control repository with their own connection; the event-based agents with the system
   identity's.
+- Each feature has a branch `feature/<control-id>` on the control repository (and on the target repositories),
+  opened when the user approves the feature in chat; its artifacts and `links.yaml` live there, and approvals are
+  checked there. Features published before [DEC-0013](../../decisions/DEC-0013.md) stay on main under the earlier rule.
 
 # Notes
 

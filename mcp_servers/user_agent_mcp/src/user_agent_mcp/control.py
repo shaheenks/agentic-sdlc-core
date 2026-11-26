@@ -1,11 +1,14 @@
-"""The run's team's control repository (DEC-0012, FR-SDLC-001, FR-SDLC-013): artifacts are published there by pull
-request with the user's own connection, a person merging the pull request approves them, and every write to Jira,
-Confluence or a product repository checks that approval here first and records its results here afterwards.
+"""The run's team's control repository (DEC-0012, DEC-0013, FR-SDLC-001, FR-SDLC-013).
+
+A feature the user approves in chat gets its own branch, `feature/<control-id>`, on the control repository: its
+`feature.md` is committed there with the approval recorded in its front matter (who and when), and every later
+artifact of the feature (design, plans) reaches that branch by a pull request a person merges. Every write to Jira,
+Confluence or a product repository checks the approval on the feature's branch first and records its results in the
+feature's `links.yaml` there afterwards. Features published before DEC-0013 live on the main branch, where the
+DEC-0012 rule (merged into main) still applies.
 
 The checks are made by this server, never by the agent: which repository is the team's (configuration), where an
-artifact lives (`features/<control-id>/<kind>.md`), its front matter (written here, not by the model), and whether
-it is approved (the last commit that changed it on the main branch came from a pull request merged by a person who
-is not one of the declared system accounts).
+artifact lives, its front matter (written here, not by the model), and whether it is approved.
 """
 
 import re
@@ -25,7 +28,7 @@ CONTROL_ID = re.compile(r"^F-[0-9]{8}-[a-z0-9][a-z0-9-]{0,39}$")
 BRANCH = re.compile(r"^sdlc/(F-[0-9]{8}-[a-z0-9-]{1,40})/(feature|design)-")
 KINDS = ("feature", "design")
 MAX_ARTIFACT = 200_000
-FRONT_MATTER = re.compile(r"\A---\n.*?\n---\n?", re.S)
+FRONT_MATTER = re.compile(r"\A---\n(.*?)\n---\n?", re.S)
 
 
 def _now() -> str:
@@ -38,6 +41,16 @@ def path_of(control_id: str, kind: str) -> str:
 
 def links_path(control_id: str) -> str:
     return f"features/{control_id}/links.yaml"
+
+
+def feature_branch(control_id: str) -> str:
+    return f"feature/{control_id}"
+
+
+def _check_id(control_id: Any) -> str:
+    if not isinstance(control_id, str) or not CONTROL_ID.match(control_id):
+        raise ToolError("invalid_argument", "control_id looks like F-20261125-refunds")
+    return control_id
 
 
 class Control:
@@ -58,51 +71,89 @@ class Control:
             system, edition, base_url, settings["repo"], _credential(platform, caller, settings["provider"])
         )
         self.by = caller.identity.email
+        self._homes: dict[str, str] = {}
 
-    def approval(self, path: str) -> dict[str, Any]:
-        """Whether `path` is approved on the main branch, and by which merge."""
-        change: Change | None = self.client.last_change(path, self.branch)
+    def home(self, control_id: str) -> str:
+        """The branch a feature's artifacts live on: its feature branch, or main for a feature published before
+        DEC-0013."""
+        if control_id not in self._homes:
+            branch = feature_branch(control_id)
+            self._homes[control_id] = branch if branch in self.client.branches(branch) else self.branch
+        return self._homes[control_id]
+
+    def on_feature_branch(self, control_id: str) -> bool:
+        return self.home(control_id) != self.branch
+
+    def approval(self, control_id: str, kind: str) -> dict[str, Any]:
+        """Whether an artifact is approved on the feature's branch, and by whom: a feature by the user in chat (its
+        front matter), anything else by a pull request into that branch merged by a person."""
+        branch, path = self.home(control_id), path_of(control_id, kind)
+        change: Change | None = self.client.last_change(path, branch)
         if change is None:
-            return {"path": path, "published": False, "approved": False}
+            return {"path": path, "branch": branch, "published": False, "approved": False}
+        found: dict[str, Any] = {"path": path, "branch": branch, "published": True, "commit": change.commit}
+        if kind == "feature" and branch != self.branch:
+            meta = _front_matter(self.read(path, branch) or "")
+            approved = bool(meta.get("approved_by"))
+            found |= {
+                "approved": approved,
+                "approved_by": meta.get("approved_by"),
+                "approved_at": meta.get("approved_at"),
+            }
+            if not approved:
+                found["reason"] = "the feature has no recorded approval"
+            return found
         approved = bool(
             change.pull_request and change.merged_by and change.merged_by.lower() not in self.system_accounts
         )
-        found = {"path": path, "published": True, "approved": approved, "commit": change.commit}
+        found["approved"] = approved
         if change.pull_request:
             found |= {"pull_request": change.pull_request, "merged_by": change.merged_by, "url": change.url}
         else:
-            found["reason"] = "the last change on the main branch did not come from a merged pull request"
+            found["reason"] = f"the last change on {branch} did not come from a merged pull request"
         return found
 
     def require_approved(self, control_id: str, kind: str) -> dict[str, Any]:
-        found = self.approval(path_of(control_id, kind))
+        found = self.approval(control_id, kind)
         if not found["approved"]:
-            raise ToolError(
-                "not_approved",
-                f"{kind}.md of {control_id} is not approved on your team's control repository: open its pull "
-                "request with control_publish and have it merged first",
+            how = (
+                "approve the feature in chat first (feature_open)"
+                if kind == "feature"
+                else f"open its pull request into {found['branch']} with control_publish and have it merged first"
             )
+            raise ToolError("not_approved", f"{kind}.md of {control_id} is not approved: {how}")
         return found
 
-    def read(self, path: str) -> str | None:
+    def read(self, path: str, branch: str | None = None) -> str | None:
         try:
-            return self.client.read_file(path, self.branch)
+            return self.client.read_file(path, branch or self.branch)
         except ConnectorError as exc:
             if exc.code == "not_found":
                 return None
             raise
 
     def links(self, control_id: str) -> dict[str, Any]:
-        text = self.read(links_path(control_id))
+        text = self.read(links_path(control_id), self.home(control_id))
         doc = yaml.safe_load(text) if text else None
         return doc if isinstance(doc, dict) else {"writes": []}
 
     def record(self, control_id: str, entry: dict[str, Any]) -> None:
-        """Adds one write and its results to the feature's links.yaml, committed directly on the main branch."""
+        """Adds one write and its results to the feature's links.yaml, committed directly on the feature's branch."""
         doc = self.links(control_id)
         doc.setdefault("writes", []).append({"at": _now(), "by": self.by, **entry})
         text = yaml.safe_dump(doc, sort_keys=False, allow_unicode=True)
-        self.client.commit_file(links_path(control_id), text, self.branch, f"{control_id}: record {entry['action']}")
+        self.client.commit_file(
+            links_path(control_id), text, self.home(control_id), f"{control_id}: record {entry['action']}"
+        )
+
+
+def _front_matter(text: str) -> dict[str, Any]:
+    match = FRONT_MATTER.match(text.lstrip())
+    try:
+        meta = yaml.safe_load(match.group(1)) if match else None
+    except yaml.YAMLError:
+        meta = None
+    return meta if isinstance(meta, dict) else {}
 
 
 def _open_pull_requests(control: "Control") -> list[dict[str, Any]]:
@@ -151,85 +202,128 @@ def _with_front_matter(body: str, meta: dict[str, Any]) -> str:
     return "---\n" + yaml.safe_dump(meta, sort_keys=False, allow_unicode=True) + "---\n\n" + body.strip() + "\n"
 
 
+async def feature_open(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    """The feature the user approved in chat (DEC-0013): its branch `feature/<control-id>` on the control repository,
+    with feature.md and the approval (who, when) committed to it as the user. A feature already open under the same
+    control ID or name is returned instead; nothing is opened twice."""
+    from user_agent_mcp.systems import _call
+
+    control = Control(platform, caller)
+    if args.get("control_id"):
+        control_id = _check_id(args["control_id"])
+        if not await _call(lambda: control.on_feature_branch(control_id)):
+            raise ToolError("not_found", f"{control_id} has no feature branch")
+        return {"control_id": control_id, "branch": feature_branch(control_id), "already_open": True}
+    body = _body(args.get("content"))
+    summary = str(args.get("summary") or body.splitlines()[0])
+    slug = _slug(summary)
+    named = re.compile(rf"^feature/(F-[0-9]{{8}}-{re.escape(slug)}(-[0-9]+)?)$")
+    for branch in await _call(lambda: control.client.branches("feature/F-")):
+        match = named.match(branch)
+        if match:
+            return {"control_id": match.group(1), "branch": branch, "already_open": True}
+    control_id = await _new_id(control, summary)
+    branch = feature_branch(control_id)
+    meta = {
+        "control_id": control_id,
+        "team": control.team,
+        "kind": "feature",
+        "drafted_by": control.by,
+        "approved_by": control.by,
+        "approved_at": _now(),
+        "approved_in": "chat",
+        **({"epic": args["epic"]} if isinstance(args.get("epic"), str) and args["epic"] else {}),
+    }
+    await _call(lambda: control.client.create_branch(branch, control.branch))
+    await _call(
+        lambda: control.client.commit_file(
+            path_of(control_id, "feature"),
+            _with_front_matter(body, meta),
+            branch,
+            f"{control_id}: feature approved by {control.by} in chat",
+        )
+    )
+    return {"control_id": control_id, "branch": branch, "files": [path_of(control_id, "feature")]}
+
+
+async def feature_target_branches(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
+    """The approved feature's branch on the team's target repositories (its default when none is named), from each
+    repository's default branch, recorded on the feature branch; an existing branch is left as it is."""
+    from user_agent_mcp.systems import _call, _repo
+
+    control = Control(platform, caller)
+    control_id = _check_id(args.get("control_id"))
+    await _call(lambda: control.require_approved(control_id, "feature"))
+    names = [r for r in args.get("repositories") or [] if isinstance(r, str)][:10] or [None]
+    branch, opened = feature_branch(control_id), {}
+    for name in names:
+        client, repo = _repo(platform, caller, name, write=True)
+        created = await _call(lambda c=client, r=repo: c.create_branch(branch, r["default_branch"]))
+        opened[repo["repo"]] = "created" if created else "existed"
+    await _call(
+        lambda: control.record(
+            control_id, {"action": "open_branches", "system": "repositories", "results": {"branch": branch, **opened}}
+        )
+    )
+    return {"control_id": control_id, "branch": branch, "repositories": opened}
+
+
 async def control_publish(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
-    """Opens a pull request on the team's control repository with a feature (and its stories) or a design, as the
-    user. A design names a published feature (`control_id`) or brings the feature with it (`feature`)."""
+    """Opens a pull request with a design into the feature's branch on the team's control repository, as the user;
+    a person merging it approves it (DEC-0013). Features are approved in chat and opened with feature_open."""
     from user_agent_mcp.systems import _call
 
     control = Control(platform, caller)
     kind = args.get("kind")
-    if kind not in KINDS:
-        raise ToolError("invalid_argument", "kind must be feature or design")
+    if kind == "feature":
+        raise ToolError("invalid_argument", "a feature is approved in chat and opened with feature_open (DEC-0013)")
+    if kind != "design":
+        raise ToolError("invalid_argument", "kind must be design")
     body = _body(args.get("content"))
+    control_id = _check_id(args.get("control_id"))
     jira = [k for k in args.get("jira_keys") or [] if isinstance(k, str)][:50]
-    control_id = args.get("control_id")
-    files: dict[str, str] = {}
-    meta = {"team": control.team, "drafted_by": control.by, "published": _now()}
-    if control_id:
-        if not isinstance(control_id, str) or not CONTROL_ID.match(control_id):
-            raise ToolError("invalid_argument", "control_id looks like F-20261125-refunds")
-    # Never a second pull request for the same artifact: an open one is returned instead.
-    name_source = str(args.get("summary") or (args.get("feature") if kind == "design" else body) or body)
-    slug = _slug(name_source.strip().splitlines()[0] if name_source.strip() else "feature")
-    existing = _similar(await _call(lambda: _open_pull_requests(control)), kind, control_id, slug)
+    base = await _call(lambda: control.home(control_id))
+    if base == control.branch:
+        raise ToolError("not_found", f"{control_id} has no feature branch: approve the feature first (publish_feature)")
+    existing = _similar(await _call(lambda: _open_pull_requests(control)), kind, control_id, "")
     if existing:
         return {
-            "control_id": existing["control_id"],
+            "control_id": control_id,
             "kind": kind,
             "already_open": True,
             "pull_request": {"number": existing["number"], "url": existing["url"], "branch": existing["branch"]},
             "next": "a pull request for this is already open: have it merged (or closed) instead of opening another",
         }
-    if kind == "feature":
-        if not control_id:
-            control_id = await _new_id(control, str(args.get("summary") or body.splitlines()[0]))
-        files[path_of(control_id, "feature")] = _with_front_matter(
-            body, {"control_id": control_id, "kind": "feature", **meta, **({"jira": jira} if jira else {})}
-        )
-    else:
-        previous: dict[str, Any] = {}
-        if control_id:
-            feature = await _call(lambda: control.approval(path_of(control_id, "feature")))
-            if not feature["published"]:
-                raise ToolError("not_found", f"{control_id} has no published feature; bring it with `feature`")
-            previous = {"path": feature["path"], "commit": feature["commit"], "approved": feature["approved"]}
-        else:
-            feature_body = _body(args.get("feature"))
-            control_id = await _new_id(control, str(args.get("summary") or feature_body.splitlines()[0]))
-            files[path_of(control_id, "feature")] = _with_front_matter(
-                feature_body, {"control_id": control_id, "kind": "feature", **meta}
-            )
-            previous = {"path": path_of(control_id, "feature"), "in_this_pull_request": True}
-        files[path_of(control_id, "design")] = _with_front_matter(
-            body,
-            {
-                "control_id": control_id,
-                "kind": "design",
-                **meta,
-                "previous": previous,
-                **({"jira": jira} if jira else {}),
-            },
-        )
+    feature = await _call(lambda: control.approval(control_id, "feature"))
+    meta = {
+        "control_id": control_id,
+        "kind": "design",
+        "team": control.team,
+        "drafted_by": control.by,
+        "published": _now(),
+        "previous": {"path": feature["path"], "commit": feature.get("commit"), "approved": feature["approved"]},
+        **({"jira": jira} if jira else {}),
+    }
     keys = " ".join(jira[:5])
-    title = str(args.get("title") or f"{control_id}: {kind}")[:200]
+    title = str(args.get("title") or f"{control_id}: design")[:200]
     if keys and keys not in title:
         title = f"{keys} {title}"[:200]
     description = str(args.get("description") or "")[:20_000]
-    description += f"\n\n---\nPublished by {control.by} for team {control.team} ({control_id}, {kind}). Merging this "
-    description += "pull request approves it (DEC-0012)."
-    branch = f"sdlc/{control_id}/{kind}-{secrets.token_hex(3)}"
-    changes = [FileChange(p, c) for p, c in files.items()]
+    description += f"\n\n---\nPublished by {control.by} for team {control.team} ({control_id}, design). Merging this "
+    description += f"pull request into {base} approves it (DEC-0013)."
+    branch = f"sdlc/{control_id}/design-{secrets.token_hex(3)}"
+    changes = [FileChange(path_of(control_id, "design"), _with_front_matter(body, meta))]
     pr = await _call(
         lambda: control.client.open_pull_request(
-            branch, control.branch, title, description.strip(), changes, f"{control_id}: {kind}"
+            branch, base, title, description.strip(), changes, f"{control_id}: design"
         )
     )
     return {
         "control_id": control_id,
         "kind": kind,
-        "pull_request": {"number": pr.number, "url": pr.url, "branch": pr.branch},
-        "files": list(files),
-        "next": "a person merges the pull request; then control_status shows the artifact as approved",
+        "pull_request": {"number": pr.number, "url": pr.url, "branch": pr.branch, "base": base},
+        "files": [path_of(control_id, "design")],
+        "next": f"a person merges the pull request into {base}; then control_status shows the design as approved",
     }
 
 
@@ -239,15 +333,20 @@ async def _new_id(control: Control, summary: str) -> str:
     base = f"F-{datetime.now(UTC):%Y%m%d}-{_slug(summary)}"
     for n in range(1, 20):
         candidate = base if n == 1 else f"{base[:46]}-{n}"
-        found = await _call(lambda c=candidate: control.client.last_change(path_of(c, "feature"), control.branch))
-        if found is None:
+        taken = await _call(
+            lambda c=candidate: (
+                bool(control.client.branches(feature_branch(c)))
+                or control.client.last_change(path_of(c, "feature"), control.branch) is not None
+            )
+        )
+        if not taken:
             return candidate
     raise ToolError("conflict", "too many features with this name today; give a different summary")
 
 
 async def control_status(platform: "Platform", caller: "Caller", args: dict[str, Any]) -> dict[str, Any]:
-    """Whether a feature's artifacts are approved on the team's control repository, what has been written from them,
-    and, on request, their text. Finds the feature by control ID or by the Jira key of its feature issue."""
+    """Whether a feature's artifacts are approved (on its feature branch), what has been written from them, and, on
+    request, their text. Finds the feature by control ID or by the Jira key of its feature issue."""
     from user_agent_mcp.systems import _call
 
     control = Control(platform, caller)
@@ -255,20 +354,20 @@ async def control_status(platform: "Platform", caller: "Caller", args: dict[str,
     jira_key = args.get("jira_key")
     if not control_id and isinstance(jira_key, str):
         control_id = await _control_id_of(platform, caller, jira_key)
-    if not isinstance(control_id, str) or not CONTROL_ID.match(control_id):
-        raise ToolError("invalid_argument", "give control_id (such as F-20261125-refunds) or a Jira feature key")
+    control_id = _check_id(control_id)
     artifacts = {}
     for kind in KINDS:
-        found = await _call(lambda k=kind: control.approval(path_of(control_id, k)))
+        found = await _call(lambda k=kind: control.approval(control_id, k))
         if args.get("include_content") and found["published"]:
-            text = await _call(lambda p=found["path"]: control.read(p))
-            found["content"] = (text or "")[:MAX_ARTIFACT]
+            text = await _call(lambda p=found["path"], b=found["branch"]: control.read(p, b))
+            found["content"] = FRONT_MATTER.sub("", (text or "").lstrip(), count=1)[:MAX_ARTIFACT]
         artifacts[kind] = found
     links = await _call(lambda: control.links(control_id))
     result = {
         "control_id": control_id,
         "team": control.team,
         "repository": control.settings["repo"],
+        "branch": control.home(control_id),
         "artifacts": artifacts,
         "writes": links.get("writes") or [],
     }

@@ -366,3 +366,29 @@ def test_jira_finds_a_custom_field_by_name_and_sets_it():
     )
     sent = json.loads(fake.seen[1].content)["fields"]
     assert sent["customfield_10016"] == 3 and sent["labels"] == ["size-M"] and sent["summary"] == "S"
+
+
+def test_branches_are_listed_by_prefix_and_created_once():
+    refs = [{"ref": "refs/heads/feature/F-1"}]
+    gh = Fake(
+        {
+            ("GET", "/repos/o/c/git/matching-refs/heads/feature/F-2"): httpx.Response(200, json=[]),
+            ("GET", "/repos/o/c/git/matching-refs/heads/feature/F-1"): httpx.Response(200, json=refs),
+            ("GET", "/repos/o/c/git/ref/heads/main"): httpx.Response(200, json={"object": {"sha": "abc"}}),
+            ("POST", "/repos/o/c/git/refs"): httpx.Response(201, json={}),
+        }
+    )
+    repo = repository("github", "cloud", "https://api.github.com", "o/c", Credential(TOKEN), gh.client())
+    assert repo.create_branch("feature/F-2", "main") is True
+    assert json.loads(gh.seen[-1].content) == {"ref": "refs/heads/feature/F-2", "sha": "abc"}
+    assert repo.create_branch("feature/F-1", "main") is False  # exists: nothing created
+    base = "/rest/api/1.0/projects/P/repos/c"
+    dc = Fake(
+        {
+            ("GET", f"{base}/branches"): httpx.Response(200, json={"values": []}),
+            ("POST", f"{base}/branches"): httpx.Response(200, json={}),
+        }
+    )
+    repo = repository("bitbucket", "data_center", "https://bb.example.test", "P/c", Credential(TOKEN), dc.client())
+    assert repo.create_branch("feature/F-3", "main") is True
+    assert json.loads(dc.seen[-1].content) == {"name": "feature/F-3", "startPoint": "refs/heads/main"}

@@ -36,4 +36,4 @@ tool_groups:
     description: >-
       The run's team's control repository: publish artifacts by pull request and check their approval
       (FR-SDLC-013, DEC-0012).
-    tools: [control_publish, control_status, control_pull_requests]
+    tools: [control_publish, control_status, control_pull_requests, feature_open, feature_target_branches]

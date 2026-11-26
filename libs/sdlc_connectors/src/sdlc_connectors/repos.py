@@ -62,6 +62,8 @@ class Repository(Protocol):
     def last_change(self, path: str, branch: str) -> Change | None: ...
     def commit_file(self, path: str, content: str, branch: str, message: str) -> str: ...
     def open_pull_requests(self) -> list[OpenPullRequest]: ...
+    def branches(self, prefix: str) -> list[str]: ...
+    def create_branch(self, name: str, start: str) -> bool: ...
 
 
 def _check(path: str = "", branch: str = "") -> None:
@@ -132,6 +134,24 @@ class GitHub:
 
     def commit_file(self, path: str, content: str, branch: str, message: str) -> str:
         return self._put(path, content, branch, message)
+
+    def branches(self, prefix: str) -> list[str]:
+        """Branch names that start with `prefix`."""
+        _check(branch=prefix.rstrip("/") or "x")
+        found = self.http.request("GET", f"/repos/{self.repo}/git/matching-refs/heads/{quote(prefix)}") or []
+        return [r["ref"].removeprefix("refs/heads/") for r in found if isinstance(r, dict) and "ref" in r]
+
+    def create_branch(self, name: str, start: str) -> bool:
+        """Creates `name` from the head of `start`; False when it exists already."""
+        _check(branch=name)
+        _check(branch=start)
+        if name in self.branches(name):
+            return False
+        head = self.http.request("GET", f"/repos/{self.repo}/git/ref/heads/{quote(start)}")
+        self.http.request(
+            "POST", f"/repos/{self.repo}/git/refs", json={"ref": f"refs/heads/{name}", "sha": head["object"]["sha"]}
+        )
+        return True
 
     def open_pull_requests(self) -> list[OpenPullRequest]:
         found = self.http.request("GET", f"/repos/{self.repo}/pulls", params={"state": "open", "per_page": 100}) or []
@@ -235,6 +255,26 @@ class BitbucketCloud:
         )
         change = self.last_change(path, branch)
         return change.commit if change else ""
+
+    def branches(self, prefix: str) -> list[str]:
+        _check(branch=prefix.rstrip("/") or "x")
+        found = self.http.request(
+            "GET", f"/2.0/repositories/{self.repo}/refs/branches", params={"q": f'name ~ "{prefix}"', "pagelen": 100}
+        )
+        return [b["name"] for b in (found or {}).get("values") or () if str(b.get("name", "")).startswith(prefix)]
+
+    def create_branch(self, name: str, start: str) -> bool:
+        _check(branch=name)
+        _check(branch=start)
+        if name in self.branches(name):
+            return False
+        head = self.http.request("GET", f"/2.0/repositories/{self.repo}/refs/branches/{quote(start)}")
+        self.http.request(
+            "POST",
+            f"/2.0/repositories/{self.repo}/refs/branches",
+            json={"name": name, "target": {"hash": head["target"]["hash"]}},
+        )
+        return True
 
     def open_pull_requests(self) -> list[OpenPullRequest]:
         found = self.http.request(
@@ -347,6 +387,21 @@ class BitbucketDataCenter:
 
     def commit_file(self, path: str, content: str, branch: str, message: str) -> str:
         return self._put(path, content, branch, message)
+
+    def branches(self, prefix: str) -> list[str]:
+        _check(branch=prefix.rstrip("/") or "x")
+        found = self.http.request("GET", f"{self.base}/branches", params={"filterText": prefix, "limit": 100})
+        return [
+            b["displayId"] for b in (found or {}).get("values") or () if str(b.get("displayId", "")).startswith(prefix)
+        ]
+
+    def create_branch(self, name: str, start: str) -> bool:
+        _check(branch=name)
+        _check(branch=start)
+        if name in self.branches(name):
+            return False
+        self.http.request("POST", f"{self.base}/branches", json={"name": name, "startPoint": f"refs/heads/{start}"})
+        return True
 
     def open_pull_requests(self) -> list[OpenPullRequest]:
         found = self.http.request("GET", f"{self.base}/pull-requests", params={"state": "OPEN", "limit": 100})

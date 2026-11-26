@@ -29,6 +29,9 @@ The system shall have ci_workflow_agent implement a merged design specification:
   `design.md` starts the run, and each plan is proposed as `plan-<repo>.md` by pull request there; implementation
   pull requests are opened only after the plan is approved, and their links are recorded in `links.yaml`
   ([DEC-0012](../../decisions/DEC-0012.md) (accepted)).
+- Plans go by pull request into the feature branch on the control repository, implementation pull requests into
+  the feature branch on each target repository; approvals are checked there. A person merges the feature branches into
+  main when the feature is done ([DEC-0013](../../decisions/DEC-0013.md)).
 
 # Notes
 

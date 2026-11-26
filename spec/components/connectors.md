@@ -72,3 +72,5 @@ do this as the user, so the downstream system's own permissions still apply.
   through and who merged it, and a direct commit of one file. Jira also reads an issue's web links. Errors carry a
   code and the status, never the credential, the request or a response body. Checked
   against faked APIs; the cloud editions of Jira and GitHub are checked on real systems at phase 4a's exit gate.
+- Branches: list by prefix and create from another branch (GitHub, Bitbucket Cloud and Data Center); Jira: open
+  issues and the story points field by name.

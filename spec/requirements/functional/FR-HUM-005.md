@@ -22,3 +22,5 @@ The system shall run a tool classed as a write only after an approved human task
 - For writes to Jira, Confluence or product repositories in the SDLC flow, the approval bound to the write is the
   merge of the artifact's pull request on the team's control repository, checked by the MCP server
   ([FR-SDLC-013](FR-SDLC-013.md), [DEC-0012](../../decisions/DEC-0012.md) (accepted)).
+- For a feature and its stories, the approval bound to the Jira write is the user's approval in chat, recorded by the
+  commit on the feature branch before the write ([DEC-0013](../../decisions/DEC-0013.md)).

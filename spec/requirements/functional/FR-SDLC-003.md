@@ -30,6 +30,7 @@ artifact until the user publishes it ([FR-SDLC-005](FR-SDLC-005.md)).
   every user story to the sections that satisfy it.
 - Policy skills declared for the team are applied while drafting, and any conflict with a policy is flagged.
 - It is reviewed by fresh-context reviewers ([FR-SDLC-004](FR-SDLC-004.md)) and saved as the user's artifact.
+- From a published feature, the feature is read from its feature branch on the control repository ([DEC-0013](../../decisions/DEC-0013.md)).
 
 # Notes
 

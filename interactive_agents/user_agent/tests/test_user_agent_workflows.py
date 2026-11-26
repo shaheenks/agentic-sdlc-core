@@ -89,6 +89,7 @@ class FakeMcp:
         self.approved = False
         self.jira_recorded = True
         self.open = False
+        self.jira_refuses = False
 
     async def call(self, ctx: Any, name: str, arguments: dict | None = None) -> dict:
         arguments = arguments or {}
@@ -115,10 +116,26 @@ class FakeMcp:
                 "writes": writes,
                 "jira_feature_recorded": self.jira_recorded,
             }
+        if name == "jira_search":
+            return {"issues": [{"key": "PAY-5", "summary": "Payments 2027", "url": "https://x/PAY-5"}]}
+        if name == "feature_open":
+            control_id = arguments.get("control_id") or "F-20261126-refunds"
+            return {"control_id": control_id, "branch": f"feature/{control_id}"}
+        if name == "feature_target_branches":
+            return {"control_id": arguments["control_id"], "repositories": {"org/payments": "created"}}
         if name == "jira_get_issue":
             return {"key": "PAY-1", "status": "In Design", "stories": []}
         if name == "jira_create_feature":
-            return {"control_id": arguments["control_id"], "feature": {"key": "PAY-1"}, "stories": ["PAY-2"]}
+            if self.jira_refuses:
+                raise StepError("downstream_invalid", "Jira answered 400 (invalid: issuetype)")
+            epic = arguments["epic"].get("key") or "PAY-9"
+            return {
+                "control_id": arguments["control_id"],
+                "epic": {"key": epic, "created": "key" not in arguments["epic"]},
+                "feature": {"key": "PAY-1"},
+                "stories": ["PAY-2"],
+                "reused": [],
+            }
         if name == "jira_link_design":
             return {"feature": "PAY-1"}
         raise AssertionError(name)
@@ -221,46 +238,6 @@ async def test_a_team_the_user_is_not_in_is_refused_and_the_scope_restored(world
     assert result["code"] == "forbidden"
     assert (await state_of(runner, session)).get(TEAM_KEY) is None  # the scope is restored
     assert not any(role == "drafter" for role, _ in script.seen)
-
-
-PUBLISH = (
-    "publish_feature",
-    {
-        "team": "payments",
-        "content": "# Feature: Refunds",
-        "summary": "Refunds",
-        "feature": {"summary": "Refunds", "description": "Faster refunds"},
-        "stories": [{"summary": "As a payer, I want a refund", "description": "Given..."}],
-        "description": "No open findings.",
-    },
-)
-
-
-async def test_jira_is_written_only_after_the_merge_is_approved(world):
-    script, mcp, runner = world
-    script.calls["add it to Jira"] = PUBLISH
-    session = await start(runner)
-    ((interrupt, request),) = (await turn(runner, session, text="add it to Jira"))["requests"]
-    assert request["payload"]["kind"] == "merge_wait" and "https://gh/pr/1" in request["message"]
-    assert mcp.names() == ["team_systems", "control_publish"]
-
-    ((interrupt, again),) = (await turn(runner, session, answer=(interrupt, "merged")))["requests"]
-    assert again["message"].startswith("Not approved yet") and "jira_create_feature" not in mcp.names()
-
-    mcp.approved = True
-    done = (await turn(runner, session, answer=(interrupt, "merged")))["results"]["publish_feature"]
-    assert done["status"] == "done" and done["feature"]["key"] == "PAY-1" and done["approved_by"] == "grace"
-    name, args, team = mcp.calls[-1]
-    assert name == "jira_create_feature" and args["control_id"] == "F-20261125-refunds" and team == "payments"
-
-
-async def test_cancelling_the_wait_writes_nothing(world):
-    script, mcp, runner = world
-    script.calls["add it to Jira"] = PUBLISH
-    session = await start(runner)
-    ((interrupt, _),) = (await turn(runner, session, text="add it to Jira"))["requests"]
-    stopped = (await turn(runner, session, answer=(interrupt, "cancel")))["results"]["publish_feature"]
-    assert stopped["code"] == "cancelled" and "jira_create_feature" not in mcp.names()
 
 
 async def test_a_design_from_jira_starts_only_from_an_approved_feature(world):
@@ -371,25 +348,90 @@ def test_the_drafter_has_a_reading_budget():
     assert check(Tool("repo_list"), {}, Ctx) is None
 
 
-async def test_an_already_open_pull_request_is_waited_on_not_duplicated(world):
+PUBLISH = (
+    "publish_feature",
+    {
+        "team": "payments",
+        "content": "# Feature: Refunds",
+        "summary": "Refunds",
+        "feature": {"summary": "Refunds", "description": "Faster refunds", "estimate": "M"},
+        "stories": [{"summary": "As a payer, I want a refund", "description": "Given...", "story_points": 3}],
+        "epic": {"summary": "Payments 2027 (new)", "description": "This year's payments work."},
+    },
+)
+
+
+async def test_the_user_approves_the_feature_and_its_epic_then_branches_and_jira_follow(world):
     script, mcp, runner = world
     script.calls["add it to Jira"] = PUBLISH
-    mcp.open = True
     session = await start(runner)
-    ((_, request),) = (await turn(runner, session, text="add it to Jira"))["requests"]
-    assert (
-        request["message"].startswith("A pull request for this was already open")
-        and "https://gh/pr/1" in request["message"]
-    )
-    assert mcp.names().count("control_publish") == 1
+    ((interrupt, request),) = (await turn(runner, session, text="add it to Jira"))["requests"]
+    payload = request["payload"]
+    assert payload["kind"] == "feature_approval" and payload["epics"][0]["key"] == "PAY-5"
+    assert payload["proposed_epic"]["summary"] == "Payments 2027 (new)" and payload["stories"][0]["story_points"] == 3
+    assert mcp.names() == ["team_systems", "jira_search"]  # nothing written before the approval
+    assert mcp.calls[-1][1] == {"issue_type": "Epic", "open_only": True}
+
+    done = (await turn(runner, session, answer=(interrupt, {"approve": True, "epic": "PAY-5"})))["results"]
+    result = done["publish_feature"]
+    assert result["status"] == "done" and result["branch"] == "feature/F-20261126-refunds"
+    assert result["epic"]["key"] == "PAY-5" and result["target_branches"] == {"org/payments": "created"}
+    assert mcp.names()[2:] == ["feature_open", "jira_create_feature", "feature_target_branches"]
+    created = next(args for name, args, _ in mcp.calls if name == "jira_create_feature")
+    assert created["epic"] == {"key": "PAY-5"} and created["stories"][0]["story_points"] == 3
 
 
-async def test_a_retry_with_the_control_id_creates_the_issues_without_a_new_pull_request(world):
+async def test_the_proposed_epic_is_created_only_on_the_users_yes(world):
+    script, mcp, runner = world
+    script.calls["add it to Jira"] = PUBLISH
+    session = await start(runner)
+    ((interrupt, _),) = (await turn(runner, session, text="add it to Jira"))["requests"]
+    await turn(runner, session, answer=(interrupt, {"approve": True, "create_epic": True}))
+    created = next(args for name, args, _ in mcp.calls if name == "jira_create_feature")
+    assert created["epic"] == {
+        "summary": "Payments 2027 (new)",
+        "description": "This year's payments work.",
+        "create": True,
+    }
+
+
+async def test_rejecting_or_no_epic_writes_nothing(world):
     script, mcp, runner = world
     name, args = PUBLISH
-    script.calls["retry"] = (name, {**args, "control_id": "F-20261125-refunds"})
-    mcp.approved = True
+    script.calls["add it to Jira"] = PUBLISH
+    script.calls["no epic"] = (name, {**args, "epic": {}})
     session = await start(runner)
-    done = (await turn(runner, session, text="retry"))["results"]["publish_feature"]
-    assert done["status"] == "done" and done["feature"]["key"] == "PAY-1"
-    assert "control_publish" not in mcp.names() and mcp.names()[-1] == "jira_create_feature"
+    ((interrupt, _),) = (await turn(runner, session, text="add it to Jira"))["requests"]
+    stopped = (await turn(runner, session, answer=(interrupt, {"approve": False})))["results"]["publish_feature"]
+    assert stopped["code"] == "not_approved"
+    ((interrupt, _),) = (await turn(runner, session, text="no epic"))["requests"]
+    stopped = (await turn(runner, session, answer=(interrupt, "yes")))["results"]["publish_feature"]
+    assert stopped["code"] == "no_epic"
+    assert not {"feature_open", "jira_create_feature"} & set(mcp.names())
+
+
+async def test_a_jira_refusal_keeps_the_feature_and_a_retry_by_control_id_asks_nothing(world):
+    script, mcp, runner = world
+    name, args = PUBLISH
+    script.calls["add it to Jira"] = PUBLISH
+    script.calls["retry"] = (name, {**args, "control_id": "F-20261126-refunds", "epic": {"key": "PAY-5"}})
+    mcp.jira_refuses = True
+    session = await start(runner)
+    ((interrupt, _),) = (await turn(runner, session, text="add it to Jira"))["requests"]
+    stopped = (await turn(runner, session, answer=(interrupt, {"approve": True, "epic": "PAY-5"})))["results"]
+    assert stopped["publish_feature"]["control_id"] == "F-20261126-refunds"
+    assert "control_id F-20261126-refunds" in stopped["publish_feature"]["next"]
+
+    mcp.jira_refuses = False
+    done = await turn(runner, session, text="retry")
+    assert done["requests"] == [] and done["results"]["publish_feature"]["status"] == "done"
+    opened = [args for name, args, _ in mcp.calls if name == "feature_open"]
+    assert opened[-1] == {"control_id": "F-20261126-refunds"}  # reused, not opened again
+
+
+async def test_a_design_hand_off_needs_its_opened_feature(world):
+    script, mcp, runner = world
+    script.calls["hand it off"] = ("hand_off_design", {"team": "payments", "content": "# Design"})
+    session = await start(runner)
+    stopped = (await turn(runner, session, text="hand it off"))["results"]["hand_off_design"]
+    assert stopped["code"] == "no_feature" and "control_publish" not in mcp.names()

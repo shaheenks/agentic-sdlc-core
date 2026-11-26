@@ -1,5 +1,9 @@
 ## 2026-11-26
 
+* **Update**: [DEC-0013](decisions/DEC-0013.md) built: feature branches on the control and target repositories opened
+  on the user's approval in chat; Epic, Feature and User Stories (sub-tasks) in Jira, reusing open issues and
+  creating a proposed epic only on confirmation; design pull requests into the feature branch and approvals checked
+  there. FR-SDLC-001, -002, -003, -005, -006, -013 and FR-HUM-005 changed.
 * **Add**: [DEC-0013](decisions/DEC-0013.md), accepted by the user, with their choices: features approved in chat open a
   feature branch on the control and target repositories; Epic → Feature → User Stories (sub-tasks) in Jira, reusing
   open issues and suggesting a missing epic; later pull requests merge into the feature branch and are approved there.
