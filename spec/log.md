@@ -1,5 +1,7 @@
 ## 2026-11-26
 
+* **Update**: phase 5a milestone 4 built ([DEC-0015](decisions/DEC-0015.md)): the Code Workspace job. `workspace`
+  on a repository entry is setup, build and test only (one platform image for now; DEC-0015 says so).
 * **Update**: phase 5a milestone 3 built ([DEC-0015](decisions/DEC-0015.md)): event_gateway verifies GitHub webhooks,
   triages them against the subscriptions, deduplicates deliveries and hands each matched run to Cloud Tasks; `/run`
   starts and follows it on the event agents' Agent Runtime.

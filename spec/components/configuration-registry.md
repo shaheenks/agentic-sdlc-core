@@ -114,5 +114,5 @@ validates it, turns it into an immutable bundle and publishes it where every ser
   start which event-agent workflow, with filters on metadata, the writes allowed without approval and run limits;
   `env/<env>/system.yaml` gives the system identity its tool groups, sources, teams and machine users per provider
   (a machine user joins the control repository's system accounts). Surfaces marked `system: true` are used by the
-  system identity only. A repository entry may declare `workspace` (image, setup, build, test). The permission diff
+  system identity only. A repository entry may declare `workspace` (setup, build, test). The permission diff
   shows the system identity as its own row.

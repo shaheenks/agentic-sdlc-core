@@ -11,6 +11,7 @@ from sdlc_connectors.repos import (
     PullRequest,
     Repository,
     clone_url,
+    git_authorization,
     repository,
 )
 
@@ -26,6 +27,7 @@ __all__ = [
     "Repository",
     "adf_to_text",
     "clone_url",
+    "git_authorization",
     "repository",
     "text_to_adf",
 ]

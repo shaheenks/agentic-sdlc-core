@@ -1,9 +1,9 @@
 [project]
 name = "sdlc-code-workspace"
-version = "0.0.0"
-description = "Cloud Run job where ci_workflow_agent edits code and runs a repository's build and tests."
+version = "0.1.0"
+description = "Cloud Run job where ci_workflow_agent's changes are built, tested and pushed (DEC-0015)."
 requires-python = ">=3.12"
-dependencies = ["sdlc-logging"]
+dependencies = ["sdlc-logging", "sdlc-connectors"]
 
 [project.scripts]
 sdlc-code-workspace = "code_workspace.__main__:main"

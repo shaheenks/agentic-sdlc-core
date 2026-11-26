@@ -165,13 +165,8 @@
                     },
                     "workspace": {
                       "type": "object",
-                      "description": "How the Code Workspace builds and tests this repository (DEC-0015). Without it, implementation pull requests are proven by the repository's own CI alone.",
+                      "description": "How the Code Workspace builds and tests this repository, in the platform's image (Python and Node.js) (DEC-0015). Without it, implementation pull requests are proven by the repository's own CI alone.",
                       "properties": {
-                        "image": {
-                          "type": "string",
-                          "pattern": "^[a-z0-9.-]+(:[0-9]+)?/[a-z0-9._/-]+(:[A-Za-z0-9._-]+|@sha256:[a-f0-9]{64})?$",
-                          "description": "The job's container image; default: the platform's Code Workspace image (Python and Node.js)."
-                        },
                         "setup": {
                           "$ref": "#/$defs/commands",
                           "description": "Run once after checkout, for example installing dependencies."

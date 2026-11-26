@@ -501,3 +501,13 @@ def clone_url(system: str, edition: str, base_url: str, repo: str) -> str:
         project, _, slug = repo.partition("/")
         return f"{base}/scm/{project.lower()}/{slug}.git"
     raise ValueError(f"not a repository system: {system!r}")
+
+
+def git_authorization(system: str, edition: str, token: str) -> str:
+    """The HTTP header git sends with a repository token: GitHub as `x-access-token`, Bitbucket Cloud access tokens
+    as `x-token-auth`, Bitbucket Data Center HTTP access tokens as Bearer (DEC-0014, DEC-0015). Passed to git through
+    its environment (`http.extraHeader`), never in a URL or command line."""
+    if system == "bitbucket" and edition != "cloud":
+        return f"Authorization: Bearer {token}"
+    username = "x-token-auth" if system == "bitbucket" else "x-access-token"
+    return "Authorization: Basic " + base64.b64encode(f"{username}:{token}".encode()).decode()

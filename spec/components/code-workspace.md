@@ -57,3 +57,9 @@ Agent Runtime is not a build sandbox. ci_workflow_agent edits code and runs test
   be run only by event_agent_mcp's service account and has no other platform permissions.
 - Egress limited to the declared Git hosts and package registries; the repository's own build and test commands run
   inside the job, so it holds nothing beyond the PAT it needs.
+- Built ([DEC-0015](../decisions/DEC-0015.md), phase 5a milestone 4): one execution per `request.json` under
+  `artifacts/system/runs/`; it fetches the implementation branch (else the feature branch), applies the change set
+  inside the repository, runs the declared setup, build and test commands, pushes only the `sdlc/` branch and writes
+  `result.json`. The token reaches git only as a header through git's environment; the repository's commands run
+  without any platform variable. One platform image (git, Python 3.12, Node.js); an image per repository is later.
+  Egress is not yet limited to the declared hosts.

@@ -291,6 +291,9 @@ changing it during a run needs the user's explicit confirmation in chat.
   verifies GitHub webhooks before reading them, matches them to `ci_plan` and `ci_implement` by repository role,
   merge and branch names, claims each delivery once, queues one task per run and starts the run from `/run` with the
   team, subscription and event in the session's state.
+- Milestone 4 built (2026-11-26), tested against a local git repository: the Code Workspace job checks out the
+  implementation or feature branch, applies the change set, runs the declared commands without the token in their
+  environment, pushes only the `sdlc/` branch and writes its result. One platform image (git, Python, Node.js).
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).

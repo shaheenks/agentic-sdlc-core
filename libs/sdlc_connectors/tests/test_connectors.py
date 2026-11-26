@@ -13,6 +13,7 @@ from sdlc_connectors import (
     Jira,
     adf_to_text,
     clone_url,
+    git_authorization,
     repository,
     text_to_adf,
 )
@@ -463,3 +464,12 @@ def test_clone_urls():
     )
     with pytest.raises(ValueError):
         clone_url("github", "cloud", "https://api.github.com", "o/r/../x")
+
+
+def test_git_signs_in_as_each_host_expects():
+    def user(header):
+        return base64.b64decode(header.removeprefix("Authorization: Basic ")).decode()
+
+    assert user(git_authorization("github", "cloud", "t")) == "x-access-token:t"
+    assert user(git_authorization("bitbucket", "cloud", "t")) == "x-token-auth:t"
+    assert git_authorization("bitbucket", "data_center", "t") == "Authorization: Bearer t"

@@ -1,6 +1,6 @@
-"""Cloud Run job where ci_workflow_agent edits code and runs a repository's build and tests.
+"""Cloud Run job where ci_workflow_agent's changes are applied, built, tested and pushed (DEC-0015, FR-SDLC-006).
 
-Phase 0 skeleton: runs, logs one line and exits.
+Started only by event_agent_mcp, one execution per request; see run.py.
 """
 
 NAME = "code_workspace"
