@@ -84,3 +84,6 @@ stable release ([DEC-0004](../decisions/DEC-0004.md)). An agent has no privilege
   email sdlc_ui set when it created it ([DEC-0010](../decisions/DEC-0010.md)). Gemini runs in `eu`, where the
   model is served; sessions stay in europe-west3. Locally, `python -m user_agent` serves the same operations
   in the runtime's request shape.
+- `libs/sdlc_adk` ([DEC-0015](../decisions/DEC-0015.md)): what both agent runtimes share - the runtime's ID token for
+  its MCP server, Gemini with retries, the skills loader and direct MCP calls for deterministic workflow steps;
+  each deployment stages it with its package.

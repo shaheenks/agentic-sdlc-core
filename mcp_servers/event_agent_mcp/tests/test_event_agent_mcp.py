@@ -323,6 +323,10 @@ def test_a_plan_goes_into_the_feature_branch_once_and_is_recorded(env):
     assert links["writes"][-1]["action"] == "plan_pull_request" and links["writes"][-1]["run_id"] == "run-1"
     again, _ = call(client, "plan_open_pull_request", None, control_id=ID, repo="org/payments", content="# Plan")
     assert again["already_open"] is True and len(ctrl.prs) == 1
+    status, _ = call(client, "feature_status", None, control_id=ID)
+    assert [(p["kind"], p["branch"]) for p in status["open_pull_requests"]] == [
+        ("plan-payments", f"sdlc/{ID}/plan-payments")
+    ]
 
 
 def test_no_plan_without_a_design_a_person_merged(env):

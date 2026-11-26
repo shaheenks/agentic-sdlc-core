@@ -294,6 +294,11 @@ changing it during a run needs the user's explicit confirmation in chat.
 - Milestone 4 built (2026-11-26), tested against a local git repository: the Code Workspace job checks out the
   implementation or feature branch, applies the change set, runs the declared commands without the token in their
   environment, pushes only the `sdlc/` branch and writes its result. One platform image (git, Python, Node.js).
+- Milestone 5 built (2026-11-26), tested with a scripted model and a faked event_agent_mcp: ci_workflow_agent routes
+  each run by its session's state; `plan` drafts, reviews once and opens a plan per target repository without one;
+  `implement` builds an approved plan in the Code Workspace and opens the implementation pull request, or comments
+  why it stopped. user_agent and ci_workflow_agent share `libs/sdlc_adk`. Next: milestone 6, the infrastructure,
+  deployment to development and the exit gate.
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).

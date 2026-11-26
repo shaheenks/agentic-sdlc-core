@@ -1,9 +1,15 @@
 [project]
 name = "sdlc-ci-workflow-agent"
-version = "0.0.0"
+version = "0.1.0"
 description = "The event-based agent for plans, implementation and pull request reviews."
 requires-python = ">=3.12"
-dependencies = ["sdlc-logging"]
+dependencies = [
+    "sdlc-logging",
+    "sdlc-adk",
+    "google-adk[mcp]>=2.10,<3",
+    "google-cloud-aiplatform[agent-engines]>=1.165,<2",
+    "httpx>=0.28",
+]
 
 [project.scripts]
 sdlc-ci-workflow-agent = "ci_workflow_agent.__main__:main"

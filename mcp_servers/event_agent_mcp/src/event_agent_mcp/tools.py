@@ -176,6 +176,7 @@ async def feature_status(platform: "Platform", run: "Run", args: dict[str, Any])
             "target_repositories": targets,
             "jira_keys": _jira_keys(links),
             "writes": links.get("writes") or [],
+            "open_pull_requests": [p for p in control.open_pull_requests() if p.get("control_id") == control_id],
         }
 
     return await _call(gather)

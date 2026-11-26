@@ -1,5 +1,8 @@
 ## 2026-11-26
 
+* **Update**: phase 5a milestone 5 built ([DEC-0015](decisions/DEC-0015.md)): ci_workflow_agent's `plan` and
+  `implement` workflows, the skills `implementation-plan` and `implementation`, and `libs/sdlc_adk` shared with
+  user_agent; event_agent_mcp's `feature_status` lists the feature's open pull requests.
 * **Update**: phase 5a milestone 4 built ([DEC-0015](decisions/DEC-0015.md)): the Code Workspace job. `workspace`
   on a repository entry is setup, build and test only (one platform image for now; DEC-0015 says so).
 * **Update**: phase 5a milestone 3 built ([DEC-0015](decisions/DEC-0015.md)): event_gateway verifies GitHub webhooks,

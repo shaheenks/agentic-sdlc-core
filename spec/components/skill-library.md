@@ -57,3 +57,5 @@ separate from workflow structure and from access rules.
   detail, unnecessary complexity) adapted from the Elephant-Goldfish Model's Goldfish reviewers (Apache-2.0,
   attributed in `skills/NOTICE`). Every reviewer returns findings as JSON with a severity, a location, the problem
   and a suggested change. user_agent's tests load each skill with ADK's skill loader.
+- `implementation-plan` and `implementation` ([DEC-0015](../decisions/DEC-0015.md)): ci_workflow_agent's plan per
+  target repository and implementation through the Code Workspace.

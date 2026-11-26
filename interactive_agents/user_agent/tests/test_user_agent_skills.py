@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 SKILLS = Path(__file__).resolve().parents[3] / "skills"
-STAGES = {"brainstorm", "features-and-stories", "design-specification"}
+STAGES = {"brainstorm", "features-and-stories", "design-specification", "implementation-plan", "implementation"}
 REVIEWERS = {
     "review-structure",
     "review-style",

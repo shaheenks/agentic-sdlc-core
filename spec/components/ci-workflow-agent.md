@@ -69,3 +69,9 @@ Picks up the work once a person merges the design specification pull request: pr
 - Python Google ADK agent in `event_based_agents/ci_workflow_agent/`, deployed with the other event agents to their own Agent Runtime deployment in
   europe-west3 ([DEC-0007](../decisions/DEC-0007.md)), separate from the interactive deployment.
 - Code is edited and tests are run in the [Code Workspace](code-workspace.md), a Cloud Run job started through event_agent_mcp; the agent sends its changes, reads the results and iterates within the run's limits.
+- Built ([DEC-0015](../decisions/DEC-0015.md), phase 5a milestone 5): a root ADK workflow routed by the run's
+  session state (set by the event gateway; the message only starts it). `plan` drafts `plan-<repo>.md` per target
+  repository without one, reviews it once with a fresh-context reviewer, revises serious findings and opens it into
+  the feature branch; `implement` builds an approved plan in the Code Workspace and opens the implementation pull
+  request, or comments on the plan's pull request why it stopped. Skills `implementation-plan` and `implementation`.
+  Shares `libs/sdlc_adk` with user_agent.
