@@ -251,8 +251,11 @@ changing it during a run needs the user's explicit confirmation in chat.
   end to end.
 - [DEC-0014](../../spec/decisions/DEC-0014.md), accepted 2026-11-26, built: private Bitbucket knowledge sources; a git
   source's token signs in as its host expects, or as declared (`credential_scheme`, `credential_username`).
-- Next: the 4a exit gate from a team chat on development (idea → approved feature, epic and stories in Jira →
-  design pull request merged into the feature branch), then 4b.
+- 4a exit gate verified by the user on development (2026-11-26) for the tasklist team, from sdlc_ui: features and
+  stories approved in chat and created in Jira under their epic, then the design specification drafted, reviewed and
+  opened as a pull request into the feature branch on the control repository. Still to check on real systems:
+  Bitbucket (Cloud and Data Center) and Jira Data Center. Next: 4b (a decision on OAuth user tokens for Gemini
+  Enterprise, then the A2A router) or phase 5.
 
 ### Phase 5: Event path and ci_workflow_agent
 
