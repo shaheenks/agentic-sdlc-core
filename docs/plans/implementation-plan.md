@@ -242,14 +242,20 @@ changing it during a run needs the user's explicit confirmation in chat.
   package) and sdlc_ui; a knowledge refresh added the team's repository (50 files, 176 chunks, Gemini extraction
   without errors). Next: the user's connections, then the exit gate from a team chat.
 
-### Phase 5: Event path and ci_workflow_agent
-
+- Since then (2026-11-25 to 2026-11-26): connections tested and tokens validated from the Connections page (Cloud
+  NAT for egress); concise tool cards with timings; reviewers on `gemini-3.5-flash` in `eu`; drafter reading limits
+  and one clean review round; duplicate checks on pull requests, Jira issues and pages; estimates and story points.
 - [DEC-0013](../../spec/decisions/DEC-0013.md), accepted 2026-11-26, built: a feature approved in chat opens its branch
   on the control and target repositories; Epic, Feature and User Stories (sub-tasks) in Jira with open issues reused;
-  later pull requests into the feature branch, approved there.
-
+  later pull requests into the feature branch, approved there. Deployed to development on 2026-11-26; not yet run
+  end to end.
 - [DEC-0014](../../spec/decisions/DEC-0014.md), accepted 2026-11-26, built: private Bitbucket knowledge sources; a git
   source's token signs in as its host expects, or as declared (`credential_scheme`, `credential_username`).
+- Next: the 4a exit gate from a team chat on development (idea → approved feature, epic and stories in Jira →
+  design pull request merged into the feature branch), then 4b.
+
+### Phase 5: Event path and ci_workflow_agent
+
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).
@@ -311,7 +317,7 @@ Decided:
 - **Audit:** structured JSON with a unique tag in the standard Cloud Logging bucket, 30 days, no lock (NFR-AUD-002).
 - **Identity (DEC-0009):** Google account tokens identify the user on every surface, sdlc_ui and Gemini Enterprise alike; IAP only enforces the perimeter.
 - **Usage:** approximate rate limits on tool calls at the MCP servers (FR-MDL-002); runs visible only to their user.
-- **Jira statuses:** none required (2026-11-25); approval is the merge on the team's control repository.
+- **Jira statuses:** none required (2026-11-25); a feature is approved in chat, later artifacts by a merge into its feature branch on the control repository (DEC-0013).
 - **Workflows:** teams override only declared parameters; no forks.
 - **Repositories:** a team can have several; the design specification names the target repositories.
 - **Pull requests:** every agent pull request carries the Jira keys of its user stories or feature.
@@ -325,7 +331,7 @@ Decided:
 - **sdlc_ui:** CopilotKit with an AG-UI stream; no admin view in the first release.
 - **Human tasks:** answered in sdlc_ui, in the Gemini Enterprise conversation for runs started there (long documents linked to the sdlc_ui preview), or by Jira, Confluence or Git approvals.
 - **Telemetry:** standard OpenTelemetry, with no step transcripts.
-- **Jira:** issue types Feature and User Story; no status gates (2026-11-25).
+- **Jira:** Epic → Feature → User Stories as sub-tasks, open issues reused (DEC-0013); no status gates (2026-11-25).
 - **Hand-off and code:** [DEC-0012](../../spec/decisions/DEC-0012.md) accepted (superseding [DEC-0008](../../spec/decisions/DEC-0008.md)): every agent write rests on an artifact approved on the team's sdlc-control repository and is recorded there. ci_workflow_agent edits code and runs tests in a Cloud Run job (the Code Workspace).
 
 ## Risks
