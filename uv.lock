@@ -1899,14 +1899,18 @@ requires-dist = [{ name = "sdlc-logging", editable = "libs/sdlc_logging" }]
 
 [[package]]
 name = "sdlc-code-workspace"
-version = "0.0.0"
+version = "0.1.0"
 source = { editable = "code_workspace" }
 dependencies = [
+    { name = "sdlc-connectors" },
     { name = "sdlc-logging" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "sdlc-logging", editable = "libs/sdlc_logging" }]
+requires-dist = [
+    { name = "sdlc-connectors", editable = "libs/sdlc_connectors" },
+    { name = "sdlc-logging", editable = "libs/sdlc_logging" },
+]
 
 [[package]]
 name = "sdlc-config"
