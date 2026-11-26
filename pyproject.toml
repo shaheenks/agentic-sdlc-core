@@ -43,6 +43,7 @@ members = [
     "libs/sdlc_knowledge",
     "libs/sdlc_connectors",
     "libs/sdlc_control",
+    "libs/sdlc_adk",
     "config",
 ]
 
@@ -66,6 +67,7 @@ sdlc-policy = { workspace = true }
 sdlc-knowledge = { workspace = true }
 sdlc-connectors = { workspace = true }
 sdlc-control = { workspace = true }
+sdlc-adk = { workspace = true }
 sdlc-config = { workspace = true }
 
 [tool.ruff]

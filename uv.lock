@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "agentic-sdlc-v2",
     "sdlc-a2a-router",
+    "sdlc-adk",
     "sdlc-ci-workflow-agent",
     "sdlc-code-workspace",
     "sdlc-config",
@@ -1887,6 +1888,17 @@ dependencies = [
 requires-dist = [{ name = "sdlc-service", editable = "libs/sdlc_service" }]
 
 [[package]]
+name = "sdlc-adk"
+version = "0.0.0"
+source = { editable = "libs/sdlc_adk" }
+dependencies = [
+    { name = "httpx" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "httpx", specifier = ">=0.28" }]
+
+[[package]]
 name = "sdlc-ci-workflow-agent"
 version = "0.0.0"
 source = { editable = "event_based_agents/ci_workflow_agent" }
@@ -2147,6 +2159,7 @@ dependencies = [
     { name = "google-adk", extra = ["mcp"] },
     { name = "google-cloud-aiplatform", extra = ["agent-engines"] },
     { name = "httpx" },
+    { name = "sdlc-adk" },
     { name = "sdlc-logging" },
     { name = "sdlc-service" },
 ]
@@ -2156,6 +2169,7 @@ requires-dist = [
     { name = "google-adk", extras = ["mcp"], specifier = ">=2.10,<3" },
     { name = "google-cloud-aiplatform", extras = ["agent-engines"], specifier = ">=1.165,<2" },
     { name = "httpx", specifier = ">=0.28" },
+    { name = "sdlc-adk", editable = "libs/sdlc_adk" },
     { name = "sdlc-logging", editable = "libs/sdlc_logging" },
     { name = "sdlc-service", editable = "libs/sdlc_service" },
 ]

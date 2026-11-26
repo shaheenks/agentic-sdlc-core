@@ -62,6 +62,7 @@ jobs:
           - libs/sdlc_knowledge
           - libs/sdlc_connectors
           - libs/sdlc_control
+          - libs/sdlc_adk
           - config
     steps:
       - uses: actions/checkout@v4

@@ -6,39 +6,17 @@ its own service account's Google ID token, minted for user_agent_mcp. A session 
 them, and user_agent_mcp refuses it (fail closed)."""
 
 import os
-import threading
-import time
 from collections.abc import Callable, Mapping
 from typing import Any
+
+from sdlc_adk import IdTokens
 
 EMAIL_KEY = "sdlc_user_email"  # set by sdlc_ui when it creates the session; nothing else writes it
 TEAM_KEY = "sdlc_team"  # the team a run is for; absent in chat
 TITLE_KEY = "sdlc_title"
 SURFACE = "user_agent"
-TOKEN_LIFETIME = 45 * 60  # Google ID tokens last an hour; refresh well before
 
-
-class IdTokens:
-    """This runtime's Google ID token for one audience, from the metadata server, cached."""
-
-    def __init__(self, audience: str, fetch: Callable[[str], str] | None = None) -> None:
-        self.audience = audience
-        self._fetch = fetch or _fetch_id_token
-        self._lock = threading.Lock()
-        self._token: tuple[str, float] | None = None
-
-    def get(self) -> str:
-        with self._lock:
-            if self._token is None or self._token[1] <= time.time():
-                self._token = (self._fetch(self.audience), time.time() + TOKEN_LIFETIME)
-            return self._token[0]
-
-
-def _fetch_id_token(audience: str) -> str:
-    import google.auth.transport.requests
-    import google.oauth2.id_token
-
-    return google.oauth2.id_token.fetch_id_token(google.auth.transport.requests.Request(), audience)
+__all__ = ["IdTokens", "header_provider", "mcp_headers", "tokens_from_env"]
 
 
 def mcp_headers(user_id: str | None, state: Mapping[str, Any], tokens: IdTokens | None) -> dict[str, str]:

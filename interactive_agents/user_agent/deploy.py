@@ -3,8 +3,8 @@
     uv run python interactive_agents/user_agent/deploy.py --env dev [--dry-run]
 
 - Refuses uncommitted changes: the engine is labelled with the commit it runs.
-- Stages `.build/agent_runtime/<commit>/`: the `user_agent` package and a `requirements.txt` exported from
-  uv.lock (third-party packages only).
+- Stages `.build/agent_runtime/<commit>/`: the `user_agent` package, the workspace libraries it imports at runtime
+  (`sdlc_adk`) and a `requirements.txt` exported from uv.lock (third-party packages only).
 - Creates the engine `sdlc-user-agent-<env>` in the region, or updates it when it exists. It runs as the
   interactive agents' service account, which user_agent_mcp knows as the `user_agent` caller
   (identity.callers), and calls user_agent_mcp's URL with that account's ID token.
@@ -23,6 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 COMPONENT = Path(__file__).resolve().parent
 REGION = "europe-west3"
+RUNTIME_LIBS = ["sdlc_adk"]
 OPERATIONS = [
     "async_create_session",
     "async_get_session",
@@ -54,6 +55,10 @@ def stage(commit: str) -> Path:
         target / "user_agent",
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "__main__.py"),
     )
+    for lib in RUNTIME_LIBS:  # workspace libraries are not in requirements.txt (--no-emit-workspace)
+        shutil.copytree(
+            ROOT / "libs" / lib / "src" / lib, target / lib, ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+        )
     # The skills the workflows use (user_agent/skills.py reads them from the package).
     shutil.copytree(ROOT / "skills", target / "user_agent" / "skills")
     uv = shutil.which("uv") or "uv"
@@ -132,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
     config = {
         "display_name": name,
         "description": "user_agent: knowledge search and brainstorming for the signed-in user",
-        "source_packages": ["user_agent", "requirements.txt"],
+        "source_packages": ["user_agent", *RUNTIME_LIBS, "requirements.txt"],
         "entrypoint_module": "user_agent.app",
         "entrypoint_object": "app",
         "requirements_file": "requirements.txt",

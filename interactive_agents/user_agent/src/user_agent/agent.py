@@ -9,6 +9,7 @@ import os
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
 from google.adk.tools.mcp_tool import McpToolset, StreamableHTTPConnectionParams
+from sdlc_adk import gemini
 
 from user_agent.identity import TITLE_KEY, header_provider, tokens_from_env
 from user_agent.mcp_client import McpCaller
@@ -64,25 +65,12 @@ teams (whoami lists them) it is for.
   waiting for a merge), the chat shows it as a card; pass on its question plainly and send back the user's answer."""
 
 
-# Vertex AI answers 429 or 503 when a model is briefly over capacity; a workflow makes many calls (seven reviewers
-# per round), so one such answer must not fail the run. Retried with exponential backoff, up to about a minute.
-RETRY_STATUS = [408, 429, 500, 502, 503, 504]
-
-
 def model(name: str | None = None) -> Gemini:
-    from google.genai import Client, types
-
-    client = Client(
-        vertexai=True,
-        project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
-        location=os.environ.get("SDLC_MODEL_LOCATION", DEFAULT_MODEL_LOCATION),
-        http_options=types.HttpOptions(
-            retry_options=types.HttpRetryOptions(
-                attempts=6, initial_delay=2.0, max_delay=30.0, exp_base=2.0, jitter=1.0, http_status_codes=RETRY_STATUS
-            )
-        ),
+    """Gemini on Vertex AI, retrying the model's transient refusals (sdlc_adk.gemini)."""
+    return gemini(
+        name or os.environ.get("SDLC_AGENT_MODEL", DEFAULT_MODEL),
+        os.environ.get("SDLC_MODEL_LOCATION", DEFAULT_MODEL_LOCATION),
     )
-    return Gemini(model=name or os.environ.get("SDLC_AGENT_MODEL", DEFAULT_MODEL), client=client)
 
 
 def review_model() -> Gemini:
