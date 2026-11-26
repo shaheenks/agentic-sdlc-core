@@ -32,6 +32,12 @@ The system shall have ci_workflow_agent implement a merged design specification:
 - Plans go by pull request into the feature branch on the control repository, implementation pull requests into
   the feature branch on each target repository; approvals are checked there. A person merges the feature branches into
   main when the feature is done ([DEC-0013](../../decisions/DEC-0013.md)).
+- A merge of `design.md` into `feature/<control-id>` on the control repository starts the plan run; each
+  `plan-<repo>.md` is opened from `sdlc/<control-id>/plan-<repo>` into the feature branch, and a merge of one starts
+  that repository's implementation run, whose pull request goes from `sdlc/<control-id>/<repo>` into the target
+  repository's feature branch. The agent pushes only `sdlc/` branches ([DEC-0015](../../decisions/DEC-0015.md)).
+- The repository's build and test commands are declared on its entry in team configuration (`workspace`); the Code
+  Workspace runs them before the pull request. A repository without them is proven by its own CI alone ([DEC-0015](../../decisions/DEC-0015.md)).
 
 # Notes
 

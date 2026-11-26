@@ -259,6 +259,23 @@ changing it during a run needs the user's explicit confirmation in chat.
 
 ### Phase 5: Event path and ci_workflow_agent
 
+- [DEC-0015](../../spec/decisions/DEC-0015.md), accepted 2026-11-26: phase 5 is split.
+  - **5a, from a merged design to an implementation pull request.** A merge of `design.md` into the feature branch
+    on the control repository reaches a public, signature-verified event gateway, which queues a Cloud Task; the
+    task starts ci_workflow_agent on its own Agent Runtime. The agent opens `plan-<repo>.md` pull requests into the
+    feature branch; a merged plan leads to an implementation pull request into the target repository's feature
+    branch, built and tested in the Code Workspace with the commands declared in team configuration. Writes go
+    through event_agent_mcp with a GitHub machine user's PAT. Exit gate: in DEC-0015.
+  - **5b, reviews.** The security and quality review workflows on every pull request, Jira tasks for their
+    findings, and CI failure explanations.
+- 5a milestones:
+  1. Configuration (`subscriptions.yaml`, `system.yaml`, `workspace` on repositories, machine users) and the control
+     repository logic moved into `libs/`.
+  2. event_agent_mcp: the system identity, its tools and the Code Workspace start.
+  3. event_gateway: GitHub webhook verification, deduplication, triage, the Cloud Tasks hand-off and `/run`.
+  4. Code Workspace job.
+  5. ci_workflow_agent: the `plan` and `implement` workflows and their skills.
+  6. Infrastructure, deployment to development and the exit gate.
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).

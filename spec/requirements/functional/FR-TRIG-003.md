@@ -22,6 +22,8 @@ The system shall deliver the results of every scheduled or event-triggered run t
 - Intermediate artifacts under `artifacts/system/` are deleted after 7 days like any artifact.
 - Writes to Jira, Confluence or repositories are recorded on the team's control repository: a `records/` file
   committed before the write, with its results after it ([DEC-0012](../../decisions/DEC-0012.md) (accepted)).
+- The writes a run may make without approval are declared on its subscription; event_agent_mcp refuses any other
+  write ([DEC-0015](../../decisions/DEC-0015.md)).
 
 # Notes
 

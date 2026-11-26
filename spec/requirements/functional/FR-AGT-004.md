@@ -31,6 +31,8 @@ The system shall provide a standalone MCP server, event_agent_mcp, through which
 - It writes each run's results back to the downstream systems the workflow declares ([FR-TRIG-003](FR-TRIG-003.md)).
 - It implements the current stable MCP specification revision (2026-07-28 when this was written).
 - It builds, tests and deploys on its own from `mcp_servers/event_agent_mcp/`.
+- event_agent_mcp opens pull requests only from `sdlc/` branches into `feature/` branches, has no merge or approve
+  tool, and starts the Code Workspace job ([DEC-0015](../../decisions/DEC-0015.md)).
 
 # Notes
 

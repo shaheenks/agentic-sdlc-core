@@ -19,3 +19,5 @@ The system shall give the system identity its own connection to each downstream 
   They are used only there ([FR-AGT-004](FR-AGT-004.md)).
 - Each system connection has the narrowest scope the provider allows for the declared resources.
 - Unattended runs never use a user's connection, and user-initiated runs never use a system connection.
+- Each provider's system connection belongs to a machine user distinct from every person; its login is declared
+  in the environment configuration, and a merge made by it never counts as an approval ([DEC-0015](../../decisions/DEC-0015.md)).

@@ -23,3 +23,5 @@ The system shall run every scheduled or event-triggered run as the platform's sy
 - An unattended run has no user of its own, so its workflow declares no human tasks; a workflow with one cannot be triggered ([FR-HUM-002](FR-HUM-002.md)).
 - Agents of an unattended run call tools only through event_agent_mcp ([FR-AGT-004](FR-AGT-004.md)).
 - Every span, log entry, audit record and event_agent_mcp request of an unattended run carries the event metadata (source system, event type, delivery ID, subject) and the run ID ([NFR-OBS-003](../non-functional/NFR-OBS-003.md)).
+- The system identity's grants (tool groups, sources and the teams it may act for) are declared in
+  `config/env/<env>/system.yaml` and shown by the permission diff ([DEC-0015](../../decisions/DEC-0015.md)).

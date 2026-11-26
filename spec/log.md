@@ -1,5 +1,10 @@
 ## 2026-11-26
 
+* **Update**: [DEC-0015](decisions/DEC-0015.md) accepted: FR-TRIG-001, FR-TRIG-003, FR-SDLC-006, FR-CONN-004,
+  FR-IDN-004 and FR-AGT-004 changed; phase 5 split into 5a and 5b.
+* **Create**: [DEC-0015](decisions/DEC-0015.md), proposed: phase 5a, from a merged design to plan and implementation
+  pull requests on the feature branches, through a public event gateway, Cloud Tasks, event_agent_mcp with a machine
+  user's PAT, and the Code Workspace; 5b holds the review workflows.
 * **Update**: [DEC-0014](decisions/DEC-0014.md) accepted and built: private Bitbucket Cloud and Data Center git
   sources, with `credential_scheme` and `credential_username`; FR-KNOW-001 gains a criterion.
 * **Create**: [DEC-0014](decisions/DEC-0014.md), proposed: private Bitbucket knowledge sources; a git source may

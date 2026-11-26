@@ -22,3 +22,9 @@ The system shall start runs from events in downstream systems that match the tri
 - A repeated delivery of the same event starts at most one run (a create-if-absent object per delivery ID, [DEC-0003](../../decisions/DEC-0003.md)).
 - A started run acts as the system identity and carries the event metadata ([FR-IDN-004](FR-IDN-004.md)).
 - Received, matched, ignored and rejected events are audited.
+- Subscriptions are declared in `subscriptions.yaml`: the workflow, the event (provider and type), filters on its
+  metadata, the writes allowed without approval and the run limits. A matched delivery is handed to a Cloud Tasks
+  queue and answered at once; the task starts the run on the event agents' Agent Runtime with a session ID derived
+  from the delivery ID, so a retried task resumes the same run ([DEC-0015](../../decisions/DEC-0015.md)).
+- The webhook endpoint is public; a delivery whose signature does not verify is refused and audited before its body
+  is processed further. The endpoint that starts runs accepts only the queue's token ([DEC-0015](../../decisions/DEC-0015.md)).
