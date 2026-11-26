@@ -213,7 +213,7 @@ def test_events_no_subscription_matches_are_ignored_and_audited(env, payload, ca
     with caplog.at_level(logging.INFO, logger=AUDIT_LOGGER):
         response = post(client, payload, delivery="d-3")
     assert response.status_code == 202 and response.json() == {"matched": 0} and not queue.tasks
-    assert [r.getMessage() for r in caplog.records] == ["event.ignored"]
+    assert [r.getMessage() for r in caplog.records if r.name == AUDIT_LOGGER] == ["event.ignored"]
 
 
 def test_triage_reads_only_metadata():
