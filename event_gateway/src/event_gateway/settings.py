@@ -10,6 +10,12 @@ LOCAL = "local"
 QUEUE = re.compile(r"^projects/[^/]+/locations/[^/]+/queues/[^/]+$")
 
 
+def token_variable(provider: str) -> str:
+    """The environment variable holding a provider's system connection token: SYSTEM_TOKEN_<PROVIDER>. The gateway
+    reads pull requests with it for simulated events (DEC-0016)."""
+    return "SYSTEM_TOKEN_" + re.sub(r"[^A-Za-z0-9]", "_", provider).upper()
+
+
 def secret_variable(provider: str) -> str:
     """The environment variable holding a provider's webhook secret: WEBHOOK_SECRET_<PROVIDER>."""
     return "WEBHOOK_SECRET_" + re.sub(r"[^A-Za-z0-9]", "_", provider).upper()
@@ -38,6 +44,9 @@ class Settings:
     @property
     def run_url(self) -> str:
         return f"{self.public_url}/run"
+
+    def system_token(self, provider: str) -> str | None:
+        return self.secrets.get(token_variable(provider)) or None
 
     def webhook_secret(self, provider: str) -> bytes | None:
         value = self.secrets.get(secret_variable(provider))
@@ -72,5 +81,5 @@ class Settings:
             agent_url=e["AGENT_URL"].rstrip("/"),
             agent_auth=auth,
             config_refresh_seconds=float(e.get("CONFIG_REFRESH_SECONDS", "30")),
-            secrets={k: v for k, v in e.items() if k.startswith("WEBHOOK_SECRET_") and v},
+            secrets={k: v for k, v in e.items() if k.startswith(("WEBHOOK_SECRET_", "SYSTEM_TOKEN_")) and v},
         )

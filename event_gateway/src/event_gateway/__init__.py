@@ -5,6 +5,9 @@ FR-IDN-004, NFR-OBS-003, DEC-0015).
   before its body is read further. A verified delivery is matched against the subscriptions of the active
   configuration (only the system identity's teams); a match claims the delivery (create-if-absent, so a redelivery
   starts nothing) and queues one task per matched subscription; the answer is immediate.
+- `GET /simulate` and `POST /simulate` (FR-TRIG-006, DEC-0016): sdlc_ui only, for a member of a team the
+  environment allows to simulate. The pull request's facts are read from the provider, and the event then takes the
+  same path as a verified webhook, marked `simulated` with the user who sent it (simulate.py).
 - `POST /run`: only the queue's OIDC token for the gateway's own service account. Starts the run on the event
   agents' Agent Runtime and follows it to its end (runs.py).
 
@@ -26,8 +29,10 @@ from starlette.routing import Route
 
 from event_gateway.runs import CloudTasksQueue, Credentials, InlineQueue, Queue, Runner, run_id, task_id
 from event_gateway.settings import Settings
+from event_gateway.simulate import Refused, build_event, options, simulating_user, why_not
+from event_gateway.simulate import allowed_teams as simulation_teams
 from event_gateway.store import DirStore, EventStore, GcsStore
-from event_gateway.triage import GITHUB, github_event, matches, verify_github
+from event_gateway.triage import GITHUB, Event, Match, github_event, matches, verify_github
 
 SERVICE = "event_gateway"
 DEFAULT_PORT = 8084
@@ -51,6 +56,7 @@ class Gateway:
             queue,
             tokens,
         )
+        self.provider_client = None  # tests give a faked provider's httpx.Client
 
     async def github(self, request: Request) -> JSONResponse:
         event_type = request.headers.get("x-github-event", "")
@@ -82,11 +88,18 @@ class Gateway:
         if not found:
             audit("event.ignored", config_version=bundle.version, **fields)
             return JSONResponse({"matched": 0}, 202)
+        return await self.dispatch(event, found, bundle, fields)
+
+    async def dispatch(
+        self, event: Event, found: list[Match], bundle, fields: dict[str, Any], extra: dict[str, Any] | None = None
+    ) -> JSONResponse:
+        """Claims the delivery once and queues one run per match; a webhook and a simulation both end here."""
+        delivery = event.delivery_id
         received = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        claim = {"received": received, "matched": [m.subscription_id for m in found]}
-        if not await self.store.claim(f"deliveries/{GITHUB}/{task_id(delivery, 'delivery')}.json", claim):
+        claim = {"received": received, "matched": [m.subscription_id for m in found], **(extra or {})}
+        if not await self.store.claim(f"deliveries/{event.provider}/{task_id(delivery, 'delivery')}.json", claim):
             audit("event.duplicate", config_version=bundle.version, **fields)
-            return JSONResponse({"matched": len(found), "duplicate": True}, 200)
+            return JSONResponse({"matched": len(found), "duplicate": True, "delivery_id": delivery}, 200)
         for match in found:
             job = {
                 "subscription": match.subscription_id,
@@ -96,7 +109,7 @@ class Gateway:
                 "inputs": dict(match.inputs),
                 "minutes": (match.subscription.get("limits") or {}).get("minutes", 25),
                 "run_id": run_id(delivery, match.subscription_id),
-                "event": {**event.metadata(), "actor": event.actor, "received": received},
+                "event": {**event.metadata(), "actor": event.actor, "received": received, **(extra or {})},
                 "config_version": bundle.version,
             }
             queued = await self.queue.enqueue(task_id(delivery, match.subscription_id), job)
@@ -109,7 +122,64 @@ class Gateway:
                 config_version=bundle.version,
                 **fields,
             )
-        return JSONResponse({"matched": len(found)}, 202)
+        return JSONResponse({"matched": len(found), "delivery_id": delivery}, 202)
+
+    async def simulation_options(self, request: Request) -> JSONResponse:
+        try:
+            bundle = await self.config.acurrent()
+        except ConfigUnavailable:
+            return JSONResponse({"error": "unavailable"}, 503)
+        try:
+            identity = await self._simulating_user(request, bundle.config)
+        except Refused as exc:
+            audit("simulation.denied", reason=exc.message if exc.status == 401 else exc.code)
+            return JSONResponse({"error": exc.code}, exc.status)
+        return JSONResponse(options(bundle.config, identity.email))
+
+    async def simulate(self, request: Request) -> JSONResponse:
+        try:
+            bundle = await self.config.acurrent()
+        except ConfigUnavailable:
+            return JSONResponse({"error": "unavailable"}, 503)
+        try:
+            identity = await self._simulating_user(request, bundle.config)
+        except Refused as exc:
+            audit("simulation.denied", reason=exc.message if exc.status == 401 else exc.code)
+            return JSONResponse({"error": exc.code}, exc.status)
+        try:
+            form = await request.json()
+        except ValueError:
+            form = None
+        if not isinstance(form, dict):
+            return JSONResponse({"error": "bad_request", "message": "send a JSON object"}, 400)
+        team, sub_id = str(form.get("team") or ""), str(form.get("subscription") or "")
+        fields = {"team": team[:60], "subscription": sub_id[:60], "user_id": identity.user_id}
+        if team not in simulation_teams(bundle.config, identity.email):
+            audit("simulation.denied", reason="team_not_allowed", **fields)
+            message = "simulated events are not allowed for this team here, or you are not one of its members"
+            return JSONResponse({"error": "forbidden", "message": message}, 403)
+        sub = (bundle.config.get("subscriptions") or {}).get(sub_id)
+        if not sub or not sub.get("enabled", True):
+            return JSONResponse({"error": "not_found", "message": f"no enabled subscription {sub_id!r}"}, 404)
+        try:
+            event = await build_event(bundle.config, team, sub, form, self.settings.system_token, self.provider_client)
+        except Refused as exc:
+            audit("simulation.refused", reason=exc.code, **fields)
+            return JSONResponse({"error": exc.code, "message": exc.message}, exc.status)
+        fields |= event.metadata()
+        found = [m for m in matches(bundle.config, event) if m.subscription_id == sub_id and m.team == team]
+        if not found:
+            audit("simulation.ignored", config_version=bundle.version, **fields)
+            return JSONResponse({"error": "no_match", "message": why_not(sub, event)}, 422)
+        audit("event.simulated", config_version=bundle.version, **fields)
+        extra = {"simulated": True, "simulated_by": identity.user_id}
+        matched = {**event.metadata(), "user_id": identity.user_id, "simulated": True}  # team and subscription per run
+        return await self.dispatch(event, found, bundle, matched, extra)
+
+    async def _simulating_user(self, request: Request, config):
+        return await simulating_user(
+            request.headers, config, self.tokens, env=self.settings.env, audience=self.settings.public_url
+        )
 
     async def run(self, request: Request) -> JSONResponse:
         header = request.headers.get("authorization", "")
@@ -173,6 +243,8 @@ def create_app(settings: Settings | None = None, gateway: Gateway | None = None)
         gateway.config.load()
     routes = health_routes(SERVICE) + [
         Route("/webhooks/github", gateway.github, methods=["POST"]),
+        Route("/simulate", gateway.simulation_options, methods=["GET"]),
+        Route("/simulate", gateway.simulate, methods=["POST"]),
         Route("/run", gateway.run, methods=["POST"]),
     ]
     app = Starlette(routes=routes)

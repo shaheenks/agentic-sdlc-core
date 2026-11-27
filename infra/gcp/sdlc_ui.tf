@@ -69,6 +69,13 @@ resource "google_cloud_run_v2_service" "sdlc_ui" {
         name  = "SDLC_MCP_URL"
         value = local.user_agent_mcp_url
       }
+      dynamic "env" {
+        for_each = local.event_gateway_on ? [local.event_gateway_url] : []
+        content {
+          name  = "SDLC_EVENTS_URL" # the Events page: simulated events (FR-TRIG-006, DEC-0016)
+          value = env.value
+        }
+      }
 
       startup_probe {
         http_get {

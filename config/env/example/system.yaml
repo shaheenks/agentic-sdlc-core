@@ -7,3 +7,7 @@ sources: [platform-spec, payments-code]
 teams: [payments]
 machine_users:
   github: example-sdlc-bot
+# Members of these teams may send simulated events from sdlc_ui until the webhooks are set up (FR-TRIG-006, DEC-0016).
+# Leave it out where only real webhooks may start runs.
+simulation:
+  teams: [payments]

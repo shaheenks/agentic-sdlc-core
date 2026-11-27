@@ -1,5 +1,6 @@
 """The event gateway: verification, triage against declared subscriptions, deduplication, the hand-off and the run,
-with faked queue, agent runtime and Google APIs (FR-TRIG-001, DEC-0015)."""
+with faked queue, agent runtime and Google APIs (FR-TRIG-001, DEC-0015); and simulated events from sdlc_ui
+(FR-TRIG-006, DEC-0016)."""
 
 import asyncio
 import base64
@@ -175,7 +176,7 @@ def test_a_merged_design_starts_one_plan_run_and_a_redelivery_none(env, caplog):
     client, queue, *_ = env
     with caplog.at_level(logging.INFO, logger=AUDIT_LOGGER):
         response = post(client, pr_event(f"sdlc/{ID}/design-abc123"), delivery="d-1")
-    assert response.status_code == 202 and response.json() == {"matched": 1}
+    assert response.status_code == 202 and response.json() == {"matched": 1, "delivery_id": "d-1"}
     ((name, job),) = queue.tasks.items()
     assert name == task_id("d-1", "ci_plan")
     assert (job["subscription"], job["workflow"], job["team"], job["inputs"]) == (
@@ -370,3 +371,142 @@ def test_settings_fail_closed():
     assert (
         ok.webhook_secret("github") == SECRET.encode() and SECRET not in repr(ok) and ok.run_url == f"{PUBLIC_URL}/run"
     )
+
+
+# Simulated events (FR-TRIG-006, DEC-0016) -------------------------------------------------------------------------
+
+UI = "sdlc-ui@proj.iam.gserviceaccount.com"
+PAT = "system-pat-never-logged"
+SIM_CONFIG = {
+    **CONFIG,
+    "identity": {
+        "mode": "caller_token",
+        "allowed_domains": ["example.test"],
+        "callers": {"sdlc_ui": [UI], "event_agents": ["agents@proj.iam.gserviceaccount.com"]},
+    },
+    "surfaces": {"sdlc_ui": {"tool_groups": []}, "event_agents": {"system": True, "tool_groups": []}},
+    "teams": {"payments": {"roles": ["member"]}, "risk": {"roles": ["member"]}},
+    "user_groups": {},
+    "members": {
+        "ada@example.test": {"teams": {"payments": ["member"], "risk": ["member"]}},
+        "eve@example.test": {"teams": {"risk": ["member"]}},
+    },
+    "system": {**CONFIG["system"], "simulation": {"teams": ["payments"]}},
+}
+
+
+class FakePulls:
+    """GitHub's pull request API for the control repository: #5 a merged design, #6 a merged plan, #7 open."""
+
+    def __init__(self):
+        self.seen: list[httpx.Request] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.seen.append(request)
+        number = int(request.url.path.rsplit("/", 1)[-1])
+        heads = {5: f"sdlc/{ID}/design-abc", 6: f"sdlc/{ID}/plan-payments", 7: f"sdlc/{ID}/design-def"}
+        if request.url.path.rsplit("/", 1)[0] != "/repos/org/payments-sdlc-control/pulls" or number not in heads:
+            return httpx.Response(404, json={})
+        merged = number != 7
+        return httpx.Response(
+            200,
+            json={
+                "number": number,
+                "state": "closed" if merged else "open",
+                "merged": merged,
+                "merged_by": {"login": "grace"} if merged else None,
+                "merge_commit_sha": f"m{number}" if merged else "test-merge",
+                "base": {"ref": f"feature/{ID}"},
+                "head": {"ref": heads[number]},
+            },
+        )
+
+
+@pytest.fixture
+def sim(tmp_path):
+    source = DirSource(tmp_path / "config")
+    doc = make_bundle("test", SIM_CONFIG)
+    source.write(f"bundles/{doc['version']}.json", json.dumps(doc).encode())
+    source.write("active.json", json.dumps(make_pointer(doc["version"], "tester", None)).encode())
+    settings = Settings(
+        env="test",
+        config_source=str(tmp_path / "config"),
+        public_url=PUBLIC_URL,
+        events_dir=tmp_path / "events",
+        tasks_queue="projects/p/locations/r/queues/q",
+        tasks_invoker=INVOKER,
+        agent_url="https://agent.example.test/v1/engine",
+        config_refresh_seconds=0,
+        secrets={"WEBHOOK_SECRET_GITHUB": SECRET, "SYSTEM_TOKEN_GITHUB": PAT},
+    )
+    queue, runner, pulls = FakeQueue(), FakeRunner(), FakePulls()
+    gateway = create_gateway(
+        settings, queue=queue, runner=runner, tokens=GoogleTokens(verify_id_token=verify_locally, clock=lambda: NOW)
+    )
+    gateway.provider_client = httpx.Client(transport=httpx.MockTransport(pulls))
+    gateway.config.load()
+    with TestClient(create_app(gateway=gateway)) as client:
+        yield client, queue, pulls
+
+
+def as_user(email: str = "ada@example.test", caller: str = UI, aud: str = PUBLIC_URL) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {id_token(email=caller, aud=aud)}",
+        "X-SDLC-User-Id": "u" + str(abs(hash(email)) % 1000),
+        "X-SDLC-User-Email": email,
+    }
+
+
+def simulate(client, number=5, team="payments", subscription="ci_plan", headers=None, **form):
+    body = {"team": team, "subscription": subscription, "repository": "org/payments-sdlc-control", "number": number}
+    return client.post("/simulate", json={**body, **form}, headers=headers or as_user())
+
+
+def test_the_events_page_offers_only_the_teams_simulation_allows_and_the_user_is_in(sim):
+    client, *_ = sim
+    offered = client.get("/simulate", headers=as_user()).json()
+    assert offered["enabled"] is True and [t["team"] for t in offered["teams"]] == ["payments"]
+    plan = next(s for s in offered["teams"][0]["subscriptions"] if s["id"] == "ci_plan")
+    assert plan["subject"] == "pull_request" and plan["repositories"] == ["org/payments-sdlc-control"]
+    assert client.get("/simulate", headers=as_user("eve@example.test")).json() == {"enabled": False, "teams": []}
+
+
+def test_a_simulated_merge_starts_the_run_from_the_providers_facts_once(sim, caplog):
+    client, queue, pulls = sim
+    with caplog.at_level(logging.INFO, logger=AUDIT_LOGGER):
+        first = simulate(client, number=5, merged=False, base_branch="main")  # what the form claims is ignored
+    assert first.status_code == 202, first.text
+    ((name, job),) = queue.tasks.items()
+    assert job["subscription"] == "ci_plan" and job["inputs"] == {"control_id": ID}
+    assert job["event"]["simulated"] is True and job["event"]["simulated_by"].startswith("u")
+    assert job["event"]["actor"] == "grace" and job["event"]["delivery_id"].startswith("sim-")
+    assert pulls.seen[0].headers["authorization"] == f"Bearer {PAT}"
+    again = simulate(client, number=5)
+    assert again.status_code == 200 and again.json()["duplicate"] is True and len(queue.tasks) == 1
+    logged = " ".join(json.dumps(r.__dict__, default=str) for r in caplog.records)
+    assert "event.simulated" in logged and PAT not in logged and "ada@example.test" not in logged
+    plan = simulate(client, number=6, subscription="ci_implement")
+    assert plan.status_code == 202 and len(queue.tasks) == 2
+
+
+def test_a_simulation_that_the_facts_do_not_support_starts_nothing(sim):
+    client, queue, _ = sim
+    still_open = simulate(client, number=7)
+    assert still_open.status_code == 409 and "still open" in still_open.json()["message"]
+    wrong_kind = simulate(client, number=6)  # a plan merge for the design subscription
+    assert wrong_kind.status_code == 422 and "head branch" in wrong_kind.json()["message"]
+    assert simulate(client, number=99).status_code == 404
+    other = simulate(client, repository="org/elsewhere")
+    assert other.status_code == 400 and not queue.tasks
+
+
+def test_only_sdlc_ui_for_a_member_of_an_allowed_team_may_simulate(sim):
+    client, queue, _ = sim
+    assert client.post("/simulate", json={"team": "payments"}).status_code == 401
+    agents = as_user(caller="agents@proj.iam.gserviceaccount.com")
+    assert simulate(client, headers=agents).status_code == 401  # a system caller never speaks for a user
+    assert simulate(client, headers=as_user(caller="other@proj.iam.gserviceaccount.com")).status_code == 401
+    assert simulate(client, headers=as_user(aud=f"{PUBLIC_URL}/run")).status_code == 401
+    assert simulate(client, headers=as_user("eve@example.test")).status_code == 403  # not in payments
+    assert simulate(client, team="risk").status_code == 403  # risk does not allow simulation
+    assert not queue.tasks

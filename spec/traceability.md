@@ -52,7 +52,7 @@ tags: [meta, generated]
 | [FR-TRIG-003](requirements/functional/FR-TRIG-003.md) Results of unattended runs go back to the systems involved | must | planned | [ci_workflow_agent](components/ci-workflow-agent.md), [Connectors](components/connectors.md), [event_agent_mcp](components/event-agent-mcp.md), [operations_agent](components/operations-agent.md), [Workflow Engine](components/workflow-engine.md) |
 | [FR-TRIG-004](requirements/functional/FR-TRIG-004.md) CI workflow events | should | planned | [ci_workflow_agent](components/ci-workflow-agent.md), [Event Gateway](components/event-gateway.md) |
 | [FR-TRIG-005](requirements/functional/FR-TRIG-005.md) Deployment and platform events | should | planned | [Event Gateway](components/event-gateway.md), [operations_agent](components/operations-agent.md) |
-| [FR-TRIG-006](requirements/functional/FR-TRIG-006.md) Simulated events | should | planned | [Event Gateway](components/event-gateway.md), [sdlc_ui](components/sdlc-ui.md) |
+| [FR-TRIG-006](requirements/functional/FR-TRIG-006.md) Simulated events | should | built | [Event Gateway](components/event-gateway.md), [sdlc_ui](components/sdlc-ui.md) |
 | [FR-HUM-001](requirements/functional/FR-HUM-001.md) Human tasks pause a run | must | built | [Human Tasks](components/human-tasks.md), [Workflow Engine](components/workflow-engine.md) |
 | [FR-HUM-002](requirements/functional/FR-HUM-002.md) Task routing | must | planned | [Access Policy](components/access-policy.md), [Directory](components/directory.md), [Human Tasks](components/human-tasks.md) |
 | [FR-HUM-003](requirements/functional/FR-HUM-003.md) Task signals inside the platform | should | planned | [Human Tasks](components/human-tasks.md) |

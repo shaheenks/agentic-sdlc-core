@@ -127,5 +127,7 @@ services:
       SDLC_AGENT_AUTH: ${SDLC_AGENT_AUTH:-none}
       SDLC_MCP_URL: ${SDLC_MCP_URL:-http://user-agent-mcp:8080}
       SDLC_MCP_AUTH: ${SDLC_MCP_AUTH:-none}
+      SDLC_EVENTS_URL: ${SDLC_EVENTS_URL:-}
+      SDLC_EVENTS_AUTH: ${SDLC_EVENTS_AUTH:-none}
     ports:
       - "127.0.0.1:3000:3000"

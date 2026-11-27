@@ -44,6 +44,20 @@ class Change:
 
 
 @dataclass(frozen=True)
+class PullRequestFacts:
+    """What the provider says about one pull request: read by the event gateway for a simulated event (DEC-0016)."""
+
+    number: int
+    state: str  # open or closed
+    merged: bool
+    base_branch: str
+    head_branch: str
+    merged_by: str | None = None
+    merge_commit: str | None = None
+    url: str = ""
+
+
+@dataclass(frozen=True)
 class OpenPullRequest:
     number: int
     title: str
@@ -125,6 +139,20 @@ class GitHub:
             "POST", f"/repos/{self.repo}/pulls", json={"title": title, "body": body, "head": branch, "base": base}
         )
         return PullRequest(pr["number"], pr["html_url"], branch)
+
+    def pull_request(self, number: int) -> PullRequestFacts:
+        """One pull request's state, branches and merge, as GitHub reports them."""
+        pr = self.http.request("GET", f"/repos/{self.repo}/pulls/{int(number)}") or {}
+        return PullRequestFacts(
+            number=int(pr.get("number") or number),
+            state=str(pr.get("state") or ""),
+            merged=bool(pr.get("merged")),
+            base_branch=str((pr.get("base") or {}).get("ref") or ""),
+            head_branch=str((pr.get("head") or {}).get("ref") or ""),
+            merged_by=(pr.get("merged_by") or {}).get("login"),
+            merge_commit=pr.get("merge_commit_sha") if pr.get("merged") else None,
+            url=str(pr.get("html_url") or ""),
+        )
 
     def comment(self, number: int, body: str) -> str:
         """A comment on a pull request; returns its link."""

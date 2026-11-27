@@ -166,6 +166,11 @@ def test_missing_environment_warns_but_validates(config_dir, capsys):
         ),
         (
             "env/example/system.yaml",
+            lambda d: d.update({"simulation": {"teams": ["platform"]}}),
+            "simulation: team 'platform' is not one of the system identity's teams",
+        ),
+        (
+            "env/example/system.yaml",
             lambda d: d["machine_users"].update({"gitlab": "bot"}),
             "machine_users: unknown provider 'gitlab'",
         ),

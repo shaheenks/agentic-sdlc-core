@@ -8,6 +8,8 @@ dependencies = [
     "sdlc-logging",
     "sdlc-config-store",
     "sdlc-identity",
+    "sdlc-directory",
+    "sdlc-connectors",
     "httpx>=0.28",
     "google-auth>=2.40",
 ]

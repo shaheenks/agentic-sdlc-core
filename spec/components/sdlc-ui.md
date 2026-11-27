@@ -27,6 +27,8 @@ UI:
 - Artifacts: browse, preview and download what runs produced.
 - Connections: let a user link and revoke their own accounts on downstream systems.
 - Team context: choose which of the user's teams a run is for.
+- Events: where the environment allows it, send a simulated event for one of the user's teams' subscriptions to the
+  event gateway ([FR-TRIG-006](../requirements/functional/FR-TRIG-006.md), [DEC-0016](../decisions/DEC-0016.md)).
 
 BFF:
 

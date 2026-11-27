@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { AgentClient, McpClient } from "../lib/backends.ts";
+import { AgentClient, EventsClient, McpClient } from "../lib/backends.ts";
 import { ServiceTokens } from "../lib/gcp.ts";
 import { backendSettings } from "../lib/settings.ts";
 
@@ -85,4 +85,25 @@ test("service tokens come from the metadata server and are cached", async () => 
   assert.equal(await tokens.idToken("aud"), `h.${payload}.s`);
   await tokens.idToken("aud");
   assert.equal(calls, 2);
+});
+
+test("the event gateway gets the user and an ID token for its own URL, at /simulate only", async () => {
+  const { seen, impl } = recorder(() => Response.json({ matched: 1, delivery_id: "sim-1" }, { status: 202 }));
+  const events = new EventsClient({ ...SETTINGS, eventsUrl: "https://gateway.example.test" }, TOKENS, impl);
+  assert.equal(events.configured, true);
+  const sent = await events.simulate(USER, "POST", { team: "payments" });
+  assert.deepEqual(sent, { status: 202, body: { matched: 1, delivery_id: "sim-1" } });
+  const headers = seen[0].init.headers as Record<string, string>;
+  assert.equal(seen[0].url, "https://gateway.example.test/simulate");
+  assert.equal(headers.authorization, "Bearer id-for:https://gateway.example.test");
+  assert.equal(headers["x-sdlc-user-email"], "ada@example.test");
+  assert.equal(new EventsClient(SETTINGS, TOKENS, impl).configured, false);
+});
+
+test("the event gateway's settings fail closed", () => {
+  const base = { SDLC_AGENT_URL: "https://a", SDLC_MCP_URL: "https://m" };
+  assert.equal(backendSettings(base).eventsUrl, "");
+  assert.throws(() => backendSettings({ ...base, SDLC_EVENTS_URL: "https://g", SDLC_EVENTS_AUTH: "none" }));
+  assert.throws(() => backendSettings({ ...base, SDLC_EVENTS_URL: "gateway" }));
+  assert.equal(backendSettings({ ...base, SDLC_EVENTS_URL: "https://g/" }).eventsUrl, "https://g");
 });

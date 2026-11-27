@@ -8,7 +8,7 @@ locals {
     "webhook-github"       = ["event_gateway"]
     "webhook-bitbucket"    = ["event_gateway"]
     "webhook-jira"         = ["event_gateway"]
-    "system-pat-github"    = ["event_agent_mcp", "code_workspace"]
+    "system-pat-github"    = ["event_agent_mcp", "code_workspace", "event_gateway"] # the gateway: simulated events (DEC-0016)
     "system-pat-bitbucket" = ["event_agent_mcp", "code_workspace"]
     "system-pat-jira"      = ["event_agent_mcp"]
   }

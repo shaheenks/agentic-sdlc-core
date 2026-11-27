@@ -310,6 +310,12 @@ changing it during a run needs the user's explicit confirmation in chat.
   9. user_agent's `implementation_plan`, `hand_off_plan`, `implementation` and `open_implementation` workflows.
   10. Infrastructure (`code-workspace-user`, IAM), deployment to development, the exit gate in DEC-0016, then the
       retirement of `ci_plan` and `ci_implement`.
+- Milestone 7 built (2026-11-28), tested against faked GitHub, Cloud Tasks and Google ID tokens: `simulation.teams`
+  in `system.yaml` (development: taskslist); the gateway's `GET /simulate` lists what the user may send and
+  `POST /simulate` reads the pull request from GitHub with the machine user's token, refuses an open or non-matching
+  one with the reason, and otherwise claims and queues it like a webhook (`sim-` delivery IDs from the facts, so the
+  same merge runs once); sdlc_ui's Events page, shown only where the user may simulate. Terraform: the gateway gets
+  `SYSTEM_TOKEN_GITHUB`, sdlc_ui `SDLC_EVENTS_URL`.
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).

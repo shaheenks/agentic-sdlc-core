@@ -348,6 +348,15 @@ resource "google_cloud_run_v2_service" "event_gateway" {
         value = "https://${var.region}-aiplatform.googleapis.com/v1/${var.event_agent_engine}"
       }
       env {
+        name = "SYSTEM_TOKEN_GITHUB" # reads pull requests for simulated events (FR-TRIG-006, DEC-0016)
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.platform["system-pat-github"].secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
         name = "WEBHOOK_SECRET_GITHUB"
         value_source {
           secret_key_ref {

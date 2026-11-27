@@ -27,7 +27,7 @@ ENV_ONLY = ("teams", "user_groups", "sources")  # once shared files; refused the
 ITEM_FOLDERS = ("teams", "sources")
 LOCAL_ONLY_MODES = ("trusted_header",)
 UNCONFIGURED = {"mode": "", "allowed_domains": [], "callers": {}, "clients": {}}
-NO_SYSTEM = {"tool_groups": [], "sources": [], "teams": [], "machine_users": {}}
+NO_SYSTEM = {"tool_groups": [], "sources": [], "teams": [], "machine_users": {}, "simulation": {"teams": []}}
 RUN_INPUTS = {"control_id", "repo"}  # named groups a subscription's branch filters may capture
 
 
@@ -413,6 +413,9 @@ def _check_system(config: dict, problems: list[str], warnings: list[str], env: s
     for team in system["teams"]:
         if team not in config["teams"]:
             problems.append(f"{where}: unknown team {team!r}")
+    for team in system["simulation"]["teams"]:
+        if team not in system["teams"]:
+            problems.append(f"{where}: simulation: team {team!r} is not one of the system identity's teams")
     for provider in system["machine_users"]:
         if provider not in config["providers"]:
             problems.append(f"{where}: machine_users: unknown provider {provider!r}")

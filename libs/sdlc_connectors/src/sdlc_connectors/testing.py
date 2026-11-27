@@ -17,12 +17,14 @@ class FakeGitHub:
         self.how: dict[tuple[str, str], tuple[int | None, str | None]] = {}
         self.prs: dict[int, dict] = {}
         self.merged: set[int] = set()
+        self.merged_by: dict[int, str] = {}
         self.comments: dict[int, list[str]] = {}
         self.starts: dict[str, dict[str, str]] = {}  # each branch's tree when it was created
 
     def merge(self, number: int, by: str = "grace") -> None:
         pr = self.prs[number]
         self.merged.add(number)
+        self.merged_by[number] = by
         start = self.starts.get(pr["head"], {})
         for path, content in self.trees[pr["head"]].items():
             if start.get(path) == content:  # unchanged on the branch: the base keeps its own (a three-way merge)
@@ -77,8 +79,22 @@ class FakeGitHub:
             )
         if method == "GET" and path.startswith("/pulls/"):
             number = int(path.rsplit("/", 1)[-1])
-            by = next((b for n, b in self.how.values() if n == number), None)
-            return httpx.Response(200, json={"merged_by": {"login": by}})
+            by = self.merged_by.get(number) or next((b for n, b in self.how.values() if n == number), None)
+            body = self.prs.get(number) or {}
+            merged = number in self.merged or by is not None
+            return httpx.Response(
+                200,
+                json={
+                    "number": number,
+                    "state": "closed" if merged else "open",
+                    "merged": merged,
+                    "merged_by": {"login": by} if by else None,
+                    "merge_commit_sha": f"m{number}" if merged else None,
+                    "base": {"ref": body.get("base", "")},
+                    "head": {"ref": body.get("head", "")},
+                    "html_url": f"https://gh/pr/{number}",
+                },
+            )
         if method == "POST" and path.startswith("/issues/") and path.endswith("/comments"):
             number = int(path.split("/")[2])
             self.comments.setdefault(number, []).append(json.loads(request.content)["body"])

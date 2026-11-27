@@ -4,6 +4,7 @@
 // - The agent runtime (user_agent on Agent Runtime): `:query` and `:streamQuery` with {class_method, input}; the
 //   user is the `user_id` of every call, and the email goes into a session's state when it is created.
 // - user_agent_mcp's HTTP API: the user in X-SDLC-User-Id / X-SDLC-User-Email, sdlc_ui proven by its ID token.
+// - The event gateway's /simulate (FR-TRIG-006, DEC-0016): the same headers, its own URL as the ID token's audience.
 // Error bodies are never passed on or logged: they could quote the request.
 
 import type { Tokens } from "./gcp.ts";
@@ -138,6 +139,52 @@ export class McpClient {
     }
     if (body !== undefined) headers["content-type"] = "application/json";
     const response = await this.fetchImpl(`${this.settings.mcpUrl}${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
+    });
+    let parsed: unknown = null;
+    try {
+      parsed = await response.json();
+    } catch {
+      parsed = null;
+    }
+    return { status: response.status, body: parsed };
+  }
+}
+
+export class EventsClient {
+  private readonly settings: BackendSettings;
+  private readonly tokens: Tokens | null;
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(settings: BackendSettings, tokens: Tokens | null, fetchImpl: typeof fetch = fetch) {
+    this.settings = settings;
+    this.tokens = tokens;
+    this.fetchImpl = fetchImpl;
+  }
+
+  /** Whether this deployment has an event gateway to simulate events on. */
+  get configured(): boolean {
+    return Boolean(this.settings.eventsUrl);
+  }
+
+  /** One call to the gateway's /simulate for the user; returns its status and JSON body as they are. */
+  async simulate(user: User, method: "GET" | "POST", body?: unknown): Promise<{ status: number; body: unknown }> {
+    const url = this.settings.eventsUrl;
+    if (!url) throw new Error("no event gateway configured");
+    const headers: Record<string, string> = {
+      "x-sdlc-user-id": user.id,
+      "x-sdlc-user-email": user.email,
+      "x-sdlc-surface": "sdlc_ui", // read only in the local identity mode (trusted_header)
+    };
+    if ((this.settings.eventsAuth ?? "id_token") === "id_token") {
+      if (!this.tokens) throw new Error("no credentials for the event gateway");
+      headers.authorization = `Bearer ${await this.tokens.idToken(url)}`;
+    }
+    if (body !== undefined) headers["content-type"] = "application/json";
+    const response = await this.fetchImpl(`${url}/simulate`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),

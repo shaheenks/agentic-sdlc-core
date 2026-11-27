@@ -5,7 +5,7 @@
 
 import { CopilotRuntime, createCopilotRuntimeHandler } from "@copilotkit/runtime/v2";
 
-import { AgentClient, McpClient } from "./backends.ts";
+import { AgentClient, EventsClient, McpClient } from "./backends.ts";
 import { PassThroughRunner, RuntimeAgent, USER_HEADERS } from "./chat.ts";
 import { ServiceTokens } from "./gcp.ts";
 import { authSettings, type User, userOf } from "./identity.ts";
@@ -13,20 +13,31 @@ import { backendSettings } from "./settings.ts";
 
 export const RUNTIME_PATH = "/api/copilotkit";
 
-type Parts = { agent: AgentClient; mcp: McpClient; copilot: (request: Request) => Promise<Response> };
+type Parts = {
+  agent: AgentClient;
+  mcp: McpClient;
+  events: EventsClient;
+  copilot: (request: Request) => Promise<Response>;
+};
 let parts: Parts | undefined;
 
 export function backends(): Parts {
   if (!parts) {
     const settings = backendSettings();
-    const tokens = settings.agentAuth === "none" && settings.mcpAuth === "none" ? null : new ServiceTokens();
+    const anyAuth = settings.agentAuth !== "none" || settings.mcpAuth !== "none" || (Boolean(settings.eventsUrl) && settings.eventsAuth !== "none");
+    const tokens = anyAuth ? new ServiceTokens() : null;
     const agent = new AgentClient(settings, tokens);
     const runtime = new CopilotRuntime({
       agents: { default: new RuntimeAgent(agent) },
       runner: new PassThroughRunner(agent),
       forwardHeaders: { allow: [USER_HEADERS.id, USER_HEADERS.email] },
     });
-    parts = { agent, mcp: new McpClient(settings, tokens), copilot: createCopilotRuntimeHandler({ runtime, basePath: RUNTIME_PATH }) };
+    parts = {
+      agent,
+      mcp: new McpClient(settings, tokens),
+      events: new EventsClient(settings, tokens),
+      copilot: createCopilotRuntimeHandler({ runtime, basePath: RUNTIME_PATH }),
+    };
   }
   return parts;
 }

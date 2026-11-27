@@ -220,6 +220,37 @@ def test_github_last_change_names_the_merged_pull_request_and_who_merged_it():
     assert dict(fake.seen[0].url.params) == {"path": "features/F-1/feature.md", "sha": "main", "per_page": "1"}
 
 
+def test_github_pull_request_facts_come_from_github_not_the_caller():
+    merged = {
+        "number": 7,
+        "state": "closed",
+        "merged": True,
+        "merged_by": {"login": "grace"},
+        "merge_commit_sha": "abc",
+        "base": {"ref": "feature/F-1"},
+        "head": {"ref": "sdlc/F-1/design-1"},
+        "html_url": "u",
+    }
+    fake = Fake(
+        {
+            ("GET", "/repos/o/c/pulls/7"): httpx.Response(200, json=merged),
+            ("GET", "/repos/o/c/pulls/8"): httpx.Response(
+                200, json={"number": 8, "state": "open", "merged": False, "merge_commit_sha": "test-merge"}
+            ),
+        }
+    )
+    repo = repository("github", "cloud", "https://api.github.com", "o/c", Credential(TOKEN), fake.client())
+    facts = repo.pull_request(7)
+    assert (facts.merged, facts.merged_by, facts.merge_commit, facts.base_branch, facts.head_branch) == (
+        True,
+        "grace",
+        "abc",
+        "feature/F-1",
+        "sdlc/F-1/design-1",
+    )
+    assert repo.pull_request(8).merge_commit is None  # an open pull request's test merge is not its merge
+
+
 def test_github_last_change_of_a_pushed_commit_has_no_pull_request():
     fake = Fake(
         {

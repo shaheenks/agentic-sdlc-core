@@ -6,7 +6,7 @@ tags: [requirement, triggers, events, ui]
 status: draft
 x-area: TRIG
 x-priority: should
-x-implementation: planned
+x-implementation: built
 ---
 
 # Statement

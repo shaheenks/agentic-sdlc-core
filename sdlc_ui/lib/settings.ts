@@ -6,12 +6,16 @@
 //   this service's account) or `none` (local only).
 // - SDLC_MCP_URL: user_agent_mcp's URL. SDLC_MCP_AUTH: `id_token` (this service's ID token, audience the URL)
 //   or `none` (local only: user_agent_mcp in identity mode trusted_header).
+// - SDLC_EVENTS_URL: the event gateway's URL, for simulated events (FR-TRIG-006, DEC-0016); unset hides the Events
+//   page. SDLC_EVENTS_AUTH: `id_token` (audience the URL) or `none` (local only).
 
 export type BackendSettings = {
   agentUrl: string;
   agentAuth: "google" | "none";
   mcpUrl: string;
   mcpAuth: "id_token" | "none";
+  eventsUrl?: string;
+  eventsAuth?: "id_token" | "none";
 };
 
 const LOCAL = "local";
@@ -30,5 +34,12 @@ export function backendSettings(env: Record<string, string | undefined> = proces
   if (!/^https?:\/\//.test(agentUrl) || !/^https?:\/\//.test(mcpUrl)) {
     throw new Error("SDLC_AGENT_URL and SDLC_MCP_URL must be set");
   }
-  return { agentUrl, agentAuth, mcpUrl, mcpAuth };
+  const eventsUrl = (env.SDLC_EVENTS_URL ?? "").replace(/\/+$/, "");
+  const eventsAuth = env.SDLC_EVENTS_AUTH ?? "id_token";
+  if (eventsAuth !== "id_token" && eventsAuth !== "none") throw new Error("SDLC_EVENTS_AUTH must be id_token or none");
+  if (eventsAuth === "none" && eventsUrl && !local) {
+    throw new Error("calling a backend without credentials is allowed only with SDLC_ENV=local");
+  }
+  if (eventsUrl && !/^https?:\/\//.test(eventsUrl)) throw new Error("SDLC_EVENTS_URL must be an http(s) URL");
+  return { agentUrl, agentAuth, mcpUrl, mcpAuth, eventsUrl, eventsAuth };
 }

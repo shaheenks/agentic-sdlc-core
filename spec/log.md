@@ -1,5 +1,7 @@
 ## 2026-11-28
 
+* **Update**: phase 5a milestone 7 built ([DEC-0016](decisions/DEC-0016.md)): simulated events (FR-TRIG-006)
+  from sdlc_ui's Events page through the gateway's `/simulate`, with `simulation.teams` in `system.yaml`.
 * **Update**: [DEC-0016](decisions/DEC-0016.md) accepted: FR-SDLC-005, FR-SDLC-006 and FR-TRIG-001 changed;
   FR-TRIG-006 (simulated events) added; phase 5a gains milestones 7 to 10.
 * **Create**: [DEC-0016](decisions/DEC-0016.md), proposed: plan and implement move to user_agent as stages run with the

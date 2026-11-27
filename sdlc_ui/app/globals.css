@@ -347,7 +347,8 @@ label {
   gap: 6px;
 }
 
-input {
+input,
+select {
   font: inherit;
   padding: 8px 10px;
   border: 1px solid var(--sdlc-line);

@@ -27,6 +27,10 @@ notes on a tag, triage a new defect. This component turns schedules and events i
 - Run schedules (cron-style) declared for workflows and teams.
 - Start each matched run as the system identity, with the event or schedule metadata attached ([FR-IDN-004](../requirements/functional/FR-IDN-004.md)); deduplicate repeat deliveries.
 - Audit every event received, matched, ignored or rejected.
+- Until the webhooks are set up, take simulated events from sdlc_ui for a member of a team the environment allows
+  to simulate; read the pull request's facts from the provider and run the event like a verified delivery, marked
+  simulated with the user who sent it ([FR-TRIG-006](../requirements/functional/FR-TRIG-006.md),
+  [DEC-0016](../decisions/DEC-0016.md)).
 
 # Out of scope
 
@@ -34,7 +38,7 @@ notes on a tag, triage a new defect. This component turns schedules and events i
 
 # Interfaces
 
-- Provides: webhook endpoints per provider; subscription and schedule status.
+- Provides: webhook endpoints per provider; subscription and schedule status; `/simulate` for sdlc_ui.
 - Consumes: subscriptions in the [Workflow Catalog](workflow-catalog.md); the run API of the engine.
 
 # Depends on
