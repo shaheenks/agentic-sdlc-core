@@ -37,6 +37,12 @@ tool_groups:
       The run's team's control repository: publish artifacts by pull request and check their approval
       (FR-SDLC-013, DEC-0012).
     tools: [control_publish, control_status, control_pull_requests, feature_open, feature_target_branches]
+  implementation:
+    everyone: true
+    description: >-
+      The implementation plan and the implementation with the user: the plan and the implementation pull requests as
+      the user, and builds in the credential-free Code Workspace (FR-SDLC-006, DEC-0016).
+    tools: [plan_publish, workspace_build, implementation_publish]
   # Tool groups of unattended runs, served by event_agent_mcp to the system identity only (DEC-0007, DEC-0015).
   # They are given in env/<env>/system.yaml, never to users; a subscription lists which of their writes it may make.
   ci_read:

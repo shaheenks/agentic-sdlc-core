@@ -16,6 +16,7 @@ import httpx
 
 from sdlc_connectors.base import ConnectorError, Credential, Http
 
+MAX_ARCHIVE = 100_000_000  # a repository archive for the Code Workspace (DEC-0016)
 BRANCH = re.compile(r"^[A-Za-z0-9._/-]{1,200}$")
 PATH = re.compile(r"^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$")
 
@@ -158,6 +159,51 @@ class GitHub:
         """A comment on a pull request; returns its link."""
         done = self.http.request("POST", f"/repos/{self.repo}/issues/{int(number)}/comments", json={"body": body})
         return (done or {}).get("html_url", "")
+
+    def archive(self, ref: str, max_bytes: int = MAX_ARCHIVE) -> bytes:
+        """The repository at a branch or commit as a .tar.gz, with one top-level folder (DEC-0016)."""
+        _check(branch=ref)
+        return self.http.download(f"/repos/{self.repo}/tarball/{quote(ref)}", max_bytes)
+
+    def commit_changes(self, branch: str, start: str, changes: list[dict[str, Any]], message: str) -> str:
+        """One commit of whole-file changes ({path, content} or {path, delete: true}) on `branch`, created from
+        `start` when it does not exist yet; returns the commit. Made with the connection's credential, so it is the
+        connection owner's (DEC-0016)."""
+        _check(branch=branch)
+        _check(branch=start)
+        for change in changes:
+            _check(path=str(change.get("path") or ""))
+        try:
+            head = self.http.request("GET", f"/repos/{self.repo}/git/ref/heads/{quote(branch)}")
+            created = False
+        except ConnectorError as exc:
+            if exc.code != "not_found":
+                raise
+            head = self.http.request("GET", f"/repos/{self.repo}/git/ref/heads/{quote(start)}")
+            created = True
+        parent = head["object"]["sha"]
+        base_tree = self.http.request("GET", f"/repos/{self.repo}/git/commits/{parent}")["tree"]["sha"]
+        tree = [
+            {"path": c["path"], "mode": "100644", "type": "blob", "sha": None}
+            if c.get("delete")
+            else {"path": c["path"], "mode": "100644", "type": "blob", "content": str(c.get("content") or "")}
+            for c in changes
+        ]
+        new_tree = self.http.request(
+            "POST", f"/repos/{self.repo}/git/trees", json={"base_tree": base_tree, "tree": tree}
+        )
+        commit = self.http.request(
+            "POST",
+            f"/repos/{self.repo}/git/commits",
+            json={"message": message, "tree": new_tree["sha"], "parents": [parent]},
+        )["sha"]
+        if created:
+            self.http.request(
+                "POST", f"/repos/{self.repo}/git/refs", json={"ref": f"refs/heads/{branch}", "sha": commit}
+            )
+        else:
+            self.http.request("PATCH", f"/repos/{self.repo}/git/refs/heads/{quote(branch)}", json={"sha": commit})
+        return commit
 
     def _put(self, path: str, content: str, branch: str, message: str) -> str:
         """Creates or replaces one file on a branch; returns the commit."""

@@ -11,6 +11,7 @@ dependencies = [
     "sdlc-policy",
     "sdlc-connectors",
     "sdlc-control",
+    "sdlc-workspace",
     "mcp>=2.2,<3",
     "httpx>=0.28",
     "google-auth>=2.40",

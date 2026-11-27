@@ -1,10 +1,13 @@
 """The Code Workspace against a local bare repository: checkout, change, build and test, push to the sdlc/ branch only,
-and no token for the repository's own commands (DEC-0015)."""
+and no token for the repository's own commands (DEC-0015); and the user mode, which only builds an archive the server
+fetched (DEC-0016)."""
 
+import io
 import json
 import os
 import subprocess
 import sys
+import tarfile
 
 import pytest
 from code_workspace.__main__ import main
@@ -110,3 +113,58 @@ def test_the_job_reads_its_request_from_the_mount(remote, tmp_path, monkeypatch)
     monkeypatch.setenv("REQUEST_PATH", "../../etc")
     assert main() == 2
     assert execute_request(folder / "request.json", ENV)["pushed"] is False  # nothing new to push
+
+
+def archive(files: dict[str, str]) -> bytes:
+    out = io.BytesIO()
+    with tarfile.open(fileobj=out, mode="w:gz") as tar:
+        for name, content in files.items():
+            data = content.encode()
+            info = tarfile.TarInfo(f"org-app-abc/{name}")
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    return out.getvalue()
+
+
+def user_folder(tmp_path, files, **request_overrides):
+    folder = tmp_path / "mount" / "artifacts" / "users" / "u1" / "runs" / "F-20261126-x_app" / "workspace-1"
+    folder.mkdir(parents=True)
+    (folder / "source.tar.gz").write_bytes(archive(files))
+    req = {
+        "archive": "source.tar.gz",
+        "changes": [{"path": "pkg/refunds.py", "content": "def refund():\n    return 2\n"}],
+        "commands": {"test": [f'{PY} -c "import pkg.refunds as r, app; assert r.refund() == 2 and app.VALUE == 1"']},
+        **request_overrides,
+    }
+    (folder / "request.json").write_text(json.dumps(req), encoding="utf-8")
+    return folder
+
+
+def test_user_mode_builds_the_archive_with_the_change_and_pushes_nothing(tmp_path, monkeypatch):
+    folder = user_folder(tmp_path, {"app.py": "VALUE = 1\n"})
+    monkeypatch.setenv("STORE_MOUNT_PATH", str(tmp_path / "mount"))
+    monkeypatch.setenv("WORKSPACE_MODE", "user")
+    monkeypatch.delenv("SYSTEM_TOKEN_GITHUB", raising=False)
+    monkeypatch.setenv("REQUEST_PATH", "artifacts/users/u1/runs/F-20261126-x_app/workspace-1")
+    assert main() == 0
+    result = json.loads((folder / "result.json").read_text(encoding="utf-8"))
+    assert result["ok"] is True and result["pushed"] is False and result["steps"][0]["exit_code"] == 0
+    monkeypatch.setenv("REQUEST_PATH", "artifacts/system/runs/d-1/workspace-1")  # not the user job's prefix
+    assert main() == 2
+
+
+def test_user_mode_refuses_a_missing_or_unsafe_archive(tmp_path):
+    folder = user_folder(tmp_path, {"app.py": "VALUE = 1\n"}, archive="../secrets.tar.gz")
+    env = {"WORKSPACE_MODE": "user", "PATH": os.environ.get("PATH", "")}
+    assert "no repository archive" in execute_request(folder / "request.json", env)["error"]
+    evil = io.BytesIO()
+    with tarfile.open(fileobj=evil, mode="w:gz") as tar:
+        info = tarfile.TarInfo("../escape.txt")
+        info.size = 1
+        tar.addfile(info, io.BytesIO(b"x"))
+    (folder / "source.tar.gz").write_bytes(evil.getvalue())
+    request_doc = json.loads((folder / "request.json").read_text(encoding="utf-8"))
+    (folder / "request.json").write_text(json.dumps({**request_doc, "archive": "source.tar.gz"}), encoding="utf-8")
+    result = execute_request(folder / "request.json", env)
+    assert result["ok"] is False and "cannot be unpacked" in result["error"]
+    assert not (tmp_path / "mount" / "artifacts" / "users" / "u1" / "runs" / "escape.txt").exists()

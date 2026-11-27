@@ -30,6 +30,7 @@ members = [
     "sdlc-service",
     "sdlc-user-agent",
     "sdlc-user-agent-mcp",
+    "sdlc-workspace",
 ]
 
 [[package]]
@@ -2012,6 +2013,7 @@ dependencies = [
     { name = "sdlc-logging" },
     { name = "sdlc-policy" },
     { name = "sdlc-service" },
+    { name = "sdlc-workspace" },
 ]
 
 [package.metadata]
@@ -2026,6 +2028,7 @@ requires-dist = [
     { name = "sdlc-logging", editable = "libs/sdlc_logging" },
     { name = "sdlc-policy", editable = "libs/sdlc_policy" },
     { name = "sdlc-service", editable = "libs/sdlc_service" },
+    { name = "sdlc-workspace", editable = "libs/sdlc_workspace" },
 ]
 
 [[package]]
@@ -2194,6 +2197,7 @@ version = "0.1.0"
 source = { editable = "mcp_servers/user_agent_mcp" }
 dependencies = [
     { name = "cryptography" },
+    { name = "google-auth" },
     { name = "httpx" },
     { name = "mcp" },
     { name = "pyyaml" },
@@ -2205,11 +2209,13 @@ dependencies = [
     { name = "sdlc-logging" },
     { name = "sdlc-policy" },
     { name = "sdlc-service" },
+    { name = "sdlc-workspace" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "cryptography", specifier = ">=45" },
+    { name = "google-auth", specifier = ">=2.40" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "mcp", specifier = ">=2.2,<3" },
     { name = "pyyaml", specifier = ">=6" },
@@ -2221,6 +2227,22 @@ requires-dist = [
     { name = "sdlc-logging", editable = "libs/sdlc_logging" },
     { name = "sdlc-policy", editable = "libs/sdlc_policy" },
     { name = "sdlc-service", editable = "libs/sdlc_service" },
+    { name = "sdlc-workspace", editable = "libs/sdlc_workspace" },
+]
+
+[[package]]
+name = "sdlc-workspace"
+version = "0.0.0"
+source = { editable = "libs/sdlc_workspace" }
+dependencies = [
+    { name = "google-auth" },
+    { name = "httpx" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "google-auth", specifier = ">=2.40" },
+    { name = "httpx", specifier = ">=0.28" },
 ]
 
 [[package]]

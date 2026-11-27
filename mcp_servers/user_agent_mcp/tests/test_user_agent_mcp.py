@@ -970,3 +970,149 @@ def test_connection_test_signs_in_and_never_returns_the_token(senv):
     client, _ = senv
     result = tool(client, WHO["ada-ui"], "connection_test", provider="jira_cloud")
     assert result == {"provider": "jira_cloud", "status": "ok", "account": "ada@example.test"}
+
+
+# The implementation plan and the implementation with the user (DEC-0016) -----------------------------------------
+
+IMPL_CONFIG = {
+    **SYSTEMS_CONFIG,
+    "tool_groups": {
+        **SYSTEMS_CONFIG["tool_groups"],
+        "implementation": {
+            "description": "-",
+            "tools": ["plan_publish", "workspace_build", "implementation_publish"],
+        },
+    },
+    "surfaces": {
+        s: {**e, "tool_groups": [*e["tool_groups"], "implementation"]} for s, e in SYSTEMS_CONFIG["surfaces"].items()
+    },
+    "grants": [
+        {
+            **SYSTEMS_CONFIG["grants"][0],
+            "tool_groups": [*SYSTEMS_CONFIG["grants"][0]["tool_groups"], "implementation"],
+        }
+    ],
+    "team_systems": {
+        **SYSTEMS_CONFIG["team_systems"],
+        "payments": {
+            **SYSTEMS_CONFIG["team_systems"]["payments"],
+            "repositories": [
+                {**SYSTEMS_CONFIG["team_systems"]["payments"]["repositories"][0], "workspace": {"test": ["pytest"]}},
+                SYSTEMS_CONFIG["team_systems"]["payments"]["repositories"][1],
+            ],
+        },
+    },
+}
+
+
+class FakeWorkspace:
+    """The credential-free job: reads the request and its archive, passes when no change writes FAIL."""
+
+    def __init__(self):
+        self.requests: list[dict] = []
+        self.archives: list[dict[str, str]] = []
+
+    async def run(self, request_path, relative):
+        import io
+        import tarfile
+
+        request = json.loads(request_path.read_text(encoding="utf-8"))
+        self.requests.append({**request, "relative": relative})
+        with tarfile.open(fileobj=io.BytesIO((request_path.parent / request["archive"]).read_bytes())) as tar:
+            files = {m.name.split("/", 1)[1]: tar.extractfile(m).read().decode() for m in tar.getmembers()}
+        self.archives.append(files)
+        ok = not any("FAIL" in (c.get("content") or "") for c in request["changes"])
+        step = {"name": "test", "command": "pytest", "exit_code": 0 if ok else 1, "seconds": 1, "log_tail": "x"}
+        (request_path.parent / "result.json").write_text(json.dumps({"ok": ok, "steps": [step]}), encoding="utf-8")
+
+
+@pytest.fixture
+def ienv(senv, env):
+    client, _ = senv
+    _, platform, config_root, store_root = env
+    publish(config_root, IMPL_CONFIG)
+    platform.workspace = FakeWorkspace()
+    return client, platform.workspace, store_root
+
+
+def designed(client, ctrl, target):
+    """A feature with a design a person merged, and its branch on the target repository."""
+    control_id = opened(client)
+    tool(client, TEAM, "feature_target_branches", control_id=control_id)
+    design = tool(client, TEAM, "control_publish", kind="design", content="# Design", control_id=control_id)
+    ctrl.merge(design["pull_request"]["number"], "grace")
+    target.push(f"feature/{control_id}", "app.py", "VALUE = 1\n")
+    return control_id
+
+
+CHANGE = [{"path": "pkg/refunds.py", "content": "def refund():\n    return 2\n"}]
+
+
+def test_the_user_proposes_a_plan_only_for_a_merged_design_and_only_once(ienv, ctrl, target):
+    client, _, _ = ienv
+    control_id = opened(client)
+    early = tool(client, TEAM, "plan_publish", control_id=control_id, repo="org/payments", content="# Plan")
+    assert early["error"] == "not_approved"
+    design = tool(client, TEAM, "control_publish", kind="design", content="# Design", control_id=control_id)
+    ctrl.merge(design["pull_request"]["number"], "grace")
+    out = tool(client, TEAM, "plan_publish", control_id=control_id, repo="org/payments", content="# Plan")
+    pr = ctrl.prs[out["pull_request"]["pull_request"]]
+    assert pr["head"] == f"sdlc/{control_id}/plan-payments" and pr["base"] == f"feature/{control_id}"
+    assert "Published by ada@example.test" in pr["body"]
+    plan = ctrl.file(f"sdlc/{control_id}/plan-payments", f"features/{control_id}/plan-payments.md")
+    assert "drafted_by: ada@example.test" in plan and "merged_by: grace" in plan
+    again = tool(client, TEAM, "plan_publish", control_id=control_id, repo="org/payments", content="# Plan 2")
+    assert again["already_open"] is True
+    other = tool(client, TEAM, "plan_publish", control_id=control_id, repo="org/risk", content="# Plan")
+    assert other["error"] == "constraint_denied"  # not one of the run's team's repositories
+
+
+def test_a_change_is_built_from_the_users_archive_then_opened_as_the_user(ienv, ctrl, target):
+    client, workspace, store_root = ienv
+    control_id = designed(client, ctrl, target)
+    early = tool(client, TEAM, "workspace_build", control_id=control_id, repo="org/payments", changes=CHANGE)
+    assert early["error"] == "not_approved"  # no plan merged yet
+    plan = tool(client, TEAM, "plan_publish", control_id=control_id, repo="org/payments", content="# Plan")
+    ctrl.merge(plan["pull_request"]["pull_request"], "grace")
+    unbuilt = tool(client, TEAM, "implementation_publish", control_id=control_id, repo="org/payments", changes=CHANGE)
+    assert unbuilt["error"] == "not_built"
+    built = tool(client, TEAM, "workspace_build", control_id=control_id, repo="org/payments", changes=CHANGE)
+    assert built["ok"] is True and built["ref"] == f"feature/{control_id}" and built["steps"][0]["exit_code"] == 0
+    request = workspace.requests[0]
+    assert request["relative"].startswith("artifacts/users/1001/runs/") and request["commands"] == {"test": ["pytest"]}
+    assert workspace.archives[0] == {"app.py": "VALUE = 1\n"}  # fetched with Ada's connection
+    assert not list(store_root.rglob("source.tar.gz"))  # the archive is not kept
+    other = [{"path": "pkg/refunds.py", "content": "changed after the build"}]
+    differs = tool(client, TEAM, "implementation_publish", control_id=control_id, repo="org/payments", changes=other)
+    assert differs["error"] == "not_built"
+    out = tool(client, TEAM, "implementation_publish", control_id=control_id, repo="org/payments", changes=CHANGE)
+    number = out["pull_request"]["pull_request"]
+    assert target.prs[number]["head"] == f"sdlc/{control_id}/payments"
+    assert (
+        target.prs[number]["base"] == f"feature/{control_id}"
+        and "Implemented with ada@example.test" in (target.prs[number]["body"])
+    )
+    assert target.file(f"sdlc/{control_id}/payments", "pkg/refunds.py") == CHANGE[0]["content"]
+    assert target.file(f"sdlc/{control_id}/payments", "app.py") == "VALUE = 1\n"
+    links = yaml.safe_load(ctrl.file(f"feature/{control_id}", f"features/{control_id}/links.yaml"))
+    assert [w["action"] for w in links["writes"]][-2:] == ["plan_pull_request", "implementation_pull_request"]
+    rebuilt = tool(client, TEAM, "workspace_build", control_id=control_id, repo="org/payments", changes=CHANGE)
+    assert rebuilt["ref"] == f"sdlc/{control_id}/payments"  # the next round starts from the pushed branch
+    second = tool(client, TEAM, "implementation_publish", control_id=control_id, repo="org/payments", changes=CHANGE)
+    assert second["already_open"] is True and len(target.prs) == 1
+
+
+def test_a_failing_build_cannot_be_opened_and_a_repository_without_commands_needs_no_build(ienv, ctrl, target):
+    client, workspace, _ = ienv
+    control_id = designed(client, ctrl, target)
+    plan = tool(client, TEAM, "plan_publish", control_id=control_id, repo="org/payments", content="# Plan")
+    ctrl.merge(plan["pull_request"]["pull_request"], "grace")
+    failing = [{"path": "pkg/refunds.py", "content": "FAIL"}]
+    built = tool(client, TEAM, "workspace_build", control_id=control_id, repo="org/payments", changes=failing)
+    assert built["ok"] is False
+    refused = tool(client, TEAM, "implementation_publish", control_id=control_id, repo="org/payments", changes=failing)
+    assert refused["error"] == "not_built" and "failed" in refused["message"]
+    unsafe = tool(
+        client, TEAM, "workspace_build", control_id=control_id, repo="org/payments", changes=[{"path": "../x"}]
+    )
+    assert unsafe["error"] == "invalid_argument" and len(workspace.requests) == 1

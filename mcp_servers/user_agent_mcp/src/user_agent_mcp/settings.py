@@ -3,6 +3,7 @@
 import base64
 import binascii
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,6 +20,11 @@ class Settings:
     config_refresh_seconds: float = 30.0
     knowledge_search_url: str | None = None
     knowledge_auth: str = "id_token"  # or none, in the local environment only
+    # The credential-free Code Workspace (DEC-0016): `job` runs the Cloud Run job named by workspace_job; `local`
+    # runs it in this process (local environment only); empty: workspace_build is unavailable.
+    workspace_mode: str = ""
+    workspace_job: str = ""
+    workspace_timeout_seconds: int = 1200
 
     @classmethod
     def from_env(cls, environ: dict[str, str] | None = None) -> "Settings":
@@ -41,6 +47,11 @@ class Settings:
             knowledge_auth == "none" and env != "local" and knowledge_url
         ):
             raise SystemExit("KNOWLEDGE_AUTH must be id_token, or none in the local environment (fail closed)")
+        mode = e.get("WORKSPACE_MODE", "")
+        if mode not in ("", "job", "local") or (mode == "local" and env != "local"):
+            raise SystemExit("WORKSPACE_MODE must be job, or local in the local environment (fail closed)")
+        if mode == "job" and not re.match(r"^projects/[^/]+/locations/[^/]+/jobs/[^/]+$", e.get("WORKSPACE_JOB", "")):
+            raise SystemExit("WORKSPACE_JOB must be projects/<p>/locations/<r>/jobs/<name> (fail closed)")
         return cls(
             env=env,
             config_source=e["CONFIG_SOURCE"],
@@ -52,4 +63,7 @@ class Settings:
             config_refresh_seconds=float(e.get("CONFIG_REFRESH_SECONDS", "30")),
             knowledge_search_url=knowledge_url,
             knowledge_auth=knowledge_auth,
+            workspace_mode=mode,
+            workspace_job=e.get("WORKSPACE_JOB", ""),
+            workspace_timeout_seconds=int(e.get("WORKSPACE_TIMEOUT_SECONDS", "1200")),
         )

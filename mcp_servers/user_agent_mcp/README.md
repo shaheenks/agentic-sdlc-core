@@ -25,6 +25,9 @@ The server:
 | `whoami` | The caller's identity, teams, user groups and effective access |
 | `artifact_list`, `artifact_read`, `artifact_save`, `artifact_delete` | The user's own artifacts under `artifacts/users/<user ID>/`, versioned |
 | `connection_list`, `connection_start`, `connection_revoke` | The user's connections; `connection_start` returns the link to the secure entry page |
+| `plan_publish` | `plan-<repo>.md` by pull request into the feature branch on the control repository, as the user, for a design a person merged (DEC-0016) |
+| `workspace_build` | Builds and tests a change in the credential-free Code Workspace job, from the repository's archive fetched with the user's connection |
+| `implementation_publish` | Commits a built change to `sdlc/<control-id>/<repo>` and opens its pull request into the feature branch, as the user, for a plan a person merged |
 | `connection_save` | HTTP API only (`PUT /api/connections/{provider}`): stores a secret, AES-256-GCM encrypted, under `secrets/users/<user ID>/` |
 
 HTTP API for sdlc_ui, same policy and audit: `GET /api/me`, `GET /api/artifacts`, `GET|DELETE /api/artifacts/{name}`,
@@ -60,6 +63,9 @@ declares the `sdlc_ui` caller; `users.yaml` gives you your teams.
 | `DATA_ENCRYPTION_KEY` | - | Base64 of 32 bytes, from Secret Manager; without it, secrets cannot be saved |
 | `DATA_ENCRYPTION_KEY_VERSION` | `1` | Recorded with each encrypted secret |
 | `KNOWLEDGE_SEARCH_URL` | - | Knowledge Search; without it the knowledge tools answer `knowledge_unavailable` |
+| `WORKSPACE_MODE` | - | `job` (the Cloud Run job `WORKSPACE_JOB`), `local` (in process, local environment only); unset: `workspace_build` is unavailable |
+| `WORKSPACE_JOB` | - | `projects/<p>/locations/<r>/jobs/<sdlc-env>-code-workspace-user` |
+| `WORKSPACE_TIMEOUT_SECONDS` | `1200` | The job execution's limit |
 | `KNOWLEDGE_AUTH` | `id_token` | Its own ID token from the metadata server; `none` only in the `local` environment |
 
 On Google Cloud (`infra/gcp/user_agent_mcp.tf`) only sdlc_ui's and the agent runtime's service accounts hold its

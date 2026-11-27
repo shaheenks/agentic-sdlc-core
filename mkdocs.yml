@@ -80,6 +80,7 @@ nav:
           - "event_agent_mcp": components/event-agent-mcp.md
           - "Skill Library": components/skill-library.md
           - "user_agent_mcp": components/user-agent-mcp.md
+          - "Workspace Runner": components/workspace-runner.md
       - Knowledge:
           - "Ingest Pipeline": components/ingest-pipeline.md
           - "Knowledge Search": components/knowledge-search.md

@@ -1,8 +1,16 @@
-"""One execution of the Code Workspace (DEC-0015, FR-SDLC-006).
+"""One execution of the Code Workspace (DEC-0015, DEC-0016, FR-SDLC-006).
 
-Reads `request.json` (written by event_agent_mcp), checks out the implementation branch (or the feature branch, the
-first time), applies the change set, commits it, runs the repository's declared setup, build and test commands in
-order, pushes the branch, and writes `result.json` next to the request. It starts clean and keeps nothing.
+Two modes, chosen by the job's own `WORKSPACE_MODE`, never by the request:
+
+- `system` (the default; the job `code-workspace`, for event_agent_mcp): described below.
+- `user` (the job `code-workspace-user`, for user_agent_mcp): the request folder holds the repository's archive,
+  fetched by user_agent_mcp with the user's connection. The job unpacks it, applies the change set, runs the declared
+  commands and writes `result.json`. It has no token and no git remote, and pushes nothing: user_agent_mcp commits
+  the change with the user's connection afterwards.
+
+System mode reads `request.json` (written by event_agent_mcp), checks out the implementation branch (or the feature
+branch, the first time), applies the change set, commits it, runs the repository's declared setup, build and test
+commands in order, pushes the branch, and writes `result.json` next to the request. It starts clean and keeps nothing.
 
 - Only an `sdlc/` branch is ever pushed, never the feature branch or a protected one.
 - The token (`SYSTEM_TOKEN_<PROVIDER>`, from Secret Manager) reaches git only as an HTTP header through git's
@@ -15,6 +23,7 @@ import os
 import re
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import time
 from pathlib import Path, PurePosixPath
@@ -160,10 +169,50 @@ def execute(request: dict[str, Any], environ: dict[str, str] | None = None, time
         shutil.rmtree(work, ignore_errors=True)
 
 
+ARCHIVE = re.compile(r"^[A-Za-z0-9_.-]{1,100}\.tar\.gz$")
+
+
+def _unpack(archive: Path, into: Path) -> Path:
+    """The archive's files under `into`, safely (no links out, no absolute paths, no devices); returns the
+    repository's root, the archive's single top-level folder when it has one (as GitHub's do)."""
+    with tarfile.open(archive, mode="r:gz") as tar:
+        tar.extractall(into, filter="data")
+    entries = [p for p in into.iterdir()]
+    return entries[0] if len(entries) == 1 and entries[0].is_dir() else into
+
+
+def execute_user(request: dict[str, Any], folder: Path, timeout: float = 1100) -> dict[str, Any]:
+    """User mode: builds and tests the change on the archive the server fetched; never reaches a repository."""
+    deadline = time.monotonic() + timeout
+    name = str(request.get("archive") or "")
+    if not ARCHIVE.match(name) or not (folder / name).is_file():
+        return {"ok": False, "pushed": False, "steps": [], "error": "the request has no repository archive"}
+    work = Path(tempfile.mkdtemp(prefix="workspace-"))
+    try:
+        try:
+            repo = _unpack(folder / name, work / "src")
+        except (tarfile.TarError, OSError) as exc:
+            return {"ok": False, "pushed": False, "steps": [], "error": f"the archive cannot be unpacked: {exc}"}
+        apply_changes(repo, request.get("changes") or [])
+        steps = run_steps(repo, request.get("commands") or {}, deadline)
+        return {"ok": all(s["exit_code"] == 0 for s in steps), "pushed": False, "steps": steps}
+    except WorkspaceError as exc:
+        return {"ok": False, "pushed": False, "steps": [], "error": str(exc)}
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def execute_request(request_path: Path, environ: dict[str, str] | None = None) -> dict[str, Any]:
-    """Reads request.json, runs it and writes result.json next to it."""
+    """Reads request.json, runs it in the job's mode and writes result.json next to it."""
+    e = os.environ if environ is None else environ
     request = json.loads(Path(request_path).read_text(encoding="utf-8"))
-    timeout = float((os.environ if environ is None else environ).get("WORKSPACE_TIMEOUT_SECONDS", "1100"))
-    result = execute(request, environ, timeout)
+    timeout = float(e.get("WORKSPACE_TIMEOUT_SECONDS", "1100"))
+    mode = e.get("WORKSPACE_MODE", "system")
+    if mode == "user":
+        result = execute_user(request, Path(request_path).parent, timeout)
+    elif mode == "system":
+        result = execute(request, environ, timeout)
+    else:
+        result = {"ok": False, "pushed": False, "steps": [], "error": f"unknown WORKSPACE_MODE {mode!r}"}
     (Path(request_path).parent / "result.json").write_text(json.dumps(result), encoding="utf-8")
     return result

@@ -316,6 +316,13 @@ changing it during a run needs the user's explicit confirmation in chat.
   one with the reason, and otherwise claims and queues it like a webhook (`sim-` delivery IDs from the facts, so the
   same merge runs once); sdlc_ui's Events page, shown only where the user may simulate. Terraform: the gateway gets
   `SYSTEM_TOKEN_GITHUB`, sdlc_ui `SDLC_EVENTS_URL`.
+- Milestone 8 built (2026-11-28), tested against faked GitHub and a faked job: user_agent_mcp's `implementation` tool
+  group (`plan_publish`, `workspace_build`, `implementation_publish`, for every user, on the sdlc_ui and user_agent
+  surfaces). The plan and implementation rules moved into `libs/sdlc_control`, shared with event_agent_mcp;
+  starting the job moved into `libs/sdlc_workspace` (component Workspace Runner). The Code Workspace's user mode
+  builds an archive fetched with the user's connection and pushes nothing; the built change (the same change set, by
+  hash) is committed with the user's connection through GitHub's git data API. GitHub only for now: Bitbucket
+  repositories answer `not_supported`.
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).

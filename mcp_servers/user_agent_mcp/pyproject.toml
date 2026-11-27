@@ -15,6 +15,8 @@ dependencies = [
     "httpx>=0.28",
     "sdlc-connectors",
     "sdlc-control",
+    "sdlc-workspace",
+    "google-auth>=2.40",
     "pyyaml>=6",
 ]
 

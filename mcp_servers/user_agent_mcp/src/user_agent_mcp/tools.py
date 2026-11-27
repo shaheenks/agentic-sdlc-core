@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from user_agent_mcp import control, systems
+from user_agent_mcp import control, implementation, systems
 from user_agent_mcp.errors import ToolError
 
 if TYPE_CHECKING:
@@ -29,6 +29,22 @@ def _schema(properties: dict[str, Any] | None = None, required: tuple[str, ...] 
 
 
 NAME = {"type": "string", "description": "The artifact's name: letters, digits, '.', '_' or '-'."}
+CHANGES = {
+    "type": "array",
+    "minItems": 1,
+    "maxItems": 200,
+    "description": "Whole-file changes: {path, content} to write a file, {path, delete: true} to remove one.",
+    "items": {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string", "minLength": 1, "maxLength": 500},
+            "content": {"type": "string"},
+            "delete": {"type": "boolean"},
+        },
+        "required": ["path"],
+        "additionalProperties": False,
+    },
+}
 PROVIDER = {"type": "string", "description": "A connection provider declared in configuration, for example github."}
 
 
@@ -517,6 +533,59 @@ TOOLS: dict[str, Tool] = {
                 },
             ),
             knowledge_graph,
+        ),
+        # The implementation plan and the implementation, with the user (DEC-0016)
+        Tool(
+            "plan_publish",
+            "Only when the user asks: open plan-<repo>.md for one target repository as a pull request into the "
+            "feature's branch on the team's control repository, as the user. Only for a design a person merged; an "
+            "open one is returned instead of a second. A person merging it approves the plan.",
+            _schema(
+                {
+                    "control_id": {"type": "string", "description": "The feature's control ID."},
+                    "repo": {"type": "string", "description": "The target repository (owner/name)."},
+                    "content": {"type": "string", "description": "The plan's Markdown."},
+                    "title": {"type": "string", "maxLength": 200},
+                    "description": {"type": "string", "maxLength": 20_000},
+                },
+                ("control_id", "repo", "content"),
+            ),
+            implementation.plan_publish,
+            write=True,
+        ),
+        Tool(
+            "workspace_build",
+            "Build and test whole-file changes on the target repository's implementation branch (or the feature "
+            "branch) in the Code Workspace, with the repository's declared commands; returns each step's exit code "
+            "and the end of its log. Only for a plan a person merged; nothing is pushed.",
+            _schema(
+                {
+                    "control_id": {"type": "string"},
+                    "repo": {"type": "string"},
+                    "changes": CHANGES,
+                },
+                ("control_id", "repo", "changes"),
+            ),
+            implementation.workspace_build,
+        ),
+        Tool(
+            "implementation_publish",
+            "Only when the user asks: commit the changes to the implementation branch and open its pull request "
+            "into the target repository's feature branch, as the user, tagged with the Jira keys. Only for a plan a "
+            "person merged; where the repository declares commands, the same changes must have built first.",
+            _schema(
+                {
+                    "control_id": {"type": "string"},
+                    "repo": {"type": "string"},
+                    "changes": CHANGES,
+                    "title": {"type": "string", "maxLength": 200},
+                    "description": {"type": "string", "maxLength": 20_000},
+                    "message": {"type": "string", "maxLength": 500},
+                },
+                ("control_id", "repo", "changes"),
+            ),
+            implementation.implementation_publish,
+            write=True,
         ),
     )
 }

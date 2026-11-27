@@ -1,7 +1,9 @@
 """In-memory fakes of the providers' APIs, for the tests of the components that use the connectors."""
 
 import base64
+import io
 import json
+import tarfile
 
 import httpx
 
@@ -20,6 +22,10 @@ class FakeGitHub:
         self.merged_by: dict[int, str] = {}
         self.comments: dict[int, list[str]] = {}
         self.starts: dict[str, dict[str, str]] = {}  # each branch's tree when it was created
+        # GitHub's git data API: trees and commits by ID ("head:<branch>" is a branch's current commit and tree)
+        self.objects: dict[str, dict[str, str]] = {}
+        self.commit_trees: dict[str, str] = {}
+        self.commits: list[dict] = []  # every commit made through the API: {branch, message, tree}
 
     def merge(self, number: int, by: str = "grace") -> None:
         pr = self.prs[number]
@@ -40,8 +46,49 @@ class FakeGitHub:
     def file(self, branch: str, path: str) -> str:
         return self.trees[branch][path]
 
+    def _tree(self, sha: str) -> dict[str, str]:
+        if sha.startswith("head:"):
+            return dict(self.trees[sha.removeprefix("head:")])
+        return dict(self.objects[self.commit_trees.get(sha, sha)])
+
+    def tarball(self, ref: str) -> bytes:
+        out = io.BytesIO()
+        with tarfile.open(fileobj=out, mode="w:gz") as tar:
+            for name, content in sorted(self.trees[ref].items()):
+                data = content.encode()
+                info = tarfile.TarInfo(f"org-repo-abc123/{name}")
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+        return out.getvalue()
+
     def handle(self, request: httpx.Request) -> httpx.Response:
         path, method, params = request.url.path[len(self.BASE) :], request.method, dict(request.url.params)
+        if method == "GET" and path.startswith("/tarball/"):
+            ref = path[len("/tarball/") :]
+            return httpx.Response(200, content=self.tarball(ref)) if ref in self.trees else httpx.Response(404)
+        if method == "GET" and path.startswith("/git/commits/"):
+            return httpx.Response(200, json={"tree": {"sha": path[len("/git/commits/") :]}})
+        if method == "POST" and path == "/git/trees":
+            body = json.loads(request.content)
+            tree = self._tree(body["base_tree"])
+            for entry in body["tree"]:
+                if entry.get("sha", "") is None:
+                    tree.pop(entry["path"], None)
+                else:
+                    tree[entry["path"]] = entry["content"]
+            sha = f"t{len(self.objects) + 1}"
+            self.objects[sha] = tree
+            return httpx.Response(201, json={"sha": sha})
+        if method == "POST" and path == "/git/commits":
+            body = json.loads(request.content)
+            sha = f"k{len(self.commit_trees) + 1}"
+            self.commit_trees[sha] = body["tree"]
+            self.commits.append({"message": body["message"], "tree": body["tree"], "sha": sha})
+            return httpx.Response(201, json={"sha": sha})
+        if method == "PATCH" and path.startswith("/git/refs/heads/"):
+            name = path[len("/git/refs/heads/") :]
+            self.trees[name] = self._tree(json.loads(request.content)["sha"])
+            return httpx.Response(200, json={})
         if method == "GET" and path.startswith("/git/matching-refs/heads/"):
             prefix = path[len("/git/matching-refs/heads/") :]
             return httpx.Response(200, json=[{"ref": f"refs/heads/{b}"} for b in self.trees if b.startswith(prefix)])
@@ -54,7 +101,7 @@ class FakeGitHub:
             )
         if method == "POST" and path == "/git/refs":
             body = json.loads(request.content)
-            name, start = body["ref"].removeprefix("refs/heads/"), dict(self.trees[body["sha"].removeprefix("head:")])
+            name, start = body["ref"].removeprefix("refs/heads/"), self._tree(body["sha"])
             self.trees[name], self.starts[name] = start, dict(start)
             return httpx.Response(201, json={})
         if method == "GET" and path == "/commits":

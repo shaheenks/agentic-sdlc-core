@@ -12,19 +12,26 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from sdlc_connectors import ConnectorError, Credential, FileChange, clone_url, repository
+from sdlc_connectors import ConnectorError, Credential, clone_url, repository
 from sdlc_control import (
     CONTROL_ID,
     MAX_ARTIFACT,
+    MAX_CHANGES,
+    MAX_FILE,
+    ControlError,
     ControlRepository,
+    check_changes,
     feature_branch,
     front_matter,
-    now,
-    path_of,
+    implementation_branch,
+    open_implementation,
+    open_plan,
     plan_kind,
-    with_front_matter,
+    require_approved,
     without_front_matter,
 )
+from sdlc_control import jira_keys as _jira_keys
+from sdlc_control import targets as _targets
 
 from event_agent_mcp.errors import ToolError
 
@@ -33,8 +40,6 @@ if TYPE_CHECKING:
 
 Handler = Callable[["Platform", "Run", dict[str, Any]], Awaitable[dict[str, Any]]]
 FILE = re.compile(r"^[A-Za-z0-9_.-]{1,100}\.(md|yaml)$")
-PATH = re.compile(r"^[A-Za-z0-9_.@+-]+(/[A-Za-z0-9_.@+-]+)*$")
-MAX_CHANGES, MAX_FILE, MAX_TOTAL = 200, 500_000, 5_000_000
 MAX_LOG = 4_000
 
 
@@ -56,6 +61,8 @@ async def _call[T](fn: Callable[[], T]) -> T:
         return await asyncio.to_thread(fn)
     except ConnectorError as exc:
         raise ToolError(f"downstream_{exc.code}", exc.message) from exc
+    except ControlError as exc:
+        raise ToolError(exc.code, exc.message) from exc
 
 
 def _check_id(value: Any) -> str:
@@ -107,45 +114,6 @@ def _target(platform: "Platform", run: "Run", name: Any):
             client, config, base_url = _client(platform, run, entry)
             return client, entry, config, base_url
     raise ToolError("constraint_denied", f"{name} is not one of the team's repositories")
-
-
-def _approved(control: ControlRepository, control_id: str, kind: str, what: str) -> dict[str, Any]:
-    found = control.approval(control_id, kind)
-    if not found["approved"]:
-        reason = found.get("reason") or "not published"
-        raise ToolError("not_approved", f"{what} of {control_id} is not approved on {found['branch']}: {reason}")
-    return found
-
-
-def _feature_home(control: ControlRepository, control_id: str) -> str:
-    base = control.home(control_id)
-    if base == control.branch:
-        raise ToolError("not_found", f"{control_id} has no feature branch; unattended runs work on feature branches")
-    return base
-
-
-def _jira_keys(links: dict[str, Any]) -> list[str]:
-    keys: list[str] = []
-    for write in links.get("writes") or ():
-        results = write.get("results") or {}
-        for key in [results.get("feature"), *(results.get("stories") or ())]:
-            if isinstance(key, str) and key not in keys:
-                keys.append(key)
-    return keys
-
-
-def _targets(links: dict[str, Any]) -> list[str]:
-    """The target repositories the feature's branch was opened on (feature_target_branches)."""
-    found: list[str] = []
-    for write in links.get("writes") or ():
-        if write.get("action") == "open_branches":
-            found += [r for r in (write.get("results") or {}) if r != "branch" and r not in found]
-    return found
-
-
-def _title(keys: list[str], text: str) -> str:
-    head = " ".join(keys[:5])
-    return (f"{head} {text}" if head else text)[:200]
 
 
 # Reading --------------------------------------------------------------------------------------------------------
@@ -228,74 +196,25 @@ async def plan_open_pull_request(platform: "Platform", run: "Run", args: dict[st
     """The plan for one target repository as `plan-<repo>.md`, by pull request from `sdlc/<id>/plan-<repo>` into the
     feature's branch on the control repository; only for an approved design, and never twice."""
     control_id = _check_id(args.get("control_id"))
-    content = args.get("content")
-    if not isinstance(content, str) or not content.strip() or len(content) > MAX_ARTIFACT:
-        raise ToolError("invalid_argument", "content is the plan's Markdown (at most 200,000 characters)")
     control = _control(platform, run)
     _, entry, _, _ = _target(platform, run, args.get("repo"))
-    kind = plan_kind(entry["repo"])
 
     def open_it() -> dict[str, Any]:
-        base = _feature_home(control, control_id)
-        design = _approved(control, control_id, "design", "design.md")
-        if control.approval(control_id, kind)["approved"]:
-            raise ToolError("already_done", f"{kind}.md of {control_id} is approved already")
-        branch = f"sdlc/{control_id}/{kind}"
-        for pr in control.open_pull_requests():
-            if pr.get("control_id") == control_id and pr.get("kind") == kind:
-                return {"control_id": control_id, "repo": entry["repo"], "already_open": True, "pull_request": pr}
-        if control.client.branches(branch):
-            raise ToolError("conflict", f"{branch} exists without an open pull request; a person deletes it to re-plan")
-        links = control.links(control_id)
-        keys = _jira_keys(links)
-        meta = {
-            "control_id": control_id,
-            "kind": "plan",
-            "repo": entry["repo"],
-            "team": run.team,
-            "drafted_by": control.by,
-            "published": now(),
-            "previous": {"path": design["path"], "commit": design.get("commit"), "merged_by": design.get("merged_by")},
-            **({"jira": keys} if keys else {}),
-        }
-        title = _title(keys, str(args.get("title") or f"{control_id}: plan for {entry['repo']}"))
-        description = str(args.get("description") or "")[:20_000]
-        description += (
-            f"\n\n---\nProposed by ci_workflow_agent for team {run.team} ({control_id}). Merging this pull request "
-            f"into {base} approves the plan and starts the implementation in {entry['repo']} (DEC-0015)."
+        base = control.home(control_id)
+        return open_plan(
+            control,
+            control_id,
+            entry["repo"],
+            args.get("content"),
+            team=run.team,
+            title=str(args.get("title") or f"{control_id}: plan for {entry['repo']}"),
+            description=str(args.get("description") or ""),
+            footer=f"Proposed by ci_workflow_agent for team {run.team} ({control_id}). Merging this pull request "
+            f"into {base} approves the plan and starts the implementation in {entry['repo']} (DEC-0015).",
+            record={"run_id": run.run_id},
         )
-        file = FileChange(path_of(control_id, kind), with_front_matter(without_front_matter(content), meta))
-        pr = control.client.open_pull_request(
-            branch, base, title, description.strip(), [file], f"{control_id}: plan for {entry['repo']}"
-        )
-        results = {"repo": entry["repo"], "pull_request": pr.number, "url": pr.url, "branch": branch}
-        control.record(
-            control_id, {"action": "plan_pull_request", "system": "control", "run_id": run.run_id, "results": results}
-        )
-        return {"control_id": control_id, "repo": entry["repo"], "pull_request": {**results, "base": base}}
 
     return await _call(open_it)
-
-
-def _changes(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, list) or not value or len(value) > MAX_CHANGES:
-        raise ToolError("invalid_argument", f"changes is a list of 1 to {MAX_CHANGES} file changes")
-    out, total = [], 0
-    for change in value:
-        path = change.get("path") if isinstance(change, dict) else None
-        if not isinstance(path, str) or not PATH.match(path) or ".." in path.split("/") or path.startswith(".git/"):
-            raise ToolError("invalid_argument", "each change names a relative path inside the repository")
-        if change.get("delete") is True:
-            out.append({"path": path, "delete": True})
-            continue
-        content = change.get("content")
-        if not isinstance(content, str) or len(content) > MAX_FILE:
-            raise ToolError("invalid_argument", f"{path}: content is the whole file (at most {MAX_FILE} characters)")
-        total += len(content)
-        out.append({"path": path, "content": content})
-    if total > MAX_TOTAL:
-        raise ToolError("invalid_argument", "the changes are too large for one run")
-    return out
 
 
 async def workspace_run(platform: "Platform", run: "Run", args: dict[str, Any]) -> dict[str, Any]:
@@ -305,21 +224,20 @@ async def workspace_run(platform: "Platform", run: "Run", args: dict[str, Any]) 
     if platform.workspace is None:
         raise ToolError("unavailable", "the Code Workspace is not available in this environment")
     from event_agent_mcp.workspace import execute
+    from event_agent_mcp.workspace import used as executions_used
 
     control_id = _check_id(args.get("control_id"))
-    changes = _changes(args.get("changes"))
+    changes = await _call(lambda: check_changes(args.get("changes")))
     message = str(args.get("message") or f"{control_id}: implementation")[:500]
     control = _control(platform, run)
     _, entry, config, base_url = _target(platform, run, args.get("repo"))
     kind = plan_kind(entry["repo"])
-    await _call(lambda: _approved(control, control_id, kind, f"{kind}.md"))
+    await _call(lambda: require_approved(control, control_id, kind))
     limit = int(run.limits.get("workspace_runs", 5))
-    runs = platform.settings.store_root / "artifacts" / "system" / "runs" / run.run_id.replace(":", "_")
-    used = sum(1 for p in runs.iterdir() if p.name.startswith("workspace-")) if runs.is_dir() else 0
+    used = executions_used(platform.settings.store_root, run.run_id)
     if used >= limit:
         raise ToolError("limit_reached", f"this run may use the Code Workspace {limit} times; stop and comment instead")
-    name = entry["repo"].rsplit("/", 1)[-1]
-    branch = f"sdlc/{control_id}/{name}"
+    branch = implementation_branch(control_id, entry["repo"])
     commands = {k: v for k, v in (entry.get("workspace") or {}).items() if k in ("setup", "build", "test")}
     request = {
         "repo": entry["repo"],
@@ -367,47 +285,21 @@ async def implementation_open_pull_request(platform: "Platform", run: "Run", arg
     control_id = _check_id(args.get("control_id"))
     control = _control(platform, run)
     client, entry, _, _ = _target(platform, run, args.get("repo"))
-    kind = plan_kind(entry["repo"])
-    name = entry["repo"].rsplit("/", 1)[-1]
-    branch, base = f"sdlc/{control_id}/{name}", feature_branch(control_id)
+    base = feature_branch(control_id)
 
     def open_it() -> dict[str, Any]:
-        plan = _approved(control, control_id, kind, f"{kind}.md")
-        design = control.approval(control_id, "design")
-        if not client.branches(branch):
-            raise ToolError(
-                "not_found", f"{branch} is not on {entry['repo']}: push the change with workspace_run first"
-            )
-        for pr in client.open_pull_requests():
-            if pr.branch == branch:
-                return {
-                    "control_id": control_id,
-                    "repo": entry["repo"],
-                    "already_open": True,
-                    "pull_request": {"number": pr.number, "url": pr.url, "branch": pr.branch},
-                }
-        client.create_branch(base, entry.get("default_branch", "main"))  # opened with the feature; kept if it exists
-        keys = _jira_keys(control.links(control_id))
-        title = _title(keys, str(args.get("title") or f"{control_id}: implementation"))
-        description = str(args.get("description") or "")[:20_000]
-        description += (
-            f"\n\n---\nImplemented by ci_workflow_agent for team {run.team} ({control_id}) from the approved plan "
-            f"({plan.get('url') or plan['path']}) and design ({design.get('url') or design['path']}) on "
-            f"{control.settings['repo']}.\n"  # type: ignore[attr-defined]
-            f"A person reviews and merges this pull request into {base}; the agent never merges."
-        )
-        pr = client.create_pull_request(branch, base, title, description.strip())
-        results = {"repo": entry["repo"], "pull_request": pr.number, "url": pr.url, "branch": branch, "base": base}
-        control.record(
+        return open_implementation(
+            control,
+            client,
+            entry,
             control_id,
-            {
-                "action": "implementation_pull_request",
-                "system": "repositories",
-                "run_id": run.run_id,
-                "results": results,
-            },
+            title=str(args.get("title") or f"{control_id}: implementation"),
+            description=str(args.get("description") or ""),
+            footer=f"Implemented by ci_workflow_agent for team {run.team} on "
+            f"{control.settings['repo']}. A person reviews and merges this pull request "  # type: ignore[attr-defined]
+            f"into {base}; the agent never merges.",
+            record={"run_id": run.run_id},
         )
-        return {"control_id": control_id, "repo": entry["repo"], "pull_request": results, "jira_keys": keys}
 
     return await _call(open_it)
 

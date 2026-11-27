@@ -16,7 +16,7 @@
 
 * [Agent Runtime](agent-runtime.md) - Executes the agent nodes of a workflow with Google ADK on Agent Runtime - loads the node's skills, reasons with Gemini and calls tools through user_agent_mcp, as the user.
 * [ci_workflow_agent](ci-workflow-agent.md) - The event-based agent for code: turns a merged design specification into a plan and then a pull request, and runs two review workflows on pull requests: security vulnerability analysis and quality assurance analysis.
-* [Code Workspace](code-workspace.md) - A Cloud Run job that checks out a repository, applies ci_workflow_agent's changes, runs the repository's build and tests, and pushes the working branch.
+* [Code Workspace](code-workspace.md) - Cloud Run jobs that build and test a change: the system job checks out, applies ci_workflow_agent's changes, runs the repository's commands and pushes the working branch; the credential-free user job only builds an archive user_agent_mcp fetched as the user.
 * [Event Gateway](event-gateway.md) - Starts workflow runs from schedules and from events in downstream systems, such as a pull request opened or a ticket moved.
 * [Human Tasks](human-tasks.md) - Pauses a run for its own user - an approval, a review, a missing input - and resumes the run with the answer, using ADK human input nodes.
 * [operations_agent](operations-agent.md) - The event-based agent for operations: follows deployments, triages alerts with log analysis, and reports incidents and bugs back into the flow.
@@ -30,6 +30,7 @@
 * [event_agent_mcp](event-agent-mcp.md) - The standalone MCP server for scheduled and event-triggered runs: agents call it as the system identity, and it reaches only system connections and system artifacts.
 * [Skill Library](skill-library.md) - Versioned instruction packages that teach an agent step how to do one SDLC task, global or team-specific.
 * [user_agent_mcp](user-agent-mcp.md) - The MCP server for agents acting for a user: sdlc_ui and agents on Agent Runtime call it for a verified user, and every action is scoped to that user's ID.
+* [Workspace Runner](workspace-runner.md) - The shared code both MCP servers use to start the Code Workspace - request folders in the artifact bucket, the Cloud Run job execution and its result - for the system job and the credential-free user job.
 
 # Knowledge
 

@@ -26,6 +26,10 @@ of that repository are the same for both, so they live once, in `libs/sdlc_contr
 - The record: each write and its results appended to `links.yaml`, committed on the feature branch.
 - Pull request branches: `sdlc/<control-id>/design-<hex>` and `sdlc/<control-id>/plan-<repo>`, and reading the
   feature and artifact from an open pull request's branch.
+- Plans and implementations, the same for both servers ([DEC-0016](../decisions/DEC-0016.md)): a plan pull request
+  only for a design a person merged and never a second one; an implementation pull request from
+  `sdlc/<control-id>/<repo>` only for a plan a person merged; the change set's limits; Jira keys in the titles; each
+  recorded in `links.yaml`.
 
 # Out of scope
 
@@ -35,7 +39,8 @@ of that repository are the same for both, so they live once, in `libs/sdlc_contr
 # Interfaces
 
 - Provides: `ControlRepository(client, branch, system_accounts, by)` with `home`, `approval`, `read`, `links`,
-  `record` and `open_pull_requests`; the layout and branch helpers.
+  `record` and `open_pull_requests`; `open_plan`, `open_implementation`, `check_changes` and `ControlError`; the
+  layout and branch helpers.
 - Consumes: a repository connector from [Connectors](connectors.md).
 
 # Depends on

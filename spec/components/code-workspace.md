@@ -1,7 +1,7 @@
 ---
 type: Component
 title: "Code Workspace"
-description: "A Cloud Run job that checks out a repository, applies ci_workflow_agent's changes, runs the repository's build and tests, and pushes the working branch."
+description: "Cloud Run jobs that build and test a change: the system job checks out, applies ci_workflow_agent's changes, runs the repository's commands and pushes the working branch; the credential-free user job only builds an archive user_agent_mcp fetched as the user."
 tags: [component, execution, events]
 status: draft
 x-layer: execution
@@ -20,18 +20,23 @@ Agent Runtime is not a build sandbox. ci_workflow_agent edits code and runs test
   build and test commands the repository declares, push the working branch, and return the results (exit codes,
   test summary, trimmed logs).
 - Push only to the run's working branch; never to a protected branch.
+- User mode, the job `code-workspace-user` ([DEC-0016](../decisions/DEC-0016.md)): unpack the repository archive
+  user_agent_mcp wrote with the request (fetched with the user's connection), apply the changes, run the declared
+  commands and return the results. It holds no token, has no git remote and pushes nothing; it reads requests only
+  under `artifacts/users/`. The job's own `WORKSPACE_MODE` picks the mode, never the request.
 - Start clean every time: no state is kept between executions.
 - Carry the run's event metadata and trace context ([NFR-OBS-003](../requirements/non-functional/NFR-OBS-003.md)).
 
 # Out of scope
 
 - Deciding what to change: [ci_workflow_agent](ci-workflow-agent.md).
-- Opening pull requests and comments: [event_agent_mcp](event-agent-mcp.md).
+- Opening pull requests and comments: [event_agent_mcp](event-agent-mcp.md) and [user_agent_mcp](user-agent-mcp.md).
 
 # Interfaces
 
-- Provides: a Cloud Run job, started only by event_agent_mcp with the repository, branch, changes and commands as
-  overrides.
+- Provides: two Cloud Run jobs from one image: the system job, started only by event_agent_mcp, and the user job,
+  started only by user_agent_mcp, each with `REQUEST_PATH` as its only override
+  ([Workspace Runner](workspace-runner.md)).
 - Consumes: the system repository connection's PAT as an environment variable from Secret Manager.
 
 # Depends on

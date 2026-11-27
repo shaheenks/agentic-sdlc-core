@@ -11,6 +11,7 @@ from sdlc_directory import Memberships, memberships
 from sdlc_identity import GoogleTokens, Identity, IdentitySettings, identify
 from sdlc_logging import audit
 from sdlc_policy import EffectivePolicy, RateLimiter, effective_policy
+from sdlc_workspace import WorkspaceRunner
 
 from user_agent_mcp.artifacts import ArtifactStore
 from user_agent_mcp.connections import ConnectionStore
@@ -66,6 +67,7 @@ class Platform:
         artifacts: ArtifactStore,
         connections: ConnectionStore,
         knowledge: KnowledgeClient | None = None,
+        workspace: WorkspaceRunner | None = None,
     ) -> None:
         self.settings = settings
         self.store = store
@@ -76,6 +78,7 @@ class Platform:
         self.artifacts = artifacts
         self.connections = connections
         self.knowledge = knowledge
+        self.workspace = workspace  # the credential-free Code Workspace job (DEC-0016)
 
     async def identify(self, headers: Mapping[str, str]) -> tuple[Identity, Bundle]:
         """The user of a request under the active bundle's identity mode (DEC-0010). `headers` must look

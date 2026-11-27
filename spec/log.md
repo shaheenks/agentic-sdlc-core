@@ -1,5 +1,8 @@
 ## 2026-11-28
 
+* **Create**: [Workspace Runner](components/workspace-runner.md), `libs/sdlc_workspace`.
+* **Update**: phase 5a milestone 8 built ([DEC-0016](decisions/DEC-0016.md)): user_agent_mcp's implementation tools,
+  the Code Workspace's credential-free user mode, and the plan and implementation rules shared in Control Repository.
 * **Update**: phase 5a milestone 7 built ([DEC-0016](decisions/DEC-0016.md)): simulated events (FR-TRIG-006)
   from sdlc_ui's Events page through the gateway's `/simulate`, with `simulation.teams` in `system.yaml`.
 * **Update**: [DEC-0016](decisions/DEC-0016.md) accepted: FR-SDLC-005, FR-SDLC-006 and FR-TRIG-001 changed;
