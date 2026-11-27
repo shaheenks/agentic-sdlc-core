@@ -59,6 +59,7 @@
 * [FR-TRIG-003: Results of unattended runs go back to the systems involved](FR-TRIG-003.md) - A scheduled or event-triggered run delivers its results to the downstream systems it serves, such as a comment on the pull request that started it.
 * [FR-TRIG-004: CI workflow events](FR-TRIG-004.md) - ci_workflow_agent handles events from CI workflows, such as a pipeline run that failed, and reports back to the systems involved.
 * [FR-TRIG-005: Deployment and platform events](FR-TRIG-005.md) - operations_agent handles events from deployment and platform services, such as a failed rollout or a platform alert, and reports back to the systems involved.
+* [FR-TRIG-006: Simulated events](FR-TRIG-006.md) - Where an environment allows it, a team member sends an event to the event agents from sdlc_ui; the gateway reads its facts from the provider, marks it simulated and runs it like a verified webhook.
 
 # Human tasks
 
@@ -112,8 +113,8 @@
 * [FR-SDLC-002: Features and user stories](FR-SDLC-002.md) - user_agent drafts a feature and its user stories with the user as the user's own artifact; when the user asks to add them to Jira, the draft goes to the team's control repository, and once a person merges it the Jira issues are created as the user and recorded.
 * [FR-SDLC-003: Design specification](FR-SDLC-003.md) - user_agent drafts a design specification from the user's own feature artifact or from a published Jira feature and its stories; it is reviewed by fresh-context reviewers and saved as the user's artifact until the user publishes it.
 * [FR-SDLC-004: Fresh-context document review](FR-SDLC-004.md) - Documents are reviewed by reviewer agents that read only the written document and permitted evidence, never the drafting conversation; the user decides which findings to apply.
-* [FR-SDLC-005: Design specification hand-off](FR-SDLC-005.md) - When the user hands a design specification to implementation, user_agent opens a pull request with it as design.md on the team's control repository, as the user; a person merging it approves it and hands the work to ci_workflow_agent.
-* [FR-SDLC-006: Implementation by ci_workflow_agent](FR-SDLC-006.md) - ci_workflow_agent turns a merged design specification into an implementation plan and, once the plan is merged, into a pull request with code and tests.
+* [FR-SDLC-005: Design specification hand-off](FR-SDLC-005.md) - When the user hands a design specification to implementation, user_agent opens a pull request with it as design.md on the team's control repository, as the user; a person merging it approves it and approves it for the implementation plan.
+* [FR-SDLC-006: Implementation plan and implementation with the user](FR-SDLC-006.md) - user_agent turns a merged design specification, with the user in chat, into an implementation plan proposed by pull request and, once a person merges the plan, into a pull request with code and tests, both opened with the user's own connection.
 * [FR-SDLC-007: Security vulnerability analysis of pull requests](FR-SDLC-007.md) - A ci_workflow_agent workflow of its own analyses each pull request in a declared repository for security vulnerabilities and posts the findings; people approve and merge.
 * [FR-SDLC-008: Deployment handling](FR-SDLC-008.md) - operations_agent follows builds and deployments, reports their outcome where the change came from, checks health after a rollout, and explains failures.
 * [FR-SDLC-009: Alert triage and log analysis](FR-SDLC-009.md) - operations_agent diagnoses alerts read-only from logs, metrics, traces and recent changes, and posts the diagnosis with evidence.

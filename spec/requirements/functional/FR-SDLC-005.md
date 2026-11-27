@@ -1,7 +1,7 @@
 ---
 type: Functional Requirement
 title: "Design specification hand-off"
-description: "When the user hands a design specification to implementation, user_agent opens a pull request with it as design.md on the team's control repository, as the user; a person merging it approves it and hands the work to ci_workflow_agent."
+description: "When the user hands a design specification to implementation, user_agent opens a pull request with it as design.md on the team's control repository, as the user; a person merging it approves it and approves it for the implementation plan."
 tags: [requirement, sdlc, agents]
 status: draft
 x-area: SDLC
@@ -22,8 +22,8 @@ hand-off.
 - Its title, description and branch name carry the feature's Jira keys when they exist; the description lists the
   review findings and what the user decided about them, and the sources used.
 - It is opened with the user's own connection ([FR-CONN-001](FR-CONN-001.md)), so the commit is the user's.
-- A person merging it under the control repository's branch protection approves it; the merge event reaches
-  ci_workflow_agent through the event gateway ([FR-SDLC-006](FR-SDLC-006.md)).
+- A person merging it under the control repository's branch protection approves it; user_agent's implementation
+  plan starts from the merged design ([FR-SDLC-006](FR-SDLC-006.md), [DEC-0016](../../decisions/DEC-0016.md)).
 - The design is not opened as a pull request on a product repository.
 - The event-based agents never read the user's artifact store; the control repository and Jira are their only
   channels ([FR-AUTHZ-008](FR-AUTHZ-008.md)).

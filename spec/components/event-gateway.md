@@ -7,7 +7,7 @@ status: draft
 x-layer: execution
 x-folder: event_gateway/
 x-depends-on: [/components/workflow-engine, /components/workflow-catalog, /components/identity, /components/audit-log, /components/secrets, /components/ci-workflow-agent, /components/operations-agent]
-x-satisfies: [/requirements/functional/FR-IDN-004, /requirements/functional/FR-TRIG-001, /requirements/functional/FR-TRIG-002, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-ARCH-002, /requirements/non-functional/NFR-ARCH-003, /requirements/non-functional/NFR-OPS-002, /requirements/non-functional/NFR-SEC-004, /requirements/functional/FR-TRIG-004, /requirements/functional/FR-TRIG-005, /requirements/non-functional/NFR-OBS-003, /requirements/functional/FR-SDLC-006, /requirements/functional/FR-SDLC-007, /requirements/functional/FR-SDLC-008, /requirements/functional/FR-SDLC-009, /requirements/functional/FR-SDLC-011]
+x-satisfies: [/requirements/functional/FR-IDN-004, /requirements/functional/FR-TRIG-001, /requirements/functional/FR-TRIG-002, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-ARCH-002, /requirements/non-functional/NFR-ARCH-003, /requirements/non-functional/NFR-OPS-002, /requirements/non-functional/NFR-SEC-004, /requirements/functional/FR-TRIG-004, /requirements/functional/FR-TRIG-005, /requirements/non-functional/NFR-OBS-003, /requirements/functional/FR-SDLC-006, /requirements/functional/FR-SDLC-007, /requirements/functional/FR-SDLC-008, /requirements/functional/FR-SDLC-009, /requirements/functional/FR-SDLC-011, /requirements/functional/FR-TRIG-006]
 ---
 
 # Purpose
@@ -63,6 +63,7 @@ notes on a tag, triage a new defect. This component turns schedules and events i
 - [NFR-SEC-004: Where secrets live](../requirements/non-functional/NFR-SEC-004.md)
 - [FR-TRIG-004: CI workflow events](../requirements/functional/FR-TRIG-004.md)
 - [FR-TRIG-005: Deployment and platform events](../requirements/functional/FR-TRIG-005.md)
+- [FR-TRIG-006: Simulated events](../requirements/functional/FR-TRIG-006.md)
 - [NFR-OBS-003: Event metadata on every trace of an unattended run](../requirements/non-functional/NFR-OBS-003.md)
 - [FR-SDLC-006: Implementation by ci_workflow_agent](../requirements/functional/FR-SDLC-006.md)
 - [FR-SDLC-007: Security vulnerability analysis of pull requests](../requirements/functional/FR-SDLC-007.md)

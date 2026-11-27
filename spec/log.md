@@ -1,3 +1,11 @@
+## 2026-11-28
+
+* **Update**: [DEC-0016](decisions/DEC-0016.md) accepted: FR-SDLC-005, FR-SDLC-006 and FR-TRIG-001 changed;
+  FR-TRIG-006 (simulated events) added; phase 5a gains milestones 7 to 10.
+* **Create**: [DEC-0016](decisions/DEC-0016.md), proposed: plan and implement move to user_agent as stages run with the
+  user, built in a credential-free Code Workspace job; sdlc_ui simulates events for the event agents until the
+  webhooks are set up.
+
 ## 2026-11-26
 
 * **Update**: phase 5a milestone 5 built ([DEC-0015](decisions/DEC-0015.md)): ci_workflow_agent's `plan` and

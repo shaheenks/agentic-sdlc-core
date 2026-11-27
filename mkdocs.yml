@@ -143,6 +143,7 @@ nav:
               - "FR-TRIG-003 Results of unattended runs go back to the systems involved": requirements/functional/FR-TRIG-003.md
               - "FR-TRIG-004 CI workflow events": requirements/functional/FR-TRIG-004.md
               - "FR-TRIG-005 Deployment and platform events": requirements/functional/FR-TRIG-005.md
+              - "FR-TRIG-006 Simulated events": requirements/functional/FR-TRIG-006.md
           - Human tasks:
               - "FR-HUM-001 Human tasks pause a run": requirements/functional/FR-HUM-001.md
               - "FR-HUM-002 Task routing": requirements/functional/FR-HUM-002.md
@@ -181,7 +182,7 @@ nav:
               - "FR-SDLC-003 Design specification": requirements/functional/FR-SDLC-003.md
               - "FR-SDLC-004 Fresh-context document review": requirements/functional/FR-SDLC-004.md
               - "FR-SDLC-005 Design specification hand-off": requirements/functional/FR-SDLC-005.md
-              - "FR-SDLC-006 Implementation by ci_workflow_agent": requirements/functional/FR-SDLC-006.md
+              - "FR-SDLC-006 Implementation plan and implementation with the user": requirements/functional/FR-SDLC-006.md
               - "FR-SDLC-007 Security vulnerability analysis of pull requests": requirements/functional/FR-SDLC-007.md
               - "FR-SDLC-008 Deployment handling": requirements/functional/FR-SDLC-008.md
               - "FR-SDLC-009 Alert triage and log analysis": requirements/functional/FR-SDLC-009.md
@@ -248,6 +249,7 @@ nav:
       - "DEC-0013 Features approved in chat open a feature branch; epics, features and stories in one Jira hierarchy; pull requests approved on the feature branch": decisions/DEC-0013.md
       - "DEC-0014 Private Bitbucket knowledge sources: the git source declares how its read token signs in": decisions/DEC-0014.md
       - "DEC-0015 Phase 5a: a merged design starts ci_workflow_agent through a public, signature-verified event gateway; plans and implementation pull requests on the feature branches, built in the Code Workspace": decisions/DEC-0015.md
+      - "DEC-0016 Plan and implement run in user_agent with the user; sdlc_ui simulates events for the event agents until webhooks are set up": decisions/DEC-0016.md
   - Traceability: traceability.md
   - Change log: log.md
   - Docs:

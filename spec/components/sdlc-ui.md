@@ -7,7 +7,7 @@ status: draft
 x-layer: experience
 x-folder: sdlc_ui/
 x-depends-on: [/components/identity, /components/workflow-engine, /components/human-tasks, /components/artifact-store, /components/connectors, /components/workflow-catalog, /components/user-agent-mcp]
-x-satisfies: [/requirements/functional/FR-SURF-001, /requirements/functional/FR-SURF-004, /requirements/functional/FR-IDN-001, /requirements/functional/FR-TEAM-002, /requirements/functional/FR-TEAM-003, /requirements/functional/FR-TEAM-004, /requirements/functional/FR-WFL-003, /requirements/functional/FR-WFL-008, /requirements/functional/FR-CONN-001, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-ARCH-001, /requirements/non-functional/NFR-ARCH-002, /requirements/non-functional/NFR-ARCH-003, /requirements/non-functional/NFR-SEC-001, /requirements/non-functional/NFR-SEC-003, /requirements/non-functional/NFR-SEC-007, /requirements/non-functional/NFR-REL-001, /requirements/non-functional/NFR-PERF-001, /requirements/non-functional/NFR-OPS-001, /requirements/non-functional/NFR-OPS-002, /requirements/functional/FR-WFL-009, /requirements/functional/FR-AGT-005]
+x-satisfies: [/requirements/functional/FR-SURF-001, /requirements/functional/FR-SURF-004, /requirements/functional/FR-IDN-001, /requirements/functional/FR-TEAM-002, /requirements/functional/FR-TEAM-003, /requirements/functional/FR-TEAM-004, /requirements/functional/FR-WFL-003, /requirements/functional/FR-WFL-008, /requirements/functional/FR-CONN-001, /requirements/non-functional/NFR-HOST-001, /requirements/non-functional/NFR-ARCH-001, /requirements/non-functional/NFR-ARCH-002, /requirements/non-functional/NFR-ARCH-003, /requirements/non-functional/NFR-SEC-001, /requirements/non-functional/NFR-SEC-003, /requirements/non-functional/NFR-SEC-007, /requirements/non-functional/NFR-REL-001, /requirements/non-functional/NFR-PERF-001, /requirements/non-functional/NFR-OPS-001, /requirements/non-functional/NFR-OPS-002, /requirements/functional/FR-WFL-009, /requirements/functional/FR-AGT-005, /requirements/functional/FR-TRIG-006]
 ---
 
 # Purpose
@@ -83,6 +83,7 @@ BFF:
 - [NFR-OPS-002: Local Docker Compose environment](../requirements/non-functional/NFR-OPS-002.md)
 - [FR-WFL-009: Resume after signing in again](../requirements/functional/FR-WFL-009.md)
 - [FR-AGT-005: Ad-hoc knowledge search and brainstorm chat](../requirements/functional/FR-AGT-005.md)
+- [FR-TRIG-006: Simulated events](../requirements/functional/FR-TRIG-006.md)
 
 # Realisation
 

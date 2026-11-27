@@ -1,7 +1,7 @@
 ---
 type: Functional Requirement
-title: "Implementation by ci_workflow_agent"
-description: "ci_workflow_agent turns a merged design specification into an implementation plan and, once the plan is merged, into a pull request with code and tests."
+title: "Implementation plan and implementation with the user"
+description: "user_agent turns a merged design specification, with the user in chat, into an implementation plan proposed by pull request and, once a person merges the plan, into a pull request with code and tests, both opened with the user's own connection."
 tags: [requirement, sdlc, agents]
 status: draft
 x-area: SDLC
@@ -11,7 +11,7 @@ x-implementation: planned
 
 # Statement
 
-The system shall have ci_workflow_agent implement a merged design specification: first as an implementation plan proposed for approval, then, once the plan is merged, as a pull request with code and tests.
+The system shall have user_agent, with the user in chat, implement a merged design specification: first as an implementation plan proposed for approval, then, once the plan is merged, as a pull request with code and tests.
 
 # Acceptance criteria
 
@@ -24,7 +24,14 @@ The system shall have ci_workflow_agent implement a merged design specification:
   not open a second one for the same feature or change; it updates or points to the open one.
 - It never merges, approves or pushes to a protected branch; people review and merge.
 - If the plan cannot be built as written, or open questions block it, the agent comments on the pull request and stops rather than guessing.
-- It acts as the system identity through event_agent_mcp with system connections; its writes are declared as allowed without approval ([FR-TRIG-003](FR-TRIG-003.md)), because approval happens at the merge.
+- It acts as the user through user_agent_mcp with the user's own connections ([FR-CONN-001](FR-CONN-001.md)); the plan
+  and the change stay the user's own drafts until the user asks for the pull request, and approval happens at each
+  merge ([DEC-0016](../../decisions/DEC-0016.md)).
+- The plan is drafted and reviewed in a fresh context like the other stages ([FR-SDLC-004](FR-SDLC-004.md)); the
+  change, its build and test results and its departures from the plan are shown to the user, who may ask for
+  another round, before the pull request.
+- The user's change is built in a Code Workspace job that holds no credentials: user_agent_mcp fetches the branch
+  and commits the change with the user's connection ([DEC-0016](../../decisions/DEC-0016.md)).
 - The design and plans come from the team's control repository ([FR-SDLC-013](FR-SDLC-013.md)): a merge of
   `design.md` starts the run, and each plan is proposed as `plan-<repo>.md` by pull request there; implementation
   pull requests are opened only after the plan is approved, and their links are recorded in `links.yaml`
@@ -40,6 +47,10 @@ The system shall have ci_workflow_agent implement a merged design specification:
   Workspace runs them before the pull request. A repository without them is proven by its own CI alone ([DEC-0015](../../decisions/DEC-0015.md)).
 
 # Notes
+
+Until the interactive stages pass their exit gate, the unattended `ci_plan` and `ci_implement` workflows of
+ci_workflow_agent ([DEC-0015](../../decisions/DEC-0015.md)) stay deployed as the target of simulated events; they are
+then retired ([DEC-0016](../../decisions/DEC-0016.md)).
 
 Corresponds to the playbook's Build stage (plan mode, `plan.md`, then implementation). The agent edits code and runs tests in the [Code Workspace](../../components/code-workspace.md), a Cloud Run job.
 

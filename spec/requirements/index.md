@@ -8,7 +8,7 @@
 * [Authorization](functional/index.md#authorization) - 8
 * [Configuration](functional/index.md#configuration) - 5
 * [Workflows](functional/index.md#workflows) - 9
-* [Triggers](functional/index.md#triggers) - 5
+* [Triggers](functional/index.md#triggers) - 6
 * [Human tasks](functional/index.md#human-tasks) - 5
 * [Agent steps](functional/index.md#agent-steps) - 5
 * [Skills](functional/index.md#skills) - 1

@@ -28,3 +28,5 @@ The system shall start runs from events in downstream systems that match the tri
   from the delivery ID, so a retried task resumes the same run ([DEC-0015](../../decisions/DEC-0015.md)).
 - The webhook endpoint is public; a delivery whose signature does not verify is refused and audited before its body
   is processed further. The endpoint that starts runs accepts only the queue's token ([DEC-0015](../../decisions/DEC-0015.md)).
+- Where an environment allows it, a team member may send a simulated event from sdlc_ui; it goes through the same
+  triage, deduplication and hand-off as a verified webhook ([FR-TRIG-006](FR-TRIG-006.md), [DEC-0016](../../decisions/DEC-0016.md)).
