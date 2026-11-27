@@ -31,6 +31,8 @@ resource "google_cloud_run_v2_service" "user_agent_mcp" {
       min_instance_count = 0
       max_instance_count = 3
     }
+    # workspace_build waits for the Code Workspace job (up to 900 s) and fetches the archive first (DEC-0016)
+    timeout = "1300s"
 
     # Knowledge Search accepts internal traffic only: all egress goes through the VPC, whose subnet has Private
     # Google Access; the connectors reach the public internet through Cloud NAT (network.tf).
@@ -89,6 +91,18 @@ resource "google_cloud_run_v2_service" "user_agent_mcp" {
             secret  = google_secret_manager_secret.platform["data-encryption-key"].secret_id
             version = "latest"
           }
+        }
+      }
+
+      dynamic "env" {
+        for_each = local.code_workspace_on ? {
+          WORKSPACE_MODE            = "job"
+          WORKSPACE_JOB             = local.code_workspace_user_job
+          WORKSPACE_TIMEOUT_SECONDS = tostring(local.workspace_timeout_seconds)
+        } : {}
+        content {
+          name  = env.key
+          value = env.value
         }
       }
 

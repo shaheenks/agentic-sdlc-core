@@ -42,7 +42,7 @@ locals {
   # Cloud Storage FUSE lists a mounted prefix as a folder (only-dir mounts), checked against this name.
   artifact_folders = "projects/_/buckets/${google_storage_bucket.artifacts.name}/folders"
   store_prefixes = {
-    user_agent_mcp  = ["artifacts/users/", "secrets/users/"]
+    user_agent_mcp  = ["artifacts/users/", "secrets/users/", "artifacts/user-runs/"] # user-runs: DEC-0016
     event_agent_mcp = ["artifacts/system/"]
   }
 }

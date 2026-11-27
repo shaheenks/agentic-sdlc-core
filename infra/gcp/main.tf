@@ -28,6 +28,7 @@ locals {
     knowledge_ingest   = "${local.prefix}-knowledge-ingest"
     event_gateway      = "${local.prefix}-event-gateway"
     code_workspace     = "${local.prefix}-code-workspace"
+    code_workspace_usr = "${local.prefix}-code-workspace-usr" # the credential-free user job (DEC-0016)
   }
 }
 

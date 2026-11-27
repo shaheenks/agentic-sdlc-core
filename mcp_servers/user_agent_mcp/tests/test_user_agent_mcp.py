@@ -1079,7 +1079,7 @@ def test_a_change_is_built_from_the_users_archive_then_opened_as_the_user(ienv, 
     built = tool(client, TEAM, "workspace_build", control_id=control_id, repo="org/payments", changes=CHANGE)
     assert built["ok"] is True and built["ref"] == f"feature/{control_id}" and built["steps"][0]["exit_code"] == 0
     request = workspace.requests[0]
-    assert request["relative"].startswith("artifacts/users/1001/runs/") and request["commands"] == {"test": ["pytest"]}
+    assert request["relative"].startswith("artifacts/user-runs/1001/") and request["commands"] == {"test": ["pytest"]}
     assert workspace.archives[0] == {"app.py": "VALUE = 1\n"}  # fetched with Ada's connection
     assert not list(store_root.rglob("source.tar.gz"))  # the archive is not kept
     other = [{"path": "pkg/refunds.py", "content": "changed after the build"}]

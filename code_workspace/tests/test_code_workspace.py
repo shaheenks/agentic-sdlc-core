@@ -127,7 +127,7 @@ def archive(files: dict[str, str]) -> bytes:
 
 
 def user_folder(tmp_path, files, **request_overrides):
-    folder = tmp_path / "mount" / "artifacts" / "users" / "u1" / "runs" / "F-20261126-x_app" / "workspace-1"
+    folder = tmp_path / "mount" / "artifacts" / "user-runs" / "u1" / "F-20261126-x_app" / "workspace-1"
     folder.mkdir(parents=True)
     (folder / "source.tar.gz").write_bytes(archive(files))
     req = {
@@ -145,7 +145,7 @@ def test_user_mode_builds_the_archive_with_the_change_and_pushes_nothing(tmp_pat
     monkeypatch.setenv("STORE_MOUNT_PATH", str(tmp_path / "mount"))
     monkeypatch.setenv("WORKSPACE_MODE", "user")
     monkeypatch.delenv("SYSTEM_TOKEN_GITHUB", raising=False)
-    monkeypatch.setenv("REQUEST_PATH", "artifacts/users/u1/runs/F-20261126-x_app/workspace-1")
+    monkeypatch.setenv("REQUEST_PATH", "artifacts/user-runs/u1/F-20261126-x_app/workspace-1")
     assert main() == 0
     result = json.loads((folder / "result.json").read_text(encoding="utf-8"))
     assert result["ok"] is True and result["pushed"] is False and result["steps"][0]["exit_code"] == 0
@@ -167,4 +167,4 @@ def test_user_mode_refuses_a_missing_or_unsafe_archive(tmp_path):
     (folder / "request.json").write_text(json.dumps({**request_doc, "archive": "source.tar.gz"}), encoding="utf-8")
     result = execute_request(folder / "request.json", env)
     assert result["ok"] is False and "cannot be unpacked" in result["error"]
-    assert not (tmp_path / "mount" / "artifacts" / "users" / "u1" / "runs" / "escape.txt").exists()
+    assert not (tmp_path / "mount" / "artifacts" / "user-runs" / "u1" / "escape.txt").exists()

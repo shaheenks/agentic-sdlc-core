@@ -6,7 +6,7 @@ Both are made as the user, with the user's own connections, on the run's team's 
   design a person merged. A person merging it approves the plan.
 - `workspace_build`: the change built and tested in the credential-free Code Workspace job. This server fetches the
   repository's archive with the user's connection (the implementation branch if it exists, else the feature
-  branch) and writes it with the request under `artifacts/users/<user-id>/runs/`; the job never reaches a
+  branch) and writes it with the request under `artifacts/user-runs/<user-id>/`; the job never reaches a
   repository.
 - `implementation_publish`: the change committed to `sdlc/<id>/<repo>` with the user's connection and opened as a
   pull request into the target repository's feature branch, only for a plan a person merged. Where the repository
@@ -77,7 +77,7 @@ def _target(platform: "Platform", caller: "Caller", name: Any):
 
 
 def _prefix(caller: "Caller") -> str:
-    return f"artifacts/users/{caller.identity.user_id}/runs"
+    return f"artifacts/user-runs/{caller.identity.user_id}"
 
 
 def _run_id(control_id: str, repo: str) -> str:

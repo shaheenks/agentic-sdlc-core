@@ -1,5 +1,7 @@
 ## 2026-11-28
 
+* **Update**: [DEC-0016](decisions/DEC-0016.md): user runs moved to `artifacts/user-runs/<user>/` (so the user job
+  sees no user's own artifacts), and the built tool names recorded; phase 5a milestone 10 infrastructure.
 * **Update**: phase 5a milestone 9 built ([DEC-0016](decisions/DEC-0016.md)): user_agent's plan and
   implementation workflows; user_agent satisfies FR-SDLC-006.
 * **Create**: [Workspace Runner](components/workspace-runner.md), `libs/sdlc_workspace`.

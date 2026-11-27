@@ -14,6 +14,10 @@ locals {
   event_agent_mcp_on = var.event_agent_mcp_image != ""
   event_gateway_on   = var.event_gateway_image != "" && var.event_agent_engine != ""
   code_workspace_on  = var.code_workspace_image != ""
+  # The credential-free Code Workspace job for user_agent_mcp (DEC-0016): same image, no secret, its own prefix.
+  code_workspace_user_name = "${local.prefix}-code-workspace-user"
+  code_workspace_user_job  = "projects/${var.project_id}/locations/${var.region}/jobs/${local.code_workspace_user_name}"
+  workspace_user_prefix    = "artifacts/user-runs/"
 
   # One Code Workspace execution; a run (25 minutes at most) needs room for a few (DEC-0015).
   workspace_timeout_seconds = 900
@@ -388,4 +392,91 @@ resource "google_cloud_run_v2_service_iam_member" "event_gateway_public" {
   location = var.region
   role     = "roles/run.invoker"
   member   = "allUsers"
+}
+
+# The credential-free Code Workspace for user_agent_mcp (DEC-0016) ---------------------------------------------------
+# It holds no token and pushes nothing: user_agent_mcp fetches the repository's archive with the user's connection,
+# and commits the built change with it afterwards. It reads requests under artifacts/user-runs/ only.
+
+resource "google_storage_bucket_iam_member" "code_workspace_user_runs" {
+  bucket = google_storage_bucket.artifacts.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.component["code_workspace_usr"].email}"
+  condition {
+    title       = "code-workspace-user-runs"
+    description = "Only the objects under ${local.workspace_user_prefix}"
+    expression = join(" || ", [
+      "resource.type == \"storage.googleapis.com/Bucket\"",
+      "resource.name.startsWith(\"${local.artifact_objects}/${local.workspace_user_prefix}\")",
+      "resource.name.startsWith(\"${local.artifact_folders}/${local.workspace_user_prefix}\")",
+    ])
+  }
+}
+
+resource "google_cloud_run_v2_job" "code_workspace_user" {
+  count               = local.code_workspace_on ? 1 : 0
+  name                = local.code_workspace_user_name
+  location            = var.region
+  deletion_protection = false
+
+  template {
+    task_count = 1
+    template {
+      service_account       = google_service_account.component["code_workspace_usr"].email
+      execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
+      timeout               = "${local.workspace_timeout_seconds}s"
+      max_retries           = 0
+
+      vpc_access {
+        egress = "ALL_TRAFFIC" # package registries through Cloud NAT; no repository is reached
+        network_interfaces {
+          network    = google_compute_network.platform.id
+          subnetwork = google_compute_subnetwork.platform.id
+        }
+      }
+
+      containers {
+        image = var.code_workspace_image
+        resources {
+          limits = { cpu = "2", memory = "4Gi" }
+        }
+        env {
+          name  = "WORKSPACE_MODE"
+          value = "user"
+        }
+        env {
+          name  = "STORE_MOUNT_PATH"
+          value = "/data/store"
+        }
+        env {
+          name  = "WORKSPACE_TIMEOUT_SECONDS"
+          value = tostring(local.workspace_timeout_seconds - 60)
+        }
+        volume_mounts {
+          name       = "user-runs"
+          mount_path = "/data/store/${trimsuffix(local.workspace_user_prefix, "/")}"
+        }
+      }
+
+      volumes {
+        name = "user-runs"
+        gcs {
+          bucket        = google_storage_bucket.artifacts.name
+          read_only     = false
+          mount_options = ["only-dir=${trimsuffix(local.workspace_user_prefix, "/")}"]
+        }
+      }
+    }
+  }
+
+  depends_on = [google_storage_bucket_iam_member.code_workspace_user_runs]
+}
+
+# Only user_agent_mcp starts it, with its request path as an override.
+resource "google_cloud_run_v2_job_iam_member" "code_workspace_user_runner" {
+  count    = local.code_workspace_on ? 1 : 0
+  name     = google_cloud_run_v2_job.code_workspace_user[0].name
+  location = var.region
+  role     = "roles/run.jobsExecutorWithOverrides"
+  member   = "serviceAccount:${google_service_account.component["user_agent_mcp"].email}"
 }

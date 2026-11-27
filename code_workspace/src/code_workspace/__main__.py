@@ -11,7 +11,7 @@ from code_workspace.run import execute_request
 # Each mode reads requests only from its own prefix: the system job from the system's runs, the user job from users'.
 RELATIVE = {
     "system": re.compile(r"^artifacts/system/runs/[A-Za-z0-9._-]+/workspace-[0-9]+$"),
-    "user": re.compile(r"^artifacts/users/[A-Za-z0-9_-]{1,128}/runs/[A-Za-z0-9._-]+/workspace-[0-9]+$"),
+    "user": re.compile(r"^artifacts/user-runs/[A-Za-z0-9_-]{1,128}/[A-Za-z0-9._-]+/workspace-[0-9]+$"),
 }
 
 

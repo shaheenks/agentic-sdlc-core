@@ -20,7 +20,7 @@ request reaches the job and its result comes back is the same for both, so it li
 # Responsibilities
 
 - A new folder per execution under `<prefix>/<run-id>/workspace-<n>/` of the artifact bucket: `artifacts/system/runs`
-  for the system job, `artifacts/users/<user-id>/runs` for the user job. No other prefix is accepted.
+  for the system job, `artifacts/user-runs/<user-id>` for the user job. No other prefix is accepted.
 - Write `request.json` and its input files (the repository archive of a user's run), start the job with
   `REQUEST_PATH` as its only override, wait for the execution, and read `result.json`.
 - Remove input files once the job has run; the request and the result stay until the bucket's lifecycle deletes them.

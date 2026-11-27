@@ -20,7 +20,7 @@ the agent, not a failed execution.
 
 **User mode** (`WORKSPACE_MODE=user`, the job `code-workspace-user`, [DEC-0016](../spec/decisions/DEC-0016.md)):
 started only by user_agent_mcp for a change the user implements in chat. The request folder under
-`artifacts/users/<user>/runs/` holds the repository's archive, which user_agent_mcp fetched with the user's
+`artifacts/user-runs/<user>/` holds the repository's archive, which user_agent_mcp fetched with the user's
 connection. The job unpacks it (no links out, no absolute paths), applies the change set, runs the declared commands
 and writes `result.json`. It has no token and no git remote, and pushes nothing: user_agent_mcp commits the change
 with the user's connection afterwards.
@@ -31,7 +31,7 @@ The image has git, Python 3.12 and Node.js. Build and test from this folder: `uv
 |---|---|---|
 | `STORE_MOUNT_PATH` | - | Mount point of the artifact bucket |
 | `WORKSPACE_MODE` | `system` | `system`, or `user` for the credential-free job (set on the job, never by a request) |
-| `REQUEST_PATH` | - | Set per execution: `artifacts/system/runs/<run>/workspace-<n>`, or `artifacts/users/<user>/runs/<run>/workspace-<n>` in user mode |
+| `REQUEST_PATH` | - | Set per execution: `artifacts/system/runs/<run>/workspace-<n>`, or `artifacts/user-runs/<user>/<run>/workspace-<n>` in user mode |
 | `SYSTEM_TOKEN_<PROVIDER>` | - | The machine user's token, for example `SYSTEM_TOKEN_GITHUB` (Secret Manager) |
 | `WORKSPACE_TIMEOUT_SECONDS` | `1100` | The execution's limit for all commands |
 | `WORKSPACE_GIT_NAME`, `WORKSPACE_GIT_EMAIL` | `ci_workflow_agent` | The commits' author |

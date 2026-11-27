@@ -23,7 +23,7 @@ Agent Runtime is not a build sandbox. ci_workflow_agent edits code and runs test
 - User mode, the job `code-workspace-user` ([DEC-0016](../decisions/DEC-0016.md)): unpack the repository archive
   user_agent_mcp wrote with the request (fetched with the user's connection), apply the changes, run the declared
   commands and return the results. It holds no token, has no git remote and pushes nothing; it reads requests only
-  under `artifacts/users/`. The job's own `WORKSPACE_MODE` picks the mode, never the request.
+  under `artifacts/user-runs/`. The job's own `WORKSPACE_MODE` picks the mode, never the request.
 - Start clean every time: no state is kept between executions.
 - Carry the run's event metadata and trace context ([NFR-OBS-003](../requirements/non-functional/NFR-OBS-003.md)).
 

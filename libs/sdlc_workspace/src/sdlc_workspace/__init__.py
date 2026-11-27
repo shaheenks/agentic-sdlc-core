@@ -6,7 +6,7 @@ it from its own mount of the bucket, runs, and writes `result.json` next to it.
 
 - event_agent_mcp: prefix `artifacts/system/runs`, the system job (it clones and pushes with the machine user's
   token).
-- user_agent_mcp: prefix `artifacts/users/<user-id>/runs`, the credential-free job `code-workspace-user`. That job
+- user_agent_mcp: prefix `artifacts/user-runs/<user-id>`, the credential-free job `code-workspace-user`. That job
   only unpacks the archive the server fetched with the user's connection, applies the changes and runs the declared
   commands; it never reaches a repository.
 """
@@ -22,7 +22,7 @@ from typing import Any, Protocol
 import httpx
 
 RUN_ID = re.compile(r"^[A-Za-z0-9._:-]{1,120}$")
-PREFIX = re.compile(r"^artifacts/(system|users/[A-Za-z0-9_-]{1,128})/runs$")
+PREFIX = re.compile(r"^artifacts/(system/runs|user-runs/[A-Za-z0-9_-]{1,128})$")
 FILE = re.compile(r"^[A-Za-z0-9_.-]{1,100}$")
 RUN_API = "https://run.googleapis.com/v2"
 SYSTEM, USER = "system", "user"
