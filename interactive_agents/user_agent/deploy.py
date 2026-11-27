@@ -61,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         "SDLC_MCP_URL": f"{mcp_url}/mcp",
         "SDLC_MCP_AUDIENCE": mcp_url,  # user_agent_mcp's PUBLIC_URL
         "SDLC_CALLER_AUTH": "id_token",
-        "SDLC_MCP_TIMEOUT": "30",  # a scaled-to-zero user_agent_mcp needs a few seconds
+        "SDLC_MCP_TIMEOUT": "1300",  # workspace_build waits for the Code Workspace job (DEC-0016)
         "SDLC_AGENT_MODEL": args.model,
         "SDLC_REVIEW_MODEL": args.review_model,
         "SDLC_MODEL_LOCATION": args.model_location,

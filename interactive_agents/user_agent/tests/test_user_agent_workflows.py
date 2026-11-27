@@ -37,11 +37,14 @@ class Script(BaseLlm):
     model: str = "script"
     calls: dict[str, tuple[str, dict]] = {}
     design_findings: list[list[dict]] = []  # per review round, review-design's findings
+    implementation: dict = {"status": "ready", "title": "Refunds API", "summary": "Adds refund().", "departures": ""}
     seen: list[tuple[str, list[str]]] = []
 
     def role(self, instruction: str) -> str:
         if instruction.startswith("You are user_agent"):
             return "chat"
+        if "The build tool here is workspace_build" in instruction:
+            return "implementer"
         if "You now revise" in instruction:
             return "reviser"
         if "Draft from the message" in instruction:
@@ -63,6 +66,17 @@ class Script(BaseLlm):
                 part = types.Part(function_call=types.FunctionCall(name=name, args=args))
             else:
                 part = types.Part(text="noted")
+        elif role == "implementer":
+            answered = any(p.function_response for c in llm_request.contents for p in c.parts or [])
+            if not answered:
+                changes = [{"path": "pkg/refunds.py", "content": f"round {len(self.seen)}"}]
+                call = types.FunctionCall(
+                    name="workspace_build",
+                    args={"control_id": "F-20261125-refunds", "repo": "org/payments", "changes": changes},
+                )
+                part = types.Part(function_call=call)
+            else:
+                part = types.Part(text=json.dumps(self.implementation))
         elif role == "drafter":
             part = types.Part(text="```markdown\n# Feature: Refunds\n\n## User stories\n```")
         elif role == "reviser":
@@ -81,6 +95,26 @@ class NoTools(BaseToolset):
         return []
 
 
+BUILDS: list[dict] = []
+
+
+async def workspace_build(control_id: str, repo: str, changes: list[dict]) -> dict:
+    """The Code Workspace, faked: passes every change."""
+    BUILDS.append({"control_id": control_id, "repo": repo, "changes": changes})
+    return {"ok": True, "built": True, "steps": [{"name": "test", "command": "pytest", "exit_code": 0, "seconds": 1}]}
+
+
+class BuildTools(BaseToolset):
+    def __init__(self, only):
+        super().__init__()
+        self.only = only or []
+
+    async def get_tools(self, readonly_context=None):
+        from google.adk.tools import FunctionTool
+
+        return [FunctionTool(workspace_build)] if "workspace_build" in self.only else []
+
+
 class FakeMcp:
     """user_agent_mcp as the workflows see it: records each call with the run's team."""
 
@@ -90,6 +124,8 @@ class FakeMcp:
         self.jira_recorded = True
         self.open = False
         self.jira_refuses = False
+        self.plan_approved = False
+        self.saved: dict[str, str] = {}
 
     async def call(self, ctx: Any, name: str, arguments: dict | None = None) -> dict:
         arguments = arguments or {}
@@ -110,9 +146,21 @@ class FakeMcp:
             else:
                 approval["reason"] = "the pull request is not merged"
             writes = [{"action": "create_feature", "results": {"feature": "PAY-1"}}] if self.jira_recorded else []
+            plan = {"path": "pp", "published": True, "approved": self.plan_approved, "content": "# Plan"}
+            if not self.plan_approved:
+                plan["reason"] = "the pull request is not merged"
+            else:
+                plan["merged_by"] = "grace"
             return {
                 "control_id": "F-20261125-refunds",
-                "artifacts": {"feature": {**approval, "content": "# Feature: Refunds"}, "design": approval},
+                "branch": "feature/F-20261125-refunds",
+                "plans": {"org/payments": plan},
+                "target_repositories": ["org/payments"],
+                "jira_keys": ["PAY-1", "PAY-2"],
+                "artifacts": {
+                    "feature": {**approval, "content": "# Feature: Refunds"},
+                    "design": {**approval, "content": "# Design: Refunds"},
+                },
                 "writes": writes,
                 "jira_feature_recorded": self.jira_recorded,
             }
@@ -138,6 +186,18 @@ class FakeMcp:
             }
         if name == "jira_link_design":
             return {"feature": "PAY-1"}
+        if name == "plan_publish":
+            pr = {"repo": arguments["repo"], "pull_request": 7, "url": "https://gh/pr/7"}
+            return {"control_id": arguments["control_id"], "repo": arguments["repo"], "pull_request": pr}
+        if name == "artifact_save":
+            self.saved[arguments["name"]] = arguments["content"]
+            return {"name": arguments["name"], "version": 1}
+        if name == "artifact_read":
+            if arguments["name"] not in self.saved:
+                raise StepError("not_found", "no such artifact")
+            return {"name": arguments["name"], "content": self.saved[arguments["name"]]}
+        if name == "implementation_publish":
+            return {"pull_request": {"pull_request": 11, "url": "https://gh/pr/11"}, "commit": "k1"}
         raise AssertionError(name)
 
     def names(self) -> list[str]:
@@ -147,7 +207,8 @@ class FakeMcp:
 @pytest.fixture
 def world():
     script, mcp = Script(calls={}, design_findings=[], seen=[]), FakeMcp()
-    kit = Kit(model=lambda: script, caller=mcp, toolset=lambda only=None: NoTools(), skill=skill)
+    BUILDS.clear()
+    kit = Kit(model=lambda: script, caller=mcp, toolset=lambda only=None: BuildTools(only), skill=skill)
     chat = LlmAgent(name="user_agent", model=script, instruction=INSTRUCTION, tools=build_workflows(kit))
     runner = InMemoryRunner(app=adk_app(chat))
     return script, mcp, runner
@@ -435,3 +496,83 @@ async def test_a_design_hand_off_needs_its_opened_feature(world):
     session = await start(runner)
     stopped = (await turn(runner, session, text="hand it off"))["results"]["hand_off_design"]
     assert stopped["code"] == "no_feature" and "control_publish" not in mcp.names()
+
+
+# The implementation plan and the implementation with the user (DEC-0016) ----------------------------------------
+
+ID = "F-20261125-refunds"
+
+
+async def test_a_plan_is_drafted_only_from_a_merged_design_and_reviewed_by_the_readiness_reviewer(world):
+    script, mcp, runner = world
+    script.calls["plan it"] = ("implementation_plan", {"team": "payments", "control_id": ID})
+    session = await start(runner)
+    refused = (await turn(runner, session, text="plan it"))["results"]["implementation_plan"]
+    assert refused["code"] == "not_approved" and not any(role == "drafter" for role, _ in script.seen)
+    mcp.approved = True
+    done = (await turn(runner, session, text="plan it"))["results"]["implementation_plan"]
+    assert done["status"] == "drafted" and done["repo"] == "org/payments" and done["rounds"] == 1
+    drafter = next(texts for role, texts in script.seen if role == "drafter")
+    assert "# Design: Refunds" in drafter[-1] and "PAY-2" in drafter[-1]
+    reviewers = [texts for role, texts in script.seen if role.startswith("review")]
+    assert len(reviewers) == 1  # one fresh-context reviewer (review-readiness)
+    mcp.plan_approved = True
+    again = (await turn(runner, session, text="plan it"))["results"]["implementation_plan"]
+    assert again["code"] == "already_done"
+
+
+async def test_handing_off_a_plan_waits_for_a_persons_merge(world):
+    script, mcp, runner = world
+    script.calls["propose it"] = (
+        "hand_off_plan",
+        {"team": "payments", "control_id": ID, "repo": "org/payments", "content": "# Plan"},
+    )
+    session = await start(runner)
+    ((interrupt, request),) = (await turn(runner, session, text="propose it"))["requests"]
+    assert request["payload"]["kind"] == "merge_wait"
+    ((interrupt, request),) = (await turn(runner, session, answer=(interrupt, "merged")))["requests"]
+    assert "Not approved yet" in request["message"]  # not merged yet: back to waiting
+    mcp.plan_approved = True
+    done = (await turn(runner, session, answer=(interrupt, "merged")))["results"]["hand_off_plan"]
+    assert done["status"] == "approved" and done["approved_by"] == "grace"
+    assert mcp.names().count("plan_publish") == 1
+
+
+async def test_an_approved_plan_is_built_shown_revised_kept_and_opened_as_the_user(world):
+    script, mcp, runner = world
+    script.calls["implement it"] = ("implementation", {"team": "payments", "control_id": ID, "repo": "payments"})
+    script.calls["open it"] = ("open_implementation", {"team": "payments", "control_id": ID, "repo": "org/payments"})
+    session = await start(runner)
+    refused = (await turn(runner, session, text="implement it"))["results"]["implementation"]
+    assert refused["code"] == "not_approved" and not BUILDS
+    mcp.plan_approved = True
+    ((interrupt, request),) = (await turn(runner, session, text="implement it"))["requests"]
+    shown = request["payload"]
+    assert shown["kind"] == "implementation_review" and shown["files"] == ["pkg/refunds.py"]
+    assert shown["build"]["ok"] is True and shown["title"] == "Refunds API"
+    implementer = next(texts for role, texts in script.seen if role == "implementer")
+    assert "# Plan" in implementer[-1] and "Read it at ref: feature/" in implementer[-1]
+    ((interrupt, _),) = (await turn(runner, session, answer=(interrupt, "add a test for partial refunds")))["requests"]
+    second = [texts for role, texts in script.seen if role == "implementer"][-1]
+    assert "add a test for partial refunds" in " ".join(second) and "The change so far" in " ".join(second)
+    kept = (await turn(runner, session, answer=(interrupt, "ok")))["results"]["implementation"]
+    assert kept["status"] == "built" and kept["artifact"] == f"implementation-{ID}-payments.json" and len(BUILDS) == 2
+    saved = json.loads(mcp.saved[kept["artifact"]])
+    assert saved["changes"] == BUILDS[-1]["changes"]  # the change last built is the one kept
+    opened = (await turn(runner, session, text="open it"))["results"]["open_implementation"]
+    assert opened["status"] == "opened" and opened["pull_request"]["pull_request"] == 11
+    publish = next(args for name, args, _ in mcp.calls if name == "implementation_publish")
+    assert publish["changes"] == BUILDS[-1]["changes"] and publish["title"] == "Refunds API"
+
+
+async def test_a_blocked_implementation_keeps_nothing(world):
+    script, mcp, runner = world
+    mcp.plan_approved = True
+    script.implementation = {"status": "blocked", "blocked_reason": "The plan names a module that does not exist."}
+    script.calls["implement it"] = ("implementation", {"team": "payments", "control_id": ID, "repo": "org/payments"})
+    session = await start(runner)
+    done = (await turn(runner, session, text="implement it"))["results"]["implementation"]
+    assert done["status"] == "blocked" and "does not exist" in done["reason"] and not mcp.saved
+    script.calls["open it"] = ("open_implementation", {"team": "payments", "control_id": ID, "repo": "org/payments"})
+    nothing = (await turn(runner, session, text="open it"))["results"]["open_implementation"]
+    assert nothing["code"] == "not_found" and "implementation_publish" not in mcp.names()

@@ -24,9 +24,12 @@ from sdlc_control import (
     MAX_ARTIFACT,
     ControlRepository,
     feature_branch,
+    jira_keys,
     path_of,
+    plan_kind,
 )
 from sdlc_control import now as _now
+from sdlc_control import targets as _targets
 from sdlc_control import with_front_matter as _with_front_matter
 
 from user_agent_mcp.errors import ToolError
@@ -267,12 +270,28 @@ async def control_status(platform: "Platform", caller: "Caller", args: dict[str,
             found["content"] = FRONT_MATTER.sub("", (text or "").lstrip(), count=1)[:MAX_ARTIFACT]
         artifacts[kind] = found
     links = await _call(lambda: control.links(control_id))
+    from user_agent_mcp.systems import scope
+
+    defaults = [
+        r["repo"] for r in (scope(caller).get(control.team) or {}).get("repositories") or () if r.get("default")
+    ]
+    targets = _targets(links) or defaults
+    plans = {}
+    for repo in targets:  # each target repository's plan (DEC-0016)
+        found = await _call(lambda r=repo: control.approval(control_id, plan_kind(r)))
+        if args.get("include_content") and found["published"]:
+            text = await _call(lambda p=found["path"], b=found["branch"]: control.read(p, b))
+            found["content"] = FRONT_MATTER.sub("", (text or "").lstrip(), count=1)[:MAX_ARTIFACT]
+        plans[repo] = found
     result = {
         "control_id": control_id,
         "team": control.team,
         "repository": control.settings["repo"],
         "branch": control.home(control_id),
         "artifacts": artifacts,
+        "plans": plans,
+        "target_repositories": targets,
+        "jira_keys": jira_keys(links),
         "writes": links.get("writes") or [],
     }
     if isinstance(jira_key, str):

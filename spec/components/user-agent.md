@@ -7,7 +7,7 @@ status: draft
 x-layer: execution
 x-folder: interactive_agents/user_agent/
 x-depends-on: [/components/agent-runtime, /components/workflow-engine, /components/human-tasks, /components/skill-library, /components/user-agent-mcp]
-x-satisfies: [/requirements/functional/FR-AGT-005, /requirements/functional/FR-SDLC-001, /requirements/functional/FR-SDLC-002, /requirements/functional/FR-SDLC-003, /requirements/functional/FR-SDLC-004, /requirements/functional/FR-SDLC-005, /requirements/non-functional/NFR-ARCH-005, /requirements/non-functional/NFR-ARCH-006, /requirements/non-functional/NFR-HOST-001, /requirements/functional/FR-KNOW-004, /requirements/functional/FR-SDLC-013]
+x-satisfies: [/requirements/functional/FR-AGT-005, /requirements/functional/FR-SDLC-001, /requirements/functional/FR-SDLC-002, /requirements/functional/FR-SDLC-003, /requirements/functional/FR-SDLC-004, /requirements/functional/FR-SDLC-005, /requirements/non-functional/NFR-ARCH-005, /requirements/non-functional/NFR-ARCH-006, /requirements/non-functional/NFR-HOST-001, /requirements/functional/FR-KNOW-004, /requirements/functional/FR-SDLC-013, /requirements/functional/FR-SDLC-006]
 ---
 
 # Purpose
@@ -31,10 +31,15 @@ Elephant-Goldfish Model: it holds the whole conversation, and its documents are 
 - When the user hands a design on, a pull request with it on the team's control repository, with the user's own
   connection; its merge is the approval and the hand-off ([FR-SDLC-005](../requirements/functional/FR-SDLC-005.md),
   [FR-SDLC-013](../requirements/functional/FR-SDLC-013.md)).
+- Once a design is merged, the implementation plan of each target repository, drafted with one fresh-context
+  reviewer and kept as the user's own until the user proposes it by pull request; then the implementation of a
+  merged plan, built and tested in the Code Workspace, shown to the user for more rounds, kept as the user's
+  artifact and opened by pull request into the target repository's feature branch, all as the user
+  ([FR-SDLC-006](../requirements/functional/FR-SDLC-006.md), [DEC-0016](../decisions/DEC-0016.md)).
 
 # Out of scope
 
-- Implementing, reviewing pull requests, deploying and operating: the event-based agents,
+- Reviewing pull requests, deploying and operating: the event-based agents,
   [ci_workflow_agent](ci-workflow-agent.md) and [operations_agent](operations-agent.md).
 - Approving its own documents: the run's own user does that.
 
@@ -64,6 +69,7 @@ Elephant-Goldfish Model: it holds the whole conversation, and its documents are 
 - [FR-SDLC-003: Design specification](../requirements/functional/FR-SDLC-003.md)
 - [FR-SDLC-004: Fresh-context document review](../requirements/functional/FR-SDLC-004.md)
 - [FR-SDLC-005: Design specification hand-off](../requirements/functional/FR-SDLC-005.md)
+- [FR-SDLC-006: Implementation plan and implementation with the user](../requirements/functional/FR-SDLC-006.md)
 - [NFR-ARCH-005: Google ADK agents and graph workflows](../requirements/non-functional/NFR-ARCH-005.md)
 - [NFR-ARCH-006: Two MCP servers, one per class of caller](../requirements/non-functional/NFR-ARCH-006.md)
 - [NFR-HOST-001: Hosted on Google Cloud](../requirements/non-functional/NFR-HOST-001.md)

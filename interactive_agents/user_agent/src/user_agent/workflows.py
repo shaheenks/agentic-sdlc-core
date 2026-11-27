@@ -265,7 +265,7 @@ def _findings(name: str, text: Any) -> list[dict[str, Any]]:
     return out
 
 
-def review_workflow(kit: Kit, kind: str, drafting_skill: str) -> Workflow:
+def review_workflow(kit: Kit, kind: str, drafting_skill: str, reviewers_of: tuple[str, ...] = REVIEWERS) -> Workflow:
     """Reviewers in parallel, findings merged; a clean round ends the review; otherwise the user chooses
     which findings to apply, a reviser applies them, and the next round starts. From round five the user is asked
     whether to go on."""
@@ -291,7 +291,7 @@ def review_workflow(kit: Kit, kind: str, drafting_skill: str) -> Workflow:
             instruction=kit.skill(name) + REVIEWER_RULES,
             tools=[kit.toolset(READ_TOOLS)],
         )
-        for name in REVIEWERS
+        for name in reviewers_of
     )
     join = JoinNode(name=f"{p}_join")
 
@@ -573,9 +573,10 @@ def design_specification(kit: Kit) -> Workflow:
 # Publishing workflows: control repository, merge, then the write --------------------------------------------
 
 
-def merge_gate(kit: Kit, p: str, kind: str):
+def merge_gate(kit: Kit, p: str, kind: str, found_of: Callable[[Context, dict], dict] | None = None):
     """wait -> check: asks the user to have the pull request merged, then checks the approval with user_agent_mcp;
-    not approved yet goes back to waiting, 'cancel' stops."""
+    not approved yet goes back to waiting, 'cancel' stops. `found_of` picks the artifact's approval out of
+    control_status (default: `artifacts[kind]`; a plan's is under `plans`)."""
     key = f"sdlc_wf:{p}:published"
 
     async def wait(ctx: Context, node_input: Any):
@@ -603,8 +604,8 @@ def merge_gate(kit: Kit, p: str, kind: str):
             status = await kit.caller.call(ctx, "control_status", {"control_id": published["control_id"]})
         except StepError as exc:
             return _stop(ctx, exc.message or exc.code, exc.code)
-        found = status["artifacts"][kind]
-        if not found["approved"]:
+        found = found_of(ctx, status) if found_of else status["artifacts"][kind]
+        if not found.get("approved"):
             ctx.route = "wait"
             return {"reason": found.get("reason") or "the pull request is not merged"}
         ctx.state[f"{key}:approval"] = found
@@ -872,4 +873,12 @@ def hand_off_design(kit: Kit) -> Workflow:
 
 
 def build_workflows(kit: Kit) -> list[Workflow]:
-    return [features_and_stories(kit), design_specification(kit), publish_feature(kit), hand_off_design(kit)]
+    from user_agent.implementation import implementation_workflows
+
+    return [
+        features_and_stories(kit),
+        design_specification(kit),
+        publish_feature(kit),
+        hand_off_design(kit),
+        *implementation_workflows(kit),
+    ]

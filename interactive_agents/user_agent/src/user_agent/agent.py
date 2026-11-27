@@ -1,5 +1,5 @@
 """user_agent: knowledge search, brainstorming and the SDLC workflows for the signed-in user (FR-AGT-005,
-FR-SDLC-002 to FR-SDLC-005).
+FR-SDLC-002 to FR-SDLC-006).
 
 Every tool is a user_agent_mcp tool, listed and allowed for this user and surface by user_agent_mcp itself; the
 agent holds no credential of its own beyond proving it is the runtime (DEC-0010)."""
@@ -52,7 +52,17 @@ teams (whoami lists them) it is for.
   and creates the Epic, Feature and User Stories (sub-tasks) as the user, reusing open issues.
 - hand_off_design: only when the user asks to hand a design to implementation. It needs the feature's control_id:
   the design goes as a pull request into the feature branch, and a person merging it approves it.
-- Never call feature_open, jira_create_feature, control_publish or jira_link_design yourself; the workflows do.
+- implementation_plan: once a design is merged (hand_off_design reported it approved, or control_status shows it),
+  when the user wants the plan for a target repository. Pass the control_id and the repository. It returns a
+  reviewed plan: save it with artifact_save (text/markdown) and show it.
+- hand_off_plan: only when the user asks to propose a plan. Pass the reviewed plan; it opens the pull request into
+  the feature branch and waits until a person has merged it (the approval).
+- implementation: when the user wants an approved plan implemented. It writes the change with tests, builds it in the
+  Code Workspace, shows it and takes the user's changes for another round; the kept change is saved as the user's
+  artifact. open_implementation: only when the user asks, opens its pull request into the target repository's
+  feature branch as the user.
+- Never call feature_open, jira_create_feature, control_publish, jira_link_design, plan_publish, workspace_build or
+  implementation_publish yourself; the workflows do.
 - Before any pull request is raised, check for a similar one: list the open pull requests (control_pull_requests on
   the team's control repository, repo_pull_requests on a target repository) and tell the user about any for the same
   feature or change, with its link; ask whether to continue with it instead. The workflows never open a second pull
@@ -62,7 +72,8 @@ teams (whoami lists them) it is for.
   control_id it returned (and the same epic); nothing is opened or created twice. Likewise when the user points to
   a feature already approved: pass its control_id.
 - When a workflow asks the user something (review findings, a team change, approving a feature and its epic,
-  waiting for a merge), the chat shows it as a card; pass on its question plainly and send back the user's answer."""
+  waiting for a merge, reviewing a built change), the chat shows it as a card; pass on its question plainly and send
+  back the user's answer."""
 
 
 def model(name: str | None = None) -> Gemini:

@@ -323,6 +323,12 @@ changing it during a run needs the user's explicit confirmation in chat.
   builds an archive fetched with the user's connection and pushes nothing; the built change (the same change set, by
   hash) is committed with the user's connection through GitHub's git data API. GitHub only for now: Bitbucket
   repositories answer `not_supported`.
+- Milestone 9 built (2026-11-28), tested with a scripted model and a faked user_agent_mcp: user_agent's
+  `implementation_plan` (from a merged design, reviewed by review-readiness), `hand_off_plan` (the plan's pull
+  request and the merge gate), `implementation` (written and built with `workspace_build`, shown to the user, more
+  rounds on request, the kept change saved as `implementation-<control-id>-<repo>.json`) and `open_implementation`
+  (commits the kept change and opens its pull request). `control_status` now reports each target's plan and the
+  feature's Jira keys. user_agent's MCP timeout is 1300 s, for builds.
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).

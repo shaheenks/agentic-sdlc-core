@@ -1,5 +1,7 @@
 ## 2026-11-28
 
+* **Update**: phase 5a milestone 9 built ([DEC-0016](decisions/DEC-0016.md)): user_agent's plan and
+  implementation workflows; user_agent satisfies FR-SDLC-006.
 * **Create**: [Workspace Runner](components/workspace-runner.md), `libs/sdlc_workspace`.
 * **Update**: phase 5a milestone 8 built ([DEC-0016](decisions/DEC-0016.md)): user_agent_mcp's implementation tools,
   the Code Workspace's credential-free user mode, and the plan and implementation rules shared in Control Repository.
