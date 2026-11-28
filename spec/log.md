@@ -1,5 +1,8 @@
 ## 2026-11-28
 
+* **Update**: phase 5a milestone 10 live on development; the exit gate of [DEC-0016](decisions/DEC-0016.md)
+  passed (the user's check). The retirement of `ci_plan` and `ci_implement`, and the real webhook on the control
+  repository, are deferred until the user decides.
 * **Update**: [DEC-0016](decisions/DEC-0016.md): user runs moved to `artifacts/user-runs/<user>/` (so the user job
   sees no user's own artifacts), and the built tool names recorded; phase 5a milestone 10 infrastructure.
 * **Update**: phase 5a milestone 9 built ([DEC-0016](decisions/DEC-0016.md)): user_agent's plan and

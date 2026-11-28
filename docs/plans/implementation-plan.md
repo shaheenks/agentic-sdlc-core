@@ -301,15 +301,16 @@ changing it during a run needs the user's explicit confirmation in chat.
   deployment to development and the exit gate.
 - [DEC-0016](../../spec/decisions/DEC-0016.md), accepted 2026-11-28: plan and implement move to user_agent, as
   stages run with the user like features and stories and the design; sdlc_ui simulates events until the webhooks are
-  set up. `ci_plan` and `ci_implement` stay deployed as the simulation's first target and are retired once the
-  interactive stages pass the gate. Milestones:
+  set up. `ci_plan` and `ci_implement` stay deployed as the simulation's first target; their retirement is
+  deferred until the user decides (2026-11-28). Milestones:
   7. Simulated events: `simulation` in `system.yaml`, the gateway's `/simulate` (sdlc_ui's caller check, team
      membership, pull request facts read from the provider), and the Events page in sdlc_ui.
   8. user_agent_mcp's `implementation` tool group (plan and implementation pull requests with the user's
-     connection, `workspace_run` with the branch archive) and the Code Workspace's credential-free user mode.
+     connection, `workspace_build` with the branch archive) and the Code Workspace's credential-free user mode.
   9. user_agent's `implementation_plan`, `hand_off_plan`, `implementation` and `open_implementation` workflows.
-  10. Infrastructure (`code-workspace-user`, IAM), deployment to development, the exit gate in DEC-0016, then the
-      retirement of `ci_plan` and `ci_implement`.
+  10. Infrastructure (`code-workspace-user`, IAM), deployment to development and the exit gate in DEC-0016.
+  - Later, when the user decides (deferred 2026-11-28): the retirement of `ci_plan` and `ci_implement`, and the
+    real webhook on the control repository (until then, events are simulated from sdlc_ui).
 - Milestone 7 built (2026-11-28), tested against faked GitHub, Cloud Tasks and Google ID tokens: `simulation.teams`
   in `system.yaml` (development: taskslist); the gateway's `GET /simulate` lists what the user may send and
   `POST /simulate` reads the pull request from GitHub with the machine user's token, refuses an open or non-matching
@@ -329,6 +330,13 @@ changing it during a run needs the user's explicit confirmation in chat.
   rounds on request, the kept change saved as `implementation-<control-id>-<repo>.json`) and `open_implementation`
   (commits the kept change and opens its pull request). `control_status` now reports each target's plan and the
   feature's Jira keys. user_agent's MCP timeout is 1300 s, for builds.
+- Milestone 10 live on development (2026-11-28): the job `sdlc-dev-code-workspace-user` (its own service account,
+  `artifacts/user-runs/` only, no secret; only user_agent_mcp runs it), user_agent_mcp with the job and a 1300 s
+  request timeout, the user_agent engine redeployed and the `implementation` tool group published. User runs moved
+  to `artifacts/user-runs/<user>/`. Exit gate passed (the user's check, 2026-11-28): a simulated design merge from
+  the Events page, then in chat the plan, its merge, the implementation and its pull request, opened as the user.
+  The retirement of `ci_plan` and `ci_implement`, and adding the real webhook on the control repository, are deferred
+  until the user decides.
 - event_gateway: every event delivered to it (webhooks from GitHub, Bitbucket and Jira in both editions,
   Confluence later; Google Cloud events through Pub/Sub), verified, deduplicated and triaged by metadata to the matching
   workflow; trace started with the event metadata (FR-TRIG-001, FR-TRIG-004, NFR-OBS-003).

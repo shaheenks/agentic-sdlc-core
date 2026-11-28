@@ -48,9 +48,10 @@ The system shall have user_agent, with the user in chat, implement a merged desi
 
 # Notes
 
-Until the interactive stages pass their exit gate, the unattended `ci_plan` and `ci_implement` workflows of
-ci_workflow_agent ([DEC-0015](../../decisions/DEC-0015.md)) stay deployed as the target of simulated events; they are
-then retired ([DEC-0016](../../decisions/DEC-0016.md)).
+The unattended `ci_plan` and `ci_implement` workflows of ci_workflow_agent
+([DEC-0015](../../decisions/DEC-0015.md)) stay deployed as the target of simulated events. Their retirement, planned
+once the interactive stages passed their gate (2026-11-28), is deferred until the user decides
+([DEC-0016](../../decisions/DEC-0016.md)).
 
 Corresponds to the playbook's Build stage (plan mode, `plan.md`, then implementation). The agent edits code and runs tests in the [Code Workspace](../../components/code-workspace.md), a Cloud Run job.
 
